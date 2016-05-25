@@ -61,7 +61,8 @@ extern "C" {
  *
  *********************************************************************/
 extern void
-    output_datadefQ_diff (yangdiff_diffparms_t *cp,
+    output_datadefQ_diff (struct ncx_instance_t_ *instance,
+			  yangdiff_diffparms_t *cp,
 			  dlq_hdr_t *oldQ,
 			  dlq_hdr_t *newQ);
 
@@ -81,7 +82,8 @@ extern void
  *    0 if field not changed
  *********************************************************************/
 extern uint32
-    datadefQ_changed (yangdiff_diffparms_t *cp,
+    datadefQ_changed (struct ncx_instance_t_ *instance,
+		      yangdiff_diffparms_t *cp,
 		      dlq_hdr_t *oldQ,
 		      dlq_hdr_t *newQ);
 

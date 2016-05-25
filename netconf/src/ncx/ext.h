@@ -104,7 +104,7 @@ typedef struct ext_template_t_ {
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern ext_template_t *
-    ext_new_template (void);
+    ext_new_template (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -119,7 +119,7 @@ extern ext_template_t *
 *    ext == ext_template_t data structure to free
 *********************************************************************/
 extern void 
-    ext_free_template (ext_template_t *ext);
+    ext_free_template (struct ncx_instance_t_ *instance, ext_template_t *ext);
 
 
 /********************************************************************
@@ -131,7 +131,7 @@ extern void
 *    que == Q of ext_template_t data structures to free
 *********************************************************************/
 extern void
-    ext_clean_extensionQ (dlq_hdr_t *que);
+    ext_clean_extensionQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -147,7 +147,8 @@ extern void
 *   pointer to found entry, or NULL if not found
 *********************************************************************/
 extern ext_template_t *
-    ext_find_extension (ncx_module_t *mod,
+    ext_find_extension (struct ncx_instance_t_ *instance,
+                        ncx_module_t *mod,
                         const xmlChar *name);
 
 
@@ -164,7 +165,8 @@ extern ext_template_t *
 *    pointer to found extension or NULL if not found
 *********************************************************************/
 extern ext_template_t *
-    ext_find_extension_que (dlq_hdr_t *extensionQ,
+    ext_find_extension_que (struct ncx_instance_t_ *instance,
+                            dlq_hdr_t *extensionQ,
                             const xmlChar *name);
 
 
@@ -182,7 +184,8 @@ extern ext_template_t *
 *   pointer to found entry, or NULL if not found
 *********************************************************************/
 extern ext_template_t *
-    ext_find_extension_all (ncx_module_t *mod,
+    ext_find_extension_all (struct ncx_instance_t_ *instance,
+                            ncx_module_t *mod,
                             const xmlChar *name);
 
 

@@ -165,19 +165,19 @@ mgr_not_cbfn_t               callbackfn;
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 static mgr_not_msg_t *
-    new_msg (void)
+    new_msg (ncx_instance_t *instance)
 {
     mgr_not_msg_t *msg;
 
-    msg = m__getObj(mgr_not_msg_t);
+    msg = m__getObj(instance, mgr_not_msg_t);
     if (!msg) {
         return NULL;
     }
     memset(msg, 0x0, sizeof(mgr_not_msg_t));
 
-    msg->notification = val_new_value();
+    msg->notification = val_new_value(instance);
     if (!msg->notification) {
-        m__free(msg);
+        m__free(instance, msg);
         return NULL;
     }
     /* xml_msg_init_hdr(&msg->mhdr); */
@@ -203,12 +203,13 @@ static mgr_not_msg_t *
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 status_t 
-    mgr_not_init (void)
+    mgr_not_init (ncx_instance_t *instance)
 {
     status_t  res;
 
     if (!mgr_not_init_done) {
-        res = top_register_node(NCN_MODULE,
+        res = top_register_node(instance,
+                                NCN_MODULE,
                                 NCX_EL_NOTIFICATION, 
                                 mgr_not_dispatch);
         if (res != NO_ERR) {
@@ -232,10 +233,10 @@ status_t
 *
 *********************************************************************/
 void 
-    mgr_not_cleanup (void)
+    mgr_not_cleanup (ncx_instance_t *instance)
 {
     if (mgr_not_init_done) {
-        top_unregister_node(NCN_MODULE, NCX_EL_NOTIFICATION);
+        top_unregister_node(instance, NCN_MODULE, NCX_EL_NOTIFICATION);
         notification_obj = NULL;
         callbackfn = NULL;
         mgr_not_init_done = FALSE;
@@ -256,20 +257,20 @@ void
 *   none
 *********************************************************************/
 void
-    mgr_not_free_msg (mgr_not_msg_t *msg)
+    mgr_not_free_msg (ncx_instance_t *instance, mgr_not_msg_t *msg)
 {
 #ifdef DEBUG
     if (!msg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (msg->notification) {
-        val_free_value(msg->notification);
+        val_free_value(instance, msg->notification);
     }
 
-    m__free(msg);
+    m__free(instance, msg);
 
 } /* mgr_not_free_msg */
 
@@ -286,21 +287,21 @@ void
 *   none
 *********************************************************************/
 void
-    mgr_not_clean_msgQ (dlq_hdr_t *msgQ)
+    mgr_not_clean_msgQ (ncx_instance_t *instance, dlq_hdr_t *msgQ)
 {
     mgr_not_msg_t *msg;
 
 #ifdef DEBUG
     if (!msgQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    msg = (mgr_not_msg_t *)dlq_deque(msgQ);
+    msg = (mgr_not_msg_t *)dlq_deque(instance, msgQ);
     while (msg) {
-        mgr_not_free_msg(msg);
-        msg = (mgr_not_msg_t *)dlq_deque(msgQ);
+        mgr_not_free_msg(instance, msg);
+        msg = (mgr_not_msg_t *)dlq_deque(instance, msgQ);
     }
 
 } /* mgr_not_clean_msgQ */
@@ -320,7 +321,8 @@ void
 *   top == top element descriptor
 *********************************************************************/
 void 
-    mgr_not_dispatch (ses_cb_t *scb,
+    mgr_not_dispatch (ncx_instance_t *instance,
+                      ses_cb_t *scb,
                       xml_node_t *top)
 {
     obj_template_t          *notobj;
@@ -331,7 +333,7 @@ void
 
 #ifdef DEBUG
     if (!scb || !top) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -342,15 +344,15 @@ void
     } else {
         /* no: get the notification template */
         notobj = NULL;
-        mod = ncx_find_module(NCN_MODULE, NULL);
+        mod = ncx_find_module(instance, NCN_MODULE, NULL);
         if (mod) {
-            notobj = ncx_find_object(mod, NCX_EL_NOTIFICATION);
+            notobj = ncx_find_object(instance, mod, NCX_EL_NOTIFICATION);
         }
         if (notobj) {
             notification_obj = notobj;
         } else {
-            SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
-            mgr_xml_skip_subtree(scb->reader, top);
+            SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
+            mgr_xml_skip_subtree(instance, scb->reader, top);
             return;
         }
     }
@@ -358,54 +360,59 @@ void
     /* the current node is 'notification' in the notifications namespace
      * First get a new notification msg struct
      */
-    msg = new_msg();
+    msg = new_msg(instance);
     if (!msg) {
-        log_error("\nError: mgr_not: skipping incoming message");
-        mgr_xml_skip_subtree(scb->reader, top);
+        log_error(instance, "\nError: mgr_not: skipping incoming message");
+        mgr_xml_skip_subtree(instance, scb->reader, top);
         return;
     }
     
     /* parse the notification as a val_value_t tree,
      * stored in msg->notification
      */
-    msg->res = mgr_val_parse_notification(scb, 
+    msg->res = mgr_val_parse_notification(instance, 
+                                          scb, 
                                           notobj,
                                           top, 
                                           msg->notification);
     if (msg->res != NO_ERR && LOGINFO) {        
-        log_info("\nmgr_not: got invalid notification on session %d (%s)",
+        log_info(instance,
+                 "\nmgr_not: got invalid notification on session %d (%s)",
                  scb->sid, 
                  get_error_string(msg->res));
     } 
 
     /* check that there is nothing after the <rpc-reply> element */
     if (msg->res==NO_ERR && 
-        !xml_docdone(scb->reader) && LOGINFO) {
-        log_info("\nmgr_not: got extra nodes in notification on session %d",
+        !xml_docdone(instance, scb->reader) && LOGINFO) {
+        log_info(instance,
+                 "\nmgr_not: got extra nodes in notification on session %d",
                  scb->sid);
     }
 
     consumed = FALSE;
 
     if (msg->res == NO_ERR && msg->notification) {
-        child = val_get_first_child(msg->notification);
+        child = val_get_first_child(instance, msg->notification);
         if (child) {
-            if (!xml_strcmp(child->name, 
+            if (!xml_strcmp(instance, 
+                            child->name, 
                             (const xmlChar *)"eventTime")) {
                 msg->eventTime = child;
             } else {
-                log_error("\nError: expected 'eventTime' in "
+                log_error(instance,
+                          "\nError: expected 'eventTime' in "
                           "notification, got '%s'",
                           child->name);
             }
 
-            child = val_get_next_child(child);
+            child = val_get_next_child(instance, child);
             if (child) {
                 /* eventType is expected to be next!! */
                 msg->eventType = child;
             }
         } else {
-            log_error("\nError: expected 'eventTime' in "
+            log_error(instance, "\nError: expected 'eventTime' in "
                       "notification, got nothing");
         }
         
@@ -416,7 +423,7 @@ void
     }
 
     if (!consumed) {
-        mgr_not_free_msg(msg);
+        mgr_not_free_msg(instance, msg);
     }
 
 } /* mgr_not_dispatch */

@@ -111,12 +111,13 @@ date         init     comment
 *    status
 *********************************************************************/
 status_t 
-    mgr_val_parse (ses_cb_t  *scb,
-               obj_template_t *obj,
-               const xml_node_t *startnode,
-               val_value_t  *retval)
+    mgr_val_parse (ncx_instance_t *instance,
+                   ses_cb_t  *scb, 
+                   obj_template_t *obj, 
+                   const xml_node_t *startnode, 
+                   val_value_t  *retval)
 {
-    return val_parse(scb, obj, startnode, retval);
+    return val_parse(instance, scb, obj, startnode, retval);
 }  /* mgr_val_parse */
 
 
@@ -153,7 +154,8 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    mgr_val_parse_reply (ses_cb_t  *scb,
+    mgr_val_parse_reply (ncx_instance_t *instance,
+                         ses_cb_t  *scb,
                          obj_template_t *obj,
                          obj_template_t *rpc,
                          const xml_node_t *startnode,
@@ -165,27 +167,29 @@ status_t
 #ifdef DEBUG
     if (!scb || !obj || !startnode || !retval) {
         /* non-recoverable error */
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
 #ifdef MGR_VAL_PARSE_DEBUG
     if (LOGDEBUG3) {
-        log_debug3("\nmgr_val_parse_reply: %s:%s btyp:%s", 
+        log_debug3(instance,
+                   "\nmgr_val_parse_reply: %s:%s btyp:%s", 
                    obj_get_mod_prefix(obj),
-                   obj_get_name(obj), 
-                   tk_get_btype_sym(obj_get_basetype(obj)));
+                   obj_get_name(instance, obj), 
+                   tk_get_btype_sym(obj_get_basetype(instance, obj)));
     }
 #endif
 
-    output = (rpc) ? obj_find_child(rpc, NULL, NCX_EL_OUTPUT) : NULL;
+    output = (rpc) ? obj_find_child(instance, rpc, NULL, NCX_EL_OUTPUT) : NULL;
 
     /* get the element values */
-    res = val_parse_split(scb, 
-                            obj, 
-                            output, 
-                            startnode, 
-                            retval);
+    res = val_parse_split(instance,
+                          scb, 
+                          obj, 
+                          output, 
+                          startnode, 
+                          retval);
     
     return res;
 
@@ -216,7 +220,8 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    mgr_val_parse_notification (ses_cb_t  *scb,
+    mgr_val_parse_notification (ncx_instance_t *instance,
+                                ses_cb_t  *scb,
                                 obj_template_t *notobj,
                                 const xml_node_t *startnode,
                                 val_value_t  *retval)
@@ -226,23 +231,23 @@ status_t
 #ifdef DEBUG
     if (!scb || !notobj || !startnode || !retval) {
         /* non-recoverable error */
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
 #ifdef MGR_VAL_PARSE_DEBUG
     if (LOGDEBUG3) {
-        log_debug3("\nmgr_val_parse_notification: start");
+        log_debug3(instance, "\nmgr_val_parse_notification: start");
     }
 #endif
 
     /* get the element values */
-    res = val_parse_split(scb, 
-                            notobj, 
-                            NULL, 
-                            startnode, 
-                            retval);
-
+    res = val_parse_split(instance,
+                          scb,
+                          notobj, 
+                          NULL, 
+                          startnode, 
+                          retval);
     return res;
 
 }  /* mgr_val_parse_notification */

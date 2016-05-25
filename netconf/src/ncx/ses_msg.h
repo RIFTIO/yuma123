@@ -78,7 +78,7 @@ extern "C" {
 *   none
 *********************************************************************/
 extern void 
-    ses_msg_init (void);
+    ses_msg_init (struct ncx_instance_t_ *instance);
 
 
 
@@ -93,7 +93,7 @@ extern void
 *   none
 *********************************************************************/
 extern void 
-    ses_msg_cleanup (void);
+    ses_msg_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -111,7 +111,7 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    ses_msg_new_msg (ses_msg_t **msg);
+    ses_msg_new_msg (struct ncx_instance_t_ *instance, ses_msg_t **msg);
 
 
 /********************************************************************
@@ -125,7 +125,8 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    ses_msg_free_msg (ses_cb_t *scb,
+    ses_msg_free_msg (struct ncx_instance_t_ *instance,
+		      ses_cb_t *scb,
 		      ses_msg_t *msg);
 
 
@@ -150,7 +151,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    ses_msg_new_buff (ses_cb_t *scb, 
+    ses_msg_new_buff (struct ncx_instance_t_ *instance, 
+                      ses_cb_t *scb, 
                       boolean outbuff,
                       ses_msg_buff_t **buff);
 
@@ -168,7 +170,8 @@ extern status_t
 *   none
 *********************************************************************/
 extern void
-    ses_msg_free_buff (ses_cb_t *scb,
+    ses_msg_free_buff (struct ncx_instance_t_ *instance,
+		       ses_cb_t *scb,
 		       ses_msg_buff_t *buff);
 
 
@@ -205,7 +208,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ses_msg_send_buffs (ses_cb_t *scb);
+    ses_msg_send_buffs (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -225,7 +228,7 @@ extern status_t
 *   status, could return malloc or buffers exceeded error
 *********************************************************************/
 extern status_t
-    ses_msg_new_output_buff (ses_cb_t *scb);
+    ses_msg_new_output_buff (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -240,10 +243,10 @@ extern status_t
 *   scb->inready will be queued on the inreadyQ
 *********************************************************************/
 extern void
-    ses_msg_make_inready (ses_cb_t *scb);
+    ses_msg_make_inready (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 extern void
-    ses_msg_unmake_inready (ses_cb_t *scb);
+    ses_msg_unmake_inready (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -258,9 +261,9 @@ extern void
 *   scb->outready will be queued on the outreadyQ
 *********************************************************************/
 extern void
-    ses_msg_make_outready (ses_cb_t *scb);
+    ses_msg_make_outready (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 extern void
-    ses_msg_unmake_outready (ses_cb_t *scb);
+    ses_msg_unmake_outready (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -276,7 +279,7 @@ extern void
 *   scb->outready will be queued on the outreadyQ
 *********************************************************************/
 extern void
-    ses_msg_finish_outmsg (ses_cb_t *scb);
+    ses_msg_finish_outmsg (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -288,7 +291,7 @@ extern void
 *    first entry in the inreadyQ or NULL if none
 *********************************************************************/
 extern ses_ready_t *
-    ses_msg_get_first_inready (void);
+    ses_msg_get_first_inready (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -300,7 +303,7 @@ extern ses_ready_t *
 *    first entry in the outreadyQ or NULL if none
 *********************************************************************/
 extern ses_ready_t *
-    ses_msg_get_first_outready (void);
+    ses_msg_get_first_outready (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -314,7 +317,8 @@ extern ses_ready_t *
 *
 *********************************************************************/
 extern void
-    ses_msg_dump (const ses_msg_t *msg,
+    ses_msg_dump (struct ncx_instance_t_ *instance,
+		  const ses_msg_t *msg,
 		  const xmlChar *text);
 
 

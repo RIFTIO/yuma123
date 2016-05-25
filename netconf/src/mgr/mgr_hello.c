@@ -136,7 +136,8 @@ static boolean mgr_hello_init_done = FALSE;
 *   status
 *********************************************************************/
 static status_t
-    process_server_hello (ses_cb_t *scb,
+    process_server_hello (ncx_instance_t *instance,
+                         ses_cb_t *scb,
                          val_value_t *hello)
 {
 
@@ -145,32 +146,33 @@ static status_t
     boolean       c1, c2;
     status_t      res;
 
-    mscb = mgr_ses_get_mscb(scb);
+    mscb = mgr_ses_get_mscb(instance, scb);
 
     /* make sure the capabilities element is present
      * This should not fail, since already parsed this far 
      */
-    caps = val_find_child(hello, NC_MODULE, NCX_EL_CAPABILITIES);
+    caps = val_find_child(instance, hello, NC_MODULE, NCX_EL_CAPABILITIES);
     if (!caps || caps->res != NO_ERR) {
-        log_error("\nError: no <capabilities> found in server <hello>");
+        log_error(instance, "\nError: no <capabilities> found in server <hello>");
         return ERR_NCX_MISSING_VAL_INST;
     }   
 
     /* make sure the session-id element is present
      * This should not fail, since already parsed this far 
      */
-    sidval = val_find_child(hello, NC_MODULE, NCX_EL_SESSION_ID);
+    sidval = val_find_child(instance, hello, NC_MODULE, NCX_EL_SESSION_ID);
     if (!sidval || sidval->res != NO_ERR) {
-        log_error("\nError: no <session-id> found in server <hello>");
+        log_error(instance, "\nError: no <session-id> found in server <hello>");
         return ERR_NCX_MISSING_VAL_INST;
     } else {
         mscb->agtsid = VAL_UINT(sidval);
     }
 
     /* go through the capability nodes and construct a caplist */
-    for (cap = val_find_child(caps, NC_MODULE, NCX_EL_CAPABILITY);
+    for (cap = val_find_child(instance, caps, NC_MODULE, NCX_EL_CAPABILITY);
          cap != NULL;
-         cap = val_find_next_child(caps, 
+         cap = val_find_next_child(instance, 
+                                   caps, 
                                    NC_MODULE, 
                                    NCX_EL_CAPABILITY, 
                                    cap)) {
@@ -179,9 +181,9 @@ static status_t
             continue;
         }
         
-        res = cap_add_std_string(&mscb->caplist, VAL_STR(cap));
+        res = cap_add_std_string(instance, &mscb->caplist, VAL_STR(cap));
         if (res == ERR_NCX_SKIPPED) {
-            res = cap_add_module_string(&mscb->caplist, VAL_STR(cap));
+            res = cap_add_module_string(instance, &mscb->caplist, VAL_STR(cap));
             if (res == ERR_NCX_SKIPPED) {
                 /* 
                  * if (ncx_warning_enabled(ERR_NCX_RCV_UNKNOWN_CAP)) {
@@ -190,7 +192,8 @@ static status_t
                  * }
                  */
                 if (LOGDEBUG2) {
-                    log_debug2("\nmgr: Got enterprise capability %s", 
+                    log_debug2(instance, 
+                               "\nmgr: Got enterprise capability %s", 
                                VAL_STR(cap));
                 }
 
@@ -198,15 +201,15 @@ static status_t
                  * change the useprefix mode to TRUE to get
                  * <rpc> operations to work with this server
                  */
-                if (!xml_strcmp(VAL_STR(cap), CAP_JUNOS)) {
+                if (!xml_strcmp(instance, VAL_STR(cap), CAP_JUNOS)) {
                     if (LOGDEBUG) {
-                        log_debug("\nUsing XML prefixes to work "
+                        log_debug(instance, "\nUsing XML prefixes to work "
                                   "with Junos 1.0 server\n");
                     }
-                    ncx_set_useprefix(TRUE);
+                    ncx_set_useprefix(instance, TRUE);
                 }
 
-                res = cap_add_ent(&mscb->caplist, VAL_STR(cap));
+                res = cap_add_ent(instance, &mscb->caplist, VAL_STR(cap));
                 if (res != NO_ERR) {
                     return res;
                 }
@@ -221,43 +224,48 @@ static status_t
 
     if (c1 && c2) {
         if (LOGDEBUG2) {
-            log_debug2("\nmgr_hello: server supports "
+            log_debug2(instance, "\nmgr_hello: server supports "
                        "base:1.0 and base:1.1");
         }
-        if (ses_protocol_requested(scb, NCX_PROTO_NETCONF11)) {
+        if (ses_protocol_requested(instance, scb, NCX_PROTO_NETCONF11)) {
             if (LOGDEBUG2) {
-                log_debug2("\nmgr_hello: set protocol to base:1.1 "
+                log_debug2(instance,
+                           "\nmgr_hello: set protocol to base:1.1 "
                            "for session '%d'",
                            scb->sid);
             }
-            ses_set_protocol(scb, NCX_PROTO_NETCONF11);
-        } else if (ses_protocol_requested(scb, NCX_PROTO_NETCONF10)) {
+            ses_set_protocol(instance, scb, NCX_PROTO_NETCONF11);
+        } else if (ses_protocol_requested(instance, scb, NCX_PROTO_NETCONF10)) {
             if (LOGDEBUG2) {
-                log_debug2("\nmgr_hello: set protocol to base:1.0 "
+                log_debug2(instance,
+                           "\nmgr_hello: set protocol to base:1.0 "
                            "for session '%d'",
                            scb->sid);
             }
-            ses_set_protocol(scb, NCX_PROTO_NETCONF10);
+            ses_set_protocol(instance, scb, NCX_PROTO_NETCONF10);
         } else {
-            log_error("\nError: Internal: no protocols requested, "
+            log_error(instance,
+                      "\nError: Internal: no protocols requested, "
                       "dropping session '%d'",
                       scb->sid);
             res = ERR_NCX_MISSING_VAL_INST;
         }
     } else if (c1) {
         if (LOGDEBUG2) {
-            log_debug2("\nmgr_hello: server supports "
+            log_debug2(instance, "\nmgr_hello: server supports "
                        "base:1.0 only");
         }
-        if (ses_protocol_requested(scb, NCX_PROTO_NETCONF10)) {
+        if (ses_protocol_requested(instance, scb, NCX_PROTO_NETCONF10)) {
             if (LOGDEBUG2) {
-                log_debug2("\nmgr_hello: set protocol to base:1.0 "
+                log_debug2(instance,
+                           "\nmgr_hello: set protocol to base:1.0 "
                            "for session '%d'",
                            scb->sid);
             }
-            ses_set_protocol(scb, NCX_PROTO_NETCONF10);
+            ses_set_protocol(instance, scb, NCX_PROTO_NETCONF10);
         } else {
-            log_error("\nError: Server supports base:1.0 only;"
+            log_error(instance,
+                      "\nError: Server supports base:1.0 only;"
                      "\n  Protocol 'netconf1.0' not enabled, "
                       "dropping session '%d'",
                       scb->sid);
@@ -265,25 +273,28 @@ static status_t
         }
     } else if (c2) {
         if (LOGDEBUG2) {
-            log_debug2("\nmgr_hello: server supports "
+            log_debug2(instance, "\nmgr_hello: server supports "
                        "base:1.1 only");
         }
-        if (ses_protocol_requested(scb, NCX_PROTO_NETCONF11)) {
+        if (ses_protocol_requested(instance, scb, NCX_PROTO_NETCONF11)) {
             if (LOGDEBUG2) {
-                log_debug2("\nmgr_hello: set protocol to base:1.1 "
+                log_debug2(instance,
+                           "\nmgr_hello: set protocol to base:1.1 "
                            "for session '%d'",
                            scb->sid);
             }
-            ses_set_protocol(scb, NCX_PROTO_NETCONF11);
+            ses_set_protocol(instance, scb, NCX_PROTO_NETCONF11);
         } else {
-            log_error("\nError: Server supports base:1.1 only;"
+            log_error(instance,
+                      "\nError: Server supports base:1.1 only;"
                      "\n  Protocol 'netconf1.1' not enabled, "
                       "dropping session '%d'",
                       scb->sid);
             res = ERR_NCX_MISSING_VAL_INST;
         }
     } else {
-        log_error("\nError: no support for base:1.0 "
+        log_error(instance,
+                  "\nError: no support for base:1.0 "
                   "or base:1.1 found in server <hello>;"
                   "\n   dropping session '%d'",
                   scb->sid);
@@ -303,7 +314,8 @@ static status_t
     } else {
         mscb->targtyp = NCX_AGT_TARG_NONE;
         if (LOGINFO) {
-            log_info("\nmgr_hello: no writable target found for"
+            log_info(instance, 
+                     "\nmgr_hello: no writable target found for"
                      " session %u (a:%u)", 
                      scb->sid,
                      mscb->agtsid);
@@ -338,12 +350,12 @@ static status_t
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 status_t 
-    mgr_hello_init (void)
+    mgr_hello_init (ncx_instance_t *instance)
 {
     status_t  res;
 
     if (!mgr_hello_init_done) {
-        res = top_register_node(NC_MODULE, NCX_EL_HELLO, 
+        res = top_register_node(instance, NC_MODULE, NCX_EL_HELLO, 
                                 mgr_hello_dispatch);
         if (res != NO_ERR) {
             return res;
@@ -363,10 +375,10 @@ status_t
 *
 *********************************************************************/
 void 
-    mgr_hello_cleanup (void)
+    mgr_hello_cleanup (ncx_instance_t *instance)
 {
     if (mgr_hello_init_done) {
-        top_unregister_node(NC_MODULE, NCX_EL_HELLO);
+        top_unregister_node(instance, NC_MODULE, NCX_EL_HELLO);
         mgr_hello_init_done = FALSE;
     }
 
@@ -383,7 +395,8 @@ void
 *   top == top element descriptor
 *********************************************************************/
 void 
-    mgr_hello_dispatch (ses_cb_t *scb,
+    mgr_hello_dispatch (ncx_instance_t *instance,
+                        ses_cb_t *scb,
                         xml_node_t *top)
 {
     val_value_t           *val;
@@ -395,27 +408,28 @@ void
 
 #ifdef DEBUG
     if (!scb || !top) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
 #ifdef MGR_HELLO_DEBUG
     if (LOGDEBUG) {
-        log_debug("\nmgr_hello got node");
+        log_debug(instance, "\nmgr_hello got node");
     }
     if (LOGDEBUG2) {
-        xml_dump_node(top);
+        xml_dump_node(instance, top);
     }
 #endif
 
-    mscb = mgr_ses_get_mscb(scb);
+    mscb = mgr_ses_get_mscb(instance, scb);
 
     /* only process this message in hello wait state */
     if (scb->state != SES_ST_HELLO_WAIT) {
         /* TBD: stats update */
         if (LOGINFO) {
-            log_info("\nmgr_hello dropped, wrong state for session %d",
+            log_info(instance,
+                     "\nmgr_hello dropped, wrong state for session %d",
                      scb->sid);
         }
         return;
@@ -425,42 +439,43 @@ void
     res = NO_ERR;
     val = NULL;
     obj = NULL;
-    xml_msg_init_hdr(&msg);
+    xml_msg_init_hdr(instance, &msg);
 
     /* get a value struct to hold the server hello msg */
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         res = ERR_INTERNAL_MEM;
     }
 
     /* get the type definition from the registry */
     if (res == NO_ERR) {
-        mod = ncx_find_module(NC_MODULE, NULL);
+        mod = ncx_find_module(instance, NC_MODULE, NULL);
         if (mod) {
-            obj = ncx_find_object(mod, MGR_SERVER_HELLO_OBJ);
+            obj = ncx_find_object(instance, mod, MGR_SERVER_HELLO_OBJ);
         }
         if (!obj) {
             /* netconf module should have loaded this definition */
-            res = SET_ERROR(ERR_INTERNAL_PTR);
+            res = SET_ERROR(instance, ERR_INTERNAL_PTR);
         }
     }
 
     /* parse an server hello message */
     if (res == NO_ERR) {
-        res = mgr_val_parse(scb, obj, top, val);
+        res = mgr_val_parse(instance, scb, obj, top, val);
     }
     
     /* examine the server capability list
      * and it matches the server protocol version
      */
     if (res == NO_ERR) {
-        res = process_server_hello(scb, val);
+        res = process_server_hello(instance, scb, val);
     }
 
     /* report first error and close session */
     if (res != NO_ERR) {
         if (LOGINFO) {
-            log_info("\nmgr_connect error (%s)\n  dropping session %u (a:%u)",
+            log_info(instance,
+                     "\nmgr_connect error (%s)\n  dropping session %u (a:%u)",
                      get_error_string(res), 
                      scb->sid, 
                      mscb->agtsid,
@@ -469,11 +484,11 @@ void
     } else {
         scb->state = SES_ST_IDLE;
         if (LOGDEBUG) {
-            log_debug("\nmgr_hello manager hello ok");
+            log_debug(instance, "\nmgr_hello manager hello ok");
         }
     }
     if (val) {
-        val_free_value(val);
+        val_free_value(instance, val);
     }
 
 } /* mgr_hello_dispatch */
@@ -492,7 +507,7 @@ void
 *   status
 *********************************************************************/
 status_t
-    mgr_hello_send (ses_cb_t *scb)
+    mgr_hello_send (ncx_instance_t *instance, ses_cb_t *scb)
 {
     val_value_t  *mycaps;
     xml_msg_hdr_t msg;
@@ -503,42 +518,43 @@ status_t
 
 #ifdef DEBUG
     if (!scb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
 #ifdef MGR_HELLO_DEBUG
     if (LOGDEBUG2) {
-        log_debug2("\nmgr sending hello on session %d", scb->sid);
+        log_debug2(instance, "\nmgr sending hello on session %d", scb->sid);
     }
 #endif
 
     res = NO_ERR;
     anyout = FALSE;
-    xml_msg_init_hdr(&msg);
-    xml_init_attrs(&attrs);
-    nc_id = xmlns_nc_id();
+    xml_msg_init_hdr(instance, &msg);
+    xml_init_attrs(instance, &attrs);
+    nc_id = xmlns_nc_id(instance);
 
     /* get my client caps, custom made for this session */
-    mycaps = mgr_cap_get_ses_capsval(scb);
+    mycaps = mgr_cap_get_ses_capsval(instance, scb);
     if (!mycaps) {
-        res = SET_ERROR(ERR_INTERNAL_PTR);
+        res = SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 
     /* setup the prefix map with the NETCONF namespace */
     if (res == NO_ERR) {
-        res = xml_msg_build_prefix_map(&msg, &attrs, TRUE, FALSE);
+        res = xml_msg_build_prefix_map(instance, &msg, &attrs, TRUE, FALSE);
     }
 
     /* send the <?xml?> directive */
     if (res == NO_ERR) {
-        res = ses_start_msg(scb);
+        res = ses_start_msg(instance, scb);
     }
 
     /* start the hello element */
     if (res == NO_ERR) {
         anyout = TRUE;
-        xml_wr_begin_elem_ex(scb, 
+        xml_wr_begin_elem_ex(instance, 
+                             scb, 
                              &msg, 
                              0, 
                              nc_id, 
@@ -551,23 +567,23 @@ status_t
     
     /* send the capabilities list */
     if (res == NO_ERR) {
-        xml_wr_full_val(scb, &msg, mycaps, NCX_DEF_INDENT);
+        xml_wr_full_val(instance, scb, &msg, mycaps, NCX_DEF_INDENT);
     }
 
     /* finish the hello element */
     if (res == NO_ERR) {
-        xml_wr_end_elem(scb, &msg, nc_id, NCX_EL_HELLO, 0);
+        xml_wr_end_elem(instance, scb, &msg, nc_id, NCX_EL_HELLO, 0);
     }
 
     /* finish the message */
     if (anyout) {
-        ses_finish_msg(scb);
+        ses_finish_msg(instance, scb);
     }
 
-    xml_clean_attrs(&attrs);
-    xml_msg_clean_hdr(&msg);
+    xml_clean_attrs(instance, &attrs);
+    xml_msg_clean_hdr(instance, &msg);
     if (mycaps != NULL) {
-        val_free_value(mycaps);
+        val_free_value(instance, mycaps);
     }
     return res;
 

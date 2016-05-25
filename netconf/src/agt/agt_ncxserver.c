@@ -46,6 +46,7 @@ date         init     comment
 #include "procdefs.h"
 #include "agt.h"
 #include "agt_ncxserver.h"
+#include "agt_cli.h"
 #include "agt_not.h"
 #include "agt_rpc.h"
 #include "agt_ses.h"
@@ -209,7 +210,7 @@ static status_t
  *    status   
  *********************************************************************/
 static void
-    send_some_notifications (void)
+    send_some_notifications (ncx_instance_t *instance)
 {
     const agt_profile_t  *agt_profile;
     uint32                sendcount, sendtotal, sendmax;
@@ -224,7 +225,7 @@ static void
 
     done = FALSE;
     while (!done) {
-        sendcount = agt_not_send_notifications();
+        sendcount = agt_not_send_notifications(instance);
         if (sendcount) {
             sendtotal += sendcount;
             if (sendmax && (sendtotal >= sendmax)) {
@@ -236,7 +237,7 @@ static void
     }
 
     if (agt_profile->agt_eventlog_size == 0) {
-        agt_not_clean_eventlog();
+        agt_not_clean_eventlog(instance);
     }
 
 } /* send_some_notifications */
@@ -255,7 +256,7 @@ static void
  *   status
  *********************************************************************/
 status_t
-    agt_ncxserver_run (void)
+    agt_ncxserver_run (ncx_instance_t *instance)
 {
     ses_cb_t              *scb;
     agt_profile_t         *profile;
@@ -276,44 +277,47 @@ status_t
     clivalset = agt_cli_get_valset();
     if (clivalset) {
 
-        val = val_find_child(clivalset,
+        val = val_find_child(instance,
+                             clivalset,
                              NCXMOD_NETCONFD,
                              NCX_EL_TCP_DIRECT_PORT);
         if(val != NULL) {
             tcp_direct_port = VAL_INT(val);
         }
 
-        val = val_find_child(clivalset,
+        val = val_find_child(instance,
+                             clivalset,
                              NCXMOD_NETCONFD,
                              NCX_EL_TCP_DIRECT_ADDRESS);
         if(val != NULL) {
-            tcp_direct_address = VAL_STR(val);
+            tcp_direct_address = (char *)VAL_STR(val);
             if(tcp_direct_port==-1) tcp_direct_port = 2023;
         }
 
-        val = val_find_child(clivalset,
+        val = val_find_child(instance,
+                             clivalset,
                              NCXMOD_NETCONFD,
                              NCX_EL_NCXSERVER_SOCKNAME);
         if(val != NULL) {
-            ncxserver_sockname = VAL_STR(val);
+            ncxserver_sockname = (char *)VAL_STR(val);
         } else {
-            ncxserver_sockname = NCXSERVER_SOCKNAME;
+            ncxserver_sockname = (char *)(NCXSERVER_SOCKNAME);
         }
 
     } else {
-            log_error("\n*** agt_ncxserver_run:agt_cli_get_valset failed.\n");
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            log_error(instance, "\n*** agt_ncxserver_run:agt_cli_get_valset failed.\n");
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     if(tcp_direct_port!=-1) {
         res = make_tcp_socket(tcp_direct_address, tcp_direct_port, &ncxsock);
         if (res != NO_ERR) {
-            log_error("\n*** Cannot connect to ncxserver socket listen tcp port: %d\n",tcp_direct_port);
+            log_error(instance,"\n*** Cannot connect to ncxserver socket listen tcp port: %d\n",tcp_direct_port);
             return res;
         }
     } else {
         res = make_named_socket(ncxserver_sockname, &ncxsock);
         if (res != NO_ERR) {
-            log_error("\n*** Cannot connect to ncxserver socket"
+            log_error(instance, "\n*** Cannot connect to ncxserver socket"
                       "\n*** If no other instances of netconfd are running,"
                       "\n*** try deleting %s\n",ncxserver_sockname);
             return res;
@@ -321,13 +325,13 @@ status_t
     }
     profile = agt_get_profile();
     if (profile == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     stream_output = profile->agt_stream_output;
 
     if (listen(ncxsock, 1) < 0) {
-        log_error("\nError: listen failed");
+        log_error(instance, "\nError: listen failed");
         return ERR_NCX_OPERATION_FAILED;
     }
      
@@ -351,7 +355,7 @@ status_t
         done2 = FALSE;
         while (!done2) {
             read_fd_set = active_fd_set;
-            agt_ses_fill_writeset(&write_fd_set, &maxwrnum);
+            agt_ses_fill_writeset(instance, &write_fd_set, &maxwrnum);
             timeout.tv_sec = AGT_NCXSERVER_TIMEOUT;
             timeout.tv_usec = 0;
 
@@ -375,9 +379,9 @@ status_t
                     done2 = TRUE; 
                 } else {
                     /* !! put all polling callbacks here for now !! */
-                    agt_ses_check_timeouts();
-                    agt_timer_handler();
-                    send_some_notifications();
+                    agt_ses_check_timeouts(instance);
+                    agt_timer_handler(instance);
+                    send_some_notifications(instance);
                 }
             } else {
                 /* normal return with some bytes */
@@ -394,9 +398,10 @@ status_t
         /* check select return status for non-recoverable error */
         if (ret < 0) {
             res = ERR_NCX_OPERATION_FAILED;
-            log_error("\nncxserver select failed (%s)", 
+            log_error(instance, 
+                      "\nncxserver select failed (%s)", 
                       strerror(errno));
-            agt_request_shutdown(NCX_SHUT_EXIT);
+            agt_request_shutdown(instance, NCX_SHUT_EXIT);
             done = TRUE;
             continue;
         }
@@ -408,26 +413,29 @@ status_t
             /* check write output to client sessions */
             if (!stream_output && FD_ISSET(i, &write_fd_set)) {
                 /* try to send 1 packet worth of buffers for a session */
-                scb = def_reg_find_scb(i);
+                scb = def_reg_find_scb(instance, i);
                 if (scb) {
                     /* check if anything to write */
-                    if (!dlq_empty(&scb->outQ)) {
-                        res = ses_msg_send_buffs(scb);
+                    if (!dlq_empty(instance, &scb->outQ)) {
+                        res = ses_msg_send_buffs(instance, scb);
                         if (res != NO_ERR) {
                             if (LOGINFO) {
-                                log_info("\nagt_ncxserver write failed; "
+                                log_info(instance, 
+                                         "\nagt_ncxserver write failed; "
                                          "closing session %d ", 
                                          scb->sid);
                             }
                         }
                         if (res != NO_ERR) {
-                            agt_ses_kill_session(scb, 
+                            agt_ses_kill_session(instance, 
+                                                 scb, 
                                                  scb->sid,
                                                  SES_TR_OTHER);
                             scb = NULL;
                         } else if (scb->state == SES_ST_SHUTDOWN_REQ) {
                             /* close-session reply sent, now kill ses */
-                            agt_ses_kill_session(scb, 
+                            agt_ses_kill_session(instance, 
+                                                 scb, 
                                                  scb->killedbysid,
                                                  scb->termreason);
                             scb = NULL;
@@ -435,8 +443,8 @@ status_t
                     }
 
                     /* check if any buffers left over for next loop */
-                    if (scb && !dlq_empty(&scb->outQ)) {
-                        ses_msg_make_outready(scb);
+                    if (scb && !dlq_empty(instance, &scb->outQ)) {
+                        ses_msg_make_outready(instance, scb);
                     }
                 }
             }
@@ -451,7 +459,8 @@ status_t
                                  &size);
                     if (new < 0) {
                         if (LOGINFO) {
-                            log_info("\nagt_ncxserver accept "
+                            log_info(instance,
+                                     "\nagt_ncxserver accept "
                                      "connection failed (%d)",
                                      new);
                         }
@@ -459,10 +468,11 @@ status_t
                     }
 
                     /* get a new session control block */
-                    if (!agt_ses_new_session(SES_TRANSPORT_SSH, new)) {
+                    if (!agt_ses_new_session(instance, SES_TRANSPORT_SSH, new)) {
                         close(new);
                         if (LOGINFO) {
-                            log_info("\nagt_ncxserver new "
+                            log_info(instance, 
+                                     "\nagt_ncxserver new "
                                      "session failed (%d)", 
                                      new);
                         }
@@ -470,7 +480,7 @@ status_t
                         /* set non-blocking IO */
                         if (fcntl(new, F_SETFD, O_NONBLOCK)) {
                             if (LOGINFO) {
-                                log_info("\nfnctl failed");
+                                log_info(instance, "\nfnctl failed");
                             }
                         }
                         FD_SET(new, &active_fd_set);
@@ -482,16 +492,17 @@ status_t
                     /* Data arriving on an already-connected socket.
                      * Need to have the xmlreader for this session
                      */
-                    scb = def_reg_find_scb(i);
+                    scb = def_reg_find_scb(instance, i);
                     if (scb != NULL) {
-                        res = ses_accept_input(scb);
+                        res = ses_accept_input(instance, scb);
                         if (res != NO_ERR) {
                             if (i >= maxrdnum) {
                                 maxrdnum = i-1;
                             }
                             if (res != ERR_NCX_SESSION_CLOSED) {
                                 if (LOGINFO) {
-                                    log_info("\nagt_ncxserver: input failed"
+                                    log_info(instance,
+                                             "\nagt_ncxserver: input failed"
                                              " for session %d (%s)",
                                              scb->sid, 
                                              get_error_string(res));
@@ -499,15 +510,17 @@ status_t
                                 /* send an error reply instead of
                                  * killing the session right now
                                  */
-                                agt_rpc_send_error_reply(scb, res);
-                                agt_ses_request_close(scb, 
+                                agt_rpc_send_error_reply(instance, scb, res);
+                                agt_ses_request_close(instance, 
+                                                      scb, 
                                                       0, 
                                                       SES_TR_OTHER);
                             } else {
                                 /* connection already closed
                                  * so kill session right now
                                  */
-                                agt_ses_kill_session(scb,
+                                agt_ses_kill_session(instance,
+                                                     scb,
                                                      scb->sid,
                                                      SES_TR_DROPPED);
                             }
@@ -521,12 +534,12 @@ status_t
         if (!done) {
             done2 = FALSE;
             while (!done2) {
-                if (!agt_ses_process_first_ready()) {
+                if (!agt_ses_process_first_ready(instance)) {
                     done2 = TRUE;
                 } else if (agt_shutdown_requested()) {
                     done = done2 = TRUE;
                 } else {
-                    send_some_notifications();
+                    send_some_notifications(instance);
                 }
             }
         }

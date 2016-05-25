@@ -15,6 +15,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #include "log.h"
 
@@ -145,8 +146,8 @@ static bool extract_4bytes( const uint8_t** iterPos, const uint8_t* endPos,
             // encountered a dodgy character or an =
             if ( *iter != '=' )
             {
-               log_warn( "b64_decode() encountered invalid character(%c), "
-                         "output string truncated!", *iter );
+               //log_warn(instance,  "b64_decode() encountered invalid character(%c), "
+               //          "output string truncated!", *iter );
             }
 
             // pad the remaining characters to decode
@@ -282,7 +283,7 @@ status_t b64_encode ( const uint8_t* inbuff, uint32_t inbufflen,
             new_lined_bytes = (numBlocks*4)% linesize;
             
             if(new_lined_bytes) {
-            	memmove(*outIter-new_lined_bytes+2, *outIter-new_lined_bytes, new_lined_bytes);
+            	memmove(outIter-new_lined_bytes+2, outIter-new_lined_bytes, new_lined_bytes);
             }
             *(outIter-new_lined_bytes+0)='\r';
             *(outIter-new_lined_bytes+1)='\n';

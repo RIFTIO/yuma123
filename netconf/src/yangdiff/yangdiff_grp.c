@@ -99,7 +99,8 @@ date         init     comment
  *
  *********************************************************************/
 static void
-    output_one_grouping_diff (yangdiff_diffparms_t *cp,
+    output_one_grouping_diff (ncx_instance_t *instance,
+                              yangdiff_diffparms_t *cp,
                               grp_template_t *oldgrp,
                               grp_template_t *newgrp)
 {
@@ -114,38 +115,44 @@ static void
     dchanged = FALSE;
     changecnt = 0;
 
-    if (typedefQ_changed(cp, 
+    if (typedefQ_changed(instance, 
+                         cp, 
                          &oldgrp->typedefQ, 
                          &newgrp->typedefQ)) {
         tchanged = TRUE;
         changecnt++;
     }
 
-    if (groupingQ_changed(cp, 
+    if (groupingQ_changed(instance, 
+                          cp, 
                           &oldgrp->groupingQ, 
                           &newgrp->groupingQ)) {
         gchanged = TRUE;
         changecnt++;
     }
 
-    if (datadefQ_changed(cp, 
+    if (datadefQ_changed(instance, 
+                         cp, 
                          &oldgrp->datadefQ, 
                          &newgrp->datadefQ)) {
         dchanged = TRUE;
         changecnt++;
     }
 
-    changecnt += status_field_changed(YANG_K_STATUS,
+    changecnt += status_field_changed(instance,
+                                      YANG_K_STATUS,
                                       oldgrp->status, 
                                       newgrp->status, 
                                       isrev, 
                                       &cdb[0]);
-    changecnt += str_field_changed(YANG_K_DESCRIPTION,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_DESCRIPTION,
                                    oldgrp->descr, 
                                    newgrp->descr, 
                                    isrev, 
                                    &cdb[1]);
-    changecnt += str_field_changed(YANG_K_REFERENCE,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_REFERENCE,
                                    oldgrp->ref, 
                                    newgrp->ref, 
                                    isrev, 
@@ -155,39 +162,42 @@ static void
     }
 
     /* generate the diff output, based on the requested format */
-    output_mstart_line(cp, YANG_K_GROUPING, oldgrp->name, TRUE);
+    output_mstart_line(instance, cp, YANG_K_GROUPING, oldgrp->name, TRUE);
 
     if (cp->edifftype == YANGDIFF_DT_TERSE) {
         return;
     }
 
-    indent_in(cp);
+    indent_in(instance, cp);
 
     for (i=0; i<3; i++) {
         if (cdb[i].changed) {
-            output_cdb_line(cp, &cdb[i]);
+            output_cdb_line(instance, cp, &cdb[i]);
         }
     }
 
     if (tchanged) {
-        output_typedefQ_diff(cp, 
+        output_typedefQ_diff(instance, 
+                             cp, 
                              &oldgrp->typedefQ, 
                              &newgrp->typedefQ);
     }
 
     if (gchanged) {
-        output_groupingQ_diff(cp, 
+        output_groupingQ_diff(instance, 
+                              cp, 
                               &oldgrp->groupingQ, 
                               &newgrp->groupingQ);
     }
 
     if (dchanged) {
-        output_datadefQ_diff(cp, 
+        output_datadefQ_diff(instance, 
+                             cp, 
                              &oldgrp->datadefQ, 
                              &newgrp->datadefQ);
     }
 
-    indent_out(cp);
+    indent_out(instance, cp);
 
 } /* output_one_grouping_diff */
 
@@ -207,25 +217,29 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    grouping_changed (yangdiff_diffparms_t *cp,
+    grouping_changed (ncx_instance_t *instance,
+                      yangdiff_diffparms_t *cp,
                       grp_template_t *oldgrp,
                       grp_template_t *newgrp)
 {
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              oldgrp->status, 
                              newgrp->status, 
                              FALSE, 
                              NULL)) {
         return 1;
     }
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           oldgrp->descr, 
                           newgrp->descr, 
                           FALSE, 
                           NULL)) {
         return 1;
     }
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           oldgrp->ref, 
                           newgrp->ref, 
                           FALSE, 
@@ -233,19 +247,22 @@ static uint32
         return 1;
     }
 
-    if (typedefQ_changed(cp, 
+    if (typedefQ_changed(instance, 
+                         cp, 
                          &oldgrp->typedefQ, 
                          &newgrp->typedefQ)) {
         return 1;
     }
 
-    if (groupingQ_changed(cp, 
+    if (groupingQ_changed(instance, 
+                          cp, 
                           &oldgrp->groupingQ, 
                           &newgrp->groupingQ)) {
         return 1;
     }
 
-    if (datadefQ_changed(cp, 
+    if (datadefQ_changed(instance, 
+                         cp, 
                          &oldgrp->datadefQ, 
                          &newgrp->datadefQ)) {
         return 1;
@@ -273,7 +290,8 @@ static uint32
  *
  *********************************************************************/
 void
-    output_groupingQ_diff (yangdiff_diffparms_t *cp,
+    output_groupingQ_diff (ncx_instance_t *instance,
+                           yangdiff_diffparms_t *cp,
                            dlq_hdr_t *oldQ,
                            dlq_hdr_t *newQ)
 {
@@ -282,25 +300,26 @@ void
     /* borrowing the 'used' flag for marking matched groupings
      * first set all these flags to FALSE
      */
-    for (newgrp = (grp_template_t *)dlq_firstEntry(newQ);
+    for (newgrp = (grp_template_t *)dlq_firstEntry(instance, newQ);
          newgrp != NULL;
-         newgrp = (grp_template_t *)dlq_nextEntry(newgrp)) {
+         newgrp = (grp_template_t *)dlq_nextEntry(instance, newgrp)) {
         newgrp->used = FALSE;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldgrp = (grp_template_t *)dlq_firstEntry(oldQ);
+    for (oldgrp = (grp_template_t *)dlq_firstEntry(instance, oldQ);
          oldgrp != NULL;
-         oldgrp = (grp_template_t *)dlq_nextEntry(oldgrp)) {
+         oldgrp = (grp_template_t *)dlq_nextEntry(instance, oldgrp)) {
 
         /* find this grouping in the new Q */
-        newgrp = ncx_find_grouping_que(newQ, oldgrp->name);
+        newgrp = ncx_find_grouping_que(instance, newQ, oldgrp->name);
         if (newgrp) {
-            output_one_grouping_diff(cp, oldgrp, newgrp);
+            output_one_grouping_diff(instance, cp, oldgrp, newgrp);
             newgrp->used = TRUE;
         } else {
             /* grouping was removed from the new module */
-            output_diff(cp, 
+            output_diff(instance, 
+                        cp, 
                         YANG_K_GROUPING, 
                         oldgrp->name, 
                         NULL, 
@@ -309,12 +328,13 @@ void
     }
 
     /* look for groupings that were added in the new module */
-    for (newgrp = (grp_template_t *)dlq_firstEntry(newQ);
+    for (newgrp = (grp_template_t *)dlq_firstEntry(instance, newQ);
          newgrp != NULL;
-         newgrp = (grp_template_t *)dlq_nextEntry(newgrp)) {
+         newgrp = (grp_template_t *)dlq_nextEntry(instance, newgrp)) {
         if (!newgrp->used) {
             /* this grouping was added in the new version */
-            output_diff(cp, 
+            output_diff(instance, 
+                        cp, 
                         YANG_K_GROUPING, 
                         NULL, 
                         newgrp->name, 
@@ -340,33 +360,34 @@ void
  *    0 if field not changed
  *********************************************************************/
 uint32
-    groupingQ_changed (yangdiff_diffparms_t *cp,
+    groupingQ_changed (ncx_instance_t *instance,
+                       yangdiff_diffparms_t *cp,
                        dlq_hdr_t *oldQ,
                        dlq_hdr_t *newQ)
 {
     grp_template_t *oldgrp, *newgrp;
 
-    if (dlq_count(oldQ) != dlq_count(newQ)) {
+    if (dlq_count(instance, oldQ) != dlq_count(instance, newQ)) {
         return 1;
     }
 
     /* borrowing the 'used' flag for marking matched groupings
      * first set all these flags to FALSE
      */
-    for (newgrp = (grp_template_t *)dlq_firstEntry(oldQ);
+    for (newgrp = (grp_template_t *)dlq_firstEntry(instance, oldQ);
          newgrp != NULL;
-         newgrp = (grp_template_t *)dlq_nextEntry(newgrp)) {
+         newgrp = (grp_template_t *)dlq_nextEntry(instance, newgrp)) {
         newgrp->used = FALSE;
     }
 
     /* look through the old type Q for matching types in the new type Q */
-    for (oldgrp = (grp_template_t *)dlq_firstEntry(oldQ);
+    for (oldgrp = (grp_template_t *)dlq_firstEntry(instance, oldQ);
          oldgrp != NULL;
-         oldgrp = (grp_template_t *)dlq_nextEntry(oldgrp)) {
+         oldgrp = (grp_template_t *)dlq_nextEntry(instance, oldgrp)) {
 
-        newgrp = ncx_find_grouping_que(newQ, oldgrp->name);
+        newgrp = ncx_find_grouping_que(instance, newQ, oldgrp->name);
         if (newgrp) {
-            if (grouping_changed(cp, oldgrp, newgrp)) {
+            if (grouping_changed(instance, cp, oldgrp, newgrp)) {
                 return 1;
             }
         } else {
@@ -375,9 +396,9 @@ uint32
     }
 
     /* look for groupings that were added in the new module */
-    for (newgrp = (grp_template_t *)dlq_firstEntry(newQ);
+    for (newgrp = (grp_template_t *)dlq_firstEntry(instance, newQ);
          newgrp != NULL;
-         newgrp = (grp_template_t *)dlq_nextEntry(newgrp)) {
+         newgrp = (grp_template_t *)dlq_nextEntry(instance, newgrp)) {
         if (!newgrp->used) {
             return 1;
         }

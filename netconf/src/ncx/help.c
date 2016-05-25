@@ -100,7 +100,7 @@ date         init     comment
  *   nestlevel to use for obj_dump_template
  *********************************************************************/
 static uint32
-    get_nestlevel (help_mode_t mode)
+    get_nestlevel (ncx_instance_t *instance, help_mode_t mode)
 {
     /* these are arbitrary numbers; need better plan */
     switch (mode) {
@@ -112,7 +112,7 @@ static uint32
         return 0;
     case HELP_MODE_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 1;
     }
     /*NOTREACHED*/
@@ -130,32 +130,34 @@ static uint32
  *    indent == start indent count
  *********************************************************************/
 static void
-    dump_appinfoQ (const dlq_hdr_t *hdr,
+    dump_appinfoQ (ncx_instance_t *instance,
+                   const dlq_hdr_t *hdr,
                    uint32 indent)
 {
     const ncx_appinfo_t *appinfo;
     boolean   first;
 
     first = TRUE;
-    for (appinfo = (const ncx_appinfo_t *)dlq_firstEntry(hdr);
+    for (appinfo = (const ncx_appinfo_t *)dlq_firstEntry(instance, hdr);
          appinfo != NULL;
-         appinfo = (const ncx_appinfo_t *)dlq_nextEntry(appinfo)) {
+         appinfo = (const ncx_appinfo_t *)dlq_nextEntry(instance, appinfo)) {
 
         if (first) {
-            help_write_lines((const xmlChar *)"Appinfo Queue:\n", 
+            help_write_lines(instance, 
+                             (const xmlChar *)"Appinfo Queue:\n", 
                              indent, TRUE);
             first = FALSE;
         }
 
-        help_write_lines(EMPTY_STRING, indent+2, TRUE);
+        help_write_lines(instance, EMPTY_STRING, indent+2, TRUE);
         if (appinfo->value) {
-            log_stdout("%s = %s", appinfo->name, appinfo->value);
+            log_stdout(instance, "%s = %s", appinfo->name, appinfo->value);
         } else {
-            log_stdout("%s", appinfo->name);
+            log_stdout(instance, "%s", appinfo->name);
         }
     }
     if (!first) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
     }
 
 } /* dump_appinfoQ */
@@ -175,7 +177,8 @@ static void
  *    indent == start indent count
  *********************************************************************/
 static void
-    dump_rpcQ (const dlq_hdr_t *hdr,
+    dump_rpcQ (ncx_instance_t *instance,
+               const dlq_hdr_t *hdr,
                help_mode_t mode,
                uint32 indent)
 {
@@ -184,20 +187,20 @@ static void
     boolean               anyout;
     uint32                nestlevel;
 
-    nestlevel = get_nestlevel(mode);
+    nestlevel = get_nestlevel(instance, mode);
     anyout = FALSE;
-    for (rpc = (obj_template_t *)dlq_firstEntry(hdr);
+    for (rpc = (obj_template_t *)dlq_firstEntry(instance, hdr);
          rpc != NULL;
-         rpc = (obj_template_t *)dlq_nextEntry(rpc)) {
+         rpc = (obj_template_t *)dlq_nextEntry(instance, rpc)) {
 
         if (rpc->objtype == OBJ_TYP_RPC) {
             anyout = TRUE;
-            obj_dump_template(rpc, mode, nestlevel, indent);
+            obj_dump_template(instance, rpc, mode, nestlevel, indent);
         }
     }
 
     if (anyout) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
     }
 
 } /* dump_rpcQ */
@@ -213,21 +216,21 @@ static void
  *
  *********************************************************************/
 static void
-    dump_mod_hdr  (const ncx_module_t *mod)
+    dump_mod_hdr  (ncx_instance_t *instance, const ncx_module_t *mod)
 {
 
     /* dump some header info */
-    log_stdout("\n\nModule: %s", mod->name);
+    log_stdout(instance, "\n\nModule: %s", mod->name);
     if (mod->version) {
-        log_stdout(" (%s)", mod->version);
+        log_stdout(instance, " (%s)", mod->version);
     }
-    log_stdout("\nPrefix: %s", mod->prefix);
+    log_stdout(instance, "\nPrefix: %s", mod->prefix);
     if (mod->xmlprefix) {
-        log_stdout("\nXML prefix: %s", mod->xmlprefix);
+        log_stdout(instance, "\nXML prefix: %s", mod->xmlprefix);
     }
-    log_stdout("\nNamespace: %s", (mod->ns) ?
+    log_stdout(instance, "\nNamespace: %s", (mod->ns) ?
                (const char *)mod->ns : "(none)");
-    log_stdout("\nSource: %s", mod->source);
+    log_stdout(instance, "\nSource: %s", mod->source);
 
 } /* dump_mod_hdr */
 
@@ -246,7 +249,8 @@ static void
 *
 *********************************************************************/
 void
-    help_program_module (const xmlChar *modname,
+    help_program_module (ncx_instance_t *instance,
+                         const xmlChar *modname,
                          const xmlChar *cliname,
                          help_mode_t mode)
 {
@@ -257,59 +261,59 @@ void
 
 #ifdef DEBUG
     if (!modname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
     if (mode == HELP_MODE_NONE || mode > HELP_MODE_FULL) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 #endif
 
-    nestlevel = get_nestlevel(mode);
+    nestlevel = get_nestlevel(instance, mode);
 
-    mod = ncx_find_module(modname, NULL);
+    mod = ncx_find_module(instance, modname, NULL);
     if (!mod) {
-        log_error("\nhelp: Module '%s' not found", modname);
-        SET_ERROR(ERR_NCX_MOD_NOT_FOUND);
+        log_error(instance, "\nhelp: Module '%s' not found", modname);
+        SET_ERROR(instance, ERR_NCX_MOD_NOT_FOUND);
         return;
     }
 
-    log_stdout("\n\n  Program %s", mod->name);
-    log_stdout("\n\n  Usage:");
-    log_stdout("\n\n    %s [parameters]", mod->name);
+    log_stdout(instance, "\n\n  Program %s", mod->name);
+    log_stdout(instance, "\n\n  Usage:");
+    log_stdout(instance, "\n\n    %s [parameters]", mod->name);
     if (mode != HELP_MODE_BRIEF) {
-        log_stdout("\n\n  Parameters can be entered in any order, and have ");
-        log_stdout("the form:");
-        log_stdout("\n\n    [start] name separator [value]");
-        log_stdout("\n\n  where:");
-        log_stdout("\n\n    start == 0, 1, or 2 dashes (foo, -foo, --foo)");
-        log_stdout("\n\n    name == parameter name (foo)"
+        log_stdout(instance, "\n\n  Parameters can be entered in any order, and have ");
+        log_stdout(instance, "the form:");
+        log_stdout(instance, "\n\n    [start] name separator [value]");
+        log_stdout(instance, "\n\n  where:");
+        log_stdout(instance, "\n\n    start == 0, 1, or 2 dashes (foo, -foo, --foo)");
+        log_stdout(instance, "\n\n    name == parameter name (foo)"
                    "\n\n  Parameter name completion "
                    "will be attempted "
                    "\n  if a partial name is entered.");
-        log_stdout("\n\n    separator == whitespace or equals sign "
+        log_stdout(instance, "\n\n    separator == whitespace or equals sign "
                    "(foo=bar, foo bar)");
-        log_stdout("\n\n    value == string value for the parameter");
-        log_stdout("\n\n Strings with whitespace need to be "
+        log_stdout(instance, "\n\n    value == string value for the parameter");
+        log_stdout(instance, "\n\n Strings with whitespace need to be "
                    "double quoted."
                    "\n    (--foo=\"some string\")");
     }
 
     if (mode == HELP_MODE_FULL && mod->descr) {
-        log_stdout("\n\n  Description:");
-        help_write_lines(mod->descr, 4, TRUE);
+        log_stdout(instance, "\n\n  Description:");
+        help_write_lines(instance, mod->descr, 4, TRUE);
     }
 
     if (cliname) {
-        cli = ncx_find_object(mod, cliname);
+        cli = ncx_find_object(instance, mod, cliname);
         if (!cli) {
-            log_error("\nhelp: CLI Object %s not found", cliname);
-            SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+            log_error(instance, "\nhelp: CLI Object %s not found", cliname);
+            SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
             return;
         } else if (cli->objtype == OBJ_TYP_CONTAINER) {
-            log_stdout("\n\n Command Line Parameters");
-            log_stdout("\n\n Key:  parm-name [built-in-type] [d:default]\n");
+            log_stdout(instance, "\n\n Command Line Parameters");
+            log_stdout(instance, "\n\n Key:  parm-name [built-in-type] [d:default]\n");
 
 
             if (mode == HELP_MODE_BRIEF) {
@@ -318,17 +322,18 @@ void
                 usemode = HELP_MODE_FULL;
             }
                 
-            obj_dump_datadefQ(obj_get_datadefQ(cli), 
+            obj_dump_datadefQ(instance, 
+                              obj_get_datadefQ(instance, cli), 
                               usemode, 
                               nestlevel, 
                               4);
-            log_stdout("\n");
+            log_stdout(instance, "\n");
         }
     }
 
-    if (obj_any_rpcs(&mod->datadefQ) && mode == HELP_MODE_FULL) {
-        log_stdout("\n\n  Local Commands\n");
-        dump_rpcQ(&mod->datadefQ, mode, 4);
+    if (obj_any_rpcs(instance, &mod->datadefQ) && mode == HELP_MODE_FULL) {
+        log_stdout(instance, "\n\n  Local Commands\n");
+        dump_rpcQ(instance, &mod->datadefQ, mode, 4);
     }
 
 }  /* help_program_module */
@@ -344,30 +349,31 @@ void
 *    mode == help mode requested
 *********************************************************************/
 void
-    help_data_module (const ncx_module_t *mod,
+    help_data_module (ncx_instance_t *instance,
+                      const ncx_module_t *mod,
                       help_mode_t mode)
 {
 #ifdef DEBUG
     if (mod == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    dump_mod_hdr(mod);
+    dump_mod_hdr(instance, mod);
 
     if (mode == HELP_MODE_BRIEF) {
         return;
     }
 
     if (mode == HELP_MODE_FULL && mod->descr) {
-        log_stdout("\nDescription:\n %s", mod->descr);
+        log_stdout(instance, "\nDescription:\n %s", mod->descr);
     }
 
-    dump_rpcQ(&mod->datadefQ, mode, 2);
+    dump_rpcQ(instance, &mod->datadefQ, mode, 2);
 
     if (mode == HELP_MODE_FULL) {
-        dump_appinfoQ(&mod->appinfoQ, 2);
+        dump_appinfoQ(instance, &mod->appinfoQ, 2);
     }
 
 }  /* help_data_module */
@@ -383,35 +389,37 @@ void
 *    mode == help mode requested
 *********************************************************************/
 void
-    help_type (const typ_template_t *typ,
+    help_type (ncx_instance_t *instance,
+               const typ_template_t *typ,
                help_mode_t mode)
 {
 #ifdef DEBUG
     if (typ == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    log_stdout("\n  Type: %s", typ->name);
-    log_stdout(" (%s)",
+    log_stdout(instance, "\n  Type: %s", typ->name);
+    log_stdout(instance,
+               " (%s)",
                tk_get_btype_sym(typ_get_basetype
-                                ((const typ_def_t *)&typ->typdef)));
+                                (instance, (const typ_def_t *)&typ->typdef)));
 
     if (mode > HELP_MODE_BRIEF && typ->descr) {
-        log_stdout("\n Description: %s", typ->descr);
+        log_stdout(instance, "\n Description: %s", typ->descr);
     }
 
     if (typ->defval) {
-        log_stdout("\n Default: %s", typ->defval);
+        log_stdout(instance, "\n Default: %s", typ->defval);
     }
 
     if (typ->units) {
-        log_stdout("\n Units: %s", typ->units);
+        log_stdout(instance, "\n Units: %s", typ->units);
     }
 
     if (mode == HELP_MODE_FULL) {
-        dump_appinfoQ(&typ->typdef.appinfoQ, 1);
+        dump_appinfoQ(instance, &typ->typdef.appinfoQ, 1);
     }
 
 }  /* help_type */
@@ -427,17 +435,18 @@ void
 *    mode == help mode requested
 *********************************************************************/
 void
-    help_object (obj_template_t *obj,
+    help_object (ncx_instance_t *instance,
+                 obj_template_t *obj,
                  help_mode_t mode)
 {
 #ifdef DEBUG
     if (obj == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    obj_dump_template(obj, mode, get_nestlevel(mode), 0);
+    obj_dump_template(instance, obj, mode, get_nestlevel(instance, mode), 0);
 
 }  /* help_object */
 
@@ -454,25 +463,26 @@ void
  *    startnl == TRUE if start with a newline, FALSE otherwise
  *********************************************************************/
 void
-    help_write_lines (const xmlChar *str,
+    help_write_lines (ncx_instance_t *instance,
+                      const xmlChar *str,
                       uint32 indent,
                       boolean startnl)
 {
     uint32  i;
 
     if (startnl) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
         for (i=0; i<indent; i++) {
-            log_stdout(" ");
+            log_stdout(instance, " ");
         }
     }
 
     if (str) {
         while (*str) {
-            log_stdout("%c", *str);
+            log_stdout(instance, "%c", *str);
             if (*str++ == '\n') {
                 for (i=0; i<indent; i++) {
-                    log_stdout(" ");
+                    log_stdout(instance, " ");
                 }
             }
         }
@@ -494,7 +504,8 @@ void
  *    maxlen == 0..N max number of chars to output
  *********************************************************************/
 void
-    help_write_lines_max (const xmlChar *str,
+    help_write_lines_max (ncx_instance_t *instance,
+                          const xmlChar *str,
                           uint32 indent,
                           boolean startnl,
                           uint32 maxlen)
@@ -508,15 +519,15 @@ void
     }
 
     if (startnl) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
         if (++cnt > maxlen) {
-            log_stdout("..."); 
+            log_stdout(instance, "..."); 
             return;
         }
         for (i=0; i<indent; i++) {
-            log_stdout(" ");
+            log_stdout(instance, " ");
             if (++cnt > maxlen) {
-                log_stdout("..."); 
+                log_stdout(instance, "..."); 
                 return;
             }
         }
@@ -524,17 +535,17 @@ void
 
     if (str) {
         while (*str) {
-            log_stdout("%c", *str);
+            log_stdout(instance, "%c", *str);
             if (++cnt > maxlen) {
-                log_stdout("..."); 
+                log_stdout(instance, "..."); 
                 return;
             }
             
             if (*str++ == '\n') {
                 for (i=0; i<indent; i++) {
-                    log_stdout(" ");
+                    log_stdout(instance, " ");
                     if (++cnt > maxlen) {
-                        log_stdout("..."); 
+                        log_stdout(instance, "..."); 
                         return;
                     }
                 }

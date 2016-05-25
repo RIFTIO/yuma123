@@ -123,11 +123,11 @@ date         init     comment
 *   the lock ID for this lock
 *********************************************************************/
 plock_id_t
-    plock_get_id (plock_cb_t *plcb)
+    plock_get_id (ncx_instance_t *instance, plock_cb_t *plcb)
 {
 #ifdef DEBUG
     if (plcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -149,11 +149,11 @@ plock_id_t
 *   session ID that owns this lock
 *********************************************************************/
 uint32
-    plock_get_sid (plock_cb_t *plcb)
+    plock_get_sid (ncx_instance_t *instance, plock_cb_t *plcb)
 {
 #ifdef DEBUG
     if (plcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -176,11 +176,11 @@ uint32
 *   timestamp in date-time format
 *********************************************************************/
 const xmlChar *
-    plock_get_timestamp (plock_cb_t *plcb)
+    plock_get_timestamp (ncx_instance_t *instance, plock_cb_t *plcb)
 {
 #ifdef DEBUG
     if (plcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -202,11 +202,11 @@ const xmlChar *
 *   pointer to final result struct
 *********************************************************************/
 xpath_result_t *
-    plock_get_final_result (plock_cb_t *plcb)
+    plock_get_final_result (ncx_instance_t *instance, plock_cb_t *plcb)
 {
 #ifdef DEBUG
     if (plcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -228,16 +228,16 @@ xpath_result_t *
 *   pointer to first xpath_pcb_t for the lock
 *********************************************************************/
 xpath_pcb_t *
-    plock_get_first_select (plock_cb_t *plcb)
+    plock_get_first_select (ncx_instance_t *instance, plock_cb_t *plcb)
 {
 #ifdef DEBUG
     if (plcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (xpath_pcb_t *)dlq_firstEntry(&plcb->plock_xpathpcbQ);
+    return (xpath_pcb_t *)dlq_firstEntry(instance, &plcb->plock_xpathpcbQ);
 
 }  /* plock_get_first_select */
 
@@ -254,16 +254,16 @@ xpath_pcb_t *
 *   pointer to first xpath_pcb_t for the lock
 *********************************************************************/
 xpath_pcb_t *
-    plock_get_next_select (xpath_pcb_t *xpathpcb)
+    plock_get_next_select (ncx_instance_t *instance, xpath_pcb_t *xpathpcb)
 {
 #ifdef DEBUG
     if (xpathpcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (xpath_pcb_t *)dlq_nextEntry(xpathpcb);
+    return (xpath_pcb_t *)dlq_nextEntry(instance, xpathpcb);
 
 }  /* plock_get_next_select */
 
@@ -280,18 +280,19 @@ xpath_pcb_t *
 *
 *********************************************************************/
 void
-    plock_add_select (plock_cb_t *plcb,
+    plock_add_select (ncx_instance_t *instance,
+                      plock_cb_t *plcb,
                       xpath_pcb_t *xpathpcb,
                       xpath_result_t *result)
 {
 #ifdef DEBUG
     if (plcb == NULL || xpathpcb == NULL || result == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
-    dlq_enque(xpathpcb, &plcb->plock_xpathpcbQ);
-    dlq_enque(result, &plcb->plock_resultQ);
+    dlq_enque(instance, xpathpcb, &plcb->plock_xpathpcbQ);
+    dlq_enque(instance, result, &plcb->plock_resultQ);
 
 }  /* plock_add_select */
 
@@ -311,33 +312,33 @@ void
 *    status; NCX_ERR_INVALID_VALUE if the final nodeset is empty
 *********************************************************************/
 status_t
-    plock_make_final_result (plock_cb_t *plcb)
+    plock_make_final_result (ncx_instance_t *instance, plock_cb_t *plcb)
 {
     xpath_result_t *result;
     xpath_pcb_t    *xpathpcb;
 
 #ifdef DEBUG
     if (plcb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     xpathpcb = (xpath_pcb_t *)
-        dlq_firstEntry(&plcb->plock_xpathpcbQ);
+        dlq_firstEntry(instance, &plcb->plock_xpathpcbQ);
     if (xpathpcb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     for (result = (xpath_result_t *)
-             dlq_firstEntry(&plcb->plock_resultQ);
+             dlq_firstEntry(instance, &plcb->plock_resultQ);
          result != NULL;
-         result = (xpath_result_t *)dlq_nextEntry(result)) {
-        xpath_move_nodeset(result, plcb->plock_final_result);
+         result = (xpath_result_t *)dlq_nextEntry(instance, result)) {
+        xpath_move_nodeset(instance, result, plcb->plock_final_result);
     }
 
-    xpath1_prune_nodeset(xpathpcb, plcb->plock_final_result);
+    xpath1_prune_nodeset(instance, xpathpcb, plcb->plock_final_result);
 
-    if (xpath_nodeset_empty(plcb->plock_final_result)) {
+    if (xpath_nodeset_empty(instance, plcb->plock_final_result)) {
         return ERR_NCX_XPATH_NODESET_EMPTY;
     } else {
         return NO_ERR;

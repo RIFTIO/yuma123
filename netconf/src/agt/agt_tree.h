@@ -100,7 +100,8 @@ extern "C" {
 *    NULL if no match
 *********************************************************************/
 extern ncx_filptr_t *
-    agt_tree_prune_filter (ses_cb_t *scb,
+    agt_tree_prune_filter (struct ncx_instance_t_ *instance,
+			   ses_cb_t *scb,
 			   rpc_msg_t *msg,
 			   const cfg_template_t *cfg,
 			   boolean getop);
@@ -124,7 +125,8 @@ extern ncx_filptr_t *
 *    none
 *********************************************************************/
 extern void
-    agt_tree_output_filter (ses_cb_t *scb,
+    agt_tree_output_filter (struct ncx_instance_t_ *instance,
+			    ses_cb_t *scb,
 			    rpc_msg_t *msg,
 			    ncx_filptr_t *top,
 			    int32 indent,
@@ -150,7 +152,8 @@ extern void
 *    FALSE if the filter did not match; notification not sent
 *********************************************************************/
 extern boolean
-    agt_tree_test_filter (xml_msg_hdr_t *msghdr,
+    agt_tree_test_filter (struct ncx_instance_t_ *instance,
+                          xml_msg_hdr_t *msghdr,
                           ses_cb_t *scb,
                           val_value_t *filter,
                           val_value_t *topval);

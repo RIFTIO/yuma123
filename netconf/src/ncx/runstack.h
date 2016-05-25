@@ -223,7 +223,7 @@ typedef struct runstack_context_t_ {
 *   current stack level; 0 --> not in any script
 *********************************************************************/
 extern uint32
-    runstack_level (runstack_context_t *rcxt);
+    runstack_level (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -245,7 +245,8 @@ extern uint32
 *   status
 *********************************************************************/
 extern status_t
-    runstack_push (runstack_context_t *rcxt,
+    runstack_push (struct ncx_instance_t_ *instance,
+                   runstack_context_t *rcxt,
                    const xmlChar *source,
 		   FILE *fp);
 
@@ -259,7 +260,7 @@ extern status_t
 *     rcxt == runstack context to use
 *********************************************************************/
 extern void
-    runstack_pop (runstack_context_t *rcxt);
+    runstack_pop (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -284,7 +285,8 @@ extern void
 *   NULL if some error
 *********************************************************************/
 extern xmlChar *
-    runstack_get_cmd (runstack_context_t *rcxt,
+    runstack_get_cmd (struct ncx_instance_t_ *instance,
+                      runstack_context_t *rcxt,
                       status_t *res);
 
 
@@ -297,7 +299,7 @@ extern xmlChar *
 *     rcxt == runstack context to use
 *********************************************************************/
 extern void
-    runstack_cancel (runstack_context_t *rcxt);
+    runstack_cancel (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -309,7 +311,7 @@ extern void
 *     rcxt == runstack context to use
 *********************************************************************/
 extern void
-    runstack_clear_cancel (runstack_context_t *rcxt);
+    runstack_clear_cancel (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -327,7 +329,8 @@ extern void
 *   pointer to the requested que
 *********************************************************************/
 extern dlq_hdr_t *
-    runstack_get_que (runstack_context_t *rcxt,
+    runstack_get_que (struct ncx_instance_t_ *instance,
+                      runstack_context_t *rcxt,
                       boolean isglobal);
 
 
@@ -343,7 +346,7 @@ extern dlq_hdr_t *
 *   que for current stack level, NULL if an error
 *********************************************************************/
 extern dlq_hdr_t *
-    runstack_get_parm_que (runstack_context_t *rcxt);
+    runstack_get_parm_que (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -353,7 +356,7 @@ extern dlq_hdr_t *
 *
 *********************************************************************/
 extern void
-    runstack_init (void);
+    runstack_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -363,7 +366,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    runstack_cleanup (void);
+    runstack_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -374,7 +377,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    runstack_clean_context (runstack_context_t *rcxt);
+    runstack_clean_context (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -385,7 +388,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    runstack_free_context (runstack_context_t *rcxt);
+    runstack_free_context (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -398,7 +401,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    runstack_init_context (runstack_context_t *rcxt);
+    runstack_init_context (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -411,7 +414,7 @@ extern void
 *
 *********************************************************************/
 extern runstack_context_t *
-    runstack_new_context (void);
+    runstack_new_context (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -424,7 +427,7 @@ extern runstack_context_t *
 *
 *********************************************************************/
 extern void
-    runstack_session_cleanup (runstack_context_t *rcxt);
+    runstack_session_cleanup (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -437,7 +440,7 @@ extern void
 *
 *********************************************************************/
 extern runstack_src_t
-    runstack_get_source (runstack_context_t *rcxt);
+    runstack_get_source (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -453,7 +456,8 @@ extern runstack_src_t
 *   status
 *********************************************************************/
 extern status_t
-    runstack_save_line (runstack_context_t *rcxt,
+    runstack_save_line (struct ncx_instance_t_ *instance,
+                        runstack_context_t *rcxt,
                         const xmlChar *line);
 
 
@@ -482,7 +486,8 @@ extern status_t
 *   NULL if some error
 *********************************************************************/
 extern xmlChar *
-    runstack_get_loop_cmd (runstack_context_t *rcxt,
+    runstack_get_loop_cmd (struct ncx_instance_t_ *instance,
+                           runstack_context_t *rcxt,
                            status_t *res);
 
 
@@ -499,7 +504,7 @@ extern xmlChar *
 *   FALSE if in a FALSE conditional statement right now
 *********************************************************************/
 extern boolean
-    runstack_get_cond_state (runstack_context_t *rcxt);
+    runstack_get_cond_state (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -526,7 +531,8 @@ extern boolean
 *    parameters need to be freed by the caller
 *********************************************************************/
 extern status_t
-    runstack_handle_while (runstack_context_t *rcxt,
+    runstack_handle_while (struct ncx_instance_t_ *instance,
+                           runstack_context_t *rcxt,
                            uint32 maxloops,
                            struct xpath_pcb_t_ *xpathpcb,
                            val_value_t *docroot);
@@ -547,7 +553,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    runstack_handle_if (runstack_context_t *rcxt,
+    runstack_handle_if (struct ncx_instance_t_ *instance,
+                        runstack_context_t *rcxt,
                         boolean startcond);
 
 
@@ -566,7 +573,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    runstack_handle_elif (runstack_context_t *rcxt,
+    runstack_handle_elif (struct ncx_instance_t_ *instance,
+                          runstack_context_t *rcxt,
                           boolean startcond);
 
 
@@ -582,7 +590,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    runstack_handle_else (runstack_context_t *rcxt);
+    runstack_handle_else (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -597,7 +605,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    runstack_handle_end (runstack_context_t *rcxt);
+    runstack_handle_end (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 
 /********************************************************************
@@ -614,7 +622,7 @@ extern status_t
 *   FALSE if FALSE not already used or not in an if-block
 *********************************************************************/
 extern boolean
-    runstack_get_if_used (runstack_context_t *rcxt);
+    runstack_get_if_used (struct ncx_instance_t_ *instance, runstack_context_t *rcxt);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

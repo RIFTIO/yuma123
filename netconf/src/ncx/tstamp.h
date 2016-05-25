@@ -57,7 +57,7 @@ extern "C" {
 *   buff is filled in
 *********************************************************************/
 extern void 
-    tstamp_datetime (xmlChar *buff);
+    tstamp_datetime (struct ncx_instance_t_ *instance, xmlChar *buff);
 
 
 /********************************************************************
@@ -72,7 +72,7 @@ extern void
 *   buff is filled in
 *********************************************************************/
 extern void 
-    tstamp_date (xmlChar *buff);
+    tstamp_date (struct ncx_instance_t_ *instance, xmlChar *buff);
 
 
 /********************************************************************
@@ -87,7 +87,7 @@ extern void
 *   buff is filled in
 *********************************************************************/
 extern void 
-    tstamp_datetime_sql (xmlChar *buff);
+    tstamp_datetime_sql (struct ncx_instance_t_ *instance, xmlChar *buff);
 
 
 /********************************************************************
@@ -112,7 +112,8 @@ extern void
 *   or NULL if some error
 *********************************************************************/
 extern xmlChar *
-    tstamp_convert_to_utctime (const xmlChar *timestr,
+    tstamp_convert_to_utctime (struct ncx_instance_t_ *instance,
+			       const xmlChar *timestr,
 			       boolean *isNegative,
 			       status_t *res);
 
@@ -129,7 +130,7 @@ extern xmlChar *
 *   buff is filled in
 *********************************************************************/
 extern void 
-    tstamp_datetime_dirname (xmlChar *buff);
+    tstamp_datetime_dirname (struct ncx_instance_t_ *instance, xmlChar *buff);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

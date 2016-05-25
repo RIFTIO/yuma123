@@ -91,7 +91,8 @@ extern "C" {
 *    status
 *********************************************************************/
 extern status_t
-    agt_xpath_output_filter (ses_cb_t *scb,
+    agt_xpath_output_filter (struct ncx_instance_t_ *instance,
+			     ses_cb_t *scb,
 			     rpc_msg_t *msg,
 			     const cfg_template_t *cfg,
 			     boolean getop,
@@ -119,7 +120,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern boolean
-    agt_xpath_test_filter (xml_msg_hdr_t *msghdr,
+    agt_xpath_test_filter (struct ncx_instance_t_ *instance,
+                           xml_msg_hdr_t *msghdr,
                            ses_cb_t *scb,
                            const val_value_t *selectval,
                            val_value_t *val);

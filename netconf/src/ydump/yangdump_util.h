@@ -74,7 +74,7 @@ extern "C" {
 *
 *********************************************************************/
 extern void 
-    write_banner (void);
+    write_banner (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -87,7 +87,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    write_banner_session (ses_cb_t *scb);
+    write_banner_session (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -101,7 +101,8 @@ extern void
 *            FALSE if not
 *********************************************************************/
 extern void 
-    write_banner_session_ex (ses_cb_t *scb,
+    write_banner_session_ex (struct ncx_instance_t_ *instance,
+                             ses_cb_t *scb,
                              boolean wcopy);
 
 
@@ -125,7 +126,8 @@ extern void
  *   total number of chars processed
  *********************************************************************/
 extern uint32
-    find_reference (const xmlChar *buffer,
+    find_reference (struct ncx_instance_t_ *instance,
+                    const xmlChar *buffer,
                     const xmlChar **ref,
                     uint32 *reflen);
 
@@ -144,7 +146,8 @@ extern uint32
  *
  *********************************************************************/
 extern void
-    print_subtree_banner (yangdump_cvtparms_t *cp,
+    print_subtree_banner (struct ncx_instance_t_ *instance,
+                          yangdump_cvtparms_t *cp,
                           ncx_module_t *mod,
                           ses_cb_t *scb);
 

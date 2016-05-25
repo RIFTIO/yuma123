@@ -266,7 +266,8 @@ typedef struct ncxmod_search_result_t_ {
  *    keep the traversal going.  Do not return any warning or
  *    recoverable error, just log and move on
  *********************************************************************/
-typedef status_t (*ncxmod_callback_fn_t) (const char *fullspec,
+typedef status_t (*ncxmod_callback_fn_t) (struct ncx_instance_t_ *instance,
+					  const char *fullspec,
 					  void *cookie);
 
 
@@ -286,7 +287,7 @@ typedef status_t (*ncxmod_callback_fn_t) (const char *fullspec,
 *   status
 *********************************************************************/
 extern status_t
-    ncxmod_init (void);
+    ncxmod_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -296,7 +297,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    ncxmod_cleanup (void);
+    ncxmod_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -311,10 +312,13 @@ extern void
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*  YUMA_MODPATH environment var (or set by modpath CLI var)
+*  is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -330,7 +334,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t 
-    ncxmod_load_module (const xmlChar *modname,
+    ncxmod_load_module (struct ncx_instance_t_ *instance,
+			const xmlChar *modname,
 			const xmlChar *revision,
                         dlq_hdr_t *savedevQ,
 			ncx_module_t **retmod);
@@ -348,10 +353,13 @@ extern status_t
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -368,7 +376,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t 
-    ncxmod_parse_module (const xmlChar *modname,
+    ncxmod_parse_module (struct ncx_instance_t_ *instance,
+                         const xmlChar *modname,
                          const xmlChar *revision,
                          dlq_hdr_t *savedevQ,
                          ncx_module_t **retmod);
@@ -383,10 +392,13 @@ extern status_t
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -402,7 +414,8 @@ extern status_t
 *   == NULL if any error preventing a search
 *********************************************************************/
 extern ncxmod_search_result_t *
-    ncxmod_find_module (const xmlChar *modname,
+    ncxmod_find_module (struct ncx_instance_t_ *instance,
+			const xmlChar *modname,
 			const xmlChar *revision);
 
 
@@ -420,10 +433,13 @@ extern ncxmod_search_result_t *
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) HOME/modules directory
-* 3) YUMA_HOME/modules directory
-* 4) YUMA_INSTALL/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) HOME/modules directory
+* 2) YUMA_HOME/modules directory
+* 3) YUMA_INSTALL/modules directory
 *
 * INPUTS:
 *   resultQ == address of Q to stor malloced search results
@@ -436,7 +452,7 @@ extern ncxmod_search_result_t *
 *  status
 *********************************************************************/
 extern status_t 
-    ncxmod_find_all_modules (dlq_hdr_t *resultQ);
+    ncxmod_find_all_modules (struct ncx_instance_t_ *instance, dlq_hdr_t *resultQ);
 
 
 /********************************************************************
@@ -448,10 +464,13 @@ extern status_t
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   devname == deviation module name with 
@@ -467,7 +486,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t 
-    ncxmod_load_deviation (const xmlChar *deviname,
+    ncxmod_load_deviation (struct ncx_instance_t_ *instance,
+                           const xmlChar *deviname,
                            dlq_hdr_t *deviationQ);
 
 
@@ -482,10 +502,13 @@ extern status_t
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -503,7 +526,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t 
-    ncxmod_load_imodule (const xmlChar *modname,
+    ncxmod_load_imodule (struct ncx_instance_t_ *instance,
+			 const xmlChar *modname,
 			 const xmlChar *revision,
 			 yang_pcb_t *pcb,
 			 yang_parsetype_t ptyp,
@@ -540,7 +564,8 @@ extern status_t
 *   pointer to malloced parser control block, or NULL of none
 *********************************************************************/
 extern yang_pcb_t *
-    ncxmod_load_module_ex (const xmlChar *modname,
+    ncxmod_load_module_ex (struct ncx_instance_t_ *instance,
+                           const xmlChar *modname,
                            const xmlChar *revision,
                            boolean with_submods,
                            boolean savetkc,
@@ -575,7 +600,8 @@ extern yang_pcb_t *
 *   pointer to malloced parser control block, or NULL of none
 *********************************************************************/
 extern yang_pcb_t *
-    ncxmod_load_module_diff (const xmlChar *modname,
+    ncxmod_load_module_diff (struct ncx_instance_t_ *instance,
+			     const xmlChar *modname,
 			     const xmlChar *revision,
 			     boolean with_submods,
 			     const xmlChar *modpath,
@@ -616,7 +642,8 @@ extern yang_pcb_t *
 *   It must be freed after use!!!
 *********************************************************************/
 extern xmlChar *
-    ncxmod_find_data_file (const xmlChar *fname,
+    ncxmod_find_data_file (struct ncx_instance_t_ *instance,
+			   const xmlChar *fname,
 			   boolean generrors,
 			   status_t *res);
 
@@ -651,7 +678,8 @@ extern xmlChar *
 *   It must be freed after use!!!
 *********************************************************************/
 extern xmlChar *
-    ncxmod_find_sil_file (const xmlChar *fname,
+    ncxmod_find_sil_file (struct ncx_instance_t_ *instance,
+                          const xmlChar *fname,
                           boolean generrors,
                           status_t *res);
 
@@ -686,7 +714,8 @@ extern xmlChar *
 *   It must be freed after use!!!
 *********************************************************************/
 extern xmlChar *
-    ncxmod_make_data_filespec (const xmlChar *fname,
+    ncxmod_make_data_filespec (struct ncx_instance_t_ *instance,
+                               const xmlChar *fname,
                                status_t *res);
 
 
@@ -712,7 +741,8 @@ extern xmlChar *
 *   the complete filespec or NULL if some error occurred
 *********************************************************************/
 extern xmlChar *
-    ncxmod_make_data_filespec_from_src (const xmlChar *srcspec,
+    ncxmod_make_data_filespec_from_src (struct ncx_instance_t_ *instance,
+                                        const xmlChar *srcspec,
                                         const xmlChar *fname,
                                         status_t *res);
 
@@ -745,7 +775,8 @@ extern xmlChar *
 *   It must be freed after use!!!
 *********************************************************************/
 extern xmlChar *
-    ncxmod_find_script_file (const xmlChar *fname,
+    ncxmod_find_script_file (struct ncx_instance_t_ *instance,
+			     const xmlChar *fname,
 			     status_t *res);
 
 
@@ -762,7 +793,7 @@ extern xmlChar *
 *        == NULL or empty string to disable
 *********************************************************************/
 extern void
-    ncxmod_set_home (const xmlChar *home);
+    ncxmod_set_home (struct ncx_instance_t_ *instance, const xmlChar *home);
 
 
 /********************************************************************
@@ -775,7 +806,7 @@ extern void
 *   const point to the home variable, or NULL if not set
 *********************************************************************/
 extern const xmlChar *
-    ncxmod_get_home (void);
+    ncxmod_get_home (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -791,7 +822,7 @@ extern const xmlChar *
 *            == NULL or empty string to disable
 *********************************************************************/
 extern void
-    ncxmod_set_yuma_home (const xmlChar *yumahome);
+    ncxmod_set_yuma_home (struct ncx_instance_t_ *instance, const xmlChar *yumahome);
 
 
 /********************************************************************
@@ -804,7 +835,7 @@ extern void
 *   const point to the yuma_home variable, or NULL if not set
 *********************************************************************/
 extern const xmlChar *
-    ncxmod_get_yuma_home (void);
+    ncxmod_get_yuma_home (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -817,7 +848,7 @@ extern const xmlChar *
 *   const point to the YUMA_INSTALL value
 *********************************************************************/
 extern const xmlChar *
-    ncxmod_get_yuma_install (void);
+    ncxmod_get_yuma_install (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -833,7 +864,7 @@ extern const xmlChar *
 *           == NULL or empty string to disable
 *********************************************************************/
 extern void
-    ncxmod_set_modpath (const xmlChar *modpath);
+    ncxmod_set_modpath (struct ncx_instance_t_ *instance, const xmlChar *modpath);
 
 
 /********************************************************************
@@ -847,7 +878,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncxmod_set_datapath (const xmlChar *datapath);
+    ncxmod_set_datapath (struct ncx_instance_t_ *instance, const xmlChar *datapath);
 
 
 /********************************************************************
@@ -861,7 +892,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncxmod_set_runpath (const xmlChar *runpath);
+    ncxmod_set_runpath (struct ncx_instance_t_ *instance, const xmlChar *runpath);
 
 
 /********************************************************************
@@ -874,7 +905,7 @@ extern void
 *             == FALSE if subdir searches should not be done
 *********************************************************************/
 extern void
-    ncxmod_set_subdirs (boolean usesubdirs);
+    ncxmod_set_subdirs (struct ncx_instance_t_ *instance, boolean usesubdirs);
 
 
 /********************************************************************
@@ -886,7 +917,7 @@ extern void
 *   pointer to the yuma dir string
 *********************************************************************/
 extern const xmlChar *
-    ncxmod_get_yumadir (void);
+    ncxmod_get_yumadir (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -912,7 +943,8 @@ extern const xmlChar *
 *    OR some error if not found or buffer overflow
 *********************************************************************/
 extern status_t
-    ncxmod_process_subtree (const char *startspec, 
+    ncxmod_process_subtree (struct ncx_instance_t_ *instance, 
+			    const char *startspec, 
 			    ncxmod_callback_fn_t callback,
 			    void *cookie);
 
@@ -947,7 +979,8 @@ extern boolean
 *    const pointer to the user home directory string
 *********************************************************************/
 extern const xmlChar *
-    ncxmod_get_userhome (const xmlChar *user,
+    ncxmod_get_userhome (struct ncx_instance_t_ *instance,
+			 const xmlChar *user,
 			 uint32 userlen);
 
 
@@ -964,7 +997,8 @@ extern const xmlChar *
 *    const pointer to the specified environment variable value
 *********************************************************************/
 extern const xmlChar *
-    ncxmod_get_envvar (const xmlChar *name,
+    ncxmod_get_envvar (struct ncx_instance_t_ *instance,
+		       const xmlChar *name,
 		       uint32 namelen);
 
 
@@ -980,7 +1014,7 @@ extern const xmlChar *
 *
 *********************************************************************/
 extern void
-    ncxmod_set_altpath (const xmlChar *altpath);
+    ncxmod_set_altpath (struct ncx_instance_t_ *instance, const xmlChar *altpath);
 
 
 /********************************************************************
@@ -990,7 +1024,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncxmod_clear_altpath (void);
+    ncxmod_clear_altpath (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1015,7 +1049,8 @@ extern void
 *   status of the operation
 *********************************************************************/
 extern status_t
-    ncxmod_list_data_files (help_mode_t helpmode,
+    ncxmod_list_data_files (struct ncx_instance_t_ *instance,
+                            help_mode_t helpmode,
                             boolean logstdout);
 
 
@@ -1041,7 +1076,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    ncxmod_list_script_files (help_mode_t helpmode,
+    ncxmod_list_script_files (struct ncx_instance_t_ *instance,
+                              help_mode_t helpmode,
                               boolean logstdout);
 
 
@@ -1052,11 +1088,14 @@ extern status_t
 *
 * Search order:
 *
+* IF
+*   YUMA_MODPATH environment var (or set by datapath CLI var)
+*   is set, search only that path.
+* ELSE
 * 1) current directory or absolute path
-* 2) YUMA_MODPATH environment var (or set by datapath CLI var)
-* 3) HOME/modules directory
-* 4) YUMA_HOME/modules directory
-* 5) YUMA_INSTALL/modules directory
+* 2) HOME/modules directory
+* 3) YUMA_HOME/modules directory
+* 4) YUMA_INSTALL/modules directory
 *
 * INPUTS:
 *   helpmode == BRIEF, NORMAL or FULL 
@@ -1067,7 +1106,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    ncxmod_list_yang_files (help_mode_t helpmode,
+    ncxmod_list_yang_files (struct ncx_instance_t_ *instance,
+                            help_mode_t helpmode,
                             boolean logstdout);
 
 
@@ -1080,7 +1120,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ncxmod_setup_yumadir (void);
+    ncxmod_setup_yumadir (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1092,7 +1132,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ncxmod_setup_tempdir (void);
+    ncxmod_setup_tempdir (struct ncx_instance_t_ *instance);
 
 
 
@@ -1111,7 +1151,7 @@ extern status_t
 *   malloced tempdir_progcb_t record (if NO_ERR)
 *********************************************************************/
 extern ncxmod_temp_progcb_t *
-    ncxmod_new_program_tempdir (status_t *res);
+    ncxmod_new_program_tempdir (struct ncx_instance_t_ *instance, status_t *res);
 
 
 /********************************************************************
@@ -1124,7 +1164,7 @@ extern ncxmod_temp_progcb_t *
 *
 *********************************************************************/
 extern void
-    ncxmod_free_program_tempdir (ncxmod_temp_progcb_t *progcb);
+    ncxmod_free_program_tempdir (struct ncx_instance_t_ *instance, ncxmod_temp_progcb_t *progcb);
 
 
 /********************************************************************
@@ -1144,7 +1184,8 @@ extern void
 *   malloced tempdir_sescb_t record
 *********************************************************************/
 extern ncxmod_temp_sescb_t *
-    ncxmod_new_session_tempdir (ncxmod_temp_progcb_t *progcb,
+    ncxmod_new_session_tempdir (struct ncx_instance_t_ *instance,
+                                ncxmod_temp_progcb_t *progcb,
                                 uint32 sidnum,
                                 status_t *res);
 
@@ -1160,7 +1201,8 @@ extern ncxmod_temp_sescb_t *
 *
 *********************************************************************/
 extern void
-    ncxmod_free_session_tempdir (ncxmod_temp_progcb_t *progcb,
+    ncxmod_free_session_tempdir (struct ncx_instance_t_ *instance,
+                                 ncxmod_temp_progcb_t *progcb,
                                  uint32 sidnum);
 
 
@@ -1181,7 +1223,8 @@ extern void
 *   malloced tempdir_sescb_t record
 *********************************************************************/
 extern ncxmod_temp_filcb_t *
-    ncxmod_new_session_tempfile (ncxmod_temp_sescb_t *sescb,
+    ncxmod_new_session_tempfile (struct ncx_instance_t_ *instance,
+                                 ncxmod_temp_sescb_t *sescb,
                                  const xmlChar *filename,
                                  status_t *res);
 
@@ -1196,7 +1239,7 @@ extern ncxmod_temp_filcb_t *
 *
 *********************************************************************/
 extern void
-    ncxmod_free_session_tempfile (ncxmod_temp_filcb_t *filcb);
+    ncxmod_free_session_tempfile (struct ncx_instance_t_ *instance, ncxmod_temp_filcb_t *filcb);
 
 
 /********************************************************************
@@ -1208,7 +1251,7 @@ extern void
 *   malloced and initialized struct, NULL if ERR_INTERNAL_MEM
 *********************************************************************/
 extern ncxmod_search_result_t *
-    ncxmod_new_search_result (void);
+    ncxmod_new_search_result (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1223,7 +1266,7 @@ extern ncxmod_search_result_t *
 *   malloced and initialized struct, NULL if ERR_INTERNAL_MEM
 *********************************************************************/
 extern ncxmod_search_result_t *
-    ncxmod_new_search_result_ex (const ncx_module_t *mod);
+    ncxmod_new_search_result_ex (struct ncx_instance_t_ *instance, const ncx_module_t *mod);
 
 
 /********************************************************************
@@ -1238,7 +1281,8 @@ extern ncxmod_search_result_t *
 *   malloced and initialized struct, NULL if ERR_INTERNAL_MEM
 *********************************************************************/
 extern ncxmod_search_result_t *
-    ncxmod_new_search_result_str (const xmlChar *modname,
+    ncxmod_new_search_result_str (struct ncx_instance_t_ *instance,
+                                  const xmlChar *modname,
                                   const xmlChar *revision);
 
 
@@ -1251,7 +1295,7 @@ extern ncxmod_search_result_t *
 *    searchresult == struct to clean and free
 *********************************************************************/
 extern void
-    ncxmod_free_search_result (ncxmod_search_result_t *searchresult);
+    ncxmod_free_search_result (struct ncx_instance_t_ *instance, ncxmod_search_result_t *searchresult);
 
 
 
@@ -1265,7 +1309,7 @@ extern void
 *    searchQ = Q of ncxmod_search_result_t to clean and free
 *********************************************************************/
 extern void
-    ncxmod_clean_search_result_queue (dlq_hdr_t *searchQ);
+    ncxmod_clean_search_result_queue (struct ncx_instance_t_ *instance, dlq_hdr_t *searchQ);
 
 
 /********************************************************************
@@ -1285,7 +1329,8 @@ extern void
 *   pointer to first matching record; NULL if not found
 *********************************************************************/
 extern ncxmod_search_result_t *
-    ncxmod_find_search_result (dlq_hdr_t *searchQ,
+    ncxmod_find_search_result (struct ncx_instance_t_ *instance,
+                               dlq_hdr_t *searchQ,
                                const xmlChar *modname,
                                const xmlChar *revision,
                                const xmlChar *nsuri);
@@ -1303,7 +1348,7 @@ extern ncxmod_search_result_t *
 *   pointer to malloced and filled in clone of sr
 *********************************************************************/
 extern ncxmod_search_result_t *
-    ncxmod_clone_search_result (const ncxmod_search_result_t *sr);
+    ncxmod_clone_search_result (struct ncx_instance_t_ *instance, const ncxmod_search_result_t *sr);
 
 
 /********************************************************************
@@ -1319,7 +1364,7 @@ extern ncxmod_search_result_t *
 *    FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncxmod_test_filespec (const xmlChar *filespec);
+    ncxmod_test_filespec (struct ncx_instance_t_ *instance, const xmlChar *filespec);
 
 
 /********************************************************************
@@ -1334,7 +1379,7 @@ extern boolean
 *    number of chars to keep for the path spec
 *********************************************************************/
 extern uint32
-    ncxmod_get_pathlen_from_filespec (const xmlChar *filespec);
+    ncxmod_get_pathlen_from_filespec (struct ncx_instance_t_ *instance, const xmlChar *filespec);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

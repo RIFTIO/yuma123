@@ -125,7 +125,7 @@ typedef struct cli_rawparm_t_ {
 *   new parm entry, NULL if malloc failed
 *********************************************************************/
 extern cli_rawparm_t *
-    cli_new_rawparm (const xmlChar *name);
+    cli_new_rawparm (struct ncx_instance_t_ *instance, const xmlChar *name);
 
 
 /********************************************************************
@@ -140,7 +140,7 @@ extern cli_rawparm_t *
 *   new parm entry, NULL if malloc failed
 *********************************************************************/
 extern cli_rawparm_t *
-    cli_new_empty_rawparm (const xmlChar *name);
+    cli_new_empty_rawparm (struct ncx_instance_t_ *instance, const xmlChar *name);
 
 
 /********************************************************************
@@ -152,7 +152,7 @@ extern cli_rawparm_t *
 *   parm == raw parm entry to free
 *********************************************************************/
 extern void
-    cli_free_rawparm (cli_rawparm_t *parm);
+    cli_free_rawparm (struct ncx_instance_t_ *instance, cli_rawparm_t *parm);
 
 
 /********************************************************************
@@ -164,7 +164,7 @@ extern void
 *   parmQ == Q of raw parm entry to free
 *********************************************************************/
 extern void
-    cli_clean_rawparmQ (dlq_hdr_t *parmQ);
+    cli_clean_rawparmQ (struct ncx_instance_t_ *instance, dlq_hdr_t *parmQ);
 
 
 /********************************************************************
@@ -180,7 +180,8 @@ extern void
 *   raw parm entry if found, NULL if not
 *********************************************************************/
 extern cli_rawparm_t *
-    cli_find_rawparm (const xmlChar *name,
+    cli_find_rawparm (struct ncx_instance_t_ *instance,
+		      const xmlChar *name,
 		      dlq_hdr_t *parmQ);
 
 
@@ -240,7 +241,8 @@ extern cli_rawparm_t *
 *   status
 *********************************************************************/
 extern status_t
-    cli_parse_raw (int argc, 
+    cli_parse_raw (struct ncx_instance_t_ *instance, 
+		   int argc, 
 		   char *argv[],
 		   dlq_hdr_t *rawparmQ);
 
@@ -338,7 +340,8 @@ extern status_t
 *   pointer to the malloced and filled in val_value_t
 *********************************************************************/
 extern val_value_t *
-    cli_parse (runstack_context_t *rcxt,
+    cli_parse (struct ncx_instance_t_ *instance,
+               runstack_context_t *rcxt,
                int argc, 
 	       char *argv[],
 	       obj_template_t *obj,
@@ -375,7 +378,8 @@ extern val_value_t *
 *   status 
 *********************************************************************/
 extern status_t
-    cli_parse_parm (runstack_context_t *rcxt,
+    cli_parse_parm (struct ncx_instance_t_ *instance,
+                    runstack_context_t *rcxt,
                     val_value_t *val,
 		    obj_template_t *obj,
 		    const xmlChar *strval,
@@ -410,7 +414,8 @@ extern status_t
 *   status 
 *********************************************************************/
 extern status_t
-    cli_parse_parm_ex (runstack_context_t *rcxt,
+    cli_parse_parm_ex (struct ncx_instance_t_ *instance,
+                       runstack_context_t *rcxt,
                        val_value_t *val,
 		       obj_template_t *obj,
 		       const xmlChar *strval,

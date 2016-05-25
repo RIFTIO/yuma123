@@ -100,68 +100,68 @@ date         init     comment
 *   FALSE if not
 *********************************************************************/
 boolean
-    is_top_command (const xmlChar *rpcname)
+    is_top_command (ncx_instance_t *instance, const xmlChar *rpcname)
 {
 #ifdef DEBUG
     if (!rpcname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    if (!xml_strcmp(rpcname, YANGCLI_ALIAS)) {
+    if (!xml_strcmp(instance, rpcname, YANGCLI_ALIAS)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_ALIASES)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_ALIASES)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_CD)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_CD)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_CONNECT)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_CONNECT)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_EVAL)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_EVAL)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_EVENTLOG)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_EVENTLOG)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_ELIF)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_ELIF)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_ELSE)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_ELSE)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_END)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_END)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_FILL)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_FILL)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_HELP)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_HELP)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_IF)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_IF)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_HISTORY)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_HISTORY)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_LIST)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LIST)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_LOG_ERROR)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LOG_ERROR)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_LOG_WARN)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LOG_WARN)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_LOG_INFO)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LOG_INFO)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_LOG_DEBUG)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LOG_DEBUG)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_MGRLOAD)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_MGRLOAD)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_PWD)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_PWD)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_QUIT)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_QUIT)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_RECALL)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_RECALL)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_RUN)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_RUN)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_SHOW)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_SHOW)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_WHILE)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_WHILE)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_UNSET)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_UNSET)) {
         ;
-    } else if (!xml_strcmp(rpcname, YANGCLI_USERVARS)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_USERVARS)) {
         ;
     } else {
         return FALSE;
@@ -187,7 +187,8 @@ boolean
 *   malloced modptr_t struct or NULL of malloc failed
 *********************************************************************/
 modptr_t *
-    new_modptr (ncx_module_t *mod,
+    new_modptr (ncx_instance_t *instance,
+                ncx_module_t *mod,
                 ncx_list_t *feature_list,
                 ncx_list_t *deviation_list)
 {
@@ -195,12 +196,12 @@ modptr_t *
 
 #ifdef DEBUG
     if (!mod) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    modptr = m__getObj(modptr_t);
+    modptr = m__getObj(instance, modptr_t);
     if (!modptr) {
         return NULL;
     }
@@ -225,16 +226,16 @@ modptr_t *
 *
 *********************************************************************/
 void
-    free_modptr (modptr_t *modptr)
+    free_modptr (ncx_instance_t *instance, modptr_t *modptr)
 {
 #ifdef DEBUG
     if (!modptr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    m__free(modptr);
+    m__free(instance, modptr);
 
 }  /* free_modptr */
 
@@ -254,7 +255,8 @@ void
 *
 *********************************************************************/
 modptr_t *
-    find_modptr (dlq_hdr_t *modptrQ,
+    find_modptr (ncx_instance_t *instance,
+                 dlq_hdr_t *modptrQ,
                  const xmlChar *modname,
                  const xmlChar *revision)
 {
@@ -262,22 +264,22 @@ modptr_t *
 
 #ifdef DEBUG
     if (!modptrQ || !modname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (modptr = (modptr_t *)dlq_firstEntry(modptrQ);
+    for (modptr = (modptr_t *)dlq_firstEntry(instance, modptrQ);
          modptr != NULL;
-         modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+         modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-        if (xml_strcmp(modptr->mod->name, modname)) {
+        if (xml_strcmp(instance, modptr->mod->name, modname)) {
             continue;
         }
 
         if (revision && 
             modptr->mod->version &&
-            !xml_strcmp(modptr->mod->version, revision)) {
+            !xml_strcmp(instance, modptr->mod->version, revision)) {
             return modptr;
         }
         if (revision == NULL) {
@@ -299,13 +301,13 @@ modptr_t *
 *                the session data
 *********************************************************************/
 void
-    clear_server_cb_session (server_cb_t *server_cb)
+    clear_server_cb_session (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     modptr_t  *modptr;
 
 #ifdef DEBUG
     if (!server_cb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -314,17 +316,17 @@ void
      * server-specific object trees that have been freed
      * already by mgr_ses_free_session
      */
-    runstack_session_cleanup(server_cb->runstack_context);
+    runstack_session_cleanup(instance, server_cb->runstack_context);
 
-    while (!dlq_empty(&server_cb->modptrQ)) {
-        modptr = (modptr_t *)dlq_deque(&server_cb->modptrQ);
-        free_modptr(modptr);
+    while (!dlq_empty(instance, &server_cb->modptrQ)) {
+        modptr = (modptr_t *)dlq_deque(instance, &server_cb->modptrQ);
+        free_modptr(instance, modptr);
     }
     server_cb->mysid = 0;
     server_cb->state = MGR_IO_ST_IDLE;
 
     if (server_cb->connect_valset) {
-        val_free_value(server_cb->connect_valset);
+        val_free_value(instance, server_cb->connect_valset);
         server_cb->connect_valset = NULL;
     }
 
@@ -345,7 +347,7 @@ void
 *  FALSE if this is CONN mode (or associated states)
 *********************************************************************/
 boolean
-    is_top (mgr_io_state_t state)
+    is_top (ncx_instance_t *instance, mgr_io_state_t state)
 {
     switch (state) {
     case MGR_IO_ST_INIT:
@@ -361,7 +363,7 @@ boolean
     case MGR_IO_ST_CONN_SHUT:
         return FALSE;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 
@@ -381,11 +383,11 @@ boolean
 *   FALSE if not
 *********************************************************************/
 boolean
-    use_servercb (server_cb_t *server_cb)
+    use_servercb (ncx_instance_t *instance, server_cb_t *server_cb)
 {
-    if (!server_cb || is_top(server_cb->state)) {
+    if (!server_cb || is_top(instance, server_cb->state)) {
         return FALSE;
-    } else if (dlq_empty(&server_cb->modptrQ)) {
+    } else if (dlq_empty(instance, &server_cb->modptrQ)) {
         return FALSE;
     }
     return TRUE;
@@ -408,7 +410,8 @@ boolean
 *   NULL if not found
 *********************************************************************/
 ncx_module_t *
-    find_module (server_cb_t *server_cb,
+    find_module (ncx_instance_t *instance,
+                 server_cb_t *server_cb,
                  const xmlChar *modname)
 {
     modptr_t      *modptr;
@@ -416,23 +419,23 @@ ncx_module_t *
 
 #ifdef DEBUG
     if (!modname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    if (use_servercb(server_cb)) {
-        for (modptr = (modptr_t *)dlq_firstEntry(&server_cb->modptrQ);
+    if (use_servercb(instance, server_cb)) {
+        for (modptr = (modptr_t *)dlq_firstEntry(instance, &server_cb->modptrQ);
              modptr != NULL;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            if (!xml_strcmp(modptr->mod->name, modname)) {
+            if (!xml_strcmp(instance, modptr->mod->name, modname)) {
                 return modptr->mod;
             }
         }
     }
 
-    mod = ncx_find_module(modname, NULL);
+    mod = ncx_find_module(instance, modname, NULL);
 
     return mod;
 
@@ -454,7 +457,8 @@ ncx_module_t *
 *   pointer to string !!! THIS IS A MALLOCED COPY !!!
 *********************************************************************/
 xmlChar *
-    get_strparm (val_value_t *valset,
+    get_strparm (ncx_instance_t *instance,
+                 val_value_t *valset,
                  const xmlChar *modname,
                  const xmlChar *parmname)
 {
@@ -463,17 +467,17 @@ xmlChar *
 
 #ifdef DEBUG
     if (!valset || !parmname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
     
     str = NULL;
-    parm = findparm(valset, modname, parmname);
+    parm = findparm(instance, valset, modname, parmname);
     if (parm) {
-        str = xml_strdup(VAL_STR(parm));
+        str = xml_strdup(instance, VAL_STR(parm));
         if (!str) {
-            log_error("\nyangcli: Out of Memory error");
+            log_error(instance, "\nyangcli: Out of Memory error");
         }
     }
     return str;
@@ -496,7 +500,8 @@ xmlChar *
 *   pointer to val_value_t if found
 *********************************************************************/
 val_value_t *
-    findparm (val_value_t *valset,
+    findparm (ncx_instance_t *instance,
+              val_value_t *valset,
               const xmlChar *modname,
               const xmlChar *parmname)
 {
@@ -504,7 +509,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!parmname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -513,9 +518,9 @@ val_value_t *
         return NULL;
     }
 
-    parm = val_find_child(valset, modname, parmname);
+    parm = val_find_child(instance, valset, modname, parmname);
     if (!parm && get_autocomp()) {
-        parm = val_match_child(valset, modname, parmname);
+        parm = val_match_child(instance, valset, modname, parmname);
     }
     return parm;
 
@@ -535,23 +540,24 @@ val_value_t *
 *    status
 *********************************************************************/
 status_t
-    add_clone_parm (const val_value_t *val,
+    add_clone_parm (ncx_instance_t *instance,
+                    const val_value_t *val,
                     val_value_t *valset)
 {
     val_value_t    *parm;
 
 #ifdef DEBUG
     if (!val || !valset) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    parm = val_clone(val);
+    parm = val_clone(instance, val);
     if (!parm) {
-        log_error("\nyangcli: val_clone failed");
+        log_error(instance, "\nyangcli: val_clone failed");
         return ERR_INTERNAL_MEM;
     } else {
-        val_add_child(parm, valset);
+        val_add_child(instance, parm, valset);
     }
     return NO_ERR;
 
@@ -570,12 +576,12 @@ status_t
 *  TRUE if this is the YANGCLI namespace ID
 *********************************************************************/
 boolean
-    is_yangcli_ns (xmlns_id_t ns)
+    is_yangcli_ns (ncx_instance_t *instance, xmlns_id_t ns)
 {
     const xmlChar *modname;
 
-    modname = xmlns_get_module(ns);
-    if (modname && !xml_strcmp(modname, YANGCLI_MOD)) {
+    modname = xmlns_get_module(instance, ns);
+    if (modname && !xml_strcmp(instance, modname, YANGCLI_MOD)) {
         return TRUE;
     } else {
         return FALSE;
@@ -594,26 +600,26 @@ boolean
  *
  *********************************************************************/
 void
-    clear_result (server_cb_t *server_cb)
+    clear_result (ncx_instance_t *instance, server_cb_t *server_cb)
 
 {
 #ifdef DEBUG
     if (!server_cb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (server_cb->local_result) {
-        val_free_value(server_cb->local_result);
+        val_free_value(instance, server_cb->local_result);
         server_cb->local_result = NULL;
     }
     if (server_cb->result_name) {
-        m__free(server_cb->result_name);
+        m__free(instance, server_cb->result_name);
         server_cb->result_name = NULL;
     }
     if (server_cb->result_filename) {
-        m__free(server_cb->result_filename);
+        m__free(instance, server_cb->result_filename);
         server_cb->result_filename = NULL;
     }
     server_cb->result_vartype = VAR_TYP_NONE;
@@ -641,7 +647,8 @@ void
 *   status
 *********************************************************************/
 status_t
-    check_filespec (server_cb_t *server_cb,
+    check_filespec (ncx_instance_t *instance,
+                    server_cb_t *server_cb,
                     const xmlChar *filespec,
                     const xmlChar *varname)
 {
@@ -650,16 +657,16 @@ status_t
     status_t       res;
 #ifdef DEBUG
     if (!server_cb || !filespec) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (!*filespec) {
         if (varname) {
-            log_error("\nError: file assignment variable '%s' "
+            log_error(instance, "\nError: file assignment variable '%s' "
                       "is empty string", varname);
         } else {
-            log_error("\nError: file assignment filespec "
+            log_error(instance, "\nError: file assignment filespec "
                       "is empty string");
         }
         return ERR_NCX_INVALID_VALUE;
@@ -670,13 +677,14 @@ status_t
      * are allowed; too many security holes
      * if arbitrary strings are allowed here
      */
-    if (val_need_quotes(filespec)) {
+    if (val_need_quotes(instance, filespec)) {
         if (varname) {
-            log_error("\nError: file assignment variable '%s' "
+            log_error(instance, 
+                      "\nError: file assignment variable '%s' "
                       "contains whitespace (%s)", 
                       varname, filespec);
         } else {
-            log_error("\nError: file assignment filespec '%s' "
+            log_error(instance, "\nError: file assignment filespec '%s' "
                       "contains whitespace", filespec);
         }
         return ERR_NCX_INVALID_VALUE;
@@ -684,12 +692,13 @@ status_t
 
     /* check for acceptable chars */
     res = NO_ERR;
-    newstr = ncx_get_source_ex(filespec, FALSE, &res);
+    newstr = ncx_get_source_ex(instance, filespec, FALSE, &res);
     if (newstr == NULL || res != NO_ERR) {
-        log_error("\nError: get source for '%s' failed (%s)",
+        log_error(instance,
+                  "\nError: get source for '%s' failed (%s)",
                   filespec, res);
         if (newstr != NULL) {
-            m__free(newstr);
+            m__free(instance, newstr);
         }
         return res;
     }
@@ -705,21 +714,22 @@ status_t
             teststr++;
         } else {
             if (varname) {
-                log_error("\nError: file assignment variable '%s' "
+                log_error(instance, 
+                          "\nError: file assignment variable '%s' "
                           "contains invalid filespec (%s)", 
                           varname, filespec);
             } else {
-                log_error("\nError: file assignment filespec '%s' "
+                log_error(instance, "\nError: file assignment filespec '%s' "
                           "contains invalid filespec", filespec);
             }
-            m__free(newstr);
+            m__free(instance, newstr);
             return ERR_NCX_INVALID_VALUE;
         }
     }
 
     /* toss out the old value, if any */
     if (server_cb->result_filename) {
-        m__free(server_cb->result_filename);
+        m__free(instance, server_cb->result_filename);
     }
 
     /* save the filename, may still be an invalid fspec
@@ -768,7 +778,8 @@ status_t
  *    NULL, check *retres
  *********************************************************************/
 val_value_t *
-    get_instanceid_parm (const xmlChar *target,
+    get_instanceid_parm (ncx_instance_t *instance,
+                         const xmlChar *target,
                          boolean schemainst,
                          boolean configonly,
                          obj_template_t **targobj,
@@ -781,7 +792,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!target || !targobj || !targval || !retres) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -791,9 +802,9 @@ val_value_t *
     *retres = NO_ERR;
 
     /* get a parser block for the instance-id */
-    xpathpcb = xpath_new_pcb(target, NULL);
+    xpathpcb = xpath_new_pcb(instance, target, NULL);
     if (!xpathpcb) {
-        log_error("\nError: malloc failed");
+        log_error(instance, "\nError: malloc failed");
         *retres = ERR_INTERNAL_MEM;
         return NULL;
     }
@@ -801,30 +812,34 @@ val_value_t *
     /* initial parse into a token chain
      * this is only for parsing leafref paths! 
      */
-    res = xpath_yang_parse_path(NULL, 
+    res = xpath_yang_parse_path(instance, 
+                                NULL, 
                                 NULL, 
                                 (schemainst) ?
                                 XP_SRC_SCHEMA_INSTANCEID :
                                 XP_SRC_INSTANCEID,
                                 xpathpcb);
     if (res != NO_ERR) {
-        log_error("\nError: parse XPath target '%s' failed",
+        log_error(instance,
+                  "\nError: parse XPath target '%s' failed",
                   xpathpcb->exprstr);
-        xpath_free_pcb(xpathpcb);
+        xpath_free_pcb(instance, xpathpcb);
         *retres = res;
         return NULL;
     }
 
     /* validate against the object tree */
-    res = xpath_yang_validate_path(NULL, 
-                                   ncx_get_gen_root(),
+    res = xpath_yang_validate_path(instance, 
+                                   NULL, 
+                                   ncx_get_gen_root(instance),
                                    xpathpcb,
                                    schemainst,
                                    targobj);
     if (res != NO_ERR) {
-        log_error("\nError: validate XPath target '%s' failed",
+        log_error(instance,
+                  "\nError: validate XPath target '%s' failed",
                   xpathpcb->exprstr);
-        xpath_free_pcb(xpathpcb);
+        xpath_free_pcb(instance, xpathpcb);
         *retres = res;
         return NULL;
     }
@@ -834,10 +849,11 @@ val_value_t *
      * the target of a write to be a config=false for
      * server testing purposes
      */
-    if (configonly && !obj_get_config_flag(*targobj)) {
-        log_error("\nError: XPath target '%s' is not a config=true node",
+    if (configonly && !obj_get_config_flag(instance, *targobj)) {
+        log_error(instance,
+                  "\nError: XPath target '%s' is not a config=true node",
                   xpathpcb->exprstr);
-        xpath_free_pcb(xpathpcb);
+        xpath_free_pcb(instance, xpathpcb);
         *retres = ERR_NCX_ACCESS_READ_ONLY;
         return NULL;
     }
@@ -846,11 +862,12 @@ val_value_t *
      * parser chain and build a value subtree
      * from the XPath expression
      */
-    retval = xpath_yang_make_instanceid_val(xpathpcb, 
+    retval = xpath_yang_make_instanceid_val(instance, 
+                                            xpathpcb, 
                                             &res,
                                             targval);
 
-    xpath_free_pcb(xpathpcb);
+    xpath_free_pcb(instance, xpathpcb);
     *retres = res;
 
     return retval;
@@ -871,19 +888,19 @@ val_value_t *
 *   result format enumeration; RF_NONE if some error
 *********************************************************************/
 result_format_t
-    get_file_result_format (const xmlChar *filespec)
+    get_file_result_format (ncx_instance_t *instance, const xmlChar *filespec)
 {
     const xmlChar *teststr;
     uint32         len;
 
 #ifdef DEBUG
     if (!filespec) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return RF_NONE;
     }
 #endif
 
-    len = xml_strlen(filespec);
+    len = xml_strlen(instance, filespec);
     if (len < 5) {
         return RF_TEXT;
     }
@@ -900,27 +917,27 @@ result_format_t
 
     teststr++;
 
-    if (!xml_strcmp(teststr, NCX_EL_XML)) {
+    if (!xml_strcmp(instance, teststr, NCX_EL_XML)) {
         return RF_XML;
     }
 
-    if (!xml_strcmp(teststr, NCX_EL_JSON)) {
+    if (!xml_strcmp(instance, teststr, NCX_EL_JSON)) {
         return RF_JSON;
     }
 
-    if (!xml_strcmp(teststr, NCX_EL_YANG)) {
+    if (!xml_strcmp(instance, teststr, NCX_EL_YANG)) {
         return RF_TEXT;
     }
 
-    if (!xml_strcmp(teststr, NCX_EL_TXT)) {
+    if (!xml_strcmp(instance, teststr, NCX_EL_TXT)) {
         return RF_TEXT;
     }
 
-    if (!xml_strcmp(teststr, NCX_EL_TEXT)) {
+    if (!xml_strcmp(instance, teststr, NCX_EL_TEXT)) {
         return RF_TEXT;
     }
 
-    if (!xml_strcmp(teststr, NCX_EL_LOG)) {
+    if (!xml_strcmp(instance, teststr, NCX_EL_LOG)) {
         return RF_TEXT;
     }
 
@@ -956,13 +973,14 @@ boolean
  *    cmdstate ==initial  calling state
  *********************************************************************/
 void
-    init_completion_state (completion_state_t *completion_state,
+    init_completion_state (ncx_instance_t *instance,
+                           completion_state_t *completion_state,
                            server_cb_t *server_cb,
                            command_state_t  cmdstate)
 {
 #ifdef DEBUG
     if (!completion_state) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -988,14 +1006,15 @@ void
  *    cmdstate ==current calling state
  *********************************************************************/
 void
-    set_completion_state (completion_state_t *completion_state,
+    set_completion_state (ncx_instance_t *instance,
+                          completion_state_t *completion_state,
                           obj_template_t *rpc,
                           obj_template_t *parm,
                           command_state_t  cmdstate)
 {
 #ifdef DEBUG
     if (!completion_state) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -1004,7 +1023,7 @@ void
     completion_state->cmdobj = rpc;
     if (rpc) {
         completion_state->cmdinput =
-            obj_find_child(rpc, NULL, YANG_K_INPUT);
+            obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     } else {
         completion_state->cmdinput = NULL;
     }
@@ -1023,12 +1042,13 @@ void
  *    parm == parameter being filled in
  *********************************************************************/
 void
-    set_completion_state_curparm (completion_state_t *completion_state,
+    set_completion_state_curparm (ncx_instance_t *instance,
+                                  completion_state_t *completion_state,
                                   obj_template_t *parm)
 {
 #ifdef DEBUG
     if (!completion_state) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -1059,7 +1079,8 @@ void
  *    for the specified varbind
 *********************************************************************/
 ncx_var_t *
-    xpath_getvar_fn (struct xpath_pcb_t_ *pcb,
+    xpath_getvar_fn (ncx_instance_t *instance,
+                     struct xpath_pcb_t_ *pcb,
                      const xmlChar *varname,
                      status_t *res)
 {
@@ -1068,7 +1089,7 @@ ncx_var_t *
 
 #ifdef DEBUG
     if (varname == NULL || res == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -1077,7 +1098,7 @@ ncx_var_t *
      * context will be used
      */
     rcxt = (runstack_context_t *)pcb->cookie;
-    retvar = var_find(rcxt, varname, 0);
+    retvar = var_find(instance, rcxt, varname, 0);
     if (retvar == NULL) {
         *res = ERR_NCX_DEF_NOT_FOUND;
     } else {
@@ -1101,18 +1122,18 @@ ncx_var_t *
 *    netconf module
 *********************************************************************/
 ncx_module_t *
-    get_netconf_mod (server_cb_t *server_cb)
+    get_netconf_mod (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     ncx_module_t  *mod;
 
 #ifdef DEBUG
     if (server_cb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    mod = find_module(server_cb, NCXMOD_YUMA_NETCONF);
+    mod = find_module(instance, server_cb, NCXMOD_YUMA_NETCONF);
     return mod;
 
 }  /* get_netconf_mod */
@@ -1137,7 +1158,8 @@ ncx_module_t *
 *  status
 *********************************************************************/
 status_t
-    clone_old_parm (val_value_t *oldvalset,
+    clone_old_parm (ncx_instance_t *instance,
+                    val_value_t *oldvalset,
                     val_value_t *newvalset,
                     obj_template_t *parm)
 {
@@ -1145,7 +1167,7 @@ status_t
 
 #ifdef DEBUG
     if (oldvalset == NULL || newvalset == NULL || parm == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!typ_has_children(oldvalset->btyp)) {
         return ERR_NCX_INVALID_VALUE;
@@ -1155,25 +1177,27 @@ status_t
     }
 #endif
 
-    findval = val_find_child(newvalset,
-                             obj_get_mod_name(parm),
-                             obj_get_name(parm));
+    findval = val_find_child(instance,
+                             newvalset,
+                             obj_get_mod_name(instance, parm),
+                             obj_get_name(instance, parm));
     if (findval != NULL) {
         return NO_ERR;
     }
 
-    findval = val_find_child(oldvalset,
-                             obj_get_mod_name(parm),
-                             obj_get_name(parm));
+    findval = val_find_child(instance,
+                             oldvalset,
+                             obj_get_mod_name(instance, parm),
+                             obj_get_name(instance, parm));
     if (findval == NULL) {
         return NO_ERR;
     }
 
-    newval = val_clone(findval);
+    newval = val_clone(instance, findval);
     if (newval == NULL) {
         return ERR_INTERNAL_MEM;
     }
-    val_add_child(newval, newvalset);
+    val_add_child(instance, newval, newvalset);
     return NO_ERR;
 
 }  /* clone_old_parm */

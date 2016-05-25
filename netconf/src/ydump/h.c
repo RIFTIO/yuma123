@@ -105,11 +105,11 @@ date         init     comment
 *
 *********************************************************************/
 static void
-    write_end_cplusplus (ses_cb_t *scb)
+    write_end_cplusplus (ncx_instance_t *instance, ses_cb_t *scb)
 {
-    ses_putstr(scb, (const xmlChar *)"\n#ifdef __cplusplus");
-    ses_putstr(scb, (const xmlChar *)"\n} /* end extern 'C' */");
-    ses_putstr(scb, (const xmlChar *)"\n#endif");
+    ses_putstr(instance, scb, (const xmlChar *)"\n#ifdef __cplusplus");
+    ses_putstr(instance, scb, (const xmlChar *)"\n} /* end extern 'C' */");
+    ses_putstr(instance, scb, (const xmlChar *)"\n#endif");
 
 }  /* write_end_cplusplus */
 
@@ -124,11 +124,11 @@ static void
 *
 *********************************************************************/
 static void
-    write_start_cplusplus (ses_cb_t *scb)
+    write_start_cplusplus (ncx_instance_t *instance, ses_cb_t *scb)
 {
-    ses_putstr(scb, (const xmlChar *)"\n#ifdef __cplusplus");
-    ses_putstr(scb, (const xmlChar *)"\nextern \"C\" {");
-    ses_putstr(scb, (const xmlChar *)"\n#endif");
+    ses_putstr(instance, scb, (const xmlChar *)"\n#ifdef __cplusplus");
+    ses_putstr(instance, scb, (const xmlChar *)"\nextern \"C\" {");
+    ses_putstr(instance, scb, (const xmlChar *)"\n#endif");
 
 }  /* write_start_cplusplus */
 
@@ -144,7 +144,8 @@ static void
 *   cdefQ == Q of c_define_t structs to check for identity binding
 **********************************************************************/
 static void
-    write_h_object_typdef (ses_cb_t *scb,
+    write_h_object_typdef (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            obj_template_t *obj,
                            dlq_hdr_t *cdefQ)
 {
@@ -165,98 +166,98 @@ static void
         isanyxml = TRUE;
     }
 
-    cdef = find_path_cdefine(cdefQ, obj);
+    cdef = find_path_cdefine(instance, cdefQ, obj);
     if (cdef == NULL) {
-        SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
         return;
     }
 
-    btyp = obj_get_basetype(obj);
+    btyp = obj_get_basetype(instance, obj);
 
-    ses_putchar(scb, '\n');
-    write_h_iffeature_start(scb, &obj->iffeatureQ);
+    ses_putchar(instance, scb, '\n');
+    write_h_iffeature_start(instance, scb, &obj->iffeatureQ);
 
     /* generate the YOID as a comment */
-    write_c_oid_comment(scb, obj);
+    write_c_oid_comment(instance, scb, obj);
 
     /* start a new line and a C type definition */
-    ses_putstr(scb, START_TYPEDEF);
+    ses_putstr(instance, scb, START_TYPEDEF);
 
     if (isleaflist || isanyxml) {
-        ses_putstr(scb, STRUCT);
+        ses_putstr(instance, scb, STRUCT);
     } else {
         /* print the C top-level data type */
         switch (btyp) {
         case NCX_BT_CONTAINER:
         case NCX_BT_CASE:
         case NCX_BT_LIST:
-            ses_putstr(scb, STRUCT);
+            ses_putstr(instance, scb, STRUCT);
             break;
         case NCX_BT_CHOICE:
-            ses_putstr(scb, UNION);
+            ses_putstr(instance, scb, UNION);
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return;
         }
     }
-    ses_putchar(scb, ' ');
+    ses_putchar(instance, scb, ' ');
 
     /* the first 'real' name has an underscore on the end */
-    ses_putstr(scb, cdef->idstr);
-    ses_putchar(scb, '_');
+    ses_putstr(instance, scb, cdef->idstr);
+    ses_putchar(instance, scb, '_');
 
     /* start the guts of the typedef */
-    ses_putstr(scb, START_BLOCK);
+    ses_putstr(instance, scb, START_BLOCK);
 
     /* generate a line for a Q header or a Queue */
     if (obj->objtype == OBJ_TYP_LIST || 
         obj->objtype == OBJ_TYP_LEAF_LIST ||
         isanyxml) {
-        write_qheader(scb);
+        write_qheader(instance, scb);
     }
 
     if (isleaflist) { 
         /* generate a line for the leaf-list data type */
-        ses_indent(scb, ses_indent_count(scb));
-        write_c_objtype_ex(scb, obj, cdefQ, ';', FALSE, FALSE);
+        ses_indent(instance, scb, ses_indent_count(scb));
+        write_c_objtype_ex(instance, scb, obj, cdefQ, ';', FALSE, FALSE);
     } else if (!isanyxml) {
         /* generate a line for each child node */
-        for (childobj = obj_first_child(obj);
+        for (childobj = obj_first_child(instance, obj);
              childobj != NULL;
-             childobj = obj_next_child(childobj)) {
+             childobj = obj_next_child(instance, childobj)) {
 
-            if (!obj_has_name(childobj) || 
-                obj_is_cli(childobj) ||
-                obj_is_abstract(childobj)) {
+            if (!obj_has_name(instance, childobj) || 
+                obj_is_cli(instance, childobj) ||
+                obj_is_abstract(instance, childobj)) {
                 continue;
             }
 
-            write_h_iffeature_start(scb, &childobj->iffeatureQ);
+            write_h_iffeature_start(instance, scb, &childobj->iffeatureQ);
 
             if (childobj->objtype == OBJ_TYP_LEAF_LIST) {
-                ses_indent(scb, ses_indent_count(scb));
-                ses_putstr(scb, QUEUE);
-                ses_putchar(scb, ' ');
-                write_c_safe_str(scb, obj_get_name(childobj));
-                ses_putchar(scb, ';');
+                ses_indent(instance, scb, ses_indent_count(scb));
+                ses_putstr(instance, scb, QUEUE);
+                ses_putchar(instance, scb, ' ');
+                write_c_safe_str(instance, scb, obj_get_name(instance, childobj));
+                ses_putchar(instance, scb, ';');
             } else {
-                ses_indent(scb, ses_indent_count(scb));
-                write_c_objtype_ex(scb, childobj,  cdefQ, ';',
+                ses_indent(instance, scb, ses_indent_count(scb));
+                write_c_objtype_ex(instance, scb, childobj,  cdefQ, ';',
                                    FALSE, FALSE);
             }
 
-            write_h_iffeature_end(scb, &childobj->iffeatureQ);
+            write_h_iffeature_end(instance, scb, &childobj->iffeatureQ);
 
         }
     }
 
-    ses_putstr(scb, END_BLOCK);
-    ses_putchar(scb, ' ');
-    ses_putstr(scb, cdef->idstr);
-    ses_putchar(scb, ';');
+    ses_putstr(instance, scb, END_BLOCK);
+    ses_putchar(instance, scb, ' ');
+    ses_putstr(instance, scb, cdef->idstr);
+    ses_putchar(instance, scb, ';');
 
-    write_h_iffeature_end(scb, &obj->iffeatureQ);
+    write_h_iffeature_end(instance, scb, &obj->iffeatureQ);
 
 }  /* write_h_object_typdef */
 
@@ -273,7 +274,8 @@ static void
 *   cp == conversion parms to use
 *********************************************************************/
 static void
-    write_h_objects (ses_cb_t *scb,
+    write_h_objects (ncx_instance_t *instance,
+                     ses_cb_t *scb,
                      dlq_hdr_t *datadefQ,
                      dlq_hdr_t *typcdefQ,
                      const yangdump_cvtparms_t *cp)
@@ -281,20 +283,20 @@ static void
     obj_template_t    *obj;
     dlq_hdr_t         *childdatadefQ;
 
-    for (obj = (obj_template_t *)dlq_firstEntry(datadefQ);
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, datadefQ);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-        if (!obj_has_name(obj) || obj_is_cli(obj) || obj_is_abstract(obj)) {
+        if (!obj_has_name(instance, obj) || obj_is_cli(instance, obj) || obj_is_abstract(instance, obj)) {
             continue;
         }
 
-        childdatadefQ = obj_get_datadefQ(obj);
+        childdatadefQ = obj_get_datadefQ(instance, obj);
         if (childdatadefQ) {
-            write_h_objects(scb, childdatadefQ, typcdefQ, cp);
+            write_h_objects(instance, scb, childdatadefQ, typcdefQ, cp);
         }
 
-        write_h_object_typdef(scb, obj, typcdefQ);
+        write_h_object_typdef(instance, scb, obj, typcdefQ);
     }
 
 }  /* write_h_objects */
@@ -312,22 +314,24 @@ static void
 *
 *********************************************************************/
 static void
-    write_h_identity (ses_cb_t *scb,
+    write_h_identity (ncx_instance_t *instance,
+                      ses_cb_t *scb,
                       const ncx_identity_t *identity,
                       const yangdump_cvtparms_t *cp)
 {
     /* define the identity constant */
-    ses_putstr(scb, POUND_DEFINE);
-    write_identifier(scb, 
+    ses_putstr(instance, scb, POUND_DEFINE);
+    write_identifier(instance, 
+                     scb, 
                      identity->tkerr.mod->name,
                      BAR_ID,
                      identity->name,
                      cp->isuser);
-    ses_putchar(scb, ' ');
-    ses_putstr(scb, BAR_CONST);
-    ses_putchar(scb, '"');
-    ses_putstr(scb, identity->name);
-    ses_putchar(scb, '"');
+    ses_putchar(instance, scb, ' ');
+    ses_putstr(instance, scb, BAR_CONST);
+    ses_putchar(instance, scb, '"');
+    ses_putstr(instance, scb, identity->name);
+    ses_putchar(instance, scb, '"');
 
 }  /* write_h_identity */
 
@@ -343,26 +347,27 @@ static void
 *   cp == conversion parms to use
 *********************************************************************/
 static void
-    write_h_identities (ses_cb_t *scb,
+    write_h_identities (ncx_instance_t *instance,
+                        ses_cb_t *scb,
                         const dlq_hdr_t *identityQ,
                         const yangdump_cvtparms_t *cp)
 {
 
     const ncx_identity_t *identity;
 
-    if (dlq_empty(identityQ)) {
+    if (dlq_empty(instance, identityQ)) {
         return;
     }
 
     for (identity = (const ncx_identity_t *)
-             dlq_firstEntry(identityQ);
+             dlq_firstEntry(instance, identityQ);
          identity != NULL;
          identity = (const ncx_identity_t *)
-             dlq_nextEntry(identity)) {
+             dlq_nextEntry(instance, identity)) {
 
-        write_h_identity(scb, identity, cp);
+        write_h_identity(instance, scb, identity, cp);
     }
-    ses_putchar(scb, '\n');
+    ses_putchar(instance, scb, '\n');
 
 }  /* write_h_identities */
 
@@ -378,15 +383,16 @@ static void
 *
 *********************************************************************/
 static void
-    write_h_oid (ses_cb_t *scb,
+    write_h_oid (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  const c_define_t *cdef)
 {
     /* define the identity constant */
-    ses_putstr(scb, POUND_DEFINE);
-    ses_putstr(scb, cdef->idstr);
-    ses_putchar(scb, ' ');
-    ses_putstr(scb, BAR_CONST);
-    write_c_str(scb, cdef->valstr, 2);
+    ses_putstr(instance, scb, POUND_DEFINE);
+    ses_putstr(instance, scb, cdef->idstr);
+    ses_putchar(instance, scb, ' ');
+    ses_putstr(instance, scb, BAR_CONST);
+    write_c_str(instance, scb, cdef->valstr, 2);
 
 }  /* write_h_oid */
 
@@ -403,16 +409,17 @@ static void
 *
 *********************************************************************/
 static void
-    write_h_oids (ses_cb_t *scb,
+    write_h_oids (ncx_instance_t *instance,
+                  ses_cb_t *scb,
                   const dlq_hdr_t *cdefineQ)
 {
     const c_define_t     *cdef;
 
-    for (cdef = (const c_define_t *)dlq_firstEntry(cdefineQ);
+    for (cdef = (const c_define_t *)dlq_firstEntry(instance, cdefineQ);
          cdef != NULL;
-         cdef = (const c_define_t *)dlq_nextEntry(cdef)) {
+         cdef = (const c_define_t *)dlq_nextEntry(instance, cdef)) {
 
-        write_h_oid(scb, cdef);
+        write_h_oid(instance, scb, cdef);
     }
 
 }  /* write_h_oids */
@@ -431,7 +438,8 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    save_h_oids (ses_cb_t *scb,
+    save_h_oids (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  const dlq_hdr_t *datadefQ,
                  dlq_hdr_t *cdefineQ)
 {
@@ -439,30 +447,31 @@ static status_t
     const obj_template_t *obj;
     status_t              res;
 
-    if (dlq_empty(datadefQ)) {
+    if (dlq_empty(instance, datadefQ)) {
         return NO_ERR;
     }
 
-    for (obj = (const obj_template_t *)dlq_firstEntry(datadefQ);
+    for (obj = (const obj_template_t *)dlq_firstEntry(instance, datadefQ);
          obj != NULL;
-         obj = (const obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (const obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-        if (obj_has_name(obj) && 
-            !obj_is_cli(obj) &&
-            !obj_is_abstract(obj)) {
+        if (obj_has_name(instance, obj) && 
+            !obj_is_cli(instance, obj) &&
+            !obj_is_abstract(instance, obj)) {
 
             if (obj->objtype != OBJ_TYP_RPCIO) {
-                res = save_oid_cdefine(cdefineQ,
-                                       obj_get_mod_name(obj),
-                                       obj_get_name(obj));
+                res = save_oid_cdefine(instance,
+                                       cdefineQ,
+                                       obj_get_mod_name(instance, obj),
+                                       obj_get_name(instance, obj));
                 if (res != NO_ERR) {
                     return res;
                 }
             }
 
-            childQ = obj_get_cdatadefQ(obj);
+            childQ = obj_get_cdatadefQ(instance, obj);
             if (childQ) {
-                res = save_h_oids(scb, childQ, cdefineQ);
+                res = save_h_oids(instance, scb, childQ, cdefineQ);
                 if (res != NO_ERR) {
                     return res;
                 }
@@ -485,25 +494,26 @@ static status_t
 *   feature == ncx_feature_t to use
 *********************************************************************/
 static void
-    write_h_feature (ses_cb_t *scb,
+    write_h_feature (ncx_instance_t *instance,
+                     ses_cb_t *scb,
                      const ncx_feature_t *feature)
 {
-    write_h_iffeature_start(scb, &feature->iffeatureQ);
+    write_h_iffeature_start(instance, scb, &feature->iffeatureQ);
 
     /* define feature constant */
-    ses_putstr(scb, (const xmlChar *)"\n/* Feature ");
-    ses_putstr(scb,  feature->tkerr.mod->name);
-    ses_putchar(scb, ':');
-    ses_putstr(scb,  feature->name);
-    ses_putstr(scb, (const xmlChar *)"\n * Comment out to disable */");
-    ses_putstr(scb, POUND_DEFINE);
-    write_identifier(scb, feature->tkerr.mod->name, BAR_FEAT,
+    ses_putstr(instance, scb, (const xmlChar *)"\n/* Feature ");
+    ses_putstr(instance,  scb,  feature->tkerr.mod->name);
+    ses_putchar(instance, scb, ':');
+    ses_putstr(instance,  scb,  feature->name);
+    ses_putstr(instance, scb, (const xmlChar *)"\n * Comment out to disable */");
+    ses_putstr(instance, scb, POUND_DEFINE);
+    write_identifier(instance, scb, feature->tkerr.mod->name, BAR_FEAT,
                      feature->name, TRUE);
-    ses_putchar(scb, ' ');
-    ses_putchar(scb, '1');
+    ses_putchar(instance, scb, ' ');
+    ses_putchar(instance, scb, '1');
 
-    write_h_iffeature_end(scb, &feature->iffeatureQ);
-    ses_putchar(scb, '\n');
+    write_h_iffeature_end(instance, scb, &feature->iffeatureQ);
+    ses_putchar(instance, scb, '\n');
 
 }  /* write_h_feature */
 
@@ -519,24 +529,25 @@ static void
 *
 *********************************************************************/
 static void
-    write_h_features (ses_cb_t *scb,
+    write_h_features (ncx_instance_t *instance,
+                      ses_cb_t *scb,
                       const dlq_hdr_t *featureQ)
 {
     const ncx_feature_t *feature;
 
-    if (dlq_empty(featureQ)) {
+    if (dlq_empty(instance, featureQ)) {
         return;
     }
 
     for (feature = (const ncx_feature_t *)
-             dlq_firstEntry(featureQ);
+             dlq_firstEntry(instance, featureQ);
          feature != NULL;
          feature = (const ncx_feature_t *)
-             dlq_nextEntry(feature)) {
+             dlq_nextEntry(instance, feature)) {
 
-        write_h_feature(scb, feature);
+        write_h_feature(instance, scb, feature);
     }
-    ses_putchar(scb, '\n');
+    ses_putchar(instance, scb, '\n');
 
 }  /* write_h_features */
 
@@ -553,60 +564,61 @@ static void
 *
 *********************************************************************/
 static void
-    write_h_includes (ses_cb_t *scb,
+    write_h_includes (ncx_instance_t *instance,
+                      ses_cb_t *scb,
                       const ncx_module_t *mod,
                       const yangdump_cvtparms_t *cp)
 {
     boolean                   needrpc, neednotif;
 
-    needrpc = need_rpc_includes(mod, cp);
-    neednotif = need_notif_includes(mod, cp);
+    needrpc = need_rpc_includes(instance, mod, cp);
+    neednotif = need_notif_includes(instance, mod, cp);
 
     /* add xmlChar include */
-    write_ext_include(scb, (const xmlChar *)"xmlstring.h");
+    write_ext_include(instance, scb, (const xmlChar *)"xmlstring.h");
 
     if (cp->isuser) {
-        write_ncx_include(scb, (const xmlChar *)"agt");
-        write_ncx_include(scb, (const xmlChar *)"agt_cb");
+        write_ncx_include(instance, scb, (const xmlChar *)"agt");
+        write_ncx_include(instance, scb, (const xmlChar *)"agt_cb");
 
         if (neednotif) {
-            write_ncx_include(scb, (const xmlChar *)"agt_not");
+            write_ncx_include(instance, scb, (const xmlChar *)"agt_not");
         }
         
         if (needrpc) {
-            write_ncx_include(scb, (const xmlChar *)"agt_rpc");
+            write_ncx_include(instance, scb, (const xmlChar *)"agt_rpc");
         }
     }
 
-    write_ncx_include(scb, (const xmlChar *)"dlq");
-    write_ncx_include(scb, (const xmlChar *)"ncxtypes");
-    write_ncx_include(scb, (const xmlChar *)"op");
+    write_ncx_include(instance, scb, (const xmlChar *)"dlq");
+    write_ncx_include(instance, scb, (const xmlChar *)"ncxtypes");
+    write_ncx_include(instance, scb, (const xmlChar *)"op");
 
     if (cp->isuser) {
-        write_ncx_include(scb, (const xmlChar *)"rpc");
-        write_ncx_include(scb, (const xmlChar *)"ses");
+        write_ncx_include(instance, scb, (const xmlChar *)"rpc");
+        write_ncx_include(instance, scb, (const xmlChar *)"ses");
     }
 
-    write_ncx_include(scb, (const xmlChar *)"status");
-    write_ncx_include(scb, (const xmlChar *)"val");
+    write_ncx_include(instance, scb, (const xmlChar *)"status");
+    write_ncx_include(instance, scb, (const xmlChar *)"val");
 
     if (cp->format == NCX_CVTTYP_UH) {
-        write_cvt_include(scb, ncx_get_modname(mod), NCX_CVTTYP_YH);
+        write_cvt_include(instance, scb, ncx_get_modname(mod), NCX_CVTTYP_YH);
     }
 
     /* includes for submodules */
     if (!cp->unified) {
         const ncx_include_t      *inc;
         for (inc = (const ncx_include_t *)
-                 dlq_firstEntry(&mod->includeQ);
+                 dlq_firstEntry(instance, &mod->includeQ);
              inc != NULL;
-             inc = (const ncx_include_t *)dlq_nextEntry(inc)) {
+             inc = (const ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
-            write_ncx_include(scb, inc->submodule);
+            write_ncx_include(instance, scb, inc->submodule);
         }
     }
 
-    ses_putchar(scb, '\n');
+    ses_putchar(instance, scb, '\n');
 } /* write_h_includes */
 
 
@@ -624,7 +636,8 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    write_h_file (ses_cb_t *scb,
+    write_h_file (ncx_instance_t *instance,
+                  ses_cb_t *scb,
                   ncx_module_t *mod,
                   const yangdump_cvtparms_t *cp)
 {
@@ -648,63 +661,63 @@ static status_t
         prefix = U_PREFIX;
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    dlq_createSQue(&cdefineQ);
-    dlq_createSQue(&typenameQ);
-    dlq_createSQue(&objnameQ);
+    dlq_createSQue(instance, &cdefineQ);
+    dlq_createSQue(instance, &typenameQ);
+    dlq_createSQue(instance, &objnameQ);
 
     /* Write the start of the H file */
-    ses_putstr(scb, POUND_IFNDEF);
-    ses_putstr(scb, BAR_H);
-    ses_putstr(scb, prefix);
-    write_c_safe_str(scb, mod->name);
-    ses_putstr(scb, POUND_DEFINE);
-    ses_putstr(scb, BAR_H);
-    ses_putstr(scb, prefix);
-    write_c_safe_str(scb, mod->name);
+    ses_putstr(instance, scb, POUND_IFNDEF);
+    ses_putstr(instance, scb, BAR_H);
+    ses_putstr(instance, scb, prefix);
+    write_c_safe_str(instance, scb, mod->name);
+    ses_putstr(instance, scb, POUND_DEFINE);
+    ses_putstr(instance, scb, BAR_H);
+    ses_putstr(instance, scb, prefix);
+    write_c_safe_str(instance, scb, mod->name);
 
-    write_c_header(scb, mod, cp);
+    write_c_header(instance, scb, mod, cp);
 
-    write_h_includes(scb, mod, cp);
+    write_h_includes(instance, scb, mod, cp);
 
-    write_start_cplusplus(scb);
+    write_start_cplusplus(instance, scb);
 
     if (!cp->isuser) {
-        ses_putchar(scb, '\n');
+        ses_putchar(instance, scb, '\n');
         /* mod name */
-        ses_putstr(scb, POUND_DEFINE);
-        write_identifier(scb, mod->name, BAR_MOD, mod->name, FALSE);
-        ses_putchar(scb, ' ');
-        ses_putstr(scb, BAR_CONST);
-        ses_putchar(scb, '"');
-        ses_putstr(scb, mod->name);
-        ses_putchar(scb, '"');
+        ses_putstr(instance, scb, POUND_DEFINE);
+        write_identifier(instance, scb, mod->name, BAR_MOD, mod->name, FALSE);
+        ses_putchar(instance, scb, ' ');
+        ses_putstr(instance, scb, BAR_CONST);
+        ses_putchar(instance, scb, '"');
+        ses_putstr(instance, scb, mod->name);
+        ses_putchar(instance, scb, '"');
 
         /* mod version */
-        ses_putstr(scb, POUND_DEFINE);
-        write_identifier(scb, mod->name, BAR_REV, mod->name, FALSE);
-        ses_putchar(scb, ' ');
-        ses_putstr(scb, BAR_CONST);
-        ses_putchar(scb, '"');
+        ses_putstr(instance, scb, POUND_DEFINE);
+        write_identifier(instance, scb, mod->name, BAR_REV, mod->name, FALSE);
+        ses_putchar(instance, scb, ' ');
+        ses_putstr(instance, scb, BAR_CONST);
+        ses_putchar(instance, scb, '"');
         if (mod->version) {
-            ses_putstr(scb, mod->version);
+            ses_putstr(instance, scb, mod->version);
         }
-        ses_putchar(scb, '"');
-        ses_putchar(scb, '\n');
+        ses_putchar(instance, scb, '"');
+        ses_putchar(instance, scb, '\n');
     }
 
     if (cp->format == NCX_CVTTYP_H || cp->format == NCX_CVTTYP_UH) {
         /* 1) features */
-        write_h_features(scb, &mod->featureQ);
+        write_h_features(instance, scb, &mod->featureQ);
         if (cp->unified && mod->ismod) {
             for (node = (yang_node_t *)
-                     dlq_firstEntry(&mod->allincQ);
+                     dlq_firstEntry(instance, &mod->allincQ);
                  node != NULL;
-                 node = (yang_node_t *)dlq_nextEntry(node)) {
+                 node = (yang_node_t *)dlq_nextEntry(instance, node)) {
                 if (node->submod) {
-                    write_h_features(scb, &node->submod->featureQ);
+                    write_h_features(instance, scb, &node->submod->featureQ);
                 }
             }
         }
@@ -712,28 +725,29 @@ static status_t
 
     if (!cp->isuser) {
         /* 2) identities */
-        write_h_identities(scb, &mod->identityQ, cp);
+        write_h_identities(instance, scb, &mod->identityQ, cp);
         if (cp->unified && mod->ismod) {
             for (node = (yang_node_t *)
-                     dlq_firstEntry(&mod->allincQ);
+                     dlq_firstEntry(instance, &mod->allincQ);
                  node != NULL;
-                 node = (yang_node_t *)dlq_nextEntry(node)) {
+                 node = (yang_node_t *)dlq_nextEntry(instance, node)) {
                 if (node->submod) {
-                    write_h_identities(scb, &node->submod->identityQ, cp);
+                    write_h_identities(instance, scb, &node->submod->identityQ, cp);
                 }
             }
         }
 
         /* 3) object node identifiers */
-        res = save_h_oids(scb, &mod->datadefQ, &cdefineQ);
+        res = save_h_oids(instance, scb, &mod->datadefQ, &cdefineQ);
         if (res == NO_ERR) {
             if (cp->unified && mod->ismod) {
                 for (node = (yang_node_t *)
-                         dlq_firstEntry(&mod->allincQ);
+                         dlq_firstEntry(instance, &mod->allincQ);
                      node != NULL && res == NO_ERR;
-                     node = (yang_node_t *)dlq_nextEntry(node)) {
+                     node = (yang_node_t *)dlq_nextEntry(instance, node)) {
                     if (node->submod) {
-                        res = save_h_oids(scb, 
+                        res = save_h_oids(instance, 
+                                          scb, 
                                           &node->submod->datadefQ, 
                                           &cdefineQ);
                     }
@@ -742,21 +756,22 @@ static status_t
         }
 
         if (res == NO_ERR) {
-            write_h_oids(scb, &cdefineQ);
+            write_h_oids(instance, scb, &cdefineQ);
         }
     }
 
     /* 4) typedefs for objects */
     if (res == NO_ERR) {
-        res = save_c_objects(mod, &mod->datadefQ, &typenameQ, C_MODE_TYPEDEF);
+        res = save_c_objects(instance, mod, &mod->datadefQ, &typenameQ, C_MODE_TYPEDEF);
         if (res == NO_ERR) {
             if (cp->unified && mod->ismod) {
                 for (node = (yang_node_t *)
-                         dlq_firstEntry(&mod->allincQ);
+                         dlq_firstEntry(instance, &mod->allincQ);
                      node != NULL && res == NO_ERR;
-                     node = (yang_node_t *)dlq_nextEntry(node)) {
+                     node = (yang_node_t *)dlq_nextEntry(instance, node)) {
                     if (node->submod) {
-                        res = save_c_objects(node->submod,
+                        res = save_c_objects(instance,
+                                             node->submod,
                                              &node->submod->datadefQ, 
                                              &typenameQ,
                                              C_MODE_TYPEDEF);
@@ -769,14 +784,14 @@ static status_t
     if (res == NO_ERR && 
         (cp->format == NCX_CVTTYP_H || cp->format == NCX_CVTTYP_UH)) {
         /* write typedefs for objects, not actually used in SIL code */
-        write_h_objects(scb, &mod->datadefQ, &typenameQ, cp);
+        write_h_objects(instance, scb, &mod->datadefQ, &typenameQ, cp);
         if (cp->unified && mod->ismod) {
             for (node = (yang_node_t *)
-                     dlq_firstEntry(&mod->allincQ);
+                     dlq_firstEntry(instance, &mod->allincQ);
                  node != NULL;
-                 node = (yang_node_t *)dlq_nextEntry(node)) {
+                 node = (yang_node_t *)dlq_nextEntry(instance, node)) {
                 if (node->submod) {
-                    write_h_objects(scb, &node->submod->datadefQ, 
+                    write_h_objects(instance, scb, &node->submod->datadefQ, 
                                     &typenameQ, cp);
                 }
             }
@@ -784,21 +799,21 @@ static status_t
     }
 
     if (res == NO_ERR) {
-        res = save_all_c_objects(mod, cp, &objnameQ, C_MODE_CALLBACK);
+        res = save_all_c_objects(instance, mod, cp, &objnameQ, C_MODE_CALLBACK);
         if (res == NO_ERR) {
-            c_write_fn_prototypes(mod, cp, scb, &objnameQ);
+            c_write_fn_prototypes(instance, mod, cp, scb, &objnameQ);
         }
     }
 
-    write_end_cplusplus(scb);
+    write_end_cplusplus(instance, scb);
 
     /* Write the end of the H file */
-    ses_putchar(scb, '\n');
-    ses_putstr(scb, POUND_ENDIF);
+    ses_putchar(instance, scb, '\n');
+    ses_putstr(instance, scb, POUND_ENDIF);
 
-    clean_cdefineQ(&cdefineQ);
-    clean_cdefineQ(&typenameQ);
-    clean_cdefineQ(&objnameQ);
+    clean_cdefineQ(instance, &cdefineQ);
+    clean_cdefineQ(instance, &typenameQ);
+    clean_cdefineQ(instance, &objnameQ);
 
     return res;
 
@@ -823,7 +838,8 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    h_convert_module (yang_pcb_t *pcb,
+    h_convert_module (ncx_instance_t *instance,
+                      yang_pcb_t *pcb,
                       const yangdump_cvtparms_t *cp,
                       ses_cb_t *scb)
 {
@@ -833,13 +849,13 @@ status_t
     /* the module should already be parsed and loaded */
     mod = pcb->top;
     if (!mod) {
-        return SET_ERROR(ERR_NCX_MOD_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_MOD_NOT_FOUND);
     }
 
     /* do not generate C code for obsolete objects */
-    ncx_delete_all_obsolete_objects();
+    ncx_delete_all_obsolete_objects(instance);
 
-    res = write_h_file(scb, mod, cp);
+    res = write_h_file(instance, scb, mod, cp);
 
     return res;
 

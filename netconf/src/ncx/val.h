@@ -434,7 +434,8 @@ typedef struct val_unique_t_ {
  *   FALSE if not OK to be cloned (skipped instead)
  */
 typedef boolean
-    (*val_test_fn_t) (const val_value_t *val);
+    (*val_test_fn_t) (struct ncx_instance_t_ *instance,
+		      const val_value_t *val);
 
 
 /* child or descendant node search walker function
@@ -449,7 +450,8 @@ typedef boolean
  *   FALSE if walk should terminate 
  */
 typedef boolean
-    (*val_walker_fn_t) (val_value_t *val,
+    (*val_walker_fn_t) (struct ncx_instance_t_ *instance,
+			val_value_t *val,
 			void *cookie1,
 			void *cookie2);
 
@@ -478,7 +480,7 @@ typedef enum val_dumpvalue_mode_t_ {
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern val_value_t *
-    val_new_value (void);
+    val_new_value (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -494,7 +496,8 @@ extern val_value_t *
 *   val == pointer to the malloced struct to initialize
 *********************************************************************/
 extern void
-    val_init_complex (val_value_t *val, 
+    val_init_complex (struct ncx_instance_t_ *instance, 
+		      val_value_t *val, 
 		      ncx_btype_t btyp);
 
 
@@ -511,7 +514,8 @@ extern void
 *   obj == object template to use
 *********************************************************************/
 extern void
-    val_init_virtual (val_value_t *val,
+    val_init_virtual (struct ncx_instance_t_ *instance,
+		      val_value_t *val,
 		      void *cbfn,
 		      struct obj_template_t_ *obj);
 
@@ -528,7 +532,8 @@ extern void
 *   obj == object template to use
 *********************************************************************/
 extern void
-    val_init_from_template (val_value_t *val,
+    val_init_from_template (struct ncx_instance_t_ *instance,
+			    val_value_t *val,
 			    struct obj_template_t_ *obj);
 
 
@@ -544,7 +549,7 @@ extern void
 *    val == val_value_t to delete
 *********************************************************************/
 extern void 
-    val_free_value (val_value_t *val);
+    val_free_value (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -558,7 +563,8 @@ extern void
 *    namelen == length of name string
 *********************************************************************/
 extern void 
-    val_set_name (val_value_t *val,
+    val_set_name (struct ncx_instance_t_ *instance,
+		  val_value_t *val,
 		  const xmlChar *name,
 		  uint32 namelen);
 
@@ -579,7 +585,7 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    val_force_dname (val_value_t *val);
+    val_force_dname (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -594,7 +600,8 @@ extern status_t
 *    namelen == length of name string
 *********************************************************************/
 extern void 
-    val_set_qname (val_value_t *val,
+    val_set_qname (struct ncx_instance_t_ *instance,
+		   val_value_t *val,
 		   xmlns_id_t   nsid,
 		   const xmlChar *name,
 		   uint32 namelen);
@@ -615,7 +622,8 @@ extern void
 *    status
 *********************************************************************/
 extern status_t
-    val_string_ok (typ_def_t *typdef,
+    val_string_ok (struct ncx_instance_t_ *instance,
+		   typ_def_t *typdef,
 		   ncx_btype_t  btyp,
 		   const xmlChar *strval);
 
@@ -642,7 +650,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_string_ok_errinfo (typ_def_t *typdef,
+    val_string_ok_errinfo (struct ncx_instance_t_ *instance,
+			   typ_def_t *typdef,
 			   ncx_btype_t  btyp,
 			   const xmlChar *strval,
 			   ncx_errinfo_t **errinfo);
@@ -671,7 +680,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_string_ok_ex (typ_def_t *typdef,
+    val_string_ok_ex (struct ncx_instance_t_ *instance,
+                      typ_def_t *typdef,
                       ncx_btype_t btyp,
                       const xmlChar *strval,
                       ncx_errinfo_t **errinfo,
@@ -705,7 +715,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_list_ok (typ_def_t *typdef,
+    val_list_ok (struct ncx_instance_t_ *instance,
+		 typ_def_t *typdef,
 		 ncx_btype_t btyp,
 		 ncx_list_t *list);
 
@@ -734,7 +745,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_list_ok_errinfo (typ_def_t *typdef,
+    val_list_ok_errinfo (struct ncx_instance_t_ *instance,
+			 typ_def_t *typdef,
 			 ncx_btype_t btyp,
 			 ncx_list_t *list,
 			 ncx_errinfo_t **errinfo);
@@ -760,7 +772,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_enum_ok (typ_def_t *typdef,
+    val_enum_ok (struct ncx_instance_t_ *instance,
+		 typ_def_t *typdef,
 		 const xmlChar *enumval,
 		 int32 *retval,
 		 const xmlChar **retstr);
@@ -784,7 +797,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_bit_ok (typ_def_t *typdef,
+    val_bit_ok (struct ncx_instance_t_ *instance,
+		typ_def_t *typdef,
 		const xmlChar *bitname,
 		uint32 *position);
 
@@ -815,7 +829,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_idref_ok (typ_def_t *typdef,
+    val_idref_ok (struct ncx_instance_t_ *instance,
+		  typ_def_t *typdef,
 		  const xmlChar *qname,
 		  xmlns_id_t nsid,
 		  const xmlChar **name,
@@ -847,7 +862,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_parse_idref (ncx_module_t *mod,
+    val_parse_idref (struct ncx_instance_t_ *instance,
+		     ncx_module_t *mod,
 		     const xmlChar *qname,
 		     xmlns_id_t  *nsid,
 		     const xmlChar **name,
@@ -869,7 +885,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_range_ok (typ_def_t *typdef,
+    val_range_ok (struct ncx_instance_t_ *instance,
+		  typ_def_t *typdef,
 		  ncx_btype_t  btyp,
 		  const ncx_num_t *num);
 
@@ -894,7 +911,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_range_ok_errinfo (typ_def_t *typdef,
+    val_range_ok_errinfo (struct ncx_instance_t_ *instance,
+			  typ_def_t *typdef,
 			  ncx_btype_t  btyp,
 			  const ncx_num_t *num,
 			  ncx_errinfo_t **errinfo);
@@ -913,7 +931,8 @@ extern status_t
 *    NO_ERR if pattern OK or no patterns found to check; error otherwise
 *********************************************************************/
 extern status_t
-    val_pattern_ok (typ_def_t *typdef,
+    val_pattern_ok (struct ncx_instance_t_ *instance,
+		    typ_def_t *typdef,
 		    const xmlChar *strval);
 
 
@@ -936,7 +955,8 @@ extern status_t
 *    that failed has any errinfo defined in it
 *********************************************************************/
 extern status_t
-    val_pattern_ok_errinfo (typ_def_t *typdef,
+    val_pattern_ok_errinfo (struct ncx_instance_t_ *instance,
+			    typ_def_t *typdef,
 			    const xmlChar *strval,
 			    ncx_errinfo_t **errinfo);
 
@@ -956,7 +976,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_simval_ok (typ_def_t *typdef,
+    val_simval_ok (struct ncx_instance_t_ *instance,
+		   typ_def_t *typdef,
 		   const xmlChar *simval);
 		   
 
@@ -981,7 +1002,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_simval_ok_errinfo (typ_def_t *typdef,
+    val_simval_ok_errinfo (struct ncx_instance_t_ *instance,
+			   typ_def_t *typdef,
 			   const xmlChar *simval,
 			   ncx_errinfo_t **errinfo);
 
@@ -1007,7 +1029,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_simval_ok_ex (typ_def_t *typdef,
+    val_simval_ok_ex (struct ncx_instance_t_ *instance,
+                      typ_def_t *typdef,
                       const xmlChar *simval,
                       ncx_errinfo_t **errinfo,
                       ncx_module_t *mod);
@@ -1036,7 +1059,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_simval_ok_max (typ_def_t *typdef,
+    val_simval_ok_max (struct ncx_instance_t_ *instance,
+                       typ_def_t *typdef,
                        const xmlChar *simval,
                        ncx_errinfo_t **errinfo,
                        ncx_module_t *mod,
@@ -1063,7 +1087,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_union_ok (typ_def_t *typdef,
+    val_union_ok (struct ncx_instance_t_ *instance,
+		  typ_def_t *typdef,
 		  const xmlChar *strval,
 		  val_value_t *retval);
 
@@ -1090,7 +1115,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_union_ok_errinfo (typ_def_t *typdef,
+    val_union_ok_errinfo (struct ncx_instance_t_ *instance,
+			  typ_def_t *typdef,
 			  const xmlChar *strval,
 			  val_value_t *retval,
 			  ncx_errinfo_t **errinfo);
@@ -1119,7 +1145,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    val_union_ok_ex (typ_def_t *typdef,
+    val_union_ok_ex (struct ncx_instance_t_ *instance,
+                     typ_def_t *typdef,
                      const xmlChar *strval,
                      val_value_t *retval,
                      ncx_errinfo_t **errinfo,
@@ -1138,7 +1165,7 @@ extern status_t
 *   pointer to the metaQ for this value
 *********************************************************************/
 extern dlq_hdr_t *
-    val_get_metaQ (val_value_t  *val);
+    val_get_metaQ (struct ncx_instance_t_ *instance, val_value_t  *val);
 
 
 /********************************************************************
@@ -1154,7 +1181,7 @@ extern dlq_hdr_t *
 *   or NULL if none
 *********************************************************************/
 extern val_value_t *
-    val_get_first_meta (dlq_hdr_t *queue);
+    val_get_first_meta (struct ncx_instance_t_ *instance, dlq_hdr_t *queue);
 
 
 /********************************************************************
@@ -1170,7 +1197,7 @@ extern val_value_t *
 *   or NULL if none
 *********************************************************************/
 extern val_value_t *
-    val_get_first_meta_val (val_value_t *val);
+    val_get_first_meta_val (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -1186,7 +1213,7 @@ extern val_value_t *
 *   or NULL if none
 *********************************************************************/
 extern val_value_t *
-    val_get_next_meta (val_value_t *curmeta);
+    val_get_next_meta (struct ncx_instance_t_ *instance, val_value_t *curmeta);
 
 
 /********************************************************************
@@ -1202,7 +1229,7 @@ extern val_value_t *
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_meta_empty (val_value_t *val);
+    val_meta_empty (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -1219,7 +1246,8 @@ extern boolean
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_find_meta (val_value_t *val,
+    val_find_meta (struct ncx_instance_t_ *instance,
+		   val_value_t *val,
 		   xmlns_id_t   nsid,
 		   const xmlChar *name);
 
@@ -1239,7 +1267,8 @@ extern val_value_t *
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_meta_match (val_value_t *val,
+    val_meta_match (struct ncx_instance_t_ *instance,
+		    val_value_t *val,
 		    val_value_t *metaval);
 
 
@@ -1257,7 +1286,8 @@ extern boolean
 *   number of instances found in val->metaQ
 *********************************************************************/
 extern uint32
-    val_metadata_inst_count (val_value_t  *val,
+    val_metadata_inst_count (struct ncx_instance_t_ *instance,
+			     val_value_t  *val,
 			     xmlns_id_t nsid,
 			     const xmlChar *name);
 
@@ -1275,7 +1305,8 @@ extern uint32
 *
 *********************************************************************/
 extern void
-    val_dump_value (val_value_t *val,
+    val_dump_value (struct ncx_instance_t_ *instance,
+		    val_value_t *val,
 		    int32 startindent);
 
 
@@ -1292,7 +1323,8 @@ extern void
 *    display_mode == display mode to use
 *********************************************************************/
 extern void
-    val_dump_value_ex (val_value_t *val,
+    val_dump_value_ex (struct ncx_instance_t_ *instance,
+                       val_value_t *val,
                        int32 startindent,
                        ncx_display_mode_t display_mode);
 
@@ -1310,7 +1342,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    val_dump_alt_value (val_value_t *val,
+    val_dump_alt_value (struct ncx_instance_t_ *instance,
+			val_value_t *val,
 			int32 startindent);
 
 
@@ -1326,7 +1359,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    val_stdout_value (val_value_t *val,
+    val_stdout_value (struct ncx_instance_t_ *instance,
+		      val_value_t *val,
 		      int32 startindent);
 
 /********************************************************************
@@ -1341,7 +1375,8 @@ extern void
 *    display_mode == display mode to use
 *********************************************************************/
 extern void
-    val_stdout_value_ex (val_value_t *val,
+    val_stdout_value_ex (struct ncx_instance_t_ *instance,
+                         val_value_t *val,
                          int32 startindent,
                          ncx_display_mode_t display_mode);
 
@@ -1365,7 +1400,8 @@ extern void
 *                  FALSE if all nodes should be displayed
 *********************************************************************/
 extern void
-    val_dump_value_max (val_value_t *val,
+    val_dump_value_max (struct ncx_instance_t_ *instance,
+                        val_value_t *val,
                         int32 startindent,
                         int32 indent_amount,
                         val_dumpvalue_mode_t dumpmode,
@@ -1393,7 +1429,8 @@ extern void
 *  status
 *********************************************************************/
 extern status_t 
-    val_set_string (val_value_t  *val,
+    val_set_string (struct ncx_instance_t_ *instance,
+		    val_value_t  *val,
 		    const xmlChar *valname,
 		    const xmlChar *valstr);
 
@@ -1421,7 +1458,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    val_set_string2 (val_value_t  *val,
+    val_set_string2 (struct ncx_instance_t_ *instance,
+		     val_value_t  *val,
 		     const xmlChar *valname,
 		     typ_def_t *typdef,
 		     const xmlChar *valstr,
@@ -1444,7 +1482,7 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t 
-    val_reset_empty (val_value_t  *val);
+    val_reset_empty (struct ncx_instance_t_ *instance, val_value_t  *val);
 
 
 /********************************************************************
@@ -1466,7 +1504,8 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t 
-    val_set_simval (val_value_t  *val,
+    val_set_simval (struct ncx_instance_t_ *instance,
+		    val_value_t  *val,
 		    typ_def_t *typdef,
 		    xmlns_id_t    nsid,
 		    const xmlChar *valname,
@@ -1520,7 +1559,8 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t 
-    val_set_simval_str (val_value_t  *val,
+    val_set_simval_str (struct ncx_instance_t_ *instance,
+			val_value_t  *val,
 			typ_def_t *typdef,
 			xmlns_id_t    nsid,
 			const xmlChar *valname,
@@ -1549,7 +1589,8 @@ extern status_t
 *    NULL if some error
 *********************************************************************/
 extern val_value_t *
-    val_make_simval (typ_def_t *typdef,
+    val_make_simval (struct ncx_instance_t_ *instance,
+		     typ_def_t *typdef,
 		     xmlns_id_t    nsid,
 		     const xmlChar *valname,
 		     const xmlChar *valstr,
@@ -1571,7 +1612,8 @@ extern val_value_t *
 *   malloced val struct filled in; NULL if malloc or strdup failed
 *********************************************************************/
 extern val_value_t *
-    val_make_string (xmlns_id_t nsid,
+    val_make_string (struct ncx_instance_t_ *instance,
+		     xmlns_id_t nsid,
 		     const xmlChar *valname,
 		     const xmlChar *valstr);
 
@@ -1593,7 +1635,8 @@ extern val_value_t *
 *    status
 *********************************************************************/
 extern status_t
-    val_merge (const val_value_t *src,
+    val_merge (struct ncx_instance_t_ *instance,
+	       const val_value_t *src,
 	       val_value_t *dest);
 
 
@@ -1609,7 +1652,7 @@ extern status_t
 *   clone of val, or NULL if a malloc failure
 *********************************************************************/
 extern val_value_t *
-    val_clone (const val_value_t *val);
+    val_clone (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -1625,7 +1668,7 @@ extern val_value_t *
 *   clone of val, or NULL if a malloc failure
 *********************************************************************/
 extern val_value_t *
-    val_clone2 (const val_value_t *val);
+    val_clone2 (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -1648,7 +1691,8 @@ extern val_value_t *
 *   clone of val, or NULL if a malloc failure
 *********************************************************************/
 extern val_value_t *
-    val_clone_config_data (const val_value_t *val,
+    val_clone_config_data (struct ncx_instance_t_ *instance,
+			   const val_value_t *val,
 			   status_t *res);
 
 
@@ -1669,7 +1713,8 @@ extern val_value_t *
 *   status
 *********************************************************************/
 extern status_t
-    val_replace (val_value_t *val,
+    val_replace (struct ncx_instance_t_ *instance,
+		 val_value_t *val,
 		 val_value_t *copy);
 
 
@@ -1690,7 +1735,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    val_replace_str (const xmlChar *str,
+    val_replace_str (struct ncx_instance_t_ *instance,
+                     const xmlChar *str,
                      uint32 stringlen,
                      val_value_t *copy);
 
@@ -1707,8 +1753,9 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    val_add_meta (val_value_t *meta,
-		   val_value_t *parent);
+    val_add_meta (struct ncx_instance_t_ *instance,
+                  val_value_t *meta, 
+                  val_value_t *parent);
 
 /********************************************************************
 * FUNCTION val_add_child
@@ -1726,7 +1773,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    val_add_child (val_value_t *child,
+    val_add_child (struct ncx_instance_t_ *instance,
+		   val_value_t *child,
 		   val_value_t *parent);
 
 
@@ -1742,7 +1790,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    val_add_child_sorted (val_value_t *child,
+    val_add_child_sorted (struct ncx_instance_t_ *instance,
+                          val_value_t *child,
                           val_value_t *parent);
 
 
@@ -1759,7 +1808,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    val_insert_child (val_value_t *child,
+    val_insert_child (struct ncx_instance_t_ *instance,
+		      val_value_t *child,
 		      val_value_t *current,
 		      val_value_t *parent);
 
@@ -1774,7 +1824,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    val_remove_child (val_value_t *child);
+    val_remove_child (struct ncx_instance_t_ *instance, val_value_t *child);
 
 
 /********************************************************************
@@ -1788,7 +1838,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    val_swap_child (val_value_t *newchild,
+    val_swap_child (struct ncx_instance_t_ *instance,
+		    val_value_t *newchild,
 		    val_value_t *curchild);
 
 
@@ -1805,7 +1856,8 @@ extern void
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_first_child_match (val_value_t *parent,
+    val_first_child_match (struct ncx_instance_t_ *instance,
+			   val_value_t *parent,
 			   val_value_t *child);
 
 
@@ -1823,7 +1875,8 @@ extern val_value_t *
 *   pointer to the next child match if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_next_child_match (val_value_t *parent,
+    val_next_child_match (struct ncx_instance_t_ *instance,
+			  val_value_t *parent,
 			  val_value_t *child,
 			  val_value_t *curmatch);
 
@@ -1840,7 +1893,7 @@ extern val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_get_first_child (const val_value_t *parent);
+    val_get_first_child (struct ncx_instance_t_ *instance, const val_value_t *parent);
 
 
 /********************************************************************
@@ -1855,7 +1908,7 @@ extern val_value_t *
 *   pointer to the next child if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_get_next_child (const val_value_t *curchild);
+    val_get_next_child (struct ncx_instance_t_ *instance, const val_value_t *curchild);
 
 
 /********************************************************************
@@ -1877,7 +1930,8 @@ extern val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_find_child (const val_value_t  *parent,
+    val_find_child (struct ncx_instance_t_ *instance,
+		    const val_value_t  *parent,
 		    const xmlChar  *modname,
 		    const xmlChar *childname);
 
@@ -1902,7 +1956,8 @@ extern val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_find_child_que (const dlq_hdr_t *childQ,
+    val_find_child_que (struct ncx_instance_t_ *instance,
+                        const dlq_hdr_t *childQ,
                         const xmlChar *modname,
                         const xmlChar *childname);
 
@@ -1926,7 +1981,8 @@ extern val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_match_child (const val_value_t  *parent,
+    val_match_child (struct ncx_instance_t_ *instance,
+		     const val_value_t  *parent,
 		     const xmlChar  *modname,
 		     const xmlChar *childname);
 
@@ -1951,7 +2007,8 @@ extern val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_find_next_child (const val_value_t  *parent,
+    val_find_next_child (struct ncx_instance_t_ *instance,
+			 const val_value_t  *parent,
 			 const xmlChar  *modname,
 			 const xmlChar *childname,
 			 const val_value_t *curchild);
@@ -1971,7 +2028,8 @@ extern val_value_t *
 *   pointer to the FIRST match if found, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_first_child_name (val_value_t *parent,
+    val_first_child_name (struct ncx_instance_t_ *instance,
+			  val_value_t *parent,
 			  const xmlChar *name);
 
 
@@ -1989,7 +2047,8 @@ extern val_value_t *
 *   pointer to the first match if found, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_first_child_qname (val_value_t *parent,
+    val_first_child_qname (struct ncx_instance_t_ *instance,
+			   val_value_t *parent,
 			   xmlns_id_t   nsid,
 			   const xmlChar *name);
 
@@ -2009,7 +2068,8 @@ extern val_value_t *
 *   pointer to the next match if found, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_next_child_qname (val_value_t *parent,
+    val_next_child_qname (struct ncx_instance_t_ *instance,
+			  val_value_t *parent,
 			  xmlns_id_t   nsid,
 			  const xmlChar *name,
 			  val_value_t *curchild);
@@ -2034,7 +2094,8 @@ extern val_value_t *
 *   pointer to the FIRST match if found, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    val_first_child_string (val_value_t *parent,
+    val_first_child_string (struct ncx_instance_t_ *instance,
+			    val_value_t *parent,
 			    const xmlChar *name,
 			    const xmlChar *strval);
 
@@ -2052,7 +2113,7 @@ extern val_value_t *
 *   the number of child nodes found
 *********************************************************************/
 extern uint32
-    val_child_cnt (val_value_t *parent);
+    val_child_cnt (struct ncx_instance_t_ *instance, val_value_t *parent);
 
 
 /********************************************************************
@@ -2070,7 +2131,8 @@ extern uint32
 *   the instance count
 *********************************************************************/
 extern uint32
-    val_child_inst_cnt (const val_value_t *parent,
+    val_child_inst_cnt (struct ncx_instance_t_ *instance,
+			const val_value_t *parent,
 			const xmlChar *modname,
 			const xmlChar *name);
 
@@ -2110,7 +2172,8 @@ extern uint32
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    val_find_all_children (val_walker_fn_t walkerfn,
+    val_find_all_children (struct ncx_instance_t_ *instance,
+			   val_walker_fn_t walkerfn,
 			   void *cookie1,
 			   void *cookie2,
 			   val_value_t *startnode,
@@ -2155,7 +2218,8 @@ extern boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    val_find_all_ancestors (val_walker_fn_t walkerfn,
+    val_find_all_ancestors (struct ncx_instance_t_ *instance,
+			    val_walker_fn_t walkerfn,
 			    void *cookie1,
 			    void *cookie2,
 			    val_value_t *startnode,
@@ -2206,7 +2270,8 @@ extern boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    val_find_all_descendants (val_walker_fn_t walkerfn,
+    val_find_all_descendants (struct ncx_instance_t_ *instance,
+			      val_walker_fn_t walkerfn,
 			      void *cookie1,
 			      void *cookie2,
 			      val_value_t *startnode,
@@ -2265,7 +2330,8 @@ extern boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    val_find_all_pfaxis (val_walker_fn_t walkerfn,
+    val_find_all_pfaxis (struct ncx_instance_t_ *instance,
+			 val_walker_fn_t walkerfn,
 			 void *cookie1,
 			 void *cookie2,
 			 val_value_t *startnode,
@@ -2323,7 +2389,8 @@ extern boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    val_find_all_pfsibling_axis (val_walker_fn_t  walkerfn,
+    val_find_all_pfsibling_axis (struct ncx_instance_t_ *instance,
+				 val_walker_fn_t  walkerfn,
 				 void *cookie1,
 				 void *cookie2,
 				 val_value_t *startnode,
@@ -2378,7 +2445,8 @@ extern boolean
 *   pointer to found value or NULL if none
 *********************************************************************/
 extern val_value_t *
-    val_get_axisnode (val_value_t *startnode,
+    val_get_axisnode (struct ncx_instance_t_ *instance,
+		      val_value_t *startnode,
 		      const xmlChar *modname,
 		      const xmlChar *name,
 		      boolean configonly,
@@ -2401,7 +2469,8 @@ extern val_value_t *
 *   the instance ID num (1 .. N), or 0 if some error
 *********************************************************************/
 extern uint32
-    val_get_child_inst_id (const val_value_t *parent,
+    val_get_child_inst_id (struct ncx_instance_t_ *instance,
+			   const val_value_t *parent,
 			   const val_value_t *child);
 
 
@@ -2417,7 +2486,7 @@ extern uint32
 *  number of list entries; also zero for error
 *********************************************************************/
 extern uint32
-    val_liststr_count (const val_value_t *val);
+    val_liststr_count (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2438,7 +2507,8 @@ extern uint32
 *   TRUE if the index chains match
 *********************************************************************/
 extern boolean
-    val_index_match (const val_value_t *val1,
+    val_index_match (struct ncx_instance_t_ *instance,
+		     const val_value_t *val1,
 		     const val_value_t *val2);
 
 
@@ -2458,7 +2528,8 @@ extern boolean
 *   -1 , - or 1 for compare value
 *********************************************************************/
 extern int
-    val_index_compare (const val_value_t *val1,
+    val_index_compare (struct ncx_instance_t_ *instance,
+                       const val_value_t *val1,
                        const val_value_t *val2);
 
 
@@ -2494,7 +2565,8 @@ extern int
 *      1: val1 is greater than val2
 *********************************************************************/
 extern int32
-    val_compare_max (const val_value_t *val1,
+    val_compare_max (struct ncx_instance_t_ *instance,
+                     const val_value_t *val1,
                      const val_value_t *val2,
                      boolean configonly,
                      boolean childonly,
@@ -2528,7 +2600,8 @@ extern int32
 *      1: val1 is greater than val2
 *********************************************************************/
 extern int32
-    val_compare_ex (const val_value_t *val1,
+    val_compare_ex (struct ncx_instance_t_ *instance,
+                    const val_value_t *val1,
                     const val_value_t *val2,
                     boolean configonly);
 
@@ -2557,7 +2630,8 @@ extern int32
 *      1: val1 is greater than val2
 *********************************************************************/
 extern int32
-    val_compare (const val_value_t *val1,
+    val_compare (struct ncx_instance_t_ *instance,
+		 const val_value_t *val1,
 		 const val_value_t *val2);
 
 
@@ -2586,7 +2660,8 @@ extern int32
 *      1: val1 is greater than val2
 *********************************************************************/
 extern int32
-    val_compare_to_string (const val_value_t *val1,
+    val_compare_to_string (struct ncx_instance_t_ *instance,
+			   const val_value_t *val1,
 			   const xmlChar *strval2,
 			   status_t *res);
 
@@ -2612,7 +2687,8 @@ extern int32
 *      1: val1 is greater than val2
 *********************************************************************/
 extern int32
-    val_compare_for_replace (const val_value_t *val1,
+    val_compare_for_replace (struct ncx_instance_t_ *instance,
+                             const val_value_t *val1,
                              const val_value_t *val2);
 
 
@@ -2642,7 +2718,8 @@ extern int32
 *   status
 *********************************************************************/
 extern status_t
-    val_sprintf_simval_nc (xmlChar *buff,
+    val_sprintf_simval_nc (struct ncx_instance_t_ *instance,
+			   xmlChar *buff,
 			   const val_value_t  *val,
 			   uint32  *len);
 
@@ -2662,7 +2739,7 @@ extern status_t
 *   NULL if some error
 *********************************************************************/
 extern xmlChar *
-    val_make_sprintf_string (const val_value_t *val);
+    val_make_sprintf_string (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2685,7 +2762,8 @@ extern xmlChar *
 *   status
 *********************************************************************/
 extern status_t 
-    val_resolve_scoped_name (val_value_t *val,
+    val_resolve_scoped_name (struct ncx_instance_t_ *instance,
+			     val_value_t *val,
 			     const xmlChar *name,
 			     val_value_t **chval);
 
@@ -2702,7 +2780,7 @@ extern status_t
 *   iqual value
 *********************************************************************/
 extern ncx_iqual_t 
-    val_get_iqualval (const val_value_t *val);
+    val_get_iqualval (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2727,7 +2805,7 @@ extern ncx_iqual_t
 *     FALSE if the value is not classified as configuration
 *********************************************************************/
 extern boolean
-    val_duplicates_allowed (val_value_t *val);
+    val_duplicates_allowed (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -2743,7 +2821,7 @@ extern boolean
 *     FALSE if the value does not have any content
 *********************************************************************/
 extern boolean
-    val_has_content (const val_value_t *val);
+    val_has_content (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2759,7 +2837,7 @@ extern boolean
 *     FALSE if the value does not have an index
 *********************************************************************/
 extern boolean
-    val_has_index (const val_value_t *val);
+    val_has_index (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2774,7 +2852,7 @@ extern boolean
 *    pointer to first val_index_t node,  NULL if none
 *********************************************************************/
 extern val_index_t *
-    val_get_first_index (const val_value_t *val);
+    val_get_first_index (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2789,7 +2867,7 @@ extern val_index_t *
 *    pointer to next val_index_t node,  NULL if none
 *********************************************************************/
 extern val_index_t *
-    val_get_next_index (const val_index_t *valindex);
+    val_get_next_index (struct ncx_instance_t_ *instance, const val_index_t *valindex);
 
 
 
@@ -2810,7 +2888,8 @@ extern val_index_t *
 *   status of the operation
 *********************************************************************/
 extern status_t
-    val_parse_meta (typ_def_t *typdef,
+    val_parse_meta (struct ncx_instance_t_ *instance,
+		    typ_def_t *typdef,
 		    xml_attr_t *attr,
 		    val_value_t *retval);
 
@@ -2825,7 +2904,8 @@ extern status_t
 *     fname == filespec string to set as the value
 *********************************************************************/
 extern void
-    val_set_extern (val_value_t  *val,
+    val_set_extern (struct ncx_instance_t_ *instance,
+		    val_value_t  *val,
 		    xmlChar *fname);
 
 
@@ -2839,7 +2919,8 @@ extern void
 *     intbuff == internal buffer to set as the value
 *********************************************************************/
 extern void
-    val_set_intern (val_value_t  *val,
+    val_set_intern (struct ncx_instance_t_ *instance,
+		    val_value_t  *val,
 		    xmlChar *intbuff);
 
 
@@ -2865,7 +2946,8 @@ extern void
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_fit_oneline (const val_value_t *val,
+    val_fit_oneline (struct ncx_instance_t_ *instance,
+                     const val_value_t *val,
                      uint32 linesize);
 
 
@@ -2883,7 +2965,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_create_allowed (const val_value_t *val);
+    val_create_allowed (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2900,7 +2982,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_delete_allowed (const val_value_t *val);
+    val_delete_allowed (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2916,7 +2998,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_is_config_data (const val_value_t *val);
+    val_is_config_data (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2934,7 +3016,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_is_virtual (const val_value_t *val);
+    val_is_virtual (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -2973,7 +3055,8 @@ extern boolean
 *   val is freed
 *********************************************************************/
 extern val_value_t *
-    val_get_virtual_value (void *session,  /* really ses_cb_t *   */
+    val_get_virtual_value (struct ncx_instance_t_ *instance,                           
+			   void *session,  /* really ses_cb_t *   */
 			   val_value_t *val,
 			   status_t *res);
 
@@ -2998,7 +3081,7 @@ extern val_value_t *
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_is_default (val_value_t *val);
+    val_is_default (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3016,7 +3099,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_is_real (const val_value_t *val);
+    val_is_real (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3031,7 +3114,7 @@ extern boolean
 *   namespace ID of parent, or 0 if not found or not a value parent
 *********************************************************************/
 extern xmlns_id_t 
-    val_get_parent_nsid (const val_value_t *val);
+    val_get_parent_nsid (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3052,7 +3135,8 @@ extern xmlns_id_t
 *   number of instances found
 *********************************************************************/
 extern uint32
-    val_instance_count (val_value_t  *val,
+    val_instance_count (struct ncx_instance_t_ *instance,
+			val_value_t  *val,
 			const xmlChar *modname,
 			const xmlChar *objname);
 
@@ -3076,7 +3160,8 @@ extern uint32
 *
 *********************************************************************/
 extern void
-    val_set_extra_instance_errors (val_value_t  *val,
+    val_set_extra_instance_errors (struct ncx_instance_t_ *instance,
+				   val_value_t  *val,
 				   const xmlChar *modname,
 				   const xmlChar *objname,
 				   uint32 maxelems);
@@ -3096,7 +3181,7 @@ extern void
 *    FALSE if not needed
 *********************************************************************/
 extern boolean
-    val_need_quotes (const xmlChar *str);
+    val_need_quotes (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -3112,7 +3197,7 @@ extern boolean
 *    FALSE if non-whitespace char found
 *********************************************************************/
 extern boolean
-    val_all_whitespace (const xmlChar *str);
+    val_all_whitespace (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -3129,7 +3214,8 @@ extern boolean
 *     TRUE if attr is a match; FALSE otherwise
 *********************************************************************/
 extern boolean
-    val_match_metaval (const xml_attr_t *attr,
+    val_match_metaval (struct ncx_instance_t_ *instance,
+		       const xml_attr_t *attr,
 		       xmlns_id_t  nsid,
 		       const xmlChar *name);
 
@@ -3146,7 +3232,7 @@ extern boolean
 *     TRUE if value is dirty, false otherwise
 *********************************************************************/
 extern boolean
-    val_get_dirty_flag (const val_value_t *val);
+    val_get_dirty_flag (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3161,7 +3247,7 @@ extern boolean
 *     TRUE if value is subtree dirty, false otherwise
 *********************************************************************/
 extern boolean
-    val_get_subtree_dirty_flag (const val_value_t *val);
+    val_get_subtree_dirty_flag (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3176,7 +3262,7 @@ extern boolean
 *     TRUE if value is dirty, false otherwise
 *********************************************************************/
 extern void
-    val_set_dirty_flag (val_value_t *val);
+    val_set_dirty_flag (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3191,7 +3277,7 @@ extern void
 *     TRUE if value is dirty, false otherwise
 *********************************************************************/
 extern void
-    val_clear_dirty_flag (val_value_t *val);
+    val_clear_dirty_flag (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 
@@ -3207,7 +3293,7 @@ extern void
 *     TRUE if value is dirty or any subtree may be dirty, false otherwise
 *********************************************************************/
 extern boolean
-    val_dirty_subtree (const val_value_t *val);
+    val_dirty_subtree (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3226,7 +3312,7 @@ extern boolean
  *     val->curparent: cleared to NULL
  *********************************************************************/
 extern void
-    val_clean_tree (val_value_t *val);
+    val_clean_tree (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3241,7 +3327,7 @@ extern void
 *     nest level from the root
 *********************************************************************/
 extern uint32
-    val_get_nest_level (val_value_t *val);
+    val_get_nest_level (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3258,7 +3344,7 @@ extern uint32
 *    pointer to val if val is a leaf
 *********************************************************************/
 extern val_value_t *
-    val_get_first_leaf (val_value_t *val);
+    val_get_first_leaf (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3274,7 +3360,7 @@ extern val_value_t *
 *     NULL if not found
 *********************************************************************/
 extern const xmlChar *
-    val_get_mod_name (const val_value_t *val);
+    val_get_mod_name (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3290,7 +3376,7 @@ extern const xmlChar *
 *     NULL if not found
 *********************************************************************/
 extern const xmlChar *
-    val_get_mod_prefix (const val_value_t *val);
+    val_get_mod_prefix (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3306,7 +3392,7 @@ extern const xmlChar *
 *     NULL if not found
 *********************************************************************/
 extern xmlns_id_t
-    val_get_nsid (const val_value_t *val);
+    val_get_nsid (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3320,7 +3406,8 @@ extern xmlns_id_t
 *
 *********************************************************************/
 extern void
-    val_change_nsid (val_value_t *val,
+    val_change_nsid (struct ncx_instance_t_ *instance,
+		     val_value_t *val,
 		     xmlns_id_t nsid);
 
 
@@ -3344,7 +3431,8 @@ extern void
 *   malloced list val_value_t struct with converted value
 *********************************************************************/
 extern val_value_t *
-    val_make_from_insertxpcb (val_value_t  *sourceval,
+    val_make_from_insertxpcb (struct ncx_instance_t_ *instance,
+			      val_value_t  *sourceval,
 			      status_t *res);
 
 
@@ -3357,7 +3445,7 @@ extern val_value_t *
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern val_unique_t * 
-    val_new_unique (void);
+    val_new_unique (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -3369,7 +3457,7 @@ extern val_unique_t *
 *    valuni == val_unique struct to free
 *********************************************************************/
 extern void
-    val_free_unique (val_unique_t *valuni);
+    val_free_unique (struct ncx_instance_t_ *instance, val_unique_t *valuni);
 
 
 /********************************************************************
@@ -3384,7 +3472,7 @@ extern void
 *   pointer to the typdef or NULL if none
 *********************************************************************/
 extern const typ_def_t *
-    val_get_typdef (const val_value_t *val);
+    val_get_typdef (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3400,7 +3488,7 @@ extern const typ_def_t *
 *   FALSE if set explicitly by some user or the ctartup config
 *********************************************************************/
 extern boolean
-    val_set_by_default (const val_value_t *val);
+    val_set_by_default (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3416,7 +3504,7 @@ extern boolean
 *   FALSE if wd:default attribute was not set to true
 *********************************************************************/
 extern boolean
-    val_has_withdef_default (const val_value_t *val);
+    val_has_withdef_default (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3429,7 +3517,7 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    val_set_withdef_default (val_value_t *val);
+    val_set_withdef_default (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3445,7 +3533,7 @@ extern void
 *   FALSE if val is not a meta-val
 *********************************************************************/
 extern boolean
-    val_is_metaval (const val_value_t *val);
+    val_is_metaval (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -3460,7 +3548,8 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    val_move_children (val_value_t *srcval,
+    val_move_children (struct ncx_instance_t_ *instance,
+                       val_value_t *srcval,
                        val_value_t *destval);
 
 
@@ -3485,7 +3574,7 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    val_cvt_generic (val_value_t *val);
+    val_cvt_generic (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3502,7 +3591,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    val_set_pcookie (val_value_t *val,
+    val_set_pcookie (struct ncx_instance_t_ *instance,
+                     val_value_t *val,
                      void *pcookie);
 
 
@@ -3520,7 +3610,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    val_set_icookie (val_value_t *val,
+    val_set_icookie (struct ncx_instance_t_ *instance,
+                     val_value_t *val,
                      int icookie);
 
 
@@ -3537,7 +3628,7 @@ extern status_t
 *    pointer cookie value or NULL if none
 *********************************************************************/
 extern void *
-    val_get_pcookie (val_value_t *val);
+    val_get_pcookie (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3553,7 +3644,7 @@ extern void *
 *    integer cookie value or 0 if none
 *********************************************************************/
 extern int
-    val_get_icookie (val_value_t *val);
+    val_get_icookie (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3569,7 +3660,7 @@ extern int
 *    status
 *********************************************************************/
 extern status_t
-    val_delete_default_leaf (val_value_t *val);
+    val_delete_default_leaf (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3582,7 +3673,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    val_force_empty (val_value_t *val);
+    val_force_empty (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3597,7 +3688,8 @@ extern void
 *    movemeta == TRUE if metaQ should be transferred
 *********************************************************************/
 extern void
-    val_move_fields_for_xml (val_value_t *srcval,
+    val_move_fields_for_xml (struct ncx_instance_t_ *instance,
+                             val_value_t *srcval,
                              val_value_t *destval,
                              boolean movemeta);
 
@@ -3612,7 +3704,7 @@ extern void
 *
 *********************************************************************/
 extern val_index_t *
-    val_get_first_key (val_value_t *val);
+    val_get_first_key (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3625,7 +3717,7 @@ extern val_index_t *
 *
 *********************************************************************/
 extern val_index_t *
-    val_get_next_key (val_index_t *curkey);
+    val_get_next_key (struct ncx_instance_t_ *instance, val_index_t *curkey);
 
 /********************************************************************
 * FUNCTION val_remove_key
@@ -3638,7 +3730,7 @@ extern val_index_t *
 *
 *********************************************************************/
 extern void
-    val_remove_key (val_value_t *keyval);
+    val_remove_key (struct ncx_instance_t_ *instance, val_value_t *keyval);
 
 
 /********************************************************************
@@ -3651,7 +3743,7 @@ extern void
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern val_value_t * 
-    val_new_deleted_value (void);
+    val_new_deleted_value (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -3669,7 +3761,7 @@ extern val_value_t *
 *   status
 *********************************************************************/
 extern status_t
-    val_new_editvars (val_value_t *val);
+    val_new_editvars (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -3685,7 +3777,7 @@ extern status_t
 *    val->editop set to OP_EDITOP_NONE
 *********************************************************************/
 extern void
-    val_free_editvars (val_value_t *val);
+    val_free_editvars (struct ncx_instance_t_ *instance, val_value_t *val);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

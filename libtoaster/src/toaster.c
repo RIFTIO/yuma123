@@ -112,8 +112,10 @@ static uint32  toaster_timer_id;
 *     0 for OK; -1 to kill periodic timer
 ********************************************************************/
 static int
-    toaster_timer_fn (uint32 timer_id,
-                      void *cookie)
+    toaster_timer_fn (
+        ncx_instance_t *instance,
+        uint32 timer_id,
+        void *cookie)
 {
     (void)timer_id;
     (void)cookie;
@@ -122,9 +124,9 @@ static int
     toaster_toasting = FALSE;
     toaster_timer_id = 0;
     if (LOGDEBUG2) {
-        log_debug2("\ntoast is finished");
+        log_debug2(instance, "\ntoast is finished");
     }
-    y_toaster_toastDone_send((const xmlChar *)"done");
+    y_toaster_toastDone_send(instance, (const xmlChar *)"done");
     return 0;
 
 } /* toaster_timer_fn */
@@ -145,6 +147,7 @@ static int
 ********************************************************************/
 static status_t
     y_toaster_toaster_toasterManufacturer_get (
+        ncx_instance_t *instance,
         ses_cb_t *scb,
         getcb_mode_t cbmode,
         const val_value_t *virval,
@@ -168,6 +171,7 @@ static status_t
     /* set the toasterManufacturer var here, change EMPTY_STRING */
     toasterManufacturer = (const xmlChar *)"Acme, Inc.";
     res = val_set_simval_obj(
+        instance,
         dstval,
         dstval->obj,
         toasterManufacturer);
@@ -192,6 +196,7 @@ static status_t
 ********************************************************************/
 static status_t
     y_toaster_toaster_toasterModelNumber_get (
+        ncx_instance_t *instance,
         ses_cb_t *scb,
         getcb_mode_t cbmode,
         const val_value_t *virval,
@@ -215,6 +220,7 @@ static status_t
     /* set the toasterModelNumber var here, change EMPTY_STRING */
     toasterModelNumber = (const xmlChar *)"Super Toastamatic 2000";
     res = val_set_simval_obj(
+        instance,
         dstval,
         dstval->obj,
         toasterModelNumber);
@@ -239,6 +245,7 @@ static status_t
 ********************************************************************/
 static status_t
     y_toaster_toaster_toasterStatus_get (
+        ncx_instance_t *instance,
         ses_cb_t *scb,
         getcb_mode_t cbmode,
         const val_value_t *virval,
@@ -265,6 +272,7 @@ static status_t
         toasterStatus = (const xmlChar *)"up";
     }
     res = val_set_simval_obj(
+        instance,
         dstval,
         dstval->obj,
         toasterStatus);
@@ -287,7 +295,9 @@ static status_t
 *     error status
 ********************************************************************/
 static status_t
-    y_toaster_toaster_mro (val_value_t *parentval)
+    y_toaster_toaster_mro (
+        ncx_instance_t *instance,
+        val_value_t *parentval)
 {
     status_t res;
     val_value_t *childval;
@@ -296,36 +306,39 @@ static status_t
 
     /* add /toaster/toasterManufacturer */
     childval = agt_make_virtual_leaf(
+        instance,
         parentval->obj,
         y_toaster_N_toasterManufacturer,
         y_toaster_toaster_toasterManufacturer_get,
         &res);
     if (childval != NULL) {
-        val_add_child(childval, parentval);
+        val_add_child(instance, childval, parentval);
     } else {
         return res;
     }
 
     /* add /toaster/toasterModelNumber */
     childval = agt_make_virtual_leaf(
+        instance,
         parentval->obj,
         y_toaster_N_toasterModelNumber,
         y_toaster_toaster_toasterModelNumber_get,
         &res);
     if (childval != NULL) {
-        val_add_child(childval, parentval);
+        val_add_child(instance, childval, parentval);
     } else {
         return res;
     }
 
     /* add /toaster/toasterStatus */
     childval = agt_make_virtual_leaf(
+        instance,
         parentval->obj,
         y_toaster_N_toasterStatus,
         y_toaster_toaster_toasterStatus_get,
         &res);
     if (childval != NULL) {
-        val_add_child(childval, parentval);
+        val_add_child(instance, childval, parentval);
     } else {
         return res;
     }
@@ -350,6 +363,7 @@ static status_t
 ********************************************************************/
 static status_t
     y_toaster_toaster_edit (
+        ncx_instance_t *instance,
         ses_cb_t *scb,
         rpc_msg_t *msg,
         agt_cbtyp_t cbtyp,
@@ -390,18 +404,19 @@ static status_t
         case OP_EDITOP_DELETE:
             toaster_enabled = FALSE;
             if (toaster_toasting) {
-                agt_timer_delete(toaster_timer_id);
+                agt_timer_delete(instance, toaster_timer_id);
                 toaster_timer_id = 0;
                 toaster_toasting = FALSE;
-                y_toaster_toastDone_send((const xmlChar *)"error");
+                y_toaster_toastDone_send(instance, (const xmlChar *)"error");
             }
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (res == NO_ERR) {
             res = agt_check_cache(
+                instance,
                 &toaster_val,
                 newval,
                 curval,
@@ -410,19 +425,20 @@ static status_t
         
         if (res == NO_ERR &&
             (editop == OP_EDITOP_LOAD || editop == OP_EDITOP_CREATE)) {
-            res = y_toaster_toaster_mro(newval);
+            res = y_toaster_toaster_mro(instance, newval);
         }
         break;
     case AGT_CB_ROLLBACK:
         /* undo device instrumentation here */
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* if error: set the res, errorstr, and errorval parms */
     if (res != NO_ERR) {
         agt_record_error(
+            instance,
             scb,
             &msg->mhdr,
             NCX_LAYER_CONTENT,
@@ -454,6 +470,7 @@ static status_t
 ********************************************************************/
 static status_t
     y_toaster_make_toast_validate (
+        ncx_instance_t *instance,
         ses_cb_t *scb,
         rpc_msg_t *msg,
         xml_node_t *methnode)
@@ -471,6 +488,7 @@ static status_t
     errorstr = NULL;
 
     toasterDoneness_val = val_find_child(
+        instance,
         msg->rpc_input,
         y_toaster_M_toaster,
         y_toaster_N_toasterDoneness);
@@ -480,6 +498,7 @@ static status_t
     }
 
     toasterToastType_val = val_find_child(
+        instance,
         msg->rpc_input,
         y_toaster_M_toaster,
         y_toaster_N_toasterToastType);
@@ -508,6 +527,7 @@ static status_t
     /* if error: set the res, errorstr, and errorval parms */
     if (res != NO_ERR) {
         agt_record_error(
+            instance,
             scb,
             &msg->mhdr,
             NCX_LAYER_OPERATION,
@@ -539,6 +559,7 @@ static status_t
 ********************************************************************/
 static status_t
     y_toaster_make_toast_invoke (
+        ncx_instance_t *instance,
         ses_cb_t *scb,
         rpc_msg_t *msg,
         xml_node_t *methnode)
@@ -553,6 +574,7 @@ static status_t
     toasterDoneness = 0;
 
     toasterDoneness_val = val_find_child(
+        instance,
         msg->rpc_input,
         y_toaster_M_toaster,
         y_toaster_N_toasterDoneness);
@@ -561,6 +583,7 @@ static status_t
     }
 
     toasterToastType_val = val_find_child(
+        instance,
         msg->rpc_input,
         y_toaster_M_toaster,
         y_toaster_N_toasterToastType);
@@ -587,7 +610,7 @@ static status_t
      */
 
     if (LOGDEBUG) {
-        log_debug("\ntoaster: starting toaster for %u seconds",
+        log_debug(instance, "\ntoaster: starting toaster for %u seconds",
                   toaster_duration);
     }
 
@@ -596,7 +619,8 @@ static status_t
      */
 
     /* start a timer to toast for the specified time interval */
-    res = agt_timer_create(toaster_duration,
+    res = agt_timer_create(instance,
+                           toaster_duration,
                            FALSE,
                            toaster_timer_fn,
                            NULL,
@@ -605,6 +629,7 @@ static status_t
         toaster_toasting = TRUE;
     } else {
         agt_record_error(
+            instance,
             scb,
             &msg->mhdr,
             NCX_LAYER_OPERATION,
@@ -637,6 +662,7 @@ static status_t
 ********************************************************************/
 static status_t
     y_toaster_cancel_toast_validate (
+        ncx_instance_t *instance,
         ses_cb_t *scb,
         rpc_msg_t *msg,
         xml_node_t *methnode)
@@ -664,6 +690,7 @@ static status_t
     /* if error: set the res, errorstr, and errorval parms */
     if (res != NO_ERR) {
         agt_record_error(
+            instance,
             scb,
             &msg->mhdr,
             NCX_LAYER_OPERATION,
@@ -695,6 +722,7 @@ static status_t
 ********************************************************************/
 static status_t
     y_toaster_cancel_toast_invoke (
+        ncx_instance_t *instance,
         ses_cb_t *scb,
         rpc_msg_t *msg,
         xml_node_t *methnode)
@@ -713,10 +741,10 @@ static status_t
     (void)methnode;
 
     /* invoke your device instrumentation code here */
-    agt_timer_delete(toaster_timer_id);
+    agt_timer_delete(instance, toaster_timer_id);
     toaster_timer_id = 0;
     toaster_toasting = FALSE;
-    y_toaster_toastDone_send((const xmlChar *)"cancelled");
+    y_toaster_toastDone_send(instance, (const xmlChar *)"cancelled");
     
     return res;
 
@@ -730,8 +758,10 @@ static status_t
 * 
 ********************************************************************/
 static void
-    y_toaster_init_static_vars (void)
+    y_toaster_init_static_vars (ncx_instance_t *instance)
 {
+    (void)instance;
+
     toaster_mod = NULL;
     toaster_obj = NULL;
     make_toast_obj = NULL;
@@ -757,6 +787,7 @@ static void
 ********************************************************************/
 void
     y_toaster_toastDone_send (
+        ncx_instance_t *instance,
         const xmlChar *toastStatus)
 {
     agt_not_msg_t *notif;
@@ -766,30 +797,32 @@ void
     res = NO_ERR;
 
     if (LOGDEBUG) {
-        log_debug("\nGenerating <toastDone> notification");
+        log_debug(instance, "\nGenerating <toastDone> notification");
     }
     
-    notif = agt_not_new_notification(toastDone_obj);
+    notif = agt_not_new_notification(instance, toastDone_obj);
     if (notif == NULL) {
-        log_error("\nError: malloc failed, cannot send <toastDone> notification");
+        log_error(instance, "\nError: malloc failed, cannot send <toastDone> notification");
         return;
     }
     
     /* add toastStatus to payload */
     parmval = agt_make_leaf(
+        instance,
         toastDone_obj,
         y_toaster_N_toastStatus,
         toastStatus,
         &res);
     if (parmval == NULL) {
         log_error(
+            instance,
             "\nError: make leaf failed (%s), cannot send <toastDone> notification",
             get_error_string(res));
     } else {
-        agt_not_add_to_payload(notif, parmval);
+        agt_not_add_to_payload(instance, notif, parmval);
     }
     
-    agt_not_queue_notification(notif);
+    agt_not_queue_notification(instance, notif);
     
 } /* y_toaster_toastDone_send */
 
@@ -808,26 +841,28 @@ void
 ********************************************************************/
 status_t
     y_toaster_init (
+        ncx_instance_t *instance,
         const xmlChar *modname,
         const xmlChar *revision)
 {
     agt_profile_t *agt_profile;
     status_t res;
 
-    y_toaster_init_static_vars();
+    y_toaster_init_static_vars(instance);
 
     /* change if custom handling done */
-    if (xml_strcmp(modname, y_toaster_M_toaster)) {
+    if (xml_strcmp(instance, modname, y_toaster_M_toaster)) {
         return ERR_NCX_UNKNOWN_MODULE;
     }
 
-    if (revision && xml_strcmp(revision, y_toaster_R_toaster)) {
+    if (revision && xml_strcmp(instance, revision, y_toaster_R_toaster)) {
         return ERR_NCX_WRONG_VERSION;
     }
 
     agt_profile = agt_get_profile();
 
     res = ncxmod_load_module(
+        instance,
         y_toaster_M_toaster,
         y_toaster_R_toaster,
         &agt_profile->agt_savedevQ,
@@ -837,34 +872,39 @@ status_t
     }
     
     toaster_obj = ncx_find_object(
+        instance,
         toaster_mod,
         y_toaster_N_toaster);
     if (toaster_mod == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
     
     make_toast_obj = ncx_find_object(
+        instance,
         toaster_mod,
         y_toaster_N_make_toast);
     if (toaster_mod == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
     
     cancel_toast_obj = ncx_find_object(
+        instance,
         toaster_mod,
         y_toaster_N_cancel_toast);
     if (toaster_mod == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
     
     toastDone_obj = ncx_find_object(
+        instance,
         toaster_mod,
         y_toaster_N_toastDone);
     if (toaster_mod == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
     
     res = agt_rpc_register_method(
+        instance,
         y_toaster_M_toaster,
         y_toaster_N_make_toast,
         AGT_RPC_PH_VALIDATE,
@@ -874,6 +914,7 @@ status_t
     }
     
     res = agt_rpc_register_method(
+        instance,
         y_toaster_M_toaster,
         y_toaster_N_make_toast,
         AGT_RPC_PH_INVOKE,
@@ -883,6 +924,7 @@ status_t
     }
     
     res = agt_rpc_register_method(
+        instance,
         y_toaster_M_toaster,
         y_toaster_N_cancel_toast,
         AGT_RPC_PH_VALIDATE,
@@ -892,6 +934,7 @@ status_t
     }
     
     res = agt_rpc_register_method(
+        instance,
         y_toaster_M_toaster,
         y_toaster_N_cancel_toast,
         AGT_RPC_PH_INVOKE,
@@ -901,6 +944,7 @@ status_t
     }
     
     res = agt_cb_register_callback(
+        instance,
         y_toaster_M_toaster,
         (const xmlChar *)"/toaster",
         (const xmlChar *)"2009-11-20",
@@ -925,13 +969,14 @@ status_t
 *     error status
 ********************************************************************/
 status_t
-    y_toaster_init2 (void)
+    y_toaster_init2 (ncx_instance_t *instance)
 {
     status_t res;
 
     res = NO_ERR;
 
     toaster_val = agt_init_cache(
+        instance,
         y_toaster_M_toaster,
         y_toaster_N_toaster,
         &res);
@@ -951,17 +996,20 @@ status_t
 * 
 ********************************************************************/
 void
-    y_toaster_cleanup (void)
+    y_toaster_cleanup (ncx_instance_t *instance)
 {
     agt_rpc_unregister_method(
+        instance,
         y_toaster_M_toaster,
         y_toaster_N_make_toast);
 
     agt_rpc_unregister_method(
+        instance,
         y_toaster_M_toaster,
         y_toaster_N_cancel_toast);
 
     agt_cb_unregister_callbacks(
+        instance,
         y_toaster_M_toaster,
         (const xmlChar *)"/toaster");
 

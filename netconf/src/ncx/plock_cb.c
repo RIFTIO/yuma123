@@ -107,8 +107,6 @@ date         init     comment
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-/* the ID zero will not get used */
-static uint32 last_id = 0;
 
 
 /********************************************************************
@@ -128,14 +126,15 @@ static uint32 last_id = 0;
 *   this struct must be freed by the caller
 *********************************************************************/
 plock_cb_t *
-    plock_cb_new (uint32 sid,
+    plock_cb_new (ncx_instance_t *instance,
+                  uint32 sid,
                   status_t *res)
 {
     plock_cb_t     *plcb;
     
 #ifdef DEBUG
     if (res == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -143,29 +142,29 @@ plock_cb_t *
     /* temp design: only 4G partial locks supported
      * until server stops giving out partial locks
      */
-    if (last_id == NCX_MAX_UINT) {
+    if (instance->last_id == NCX_MAX_UINT) {
         *res = ERR_NCX_RESOURCE_DENIED;
         return NULL;
     }
 
-    plcb = m__getObj(plock_cb_t);
+    plcb = m__getObj(instance, plock_cb_t);
     if (plcb == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
     memset(plcb, 0x0, sizeof(plock_cb_t));
 
-    plcb->plock_final_result = xpath_new_result(XP_RT_NODESET);
+    plcb->plock_final_result = xpath_new_result(instance, XP_RT_NODESET);
     if (plcb->plock_final_result == NULL) {
         *res = ERR_INTERNAL_MEM;
-        m__free(plcb);
+        m__free(instance, plcb);
         return NULL;
     }
 
-    plcb->plock_id = ++last_id;
-    dlq_createSQue(&plcb->plock_xpathpcbQ);
-    dlq_createSQue(&plcb->plock_resultQ);
-    tstamp_datetime(plcb->plock_time);
+    plcb->plock_id = ++instance->last_id;
+    dlq_createSQue(instance, &plcb->plock_xpathpcbQ);
+    dlq_createSQue(instance, &plcb->plock_resultQ);
+    tstamp_datetime(instance, plcb->plock_time);
     plcb->plock_sesid = sid;
     return plcb;
 
@@ -181,22 +180,22 @@ plock_cb_t *
 *   plcb == partial lock control block to free
 *
 *********************************************************************/
-void plock_cb_free (plock_cb_t *plcb)
+void plock_cb_free (ncx_instance_t *instance, plock_cb_t *plcb)
 {
     if ( !plcb ) {
         return;
     }
 
-    while (!dlq_empty(&plcb->plock_xpathpcbQ)) {
-        xpath_free_pcb( (xpath_pcb_t *) dlq_deque(&plcb->plock_xpathpcbQ) );
+    while (!dlq_empty(instance, &plcb->plock_xpathpcbQ)) {
+        xpath_free_pcb(instance,  (xpath_pcb_t *) dlq_deque(instance, &plcb->plock_xpathpcbQ) );
     }
 
-    while (!dlq_empty(&plcb->plock_resultQ)) {
-        xpath_free_result( (xpath_result_t *) dlq_deque(&plcb->plock_resultQ) );
+    while (!dlq_empty(instance, &plcb->plock_resultQ)) {
+        xpath_free_result(instance,  (xpath_result_t *) dlq_deque(instance, &plcb->plock_resultQ) );
     }
 
-    xpath_free_result(plcb->plock_final_result);
-    m__free(plcb);
+    xpath_free_result(instance, plcb->plock_final_result);
+    m__free(instance, plcb);
 }  /* plock_cb_free */
 
 
@@ -208,10 +207,10 @@ void plock_cb_free (plock_cb_t *plcb)
 * can decide if the ID should rollover
 *
 *********************************************************************/
-void plock_cb_reset_id (void)
+void plock_cb_reset_id (ncx_instance_t *instance)
 {
-    if (last_id == NCX_MAX_UINT) {
-        last_id = 0;
+    if (instance->last_id == NCX_MAX_UINT) {
+        instance->last_id = 0;
     }
 
 }  /* plock_cb_reset_id */

@@ -75,7 +75,8 @@ extern "C" {
 *     malloced val_value_t struct filled in with the contents
 *********************************************************************/
 extern val_value_t *
-    mgr_load_extern_file (const xmlChar *filespec,
+    mgr_load_extern_file (struct ncx_instance_t_ *instance,
+                          const xmlChar *filespec,
                           obj_template_t *targetobj,
                           status_t *res);
 

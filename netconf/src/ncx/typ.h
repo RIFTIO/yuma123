@@ -379,7 +379,7 @@ typedef struct typ_unionnode_t_ {
 *     status
 *********************************************************************/
 extern status_t
-    typ_load_basetypes (void);
+    typ_load_basetypes (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -391,7 +391,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    typ_unload_basetypes (void);
+    typ_unload_basetypes (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -403,7 +403,7 @@ extern void
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern typ_template_t *
-    typ_new_template (void);
+    typ_new_template (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -418,7 +418,7 @@ extern typ_template_t *
 *    typ == typ_template_t to delete
 *********************************************************************/
 extern void 
-    typ_free_template (typ_template_t *typ);
+    typ_free_template (struct ncx_instance_t_ *instance, typ_template_t *typ);
 
 
 /********************************************************************
@@ -430,7 +430,7 @@ extern void
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern typ_def_t *
-    typ_new_typdef (void);
+    typ_new_typdef (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -445,7 +445,7 @@ extern typ_def_t *
 *   typdef == pointer to the struct to initialize
 *********************************************************************/
 extern void 
-    typ_init_typdef (typ_def_t *typdef);
+    typ_init_typdef (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -459,7 +459,8 @@ extern void
 *     as a NCX_CL_SIMPLE variant
 *********************************************************************/
 extern void
-    typ_init_simple (typ_def_t  *tdef, 
+    typ_init_simple (struct ncx_instance_t_ *instance, 
+		     typ_def_t  *tdef, 
 		     ncx_btype_t btyp);
 
 
@@ -474,7 +475,7 @@ extern void
 *     as a NCX_CL_SIMPLE variant
 *********************************************************************/
 extern void
-    typ_init_named (typ_def_t  *tdef);
+    typ_init_named (struct ncx_instance_t_ *instance, typ_def_t  *tdef);
 
 
 
@@ -488,7 +489,7 @@ extern void
 *    typdef == typ_def_t to delete
 *********************************************************************/
 extern void 
-    typ_free_typdef (typ_def_t *typdef);
+    typ_free_typdef (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -500,7 +501,7 @@ extern void
 *     typdef == pointer to the typ_def_t struct to clean
 *********************************************************************/
 extern void
-    typ_clean_typdef (typ_def_t  *typdef);
+    typ_clean_typdef (struct ncx_instance_t_ *instance, typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -514,7 +515,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    typ_set_named_typdef (typ_def_t *typdef,
+    typ_set_named_typdef (struct ncx_instance_t_ *instance,
+			  typ_def_t *typdef,
 			  typ_template_t *imptyp);
 
 
@@ -530,7 +532,7 @@ extern void
 *    pointer to type name, NULL if some error
 *********************************************************************/
 extern const xmlChar *
-    typ_get_named_typename (const typ_def_t  *typdef);
+    typ_get_named_typename (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -545,7 +547,7 @@ extern const xmlChar *
 *    pointer to type name, NULL if some error
 *********************************************************************/
 extern uint32
-    typ_get_named_type_linenum (const typ_def_t  *typdef);
+    typ_get_named_type_linenum (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -561,7 +563,8 @@ extern uint32
 *    status
 *********************************************************************/
 extern status_t
-    typ_set_new_named (typ_def_t  *typdef, 
+    typ_set_new_named (struct ncx_instance_t_ *instance, 
+		       typ_def_t  *typdef, 
 		       ncx_btype_t btyp);
 
 
@@ -577,7 +580,7 @@ extern status_t
 *    pointer to new typ_def_t or NULL if none
 *********************************************************************/
 extern typ_def_t *
-    typ_get_new_named (typ_def_t  *typdef);
+    typ_get_new_named (struct ncx_instance_t_ *instance, typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -592,7 +595,7 @@ extern typ_def_t *
 *    pointer to new typ_def_t or NULL if none
 *********************************************************************/
 extern const typ_def_t *
-    typ_cget_new_named (const typ_def_t  *typdef);
+    typ_cget_new_named (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -606,7 +609,8 @@ extern const typ_def_t *
 *
 *********************************************************************/
 extern void
-    typ_set_simple_typdef (typ_template_t *typ,
+    typ_set_simple_typdef (struct ncx_instance_t_ *instance,
+			   typ_template_t *typ,
 			   ncx_btype_t btyp);
 
 
@@ -623,7 +627,7 @@ extern void
 *   Note that the enum integer value is initialized to zero
 *********************************************************************/
 extern typ_enum_t *
-    typ_new_enum (const xmlChar *name);
+    typ_new_enum (struct ncx_instance_t_ *instance, const xmlChar *name);
 
 
 /********************************************************************
@@ -641,7 +645,7 @@ extern typ_enum_t *
 *   Note that the enum integer value is initialized to zero
 *********************************************************************/
 extern typ_enum_t *
-    typ_new_enum2 (xmlChar *name);
+    typ_new_enum2 (struct ncx_instance_t_ *instance, xmlChar *name);
 
 
 /********************************************************************
@@ -654,7 +658,7 @@ extern typ_enum_t *
 *   en == enum struct to free
 *********************************************************************/
 extern void
-    typ_free_enum (typ_enum_t *en);
+    typ_free_enum (struct ncx_instance_t_ *instance, typ_enum_t *en);
 
 
 /********************************************************************
@@ -666,7 +670,7 @@ extern void
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 extern typ_rangedef_t *
-    typ_new_rangedef (void);
+    typ_new_rangedef (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -679,7 +683,8 @@ extern typ_rangedef_t *
 *   btyp == base type of range (float and double have malloced strings)
 *********************************************************************/
 extern void
-    typ_free_rangedef (typ_rangedef_t *rv, 
+    typ_free_rangedef (struct ncx_instance_t_ *instance, 
+		       typ_rangedef_t *rv, 
 		       ncx_btype_t  btyp);
 
 
@@ -698,7 +703,8 @@ extern void
 *   btyp == base type of range
 *********************************************************************/
 extern void
-    typ_normalize_rangeQ (dlq_hdr_t *rangeQ,
+    typ_normalize_rangeQ (struct ncx_instance_t_ *instance,
+			  dlq_hdr_t *rangeQ,
 			  ncx_btype_t  btyp);
 
 
@@ -715,7 +721,7 @@ extern void
 *   pointer to the first rangedef struct or NULL if none
 *********************************************************************/
 extern dlq_hdr_t *
-    typ_get_rangeQ (typ_def_t *typdef);
+    typ_get_rangeQ (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -731,7 +737,7 @@ extern dlq_hdr_t *
 *   pointer to the rangeQ from this typdef, or NULL if none
 *********************************************************************/
 extern dlq_hdr_t *
-    typ_get_rangeQ_con (typ_def_t *typdef);
+    typ_get_rangeQ_con (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -747,7 +753,7 @@ extern dlq_hdr_t *
 *   pointer to the first rangedef struct or NULL if none
 *********************************************************************/
 extern const dlq_hdr_t *
-    typ_get_crangeQ (const typ_def_t *typdef);
+    typ_get_crangeQ (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -763,7 +769,7 @@ extern const dlq_hdr_t *
 *   pointer to the rangeQ from this typdef, or NULL if none
 *********************************************************************/
 extern const dlq_hdr_t *
-    typ_get_crangeQ_con (const typ_def_t *typdef);
+    typ_get_crangeQ_con (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -779,7 +785,7 @@ extern const dlq_hdr_t *
 *   pointer to the range struct for this typdef
 *********************************************************************/
 extern typ_range_t *
-    typ_get_range_con (typ_def_t *typdef);
+    typ_get_range_con (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -795,7 +801,7 @@ extern typ_range_t *
 *   pointer to the range struct for this typdef
 *********************************************************************/
 extern const typ_range_t *
-    typ_get_crange_con (const typ_def_t *typdef);
+    typ_get_crange_con (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -810,7 +816,7 @@ extern const typ_range_t *
 *   pointer to the range string for this typdef, NULL if none
 *********************************************************************/
 extern const xmlChar *
-    typ_get_rangestr (const typ_def_t *typdef);
+    typ_get_rangestr (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -826,7 +832,7 @@ extern const xmlChar *
 *   pointer to the first rangedef struct or NULL if none
 *********************************************************************/
 extern const typ_rangedef_t *
-    typ_first_rangedef (const typ_def_t *typdef);
+    typ_first_rangedef (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -842,7 +848,7 @@ extern const typ_rangedef_t *
 *   pointer to the first rangedef struct or NULL if none
 *********************************************************************/
 extern const typ_rangedef_t *
-    typ_first_rangedef_con (const typ_def_t *typdef);
+    typ_first_rangedef_con (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -867,7 +873,8 @@ extern const typ_rangedef_t *
 *   status, NO_ERR == something found
 *********************************************************************/
 extern status_t
-    typ_get_rangebounds_con (const typ_def_t *typdef,
+    typ_get_rangebounds_con (struct ncx_instance_t_ *instance,
+			     const typ_def_t *typdef,
 			     ncx_btype_t *btyp,
 			     const ncx_num_t **lb,
 			     const ncx_num_t **ub);
@@ -885,7 +892,7 @@ extern status_t
 *   string restrinction enumeration value
 *********************************************************************/
 extern ncx_strrest_t 
-    typ_get_strrest (const typ_def_t *typdef);
+    typ_get_strrest (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -899,7 +906,8 @@ extern ncx_strrest_t
 *
 *********************************************************************/
 extern void
-    typ_set_strrest (typ_def_t *typdef,
+    typ_set_strrest (struct ncx_instance_t_ *instance,
+		     typ_def_t *typdef,
 		     ncx_strrest_t strrest);
 
 
@@ -916,7 +924,8 @@ extern void
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 extern typ_sval_t *
-    typ_new_sval (const xmlChar *str,
+    typ_new_sval (struct ncx_instance_t_ *instance,
+		  const xmlChar *str,
 		  ncx_btype_t  btyp);
 
 
@@ -930,7 +939,7 @@ extern typ_sval_t *
 *   sv == typ_sval_t struct to free
 *********************************************************************/
 extern void
-    typ_free_sval (typ_sval_t *sv);
+    typ_free_sval (struct ncx_instance_t_ *instance, typ_sval_t *sv);
 
 
 /********************************************************************
@@ -943,7 +952,7 @@ extern void
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 extern typ_listval_t *
-    typ_new_listval (void);
+    typ_new_listval (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -956,7 +965,7 @@ extern typ_listval_t *
 *   lv == typ_listval_t struct to free
 *********************************************************************/
 extern void
-    typ_free_listval (typ_listval_t *lv);
+    typ_free_listval (struct ncx_instance_t_ *instance, typ_listval_t *lv);
 
 
 /********************************************************************
@@ -988,7 +997,7 @@ extern ncx_btype_t
 *     base type of final typ_def_t
 *********************************************************************/
 extern ncx_btype_t
-    typ_get_basetype (const typ_def_t  *typdef);
+    typ_get_basetype (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -1003,7 +1012,7 @@ extern ncx_btype_t
 *     type name or empty string if some error
 *********************************************************************/
 extern const xmlChar *
-    typ_get_name (const typ_def_t  *typdef);
+    typ_get_name (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -1018,7 +1027,7 @@ extern const xmlChar *
 *     base type name of final embedded typ_def_t
 *********************************************************************/
 extern const xmlChar *
-    typ_get_basetype_name (const typ_template_t  *typ);
+    typ_get_basetype_name (struct ncx_instance_t_ *instance, const typ_template_t  *typ);
 
 
 /********************************************************************
@@ -1032,7 +1041,7 @@ extern const xmlChar *
 *     base type of final typ_def_t
 *********************************************************************/
 extern const xmlChar *
-    typ_get_parenttype_name (const typ_template_t  *typ);
+    typ_get_parenttype_name (struct ncx_instance_t_ *instance, const typ_template_t  *typ);
 
 
 /********************************************************************
@@ -1047,7 +1056,7 @@ extern const xmlChar *
 *     base class of final typ_def_t
 *********************************************************************/
 extern ncx_tclass_t
-    typ_get_base_class (const typ_def_t  *typdef);
+    typ_get_base_class (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -1062,7 +1071,7 @@ extern ncx_tclass_t
 *     pointer to the type template for the specified basetype
 *********************************************************************/
 extern typ_template_t *
-    typ_get_basetype_typ (ncx_btype_t  btyp);
+    typ_get_basetype_typ (struct ncx_instance_t_ *instance, ncx_btype_t  btyp);
 
 
 /********************************************************************
@@ -1076,7 +1085,7 @@ extern typ_template_t *
 *     pointer to the typdef for the specified basetype
 *********************************************************************/
 extern typ_def_t *
-    typ_get_basetype_typdef (ncx_btype_t  btyp);
+    typ_get_basetype_typdef (struct ncx_instance_t_ *instance, ncx_btype_t  btyp);
 
 
 /********************************************************************
@@ -1094,7 +1103,7 @@ extern typ_def_t *
 *     pointer to next non-empty typ_def_t
 *********************************************************************/
 extern typ_def_t *
-    typ_get_parent_typdef (typ_def_t  *typdef);
+    typ_get_parent_typdef (struct ncx_instance_t_ *instance, typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -1108,7 +1117,7 @@ extern typ_def_t *
 *     pointer to next non-empty typ_template_t for a named type
 *********************************************************************/
 extern const typ_template_t *
-    typ_get_parent_type (const typ_template_t  *typ);
+    typ_get_parent_type (struct ncx_instance_t_ *instance, const typ_template_t  *typ);
 
 
 /********************************************************************
@@ -1123,7 +1132,7 @@ extern const typ_template_t *
 *     pointer to next non-empty typ_def_t
 *********************************************************************/
 extern const typ_def_t *
-    typ_get_cparent_typdef (const typ_def_t  *typdef);
+    typ_get_cparent_typdef (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -1140,7 +1149,7 @@ extern const typ_def_t *
 *     pointer to next non-empty typ_def_t
 *********************************************************************/
 extern typ_def_t *
-    typ_get_next_typdef (typ_def_t  *typdef);
+    typ_get_next_typdef (struct ncx_instance_t_ *instance, typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -1158,7 +1167,7 @@ extern typ_def_t *
 *     pointer to base typ_def_t
 *********************************************************************/
 extern typ_def_t *
-    typ_get_base_typdef (typ_def_t  *typdef);
+    typ_get_base_typdef (struct ncx_instance_t_ *instance, typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -1173,7 +1182,7 @@ extern typ_def_t *
 *     pointer to base typ_def_t
 *********************************************************************/
 extern const typ_def_t *
-    typ_get_cbase_typdef (const typ_def_t  *typdef);
+    typ_get_cbase_typdef (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -1198,7 +1207,8 @@ extern const typ_def_t *
 *     pointer to found typ_def_t or NULL if none found
 *********************************************************************/
 extern typ_def_t *
-    typ_get_qual_typdef (typ_def_t  *typdef,
+    typ_get_qual_typdef (struct ncx_instance_t_ *instance,
+			 typ_def_t  *typdef,
 			 ncx_squal_t squal);
 
 
@@ -1219,7 +1229,8 @@ extern typ_def_t *
 *     pointer to found typ_def_t or NULL if none found
 *********************************************************************/
 extern const typ_def_t *
-    typ_get_cqual_typdef (const typ_def_t  *typdef,
+    typ_get_cqual_typdef (struct ncx_instance_t_ *instance,
+			  const typ_def_t  *typdef,
 			  ncx_squal_t  squal);
 
 
@@ -1237,7 +1248,8 @@ extern const typ_def_t *
 *   pointer to found appinfo struct or NULL if not found
 *********************************************************************/
 extern const ncx_appinfo_t *
-    typ_find_appinfo (const typ_def_t *typdef,
+    typ_find_appinfo (struct ncx_instance_t_ *instance,
+		      const typ_def_t *typdef,
 		      const xmlChar *prefix,
 		      const xmlChar *name);
 
@@ -1256,7 +1268,8 @@ extern const ncx_appinfo_t *
 *   pointer to found appinfo struct or NULL if not found
 *********************************************************************/
 extern const ncx_appinfo_t *
-    typ_find_appinfo_con (const typ_def_t *typdef,
+    typ_find_appinfo_con (struct ncx_instance_t_ *instance,
+			  const typ_def_t *typdef,
 			  const xmlChar *prefix,
 			  const xmlChar *name);
 
@@ -1274,7 +1287,7 @@ extern const ncx_appinfo_t *
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    typ_is_xpath_string (const typ_def_t *typdef);
+    typ_is_xpath_string (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1290,7 +1303,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    typ_is_qname_string (const typ_def_t *typdef);
+    typ_is_qname_string (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1307,7 +1320,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    typ_is_schema_instance_string (const typ_def_t *typdef);
+    typ_is_schema_instance_string (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1322,7 +1335,7 @@ extern boolean
 *   pointer to found defval string or NULL if none
 *********************************************************************/
 extern const xmlChar * 
-    typ_get_defval (const typ_template_t *typ);
+    typ_get_defval (struct ncx_instance_t_ *instance, const typ_template_t *typ);
 
 
 /********************************************************************
@@ -1337,7 +1350,7 @@ extern const xmlChar *
 *   pointer to default or NULL if there is none
 *********************************************************************/
 extern const xmlChar *
-    typ_get_default (const typ_def_t *typdef);
+    typ_get_default (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1351,7 +1364,7 @@ extern const xmlChar *
 *   iqual value enum
 *********************************************************************/
 extern ncx_iqual_t 
-    typ_get_iqualval (const typ_template_t *typ);
+    typ_get_iqualval (struct ncx_instance_t_ *instance, const typ_template_t *typ);
 
 
 /********************************************************************
@@ -1365,7 +1378,7 @@ extern ncx_iqual_t
 *   iqual value enum
 *********************************************************************/
 extern ncx_iqual_t
-    typ_get_iqualval_def (const typ_def_t *typdef);
+    typ_get_iqualval_def (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1379,7 +1392,7 @@ extern ncx_iqual_t
 *   pointer to found units string or NULL if none
 *********************************************************************/
 extern const xmlChar * 
-    typ_get_units (const typ_template_t *typ);
+    typ_get_units (struct ncx_instance_t_ *instance, const typ_template_t *typ);
 
 
 /********************************************************************
@@ -1397,7 +1410,7 @@ extern const xmlChar *
 *   pointer to found units string or NULL if none
 *********************************************************************/
 extern const xmlChar * 
-    typ_get_units_from_typdef (const typ_def_t *typdef);
+    typ_get_units_from_typdef (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1442,7 +1455,7 @@ extern boolean
 *   TRUE if this is a simple data type, FALSE otherwise
 *********************************************************************/
 extern boolean
-    typ_is_simple (ncx_btype_t btyp);
+    typ_is_simple (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -1457,7 +1470,7 @@ extern boolean
 *   TRUE if this is a simple data type, FALSE otherwise
 *********************************************************************/
 extern boolean
-    typ_is_xsd_simple (ncx_btype_t btyp);
+    typ_is_xsd_simple (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -1473,7 +1486,7 @@ extern boolean
 *   pointer to the first enum def of NULL if none
 *********************************************************************/
 extern typ_enum_t *
-    typ_first_enumdef (typ_def_t *typdef);
+    typ_first_enumdef (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1488,7 +1501,7 @@ extern typ_enum_t *
 *   pointer to the first enum def of NULL if none
 *********************************************************************/
 extern typ_enum_t *
-    typ_next_enumdef (typ_enum_t *enumdef);
+    typ_next_enumdef (struct ncx_instance_t_ *instance, typ_enum_t *enumdef);
 
 
 /********************************************************************
@@ -1503,7 +1516,7 @@ extern typ_enum_t *
 *   pointer to the first enum def of NULL if none
 *********************************************************************/
 extern typ_enum_t *
-    typ_first_enumdef2 (typ_def_t *typdef);
+    typ_first_enumdef2 (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1519,7 +1532,7 @@ extern typ_enum_t *
 *   pointer to the first enum def of NULL if none
 *********************************************************************/
 extern const typ_enum_t *
-    typ_first_con_enumdef (const typ_def_t *typdef);
+    typ_first_con_enumdef (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1534,7 +1547,8 @@ extern const typ_enum_t *
 *   pointer to the specified enum def of NULL if none
 *********************************************************************/
 extern typ_enum_t *
-    typ_find_enumdef (dlq_hdr_t *ebQ,
+    typ_find_enumdef (struct ncx_instance_t_ *instance,
+		      dlq_hdr_t *ebQ,
 		      const xmlChar *name);
 
 
@@ -1550,7 +1564,7 @@ extern typ_enum_t *
 *   number of entries
 *********************************************************************/
 extern uint32
-    typ_enumdef_count (const typ_def_t *typdef);
+    typ_enumdef_count (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1565,7 +1579,7 @@ extern uint32
 *   pointer to the first string def of NULL if none
 *********************************************************************/
 extern const typ_sval_t *
-    typ_first_strdef (const typ_def_t *typdef);
+    typ_first_strdef (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1579,7 +1593,7 @@ extern const typ_sval_t *
 *     max number of rows or zero if not applicable
 *********************************************************************/
 extern uint32
-    typ_get_maxrows (const typ_def_t *typdef);
+    typ_get_maxrows (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1595,7 +1609,7 @@ extern uint32
 *   maxaccess enumeration
 *********************************************************************/
 extern ncx_access_t
-    typ_get_maxaccess (const typ_def_t *typdef);
+    typ_get_maxaccess (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1611,7 +1625,7 @@ extern ncx_access_t
 *   data class enumeration
 *********************************************************************/
 extern ncx_data_class_t
-    typ_get_dataclass (const typ_def_t *typdef);
+    typ_get_dataclass (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1625,7 +1639,7 @@ extern ncx_data_class_t
 *   merge type enumeration
 *********************************************************************/
 extern ncx_merge_t
-    typ_get_mergetype (const typ_def_t *typdef);
+    typ_get_mergetype (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1639,7 +1653,7 @@ extern ncx_merge_t
 *   namespace ID of the type
 *********************************************************************/
 extern xmlns_id_t 
-    typ_get_nsid (const typ_template_t *typ);
+    typ_get_nsid (struct ncx_instance_t_ *instance, const typ_template_t *typ);
 
 
 /********************************************************************
@@ -1655,7 +1669,7 @@ extern xmlns_id_t
 *   namespace ID of the type
 *********************************************************************/
 extern typ_template_t *
-    typ_get_listtyp (typ_def_t *typdef);
+    typ_get_listtyp (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1671,7 +1685,7 @@ extern typ_template_t *
 *   namespace ID of the type
 *********************************************************************/
 extern const typ_template_t *
-    typ_get_clisttyp (const typ_def_t *typdef);
+    typ_get_clisttyp (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1686,7 +1700,7 @@ extern const typ_template_t *
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 extern typ_unionnode_t *
-    typ_new_unionnode (typ_template_t *typ);
+    typ_new_unionnode (struct ncx_instance_t_ *instance, typ_template_t *typ);
 
 
 /********************************************************************
@@ -1698,7 +1712,7 @@ extern typ_unionnode_t *
 *   un == union node to free
 *********************************************************************/
 extern void
-    typ_free_unionnode (typ_unionnode_t *un);
+    typ_free_unionnode (struct ncx_instance_t_ *instance, typ_unionnode_t *un);
 
 
 /********************************************************************
@@ -1713,7 +1727,7 @@ extern void
 *   pointer to the typ_def_t inside
 *********************************************************************/
 extern typ_def_t *
-    typ_get_unionnode_ptr (typ_unionnode_t *un);
+    typ_get_unionnode_ptr (struct ncx_instance_t_ *instance, typ_unionnode_t *un);
 
 
 /********************************************************************
@@ -1728,7 +1742,7 @@ extern typ_def_t *
 *   pointer to first typ_unionnode struct or NULL if none
 *********************************************************************/
 extern typ_unionnode_t *
-    typ_first_unionnode (typ_def_t *typdef);
+    typ_first_unionnode (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1744,7 +1758,7 @@ extern typ_unionnode_t *
 *   pointer to first typ_unionnode struct or NULL if none
 *********************************************************************/
 extern const typ_unionnode_t *
-    typ_first_con_unionnode (const typ_def_t *typdef);
+    typ_first_con_unionnode (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1807,7 +1821,7 @@ extern boolean
 *   malloced struct or NULL if memory error
 *********************************************************************/
 extern typ_pattern_t *
-    typ_new_pattern (const xmlChar *pat_str);
+    typ_new_pattern (struct ncx_instance_t_ *instance, const xmlChar *pat_str);
 
 
 /********************************************************************
@@ -1821,7 +1835,7 @@ extern typ_pattern_t *
 *
 *********************************************************************/
 extern void
-    typ_free_pattern (typ_pattern_t *pat);
+    typ_free_pattern (struct ncx_instance_t_ *instance, typ_pattern_t *pat);
 
 
 /********************************************************************
@@ -1840,7 +1854,7 @@ extern void
 *     status
 *********************************************************************/
 extern status_t
-    typ_compile_pattern (typ_pattern_t *pat);
+    typ_compile_pattern (struct ncx_instance_t_ *instance, typ_pattern_t *pat);
 
 
 /********************************************************************
@@ -1855,7 +1869,7 @@ extern status_t
 *   pointer to pattern string or NULL if none
 *********************************************************************/
 extern typ_pattern_t *
-    typ_get_first_pattern (typ_def_t *typdef);
+    typ_get_first_pattern (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1870,7 +1884,7 @@ extern typ_pattern_t *
 *   pointer to next pattern struct or NULL if none
 *********************************************************************/
 extern typ_pattern_t *
-    typ_get_next_pattern (typ_pattern_t *curpat);
+    typ_get_next_pattern (struct ncx_instance_t_ *instance, typ_pattern_t *curpat);
 
 
 /********************************************************************
@@ -1886,7 +1900,7 @@ extern typ_pattern_t *
 *   pointer to pattern string or NULL if none
 *********************************************************************/
 extern const typ_pattern_t *
-    typ_get_first_cpattern (const typ_def_t *typdef);
+    typ_get_first_cpattern (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1902,7 +1916,7 @@ extern const typ_pattern_t *
 *   pointer to next pattern struct or NULL if none
 *********************************************************************/
 extern const typ_pattern_t *
-    typ_get_next_cpattern (const typ_pattern_t *curpat);
+    typ_get_next_cpattern (struct ncx_instance_t_ *instance, const typ_pattern_t *curpat);
 
 
 /********************************************************************
@@ -1917,7 +1931,7 @@ extern const typ_pattern_t *
 *   count of the typ_pattern_t structs found
 *********************************************************************/
 extern uint32
-    typ_get_pattern_count (const typ_def_t *typdef);
+    typ_get_pattern_count (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1932,7 +1946,7 @@ extern uint32
 *   pointer to pattern string or NULL if none
 *********************************************************************/
 extern ncx_errinfo_t *
-    typ_get_range_errinfo (typ_def_t *typdef);
+    typ_get_range_errinfo (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -1945,7 +1959,7 @@ extern ncx_errinfo_t *
 *
 *********************************************************************/
 extern void
-    typ_clean_typeQ (dlq_hdr_t *que);
+    typ_clean_typeQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -1959,7 +1973,7 @@ extern void
 *     TRUE if okay, FALSE if not
 *********************************************************************/
 extern boolean
-    typ_ok_for_inline_index (ncx_btype_t btyp);
+    typ_ok_for_inline_index (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -1973,7 +1987,7 @@ extern boolean
 *     TRUE if okay, FALSE if not
 *********************************************************************/
 extern boolean
-    typ_ok_for_metadata (ncx_btype_t btyp);
+    typ_ok_for_metadata (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -1988,7 +2002,7 @@ extern boolean
 *     TRUE if okay, FALSE if not
 *********************************************************************/
 extern boolean
-    typ_ok_for_index (const typ_def_t  *typdef);
+    typ_ok_for_index (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -2002,7 +2016,7 @@ extern boolean
 *     TRUE if okay, FALSE if not
 *********************************************************************/
 extern boolean
-    typ_ok_for_union (ncx_btype_t btyp);
+    typ_ok_for_union (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -2018,7 +2032,7 @@ extern boolean
 *     TRUE if okay, FALSE if any errors so far
 *********************************************************************/
 extern boolean
-    typ_ok (const typ_def_t *typdef);
+    typ_ok (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -2032,7 +2046,7 @@ extern boolean
 *     TRUE if okay, FALSE if not
 *********************************************************************/
 extern boolean
-    typ_ok_for_xsdlist (ncx_btype_t btyp);
+    typ_ok_for_xsdlist (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -2047,7 +2061,7 @@ extern boolean
 *    pointer to the path argument or NULL if some error
 *********************************************************************/
 extern const xmlChar *
-    typ_get_leafref_path (const typ_def_t *typdef);
+    typ_get_leafref_path (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -2062,7 +2076,7 @@ extern const xmlChar *
 *    pointer to the path argument or NULL if some error
 *********************************************************************/
 extern const void *
-    typ_get_leafref_path_addr (const typ_def_t *typdef);
+    typ_get_leafref_path_addr (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -2077,7 +2091,7 @@ extern const void *
 *    pointer to the PCB struct or NULL if some error
 *********************************************************************/
 extern struct xpath_pcb_t_ *
-    typ_get_leafref_pcb (typ_def_t *typdef);
+    typ_get_leafref_pcb (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -2093,7 +2107,7 @@ extern struct xpath_pcb_t_ *
 *    TRUE if constrained; FALSE if not
 *********************************************************************/
 extern boolean
-    typ_get_constrained (const typ_def_t *typdef);
+    typ_get_constrained (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -2107,7 +2121,8 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    typ_set_xref_typdef (typ_def_t *typdef,
+    typ_set_xref_typdef (struct ncx_instance_t_ *instance,
+			 typ_def_t *typdef,
 			 typ_def_t *target);
 
 
@@ -2125,7 +2140,7 @@ extern void
 *    pointer to the PCB struct or NULL if some error
 *********************************************************************/
 extern typ_def_t *
-    typ_get_xref_typdef (typ_def_t *typdef);
+    typ_get_xref_typdef (struct ncx_instance_t_ *instance, typ_def_t *typdef);
 
 
 /********************************************************************
@@ -2142,7 +2157,7 @@ extern typ_def_t *
 *    TRUE if any sub-clauses, FALSE otherwise
 *********************************************************************/
 extern boolean
-    typ_has_subclauses (const typ_def_t *typdef);
+    typ_has_subclauses (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -2157,7 +2172,7 @@ extern boolean
 *     pointer to idref field or NULL if wrong type
 *********************************************************************/
 extern typ_idref_t *
-    typ_get_idref (typ_def_t  *typdef);
+    typ_get_idref (struct ncx_instance_t_ *instance, typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -2173,7 +2188,7 @@ extern typ_idref_t *
 *     pointer to idref field or NULL if wrong type
 *********************************************************************/
 extern const typ_idref_t *
-    typ_get_cidref (const typ_def_t  *typdef);
+    typ_get_cidref (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 
 /********************************************************************
@@ -2191,7 +2206,7 @@ extern const typ_idref_t *
 *     0 if some error
 *********************************************************************/
 extern uint8
-    typ_get_fraction_digits (const typ_def_t *typdef);
+    typ_get_fraction_digits (struct ncx_instance_t_ *instance, const typ_def_t *typdef);
 
 
 /********************************************************************
@@ -2207,7 +2222,8 @@ extern uint8
 *     status
 *********************************************************************/
 extern status_t
-    typ_set_fraction_digits (typ_def_t *typdef,
+    typ_set_fraction_digits (struct ncx_instance_t_ *instance,
+			     typ_def_t *typdef,
 			     uint8 digits);
 
 
@@ -2223,7 +2239,7 @@ extern status_t
 *   line number
 *********************************************************************/
 extern uint32
-    typ_get_typ_linenum (const typ_template_t  *typ);
+    typ_get_typ_linenum (struct ncx_instance_t_ *instance, const typ_template_t  *typ);
 
 
 /********************************************************************
@@ -2238,7 +2254,7 @@ extern uint32
 *   line number
 *********************************************************************/
 extern uint32
-    typ_get_typdef_linenum (const typ_def_t  *typdef);
+    typ_get_typdef_linenum (struct ncx_instance_t_ *instance, const typ_def_t  *typdef);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

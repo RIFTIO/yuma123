@@ -77,7 +77,8 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t
-    do_show (server_cb_t *server_cb,
+    do_show (struct ncx_instance_t_ *instance,
+	     server_cb_t *server_cb,
 	     obj_template_t *rpc,
 	     const xmlChar *line,
 	     uint32  len);

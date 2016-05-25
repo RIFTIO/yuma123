@@ -126,6 +126,7 @@ date         init     comment
 *                                                                   *
 *********************************************************************/
 #define DATETIME_BUFFSIZE  64
+#define RIFT
 
 
 /********************************************************************
@@ -161,33 +162,34 @@ static uint32 seqnum = 1;
 *   malloced string or NULL if malloc error
 *********************************************************************/
 static xmlChar *
-    make_include_location (const xmlChar *modname,
+    make_include_location (ncx_instance_t *instance,
+                           const xmlChar *modname,
                            const xmlChar *schemaloc)
 {
     xmlChar *str, *str2;
     uint32   len, slen, inlen;
 
-    len = inlen = (schemaloc) ? xml_strlen(schemaloc) : 0;
+    len = inlen = (schemaloc) ? xml_strlen(instance, schemaloc) : 0;
     slen = (uint32)((inlen && schemaloc[inlen-1] != '/') ? 1 : 0);
     len += slen;
-    len += xml_strlen(modname);
+    len += xml_strlen(instance, modname);
     len += 6;    /* 1 backslash, file ext and terminating zero */ 
 
-    str = m__getMem(len);
+    str = m__getMem(instance, len);
     if (!str) {
         return NULL;
     }
 
     str2 = str;
     if (schemaloc && *schemaloc) {
-        str2 += xml_strcpy(str2, schemaloc);
+        str2 += xml_strcpy(instance, str2, schemaloc);
         if (slen) {
             *str2++ = '/';
         }
     }
-    str2 += xml_strcpy(str2, modname);
+    str2 += xml_strcpy(instance, str2, modname);
     *str2++ = '.';
-    str2 += xml_strcpy(str2, NCX_XSD_EXT);
+    str2 += xml_strcpy(instance, str2, NCX_XSD_EXT);
     return str;
 
 }   /* make_include_location */
@@ -206,47 +208,48 @@ static xmlChar *
 *    status
 *********************************************************************/
 static status_t
-    add_revhist (const ncx_module_t *mod,
+    add_revhist (ncx_instance_t *instance,
+                 const ncx_module_t *mod,
                  val_value_t *appinfo)
 {
     const ncx_revhist_t *rh;
     val_value_t         *rev, *chnode;
     xmlns_id_t           ncx_id;
 
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
 
-    for (rh = (const ncx_revhist_t *)dlq_firstEntry(&mod->revhistQ);
+    for (rh = (const ncx_revhist_t *)dlq_firstEntry(instance, &mod->revhistQ);
          rh != NULL;
-         rh = (const ncx_revhist_t *)dlq_nextEntry(rh)) {
+         rh = (const ncx_revhist_t *)dlq_nextEntry(instance, rh)) {
 
         if (!rh->version && !rh->descr) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             continue;
         }
 
-        rev = xml_val_new_struct(YANG_K_REVISION, ncx_id);
+        rev = xml_val_new_struct(instance, YANG_K_REVISION, ncx_id);
         if (!rev) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(rev, appinfo);   /* add early */
+            val_add_child(instance, rev, appinfo);   /* add early */
         }
 
         if (rh->version) {
-            chnode = xml_val_new_cstring(NCX_EL_VERSION, ncx_id,
+            chnode = xml_val_new_cstring(instance, NCX_EL_VERSION, ncx_id,
                                          rh->version);
             if (!chnode) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(chnode, rev);
+                val_add_child(instance, chnode, rev);
             }
         }
         if (rh->descr) {
-            chnode = xml_val_new_cstring(YANG_K_DESCRIPTION, ncx_id,
+            chnode = xml_val_new_cstring(instance, YANG_K_DESCRIPTION, ncx_id,
                                          rh->descr);
             if (!chnode) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(chnode, rev);
+                val_add_child(instance, chnode, rev);
             }
         }
     }
@@ -278,7 +281,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    add_appinfoQ (const dlq_hdr_t *appinfoQ,
+    add_appinfoQ (ncx_instance_t *instance,
+                  const dlq_hdr_t *appinfoQ,
                   val_value_t  *appval)
 {
     val_value_t          *newval, *chval;
@@ -286,56 +290,61 @@ static status_t
     xmlns_id_t            ncx_id;
     status_t              res;
 
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
     
     /* add an element for each appinfo record */
-    for (appinfo = (const ncx_appinfo_t *)dlq_firstEntry(appinfoQ);
+    for (appinfo = (const ncx_appinfo_t *)dlq_firstEntry(instance, appinfoQ);
          appinfo != NULL;
-         appinfo = (const ncx_appinfo_t *)dlq_nextEntry(appinfo)) {
+         appinfo = (const ncx_appinfo_t *)dlq_nextEntry(instance, appinfo)) {
 
         if (!appinfo->ext) {
             /* NCX parsed appinfo */
             if (appinfo->value) {
-                newval = xml_val_new_cstring(appinfo->name,
+                newval = xml_val_new_cstring(instance,
+                                             appinfo->name,
                                              ncx_id, appinfo->value);
             } else {
-                newval = xml_val_new_flag(appinfo->name, ncx_id);
+                newval = xml_val_new_flag(instance, appinfo->name, ncx_id);
             }
             if (!newval) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(newval, appval);
+                val_add_child(instance, newval, appval);
             }
             continue;
         }
 
         /* else a YANG parsed appinfo */
         if ((appinfo->ext->arg && appinfo->ext->argel) || 
-            !dlq_empty(appinfo->appinfoQ)) {
-            newval = xml_val_new_struct(appinfo->ext->name,
+            !dlq_empty(instance, appinfo->appinfoQ)) {
+            newval = xml_val_new_struct(instance,
+                                        appinfo->ext->name,
                                         appinfo->ext->nsid);
         } else {
-            newval = xml_val_new_flag(appinfo->ext->name,
+            newval = xml_val_new_flag(instance,
+                                      appinfo->ext->name,
                                       appinfo->ext->nsid);
         }
         if (!newval) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
 
         if (appinfo->ext->arg) {
             if (appinfo->ext->argel) {
-                chval = xml_val_new_cstring(appinfo->ext->arg,
+                chval = xml_val_new_cstring(instance,
+                                            appinfo->ext->arg,
                                             appinfo->ext->nsid, 
                                             appinfo->value);
                 if (!chval) {
                     return ERR_INTERNAL_MEM;
                 } else {
-                    val_add_child(chval, newval);
+                    val_add_child(instance, chval, newval);
                 }
             } else {
-                res = xml_val_add_cattr(appinfo->ext->arg,
+                res = xml_val_add_cattr(instance,
+                                        appinfo->ext->arg,
                                         appinfo->ext->nsid,
                                         appinfo->value, newval);
                 if (res != NO_ERR) {
@@ -344,8 +353,8 @@ static status_t
             }
         }
 
-        if (!dlq_empty(appinfo->appinfoQ)) {
-            res = add_appinfoQ(appinfo->appinfoQ, newval);
+        if (!dlq_empty(instance, appinfo->appinfoQ)) {
+            res = add_appinfoQ(instance, appinfo->appinfoQ, newval);
             if (res != NO_ERR) {
                 return res;
             }
@@ -370,7 +379,7 @@ static status_t
 *   value struct or NULL if malloc error
 *********************************************************************/
 static val_value_t *
-    make_reference (const xmlChar *ref)
+    make_reference (ncx_instance_t *instance, const xmlChar *ref)
 {
     val_value_t    *retval, *textval, *urlval;
     const xmlChar  *str, *p;
@@ -382,27 +391,27 @@ static val_value_t *
         return NULL;
     }
 
-    ncx_id = xmlns_ncx_id();
-    len = xml_strlen(ref);
+    ncx_id = xmlns_ncx_id(instance);
+    len = xml_strlen(instance, ref);
 
-    retval = xml_val_new_struct(YANG_K_REFERENCE,  ncx_id);
+    retval = xml_val_new_struct(instance,  YANG_K_REFERENCE,  ncx_id);
     if (!retval) {
         return NULL;
     }
 
-    textval = xml_val_new_cstring(NCX_EL_TEXT, ncx_id, ref);
+    textval = xml_val_new_cstring(instance, NCX_EL_TEXT, ncx_id, ref);
     if (!textval) {
-        val_free_value(retval);
+        val_free_value(instance, retval);
         return NULL;
     } else {
-        val_add_child(textval, retval);
+        val_add_child(instance, textval, retval);
     }
 
     /* check if the reference is to an RFC and if so generate
      * a 'url' element as well
      */
     if (len > 4 && 
-        !xml_strncmp(ref, (const xmlChar *)"RFC ", 4)) {
+        !xml_strncmp(instance, ref, (const xmlChar *)"RFC ", 4)) {
         str = &ref[4];
         p = str;
         while (*p && isdigit(*p)) {
@@ -412,33 +421,33 @@ static val_value_t *
 
         /* IETF RFC URLs are currently hard-wired 4 digit number */
         if (numlen && (numlen <= 4) && (len >= numlen+4)) {
-            buff = m__getMem(xml_strlen(XSD_RFC_URL) + 9);
+            buff = m__getMem(instance, xml_strlen(instance, XSD_RFC_URL) + 9);
             if (!buff) {
-                val_free_value(retval);
+                val_free_value(instance, retval);
                 return NULL;
             }
 
             q = buff;
-            q += xml_strcpy(q, XSD_RFC_URL);
+            q += xml_strcpy(instance, q, XSD_RFC_URL);
             for (i = 4 - numlen; i; i--) {
                 *q++ = '0';
             }
             for (i=0; i<numlen; i++) {
                 *q++ = *str++;
             } 
-            xml_strcpy(q, (const xmlChar *)".txt");
+            xml_strcpy(instance, q, (const xmlChar *)".txt");
 
-            urlval = xml_val_new_string(NCX_EL_URL, ncx_id, buff);
+            urlval = xml_val_new_string(instance, NCX_EL_URL, ncx_id, buff);
             if (!urlval) {
-                m__free(buff);
-                val_free_value(retval);
+                m__free(instance, buff);
+                val_free_value(instance, retval);
                 return NULL;
             } else {
-                val_add_child(urlval, retval);
+                val_add_child(instance, urlval, retval);
             }
         }
     } else if (len > 6 &&
-               !xml_strncmp(ref, (const xmlChar *)"draft-", 6)) {
+               !xml_strncmp(instance, ref, (const xmlChar *)"draft-", 6)) {
         str = &ref[6];
         while (*str && 
                (!xml_isspace(*str)) && 
@@ -453,22 +462,22 @@ static val_value_t *
         }
 
         numlen = (uint32)(str-ref);
-        buff = m__getMem(xml_strlen(XSD_DRAFT_URL) + numlen + 1);
+        buff = m__getMem(instance, xml_strlen(instance, XSD_DRAFT_URL) + numlen + 1);
         if (!buff) {
-            val_free_value(retval);
+            val_free_value(instance, retval);
             return NULL;
         }
         q = buff;
-        q += xml_strcpy(q, XSD_DRAFT_URL);
-        q += xml_strncpy(q, ref, numlen);
+        q += xml_strcpy(instance, q, XSD_DRAFT_URL);
+        q += xml_strncpy(instance, q, ref, numlen);
 
-        urlval = xml_val_new_string(NCX_EL_URL, ncx_id, buff);
+        urlval = xml_val_new_string(instance, NCX_EL_URL, ncx_id, buff);
         if (!urlval) {
-            m__free(buff);
-            val_free_value(retval);
+            m__free(instance, buff);
+            val_free_value(instance, retval);
             return NULL;
         } else {
-            val_add_child(urlval, retval);
+            val_add_child(instance, urlval, retval);
         }
     }
 
@@ -495,7 +504,8 @@ static val_value_t *
 *    NULL if some error (*res != NO_ERR)
 *********************************************************************/
 static val_value_t *
-    make_obj_appinfo (obj_template_t *obj,
+    make_obj_appinfo (ncx_instance_t *instance,
+                      obj_template_t *obj,
                       status_t  *res)
 {
     val_value_t          *newval, *appval, *mustval, *refval;
@@ -511,7 +521,7 @@ static val_value_t *
 
 #ifdef DEBUG
     if (!obj || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -519,18 +529,18 @@ static val_value_t *
     outputobj = NULL;
     needed = FALSE;
     config_needed = FALSE;
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
     *res = ERR_INTERNAL_MEM;    /* setup only error for now */
 
-    status = obj_get_status(obj);
-    config = obj_get_config_flag2(obj, &config_needed);
-    mustQ = obj_get_mustQ(obj);
-    appinfoQ = obj_get_appinfoQ(obj);
+    status = obj_get_status(instance, obj);
+    config = obj_get_config_flag2(instance, obj, &config_needed);
+    mustQ = obj_get_mustQ(instance, obj);
+    appinfoQ = obj_get_appinfoQ(instance, obj);
 
-    if (mustQ && !dlq_empty(mustQ)) {
+    if (mustQ && !dlq_empty(instance, mustQ)) {
         needed = TRUE;
     }
-    if (appinfoQ && !dlq_empty(appinfoQ)) {
+    if (appinfoQ && !dlq_empty(instance, appinfoQ)) {
         needed = TRUE;
     }
 
@@ -551,8 +561,9 @@ static val_value_t *
         needed = (obj->flags & OBJ_FL_TOP) ? TRUE : FALSE;
         break;
     case OBJ_TYP_RPC:
-        datadefQ = obj_get_datadefQ(obj);
-        outputobj = obj_find_template(datadefQ,
+        datadefQ = obj_get_datadefQ(instance, obj);
+        outputobj = obj_find_template(instance,
+                                      datadefQ,
                                       NULL, 
                                       YANG_K_OUTPUT);
         if (outputobj) {
@@ -564,7 +575,7 @@ static val_value_t *
     case OBJ_TYP_NOTIF:
         break;
     default:
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
@@ -579,7 +590,7 @@ static val_value_t *
      */
     needed = FALSE;
 
-    appval = xml_val_new_struct(NCX_EL_APPINFO, xmlns_xs_id());
+    appval = xml_val_new_struct(instance, NCX_EL_APPINFO, xmlns_xs_id(instance));
     if (!appval) {
         return NULL;
     }
@@ -587,144 +598,154 @@ static val_value_t *
     /* add choice or case name if needed */
     if (obj->objtype==OBJ_TYP_CHOICE) {
         needed = TRUE;
-        newval = xml_val_new_cstring(NCX_EL_CHOICE_NAME, 
+        newval = xml_val_new_cstring(instance, 
+                                     NCX_EL_CHOICE_NAME, 
                                      ncx_id, 
-                                     obj_get_name(obj));
+                                     obj_get_name(instance, obj));
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     } else if (obj->objtype==OBJ_TYP_CASE) {
         needed = TRUE;
-        newval = xml_val_new_cstring(NCX_EL_CASE_NAME, 
+        newval = xml_val_new_cstring(instance, 
+                                     NCX_EL_CASE_NAME, 
                                      ncx_id, 
-                                     obj_get_name(obj));
+                                     obj_get_name(instance, obj));
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add status clause if needed */
     if (status != NCX_STATUS_NONE && status != NCX_STATUS_CURRENT) {
         needed = TRUE;
-        newval = xml_val_new_cstring(YANG_K_STATUS, 
+        newval = xml_val_new_cstring(instance, 
+                                     YANG_K_STATUS, 
                                      ncx_id, 
-                                     ncx_get_status_string(status));
+                                     ncx_get_status_string(instance, status));
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add config clause if needed */
     if (config_needed) {
         needed = TRUE;
-        newval = xml_val_new_cstring(YANG_K_CONFIG, 
+        newval = xml_val_new_cstring(instance, 
+                                     YANG_K_CONFIG, 
                                      ncx_id, 
                                      config ? NCX_EL_TRUE : NCX_EL_FALSE);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add when clause if needed */
     if (obj->when && obj->when->exprstr) {
         needed = TRUE;
-        newval = xml_val_new_cstring(YANG_K_WHEN, 
+        newval = xml_val_new_cstring(instance, 
+                                     YANG_K_WHEN, 
                                      ncx_id,
                                      obj->when->exprstr);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add must entries if needed */
     if (mustQ) {
-        for (must = (xpath_pcb_t *)dlq_firstEntry(mustQ);
+        for (must = (xpath_pcb_t *)dlq_firstEntry(instance, mustQ);
              must != NULL;
-             must = (xpath_pcb_t *)dlq_nextEntry(must)) {
+             must = (xpath_pcb_t *)dlq_nextEntry(instance, must)) {
 
             errinfo = &must->errinfo;
             needed = TRUE;
 
-            mustval = xml_val_new_struct(YANG_K_MUST, ncx_id);
+            mustval = xml_val_new_struct(instance, YANG_K_MUST, ncx_id);
             if (!mustval) {
-                val_free_value(appval);
+                val_free_value(instance, appval);
                 return NULL;
             } else {
-                val_add_child(mustval, appval);
+                val_add_child(instance, mustval, appval);
             }
 
             if (must->exprstr) {
-                newval = xml_val_new_cstring(NCX_EL_XPATH, 
+                newval = xml_val_new_cstring(instance, 
+                                             NCX_EL_XPATH, 
                                              ncx_id,
                                              must->exprstr);
                 if (!newval) {
-                    val_free_value(appval);
+                    val_free_value(instance, appval);
                     return NULL;
                 } else {
-                    val_add_child(newval, mustval);
+                    val_add_child(instance, newval, mustval);
                 }
             }
 
             if (errinfo->descr) {
-                newval = xml_val_new_cstring(YANG_K_DESCRIPTION,
+                newval = xml_val_new_cstring(instance,
+                                             YANG_K_DESCRIPTION,
                                              ncx_id, 
                                              errinfo->descr);
                 if (!newval) {
-                    val_free_value(appval);
+                    val_free_value(instance, appval);
                     return NULL;
                 } else {
-                    val_add_child(newval, mustval);
+                    val_add_child(instance, newval, mustval);
                 }
             }
 
             if (errinfo->ref) {
-                newval = xml_val_new_cstring(YANG_K_REFERENCE,
+                newval = xml_val_new_cstring(instance,
+                                             YANG_K_REFERENCE,
                                              ncx_id, 
                                              errinfo->ref);
                 if (!newval) {
-                    val_free_value(appval);
+                    val_free_value(instance, appval);
                     return NULL;
                 } else {
-                    val_add_child(newval, mustval);
+                    val_add_child(instance, newval, mustval);
                 }
             }
 
             if (errinfo->error_app_tag) {
-                newval = xml_val_new_cstring(YANG_K_ERROR_APP_TAG,
+                newval = xml_val_new_cstring(instance,
+                                             YANG_K_ERROR_APP_TAG,
                                              ncx_id,
                                              errinfo->error_app_tag);
                 if (!newval) {
-                    val_free_value(appval);
+                    val_free_value(instance, appval);
                     return NULL;
                 } else {
-                    val_add_child(newval, mustval);
+                    val_add_child(instance, newval, mustval);
                 }
             }
 
             if (errinfo->error_message) {
-                newval = xml_val_new_cstring(YANG_K_ERROR_MESSAGE,
+                newval = xml_val_new_cstring(instance,
+                                             YANG_K_ERROR_MESSAGE,
                                              ncx_id,
                                              errinfo->error_message);
                 if (!newval) {
-                    val_free_value(appval);
+                    val_free_value(instance, appval);
                     return NULL;
                 } else {
-                    val_add_child(newval, mustval);
+                    val_add_child(instance, newval, mustval);
                 }
             }
         }
@@ -732,101 +753,108 @@ static val_value_t *
 
     switch (obj->objtype) {
     case OBJ_TYP_CONTAINER:
-        presence = obj_get_presence_string(obj);
+        presence = obj_get_presence_string(instance, obj);
         if (presence) {
             needed = TRUE;
-            newval = xml_val_new_cstring(YANG_K_PRESENCE,
+            newval = xml_val_new_cstring(instance,
+                                         YANG_K_PRESENCE,
                                          ncx_id,
                                          presence);
             if (!newval) {
-                val_free_value(appval);
+                val_free_value(instance, appval);
                 return NULL;
             } else {
-                val_add_child(newval, appval);
+                val_add_child(instance, newval, appval);
             }
         }
         break;
     case OBJ_TYP_LEAF:
-        units = obj_get_units(obj);
+        units = obj_get_units(instance, obj);
         if (units) {
             needed = TRUE;
-            newval = xml_val_new_cstring(YANG_K_UNITS,
+            newval = xml_val_new_cstring(instance,
+                                         YANG_K_UNITS,
                                          ncx_id,
                                          units);
             if (!newval) {
-                val_free_value(appval);
+                val_free_value(instance, appval);
                 return NULL;
             } else {
-                val_add_child(newval, appval);
+                val_add_child(instance, newval, appval);
             }
         }
         /* fall through */
     case OBJ_TYP_ANYXML:
         if (obj->flags & OBJ_FL_MANDSET) {
             needed = TRUE;
-            newval = xml_val_new_cstring(YANG_K_MANDATORY,
+            newval = xml_val_new_cstring(instance,
+                                         YANG_K_MANDATORY,
                                          ncx_id,
                                          (obj->flags & OBJ_FL_MANDATORY)
                                          ? NCX_EL_TRUE : NCX_EL_FALSE);
             if (!newval) {
                 *res = ERR_INTERNAL_MEM;
-                val_free_value(appval);
+                val_free_value(instance, appval);
                 return NULL;
             } else {
-                val_add_child(newval, appval);
+                val_add_child(instance, newval, appval);
             }
         }
         break;
     case OBJ_TYP_LEAF_LIST:
-        units = obj_get_units(obj);
+        units = obj_get_units(instance, obj);
         if (units) {
             needed = TRUE;
-            newval = xml_val_new_cstring(YANG_K_UNITS, 
+            newval = xml_val_new_cstring(instance, 
+                                         YANG_K_UNITS, 
                                          ncx_id,
                                          units);
             if (!newval) {
-                val_free_value(appval);
+                val_free_value(instance, appval);
                 return NULL;
             } else {
-                val_add_child(newval, appval);
+                val_add_child(instance, newval, appval);
             }
         }
-        newval = xml_val_new_cstring(YANG_K_ORDERED_BY, 
+        newval = xml_val_new_cstring(instance, 
+                                     YANG_K_ORDERED_BY, 
                                      ncx_id,
-                                     obj_is_system_ordered(obj) ?
+                                     obj_is_system_ordered(instance, obj) ?
                                      YANG_K_SYSTEM : YANG_K_USER);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
             needed = TRUE;
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
         break;
     case OBJ_TYP_LIST:
         needed = TRUE;
-        newval = xml_val_new_cstring(YANG_K_ORDERED_BY, 
+        newval = xml_val_new_cstring(instance, 
+                                     YANG_K_ORDERED_BY, 
                                      ncx_id,
-                                     obj_is_system_ordered(obj) ?
+                                     obj_is_system_ordered(instance, obj) ?
                                      YANG_K_SYSTEM : YANG_K_USER);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
         break;
     case OBJ_TYP_CHOICE:
         if (obj->flags & OBJ_FL_MANDSET) {
             needed = TRUE;
-            newval = xml_val_new_cstring(YANG_K_MANDATORY,
+            newval = xml_val_new_cstring(instance,
+                                         YANG_K_MANDATORY,
                                          ncx_id,
                                          (obj->flags & OBJ_FL_MANDATORY)
                                          ? NCX_EL_TRUE : NCX_EL_FALSE);
             if (!newval) {
-                val_free_value(appval);
+                val_free_value(instance, appval);
             } else {
-                val_add_child(newval, appval);
+                val_add_child(instance, newval, appval);
             }
         }
         break;
@@ -839,14 +867,15 @@ static val_value_t *
     case OBJ_TYP_RPC:
         if (outputobj) {
             needed = TRUE;
-            buff = xsd_make_rpc_output_typename(obj);
-            newval = xml_val_new_string(NCX_EL_RPC_OUTPUT,
+            buff = xsd_make_rpc_output_typename(instance, obj);
+            newval = xml_val_new_string(instance,
+                                        NCX_EL_RPC_OUTPUT,
                                         ncx_id, buff);
             if (!newval) {
-                m__free(buff);
-                val_free_value(appval);
+                m__free(instance, buff);
+                val_free_value(instance, appval);
             } else {
-                val_add_child(newval, appval);
+                val_add_child(instance, newval, appval);
             }
         }
         break;
@@ -855,32 +884,32 @@ static val_value_t *
     case OBJ_TYP_NOTIF:
         break;
     default:
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
-        val_free_value(appval);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
+        val_free_value(instance, appval);
         return NULL;
     }
 
     /* check if reference needed */
-    ref = obj_get_reference(obj);
+    ref = obj_get_reference(instance, obj);
     if (ref != NULL) {
         needed = TRUE;
-        refval = make_reference(ref);
+        refval = make_reference(instance, ref);
         if (!refval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(refval, appval);
+            val_add_child(instance, refval, appval);
         }
     }
 
     /* add an element for each appinfo record */
-    if (appinfoQ && !dlq_empty(appinfoQ)) {
+    if (appinfoQ && !dlq_empty(instance, appinfoQ)) {
         needed = TRUE;
-        *res = add_appinfoQ(appinfoQ, appval);
+        *res = add_appinfoQ(instance, appinfoQ, appval);
     }
 
     if (!needed) {
-        val_free_value(appval);
+        val_free_value(instance, appval);
         appval = NULL;
     }
 
@@ -910,7 +939,8 @@ static val_value_t *
 *   new element data struct or NULL if malloc error
 *********************************************************************/
 static val_value_t *
-    new_element (const ncx_module_t *mod,
+    new_element (ncx_instance_t *instance,
+                 const ncx_module_t *mod,
                  const xmlChar *name,
                  const typ_def_t *typdef,
                  const typ_def_t *parent,
@@ -926,47 +956,47 @@ static val_value_t *
     status_t       res;
     xmlChar        numbuff[NCX_MAX_NUMLEN];
 
-    btyp = typ_get_basetype(typdef);
+    btyp = typ_get_basetype(instance, typdef);
 
     /* create a node named 'element' to hold the result */
     if (hasnodes || hasindex) {
-        val = xml_val_new_struct(XSD_ELEMENT, xmlns_xs_id());
+        val = xml_val_new_struct(instance, XSD_ELEMENT, xmlns_xs_id(instance));
     } else {
-        val = xml_val_new_flag(XSD_ELEMENT, xmlns_xs_id());
+        val = xml_val_new_flag(instance, XSD_ELEMENT, xmlns_xs_id(instance));
     }
     if (!val) {
         return NULL;
     }
 
     /* add the name attribute */
-    res = xml_val_add_cattr(NCX_EL_NAME, 0, name, val);
+    res = xml_val_add_cattr(instance, NCX_EL_NAME, 0, name, val);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return NULL;
     }
 
     /* add the type attribute unless this is a complex element */
     if (forcetyp) {
-        res = xsd_add_parmtype_attr(mod->nsid, forcetyp, val);
+        res = xsd_add_parmtype_attr(instance, mod->nsid, forcetyp, val);
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return NULL;
         }            
     } else if (!hasnodes && btyp != NCX_BT_EMPTY) {
         /* add the type attribute */
-        res = xsd_add_type_attr(mod, typdef, val);
+        res = xsd_add_type_attr(instance, mod, typdef, val);
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return NULL;
         }
     } /* else the type definition should be part of the element */
 
     /* check if a default attribute is needed */
-    def = typ_get_default(typdef);
+    def = typ_get_default(instance, typdef);
     if (def) {
-        res = xml_val_add_cattr(NCX_EL_DEFAULT, 0, def, val);
+        res = xml_val_add_cattr(instance, NCX_EL_DEFAULT, 0, def, val);
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return NULL;
         }
     }
@@ -980,26 +1010,26 @@ static val_value_t *
      */
 
     if (parent) {
-        switch (typ_get_basetype(parent)) {
+        switch (typ_get_basetype(instance, parent)) {
         case NCX_BT_LIST:      /************/
             iqual = NCX_IQUAL_ZMORE;
-            maxrows = typ_get_maxrows(parent);
+            maxrows = typ_get_maxrows(instance, parent);
             break;
         default:
-            iqual = typ_get_iqualval_def(typdef);
-            maxrows = typ_get_maxrows(typdef);
+            iqual = typ_get_iqualval_def(instance, typdef);
+            maxrows = typ_get_maxrows(instance, typdef);
         }
     } else {
-        iqual = typ_get_iqualval_def(typdef);
-        maxrows = typ_get_maxrows(typdef);
+        iqual = typ_get_iqualval_def(instance, typdef);
+        maxrows = typ_get_maxrows(instance, typdef);
     }
 
     /* add the minOccurs and maxOccurs as needed */
     if (maxrows) {
-        res = xml_val_add_cattr(XSD_MIN_OCCURS, 0, XSD_ZERO, val);
+        res = xml_val_add_cattr(instance, XSD_MIN_OCCURS, 0, XSD_ZERO, val);
         if (res == NO_ERR) {
             sprintf((char *)numbuff, "%u", maxrows);
-            res = xml_val_add_cattr(XSD_MAX_OCCURS, 0, numbuff, val);
+            res = xml_val_add_cattr(instance, XSD_MAX_OCCURS, 0, numbuff, val);
         }
     } else {
         switch (iqual) {
@@ -1007,25 +1037,25 @@ static val_value_t *
             /* do nothing since this is the default */
             break;
         case NCX_IQUAL_1MORE:
-            res = xml_val_add_cattr(XSD_MAX_OCCURS, 0, XSD_UNBOUNDED, val);
+            res = xml_val_add_cattr(instance, XSD_MAX_OCCURS, 0, XSD_UNBOUNDED, val);
             break;
         case NCX_IQUAL_OPT:
-            res = xml_val_add_cattr(XSD_MIN_OCCURS, 0, XSD_ZERO, val);
+            res = xml_val_add_cattr(instance, XSD_MIN_OCCURS, 0, XSD_ZERO, val);
             break;
         case NCX_IQUAL_ZMORE:
-            res = xml_val_add_cattr(XSD_MIN_OCCURS, 0, XSD_ZERO, val);
+            res = xml_val_add_cattr(instance, XSD_MIN_OCCURS, 0, XSD_ZERO, val);
             if (res == NO_ERR) {
-                res = xml_val_add_cattr(XSD_MAX_OCCURS, 0, XSD_UNBOUNDED, val);
+                res = xml_val_add_cattr(instance, XSD_MAX_OCCURS, 0, XSD_UNBOUNDED, val);
             }
             break;
         case NCX_IQUAL_NONE:
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return NULL;
     }
 
@@ -1054,7 +1084,8 @@ static val_value_t *
 *   status
 *********************************************************************/
 static status_t
-    add_basetype_attr (boolean istype,
+    add_basetype_attr (ncx_instance_t *instance,
+                       boolean istype,
                        const ncx_module_t *mod,
                        const typ_def_t *typdef,
                        val_value_t *val)
@@ -1072,18 +1103,18 @@ static status_t
     switch (typdef->tclass) {
     case NCX_CL_BASE:
     case NCX_CL_SIMPLE:
-        typ_id = xmlns_xs_id();
-        name = xsd_typename(typ_get_basetype(typdef));
+        typ_id = xmlns_xs_id(instance);
+        name = xsd_typename(instance, typ_get_basetype(instance, typdef));
         break;
     case NCX_CL_COMPLEX:
-        btyp = typ_get_basetype(typdef);
+        btyp = typ_get_basetype(instance, typdef);
         switch (btyp) {
         case NCX_BT_ANY:
-            typ_id = xmlns_xs_id();
-            name = xsd_typename(btyp);            
+            typ_id = xmlns_xs_id(instance);
+            name = xsd_typename(instance, btyp);            
             break;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case NCX_CL_NAMED:
@@ -1103,7 +1134,8 @@ static status_t
              * can be checked that way
              */
             typ_id = mod->nsid;
-            name = ncx_find_typname(typdef->def.named.typ, 
+            name = ncx_find_typname(instance, 
+                                    typdef->def.named.typ, 
                                     &mod->typnameQ);
             if (!name) {
                 /* this must be a local type name in a grouping.
@@ -1115,7 +1147,7 @@ static status_t
         break;
     case NCX_CL_REF:
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (istype) {
@@ -1127,18 +1159,18 @@ static status_t
     /* set the data type */
     if (typ_id == targns) {
         /* this is in the targetNamespace */
-        return xml_val_add_cattr(attrname, 0, name, val);
+        return xml_val_add_cattr(instance, attrname, 0, name, val);
     } else {
         /* construct the QName for the attribute type */
-        str = xml_val_make_qname(typ_id, name);
+        str = xml_val_make_qname(instance, typ_id, name);
         if (!str) {
             return ERR_INTERNAL_MEM;
         }
 
         /* add the base or type attribute */
-        res = xml_val_add_attr(attrname, 0, str, val);
+        res = xml_val_add_attr(instance, attrname, 0, str, val);
         if (res != NO_ERR) {
-            m__free(str);
+            m__free(instance, str);
             return res;
         }
     }
@@ -1162,12 +1194,12 @@ static status_t
 *   value struct or NULL if malloc error
 *********************************************************************/
 static val_value_t *
-    make_documentation (const xmlChar *descr)
+    make_documentation (ncx_instance_t *instance, const xmlChar *descr)
 {
     if (!descr) {
         return NULL;
     } else {
-        return xml_val_new_cstring(XSD_DOCUMENTATION, xmlns_xs_id(), descr);
+        return xml_val_new_cstring(instance, XSD_DOCUMENTATION, xmlns_xs_id(instance), descr);
     }
 }   /* make_documentation */
 
@@ -1195,48 +1227,58 @@ static val_value_t *
 *   malloced string or NULL if malloc error
 *********************************************************************/
 static xmlChar *
-    make_schema_loc (const xmlChar *schemaloc,
+    make_schema_loc (ncx_instance_t *instance,
+                     const xmlChar *schemaloc,
                      const xmlChar *modname,
                      const xmlChar *modversion,
                      const xmlChar *cstr,
+                     boolean is_import,
                      boolean versionnames)
 {
     xmlChar       *str, *str2;
     uint32         len, slen, plen;
 
-    slen = (schemaloc) ? xml_strlen(schemaloc) : 0;
+    slen = (schemaloc) ? xml_strlen(instance, schemaloc) : 0;
     plen = (uint32)((slen && schemaloc[slen-1] != '/') ? 1 : 0);
 
-    len = 9;  /* newline + 4 spaces + file ext */
-    len += slen;    
-    len += plen;
-    len += xml_strlen(cstr);
-    len += xml_strlen(modname);
+    if (is_import) {
+        len = 4;  /* file ext */
+        len += slen;
+        len += plen;
+    } else {
+        len = 9;  /* newline + 4 spaces + file ext */
+        len += slen;    
+        len += plen;
+        len += xml_strlen(instance, cstr);
+    }
+    len += xml_strlen(instance, modname);
     if (versionnames && modversion) {
-        len += (xml_strlen(modversion) + 1);
+        len += (xml_strlen(instance, modversion) + 1);
     }
 
-    str = m__getMem(len+1);
+    str = m__getMem(instance, len+1);
     if (!str) {
         return NULL;
     }
 
     str2 = str;
-    str2 += xml_strcpy(str2, cstr);
-    str2 += xml_strcpy(str2, (const xmlChar *)"\n    ");
+    if (!is_import) {
+      str2 += xml_strcpy(instance, str2, cstr);
+      str2 += xml_strcpy(instance, str2, (const xmlChar *)"\n    ");
+    }
     if (schemaloc && *schemaloc) {
-        str2 += xml_strcpy(str2, schemaloc);
+        str2 += xml_strcpy(instance, str2, schemaloc);
         if (plen) {
             *str2++ = '/';
         }
     }
-    str2 += xml_strcpy(str2, modname);
+    str2 += xml_strcpy(instance, str2, modname);
     if (versionnames && modversion) {
         *str2++ = '_';    /***** CHANGE TO DOT *****/
-        str2 += xml_strcpy(str2, modversion);
+        str2 += xml_strcpy(instance, str2, modversion);
     }
     *str2++ = '.';
-    str2 += xml_strcpy(str2, NCX_XSD_EXT);
+    str2 += xml_strcpy(instance, str2, NCX_XSD_EXT);
 
     return str;
 
@@ -1264,7 +1306,8 @@ static xmlChar *
 *   malloced value containing all the appinfo or NULL if malloc error
 *********************************************************************/
 static val_value_t *
-    make_appinfo (const dlq_hdr_t  *appinfoQ,
+    make_appinfo (ncx_instance_t *instance,
+                  const dlq_hdr_t  *appinfoQ,
                   ncx_access_t maxacc,
                   const xmlChar *condition,
                   const xmlChar *units,
@@ -1275,75 +1318,75 @@ static val_value_t *
     xmlns_id_t     ncx_id;
     status_t       res;
 
-    appval = xml_val_new_struct(NCX_EL_APPINFO, xmlns_xs_id());
+    appval = xml_val_new_struct(instance, NCX_EL_APPINFO, xmlns_xs_id(instance));
     if (!appval) {
         return NULL;
     }
 
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
 
     /* add status clause if needed */
     if (status != NCX_STATUS_NONE && status != NCX_STATUS_CURRENT) {
-        newval = xml_val_new_cstring(NCX_EL_STATUS, ncx_id, 
-                                 ncx_get_status_string(status));
+        newval = xml_val_new_cstring(instance, NCX_EL_STATUS, ncx_id, 
+                                 ncx_get_status_string(instance, status));
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add units clause if needed */
     if (units) {
-        newval = xml_val_new_cstring(NCX_EL_UNITS, ncx_id, units);
+        newval = xml_val_new_cstring(instance, NCX_EL_UNITS, ncx_id, units);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add max-access clause if needed */
     if (maxacc != NCX_ACCESS_NONE) {
-        newval = xml_val_new_cstring(NCX_EL_MAX_ACCESS, ncx_id, 
+        newval = xml_val_new_cstring(instance, NCX_EL_MAX_ACCESS, ncx_id, 
                                  ncx_get_access_str(maxacc));
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add condition clause if needed */
     if (condition) {
-        newval = xml_val_new_cstring(NCX_EL_CONDITION, ncx_id, condition);
+        newval = xml_val_new_cstring(instance, NCX_EL_CONDITION, ncx_id, condition);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add reference clause if needed */
     if (ref) {
-        newval = make_reference(ref);
+        newval = make_reference(instance, ref);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add an element for each appinfo record */
-    if (appinfoQ && !dlq_empty(appinfoQ)) {
-        res = add_appinfoQ(appinfoQ, appval);
+    if (appinfoQ && !dlq_empty(instance, appinfoQ)) {
+        res = add_appinfoQ(instance, appinfoQ, appval);
         if (res != NO_ERR) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         }
     }
@@ -1369,83 +1412,85 @@ static val_value_t *
 *   malloced value containing all the appinfo or NULL if malloc error
 *********************************************************************/
 static val_value_t *
-    make_type_appinfo (const typ_template_t *typ,
+    make_type_appinfo (ncx_instance_t *instance,
+                       const typ_template_t *typ,
                        const xmlChar *path)
 {
     val_value_t   *newval, *appval;
     xmlns_id_t     ncx_id;
     status_t       res;
 
-    appval = xml_val_new_struct(NCX_EL_APPINFO, xmlns_xs_id());
+    appval = xml_val_new_struct(instance, NCX_EL_APPINFO, xmlns_xs_id(instance));
     if (!appval) {
         return NULL;
     }
 
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
 
     /* add reference clause if needed */
     if (typ->ref) {
-        newval = make_reference(typ->ref);
+        newval = make_reference(instance, typ->ref);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add status clause if needed */
     if (typ->status != NCX_STATUS_NONE && typ->status != NCX_STATUS_CURRENT) {
-        newval = xml_val_new_cstring(NCX_EL_STATUS, ncx_id, 
-                                     ncx_get_status_string(typ->status));
+        newval = xml_val_new_cstring(instance, NCX_EL_STATUS, ncx_id, 
+                                     ncx_get_status_string(instance, typ->status));
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add units clause if needed */
     if (typ->units) {
-        newval = xml_val_new_cstring(NCX_EL_UNITS, ncx_id, typ->units);
+        newval = xml_val_new_cstring(instance, NCX_EL_UNITS, ncx_id, typ->units);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add default clause if needed */
     if (typ->defval) {
-        newval = xml_val_new_cstring(NCX_EL_DEFAULT, 
+        newval = xml_val_new_cstring(instance, 
+                                     NCX_EL_DEFAULT, 
                                      ncx_id, 
                                      typ->defval);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add path for leafref if needed */
     if (path) {
-        newval = xml_val_new_cstring(YANG_K_PATH, ncx_id, path);
+        newval = xml_val_new_cstring(instance, YANG_K_PATH, ncx_id, path);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     /* add an element for each appinfo record */
-    if (!dlq_empty(&typ->appinfoQ)) {
-        res = add_appinfoQ(&typ->appinfoQ, appval);
+    if (!dlq_empty(instance, &typ->appinfoQ)) {
+        res = add_appinfoQ(instance, &typ->appinfoQ, appval);
         if (res != NO_ERR) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         }
     }
@@ -1474,7 +1519,8 @@ static val_value_t *
 *   status
 *********************************************************************/
 static status_t
-    add_one_import (yang_pcb_t *pcb,
+    add_one_import (ncx_instance_t *instance,
+                    yang_pcb_t *pcb,
                     const xmlChar *modname,
                     const xmlChar *revision,
                     const yangdump_cvtparms_t *cp,
@@ -1486,11 +1532,12 @@ static status_t
     xmlns_id_t           id;
     status_t             res;
 
-    id = xmlns_xs_id();
+    id = xmlns_xs_id(instance);
 
-    immod = ncx_find_module(modname, revision);
+    immod = ncx_find_module(instance, modname, revision);
     if (!immod) {
-        res = ncxmod_load_module(modname, 
+        res = ncxmod_load_module(instance, 
+                                 modname, 
                                  revision, 
                                  pcb->savedevQ,
                                  &immod);
@@ -1499,24 +1546,26 @@ static status_t
         }
     }
     
-    imval = xml_val_new_flag(NCX_EL_IMPORT, id);
+    imval = xml_val_new_flag(instance, NCX_EL_IMPORT, id);
     if (!imval) {
         return ERR_INTERNAL_MEM;
     } else {
-        val_add_child(imval, val);
+        val_add_child(instance, imval, val);
     }
 
-    res = xml_val_add_cattr(NCX_EL_NAMESPACE, 0, 
-                            xmlns_get_ns_name(immod->nsid), 
+    res = xml_val_add_cattr(instance, NCX_EL_NAMESPACE, 0, 
+                            xmlns_get_ns_name(instance, immod->nsid), 
                             imval);
     if (res == NO_ERR) {
-        str = xsd_make_schema_location(immod, 
+        str = xsd_make_schema_location(instance,
+                                       immod, 
                                        cp->schemaloc, 
+                                       true,
                                        cp->versionnames);
         if (str) {
-            res = xml_val_add_attr(XSD_LOC, 0, str, imval);
+            res = xml_val_add_attr(instance, XSD_LOC, 0, str, imval);
             if (res != NO_ERR) {
-                m__free(str);
+                m__free(instance, str);
             }
         }
     }
@@ -1541,7 +1590,7 @@ static status_t
 *   const pointer to the XSD base type name string, NULL if error
 *********************************************************************/
 const xmlChar *
-    xsd_typename (ncx_btype_t btyp)
+    xsd_typename (ncx_instance_t *instance, ncx_btype_t btyp)
 {
     switch (btyp) {
     case NCX_BT_ANY:
@@ -1591,7 +1640,7 @@ const xmlChar *
         return NCX_EL_UNION;
     case NCX_BT_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_EL_NONE;   /***/
     }
     /*NOTREACHED*/
@@ -1615,21 +1664,21 @@ const xmlChar *
 *   malloced value string or NULL if malloc error
 *********************************************************************/
 xmlChar *
-    xsd_make_basename (const typ_template_t *typ)
+    xsd_make_basename (ncx_instance_t *instance, const typ_template_t *typ)
 {
     xmlChar          *basename, *str2;
 
     /* hack: make a different name for the base type
      * that will not be hidden
      */
-    basename = m__getMem(xml_strlen(typ->name) 
-                         + xml_strlen(XSD_BT) + 1);
+    basename = m__getMem(instance, xml_strlen(instance, typ->name) 
+                         + xml_strlen(instance, XSD_BT) + 1);
     if (!basename) {
         return NULL;
     }
     str2 = basename;
-    str2 += xml_strcpy(str2, typ->name);
-    str2 += xml_strcpy(str2, XSD_BT);
+    str2 += xml_strcpy(instance, str2, typ->name);
+    str2 += xml_strcpy(instance, str2, XSD_BT);
     return basename;
 
 }   /* xsd_make_basename */
@@ -1652,7 +1701,8 @@ xmlChar *
 *   malloced value containing all the appinfo or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xsd_make_enum_appinfo (int32 enuval,
+    xsd_make_enum_appinfo (ncx_instance_t *instance,
+                           int32 enuval,
                            const dlq_hdr_t  *appinfoQ,
                            ncx_status_t status)
 {
@@ -1663,12 +1713,12 @@ val_value_t *
     status_t             res;
     uint32               len;
 
-    appval = xml_val_new_struct(NCX_EL_APPINFO, xmlns_xs_id());
+    appval = xml_val_new_struct(instance, NCX_EL_APPINFO, xmlns_xs_id(instance));
     if (!appval) {
         return NULL;
     }
 
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
 
     /* add status clause if not set to default (current) */
     switch (status) {
@@ -1677,39 +1727,39 @@ val_value_t *
         break;
     case NCX_STATUS_DEPRECATED:
     case NCX_STATUS_OBSOLETE:
-        newval = xml_val_new_cstring(NCX_EL_STATUS, ncx_id, 
-                                     ncx_get_status_string(status));
+        newval = xml_val_new_cstring(instance, NCX_EL_STATUS, ncx_id, 
+                                     ncx_get_status_string(instance, status));
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* add enum value clause */
     num.i = enuval;
-    res = ncx_sprintf_num(numbuff, &num, NCX_BT_INT32, &len);
+    res = ncx_sprintf_num(instance, numbuff, &num, NCX_BT_INT32, &len);
     if (res != NO_ERR) {
-        val_free_value(appval);
+        val_free_value(instance, appval);
         return NULL;
     }
-    newval = xml_val_new_cstring(NCX_EL_VALUE, ncx_id, numbuff);
+    newval = xml_val_new_cstring(instance, NCX_EL_VALUE, ncx_id, numbuff);
     if (!newval) {
-        val_free_value(appval);
+        val_free_value(instance, appval);
         return NULL;
     } else {
-        val_add_child(newval, appval);
+        val_add_child(instance, newval, appval);
     }
 
     /* add an element for each appinfo record */
     if (appinfoQ) {
-        res = add_appinfoQ(appinfoQ, appval);
+        res = add_appinfoQ(instance, appinfoQ, appval);
         if (res != NO_ERR) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         }
     }
@@ -1736,7 +1786,8 @@ val_value_t *
 *   malloced value containing all the appinfo or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xsd_make_bit_appinfo (uint32 bitpos,
+    xsd_make_bit_appinfo (ncx_instance_t *instance,
+                          uint32 bitpos,
                           const dlq_hdr_t  *appinfoQ,
                           ncx_status_t status)
 {
@@ -1747,12 +1798,12 @@ val_value_t *
     status_t             res;
     uint32               len;
 
-    appval = xml_val_new_struct(NCX_EL_APPINFO, xmlns_xs_id());
+    appval = xml_val_new_struct(instance, NCX_EL_APPINFO, xmlns_xs_id(instance));
     if (!appval) {
         return NULL;
     }
 
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
 
     /* add status clause if not set to default (current) */
     switch (status) {
@@ -1761,39 +1812,39 @@ val_value_t *
         break;
     case NCX_STATUS_DEPRECATED:
     case NCX_STATUS_OBSOLETE:
-        newval = xml_val_new_cstring(NCX_EL_STATUS, ncx_id, 
-                                     ncx_get_status_string(status));
+        newval = xml_val_new_cstring(instance, NCX_EL_STATUS, ncx_id, 
+                                     ncx_get_status_string(instance, status));
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* add bit position clause */
     num.u = bitpos;
-    res = ncx_sprintf_num(numbuff, &num, NCX_BT_UINT32, &len);
+    res = ncx_sprintf_num(instance, numbuff, &num, NCX_BT_UINT32, &len);
     if (res != NO_ERR) {
-        val_free_value(appval);
+        val_free_value(instance, appval);
         return NULL;
     }
-    newval = xml_val_new_cstring(NCX_EL_POSITION, ncx_id, numbuff);
+    newval = xml_val_new_cstring(instance, NCX_EL_POSITION, ncx_id, numbuff);
     if (!newval) {
-        val_free_value(appval);
+        val_free_value(instance, appval);
         return NULL;
     } else {
-        val_add_child(newval, appval);
+        val_add_child(instance, newval, appval);
     }
 
     /* add an element for each appinfo record */
     if (appinfoQ) {
-        res = add_appinfoQ(appinfoQ, appval);
+        res = add_appinfoQ(instance, appinfoQ, appval);
         if (res != NO_ERR) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         }
     }
@@ -1819,7 +1870,8 @@ val_value_t *
 *   or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xsd_make_err_appinfo (const xmlChar *ref,
+    xsd_make_err_appinfo (ncx_instance_t *instance,
+                          const xmlChar *ref,
                           const xmlChar *errmsg,
                           const xmlChar *errtag)
 {
@@ -1828,47 +1880,49 @@ val_value_t *
 
 #ifdef DEBUG
     if (!(ref || errmsg || errtag)) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    appval = xml_val_new_struct(NCX_EL_APPINFO, xmlns_xs_id());
+    appval = xml_val_new_struct(instance, NCX_EL_APPINFO, xmlns_xs_id(instance));
     if (!appval) {
         return NULL;
     }
 
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
 
     if (ref) {
-        newval = make_reference(ref);
+        newval = make_reference(instance, ref);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     if (errtag) {
-        newval = xml_val_new_cstring(NCX_EL_ERROR_APP_TAG,
+        newval = xml_val_new_cstring(instance,
+                                     NCX_EL_ERROR_APP_TAG,
                                      ncx_id, errtag);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
     if (errmsg) {
-        newval = xml_val_new_cstring(NCX_EL_ERROR_MESSAGE,
+        newval = xml_val_new_cstring(instance,
+                                     NCX_EL_ERROR_MESSAGE,
                                      ncx_id, errmsg);
         if (!newval) {
-            val_free_value(appval);
+            val_free_value(instance, appval);
             return NULL;
         } else {
-            val_add_child(newval, appval);
+            val_add_child(instance, newval, appval);
         }
     }
 
@@ -1894,24 +1948,26 @@ val_value_t *
 *   malloced string or NULL if malloc error
 *********************************************************************/
 xmlChar *
-    xsd_make_schema_location (const ncx_module_t *mod,
+    xsd_make_schema_location (ncx_instance_t *instance,
+                              const ncx_module_t *mod,
                               const xmlChar *schemaloc,
+                              boolean is_import,
                               boolean versionnames)
 {
     const xmlChar *cstr;
 
     if (mod->nsid) {
-        cstr = xmlns_get_ns_name(mod->nsid);
+        cstr = xmlns_get_ns_name(instance, mod->nsid);
     } else {
         cstr = EMPTY_STRING;
     }
     if (!cstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 
-    return make_schema_loc(schemaloc, mod->name, 
-                           mod->version, cstr, versionnames);
+    return make_schema_loc(instance, schemaloc, mod->name, 
+                           mod->version, cstr, is_import, versionnames);
 
 }   /* xsd_make_schema_location */
 
@@ -1930,7 +1986,8 @@ xmlChar *
 *   malloced string or NULL if malloc error
 *********************************************************************/
 xmlChar *
-    xsd_make_output_filename (const ncx_module_t *mod,
+    xsd_make_output_filename (ncx_instance_t *instance,
+                              const ncx_module_t *mod,
                               const yangdump_cvtparms_t *cp)
 {
     xmlChar        *buff, *p;
@@ -1977,50 +2034,50 @@ xmlChar *
         ext = (const xmlChar *)".py";
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
     if (cp->output && *cp->output) {
-        len = xml_strlen(cp->full_output);
+        len = xml_strlen(instance, cp->full_output);
         if (cp->output_isdir) {
             if (cp->full_output[len-1] != NCXMOD_PSCHAR) {
                 len++;
             }
             if (!cp->versionnames) {
-                len += xml_strlen(mod->name) + xml_strlen(ext); 
+                len += xml_strlen(instance, mod->name) + xml_strlen(instance, ext); 
             } else if (mod->version) {
-                len += xml_strlen(mod->name) + xml_strlen(mod->version) + 1 +
-                    xml_strlen(ext); 
+                len += xml_strlen(instance, mod->name) + xml_strlen(instance, mod->version) + 1 +
+                    xml_strlen(instance, ext); 
             } else {
-                len += xml_strlen(mod->name) + xml_strlen(ext); 
+                len += xml_strlen(instance, mod->name) + xml_strlen(instance, ext); 
             }
         }
     } else {
         if (!cp->versionnames) {
-            len = xml_strlen(mod->name) + xml_strlen(ext); 
+            len = xml_strlen(instance, mod->name) + xml_strlen(instance, ext); 
         } else if (mod->version) {
-            len = xml_strlen(mod->name) + xml_strlen(mod->version) + 1 +
-                xml_strlen(ext); 
+            len = xml_strlen(instance, mod->name) + xml_strlen(instance, mod->version) + 1 +
+                xml_strlen(instance, ext); 
         } else {
-            len = xml_strlen(mod->name) + xml_strlen(ext); 
+            len = xml_strlen(instance, mod->name) + xml_strlen(instance, ext); 
         }
     }
 
     switch (cp->format) {
     case NCX_CVTTYP_UC:
     case NCX_CVTTYP_UH:
-        len += xml_strlen(NCX_USER_SIL_PREFIX);
+        len += xml_strlen(instance, NCX_USER_SIL_PREFIX);
         break;
     case NCX_CVTTYP_YC:
     case NCX_CVTTYP_YH:
-        len += xml_strlen(NCX_YUMA_SIL_PREFIX);
+        len += xml_strlen(instance, NCX_YUMA_SIL_PREFIX);
         break;
     default:
         ;
     }
 
-    buff = m__getMem(len+1);
+    buff = m__getMem(instance, len+1);
     if (!buff) {
         return NULL;
     }
@@ -2029,7 +2086,7 @@ xmlChar *
 
     if (cp->output && *cp->output) {
         if (cp->output_isdir) {
-            p += xml_strcpy(p, (const xmlChar *)cp->full_output);
+            p += xml_strcpy(instance, p, (const xmlChar *)cp->full_output);
             if (*(p-1) != NCXMOD_PSCHAR) {
                 *p++ = NCXMOD_PSCHAR;
             }
@@ -2037,7 +2094,7 @@ xmlChar *
             /* !!! y_ and u_ not supported here !!!
              * user has specified the full file name
              */
-            xml_strcpy(p, (const xmlChar *)cp->full_output);
+            xml_strcpy(instance, p, (const xmlChar *)cp->full_output);
             return buff;
         }
     }
@@ -2045,22 +2102,22 @@ xmlChar *
     switch (cp->format) {
     case NCX_CVTTYP_UC:
     case NCX_CVTTYP_UH:
-        p += xml_strcpy(p, NCX_USER_SIL_PREFIX);
+        p += xml_strcpy(instance, p, NCX_USER_SIL_PREFIX);
         break;
     case NCX_CVTTYP_YC:
     case NCX_CVTTYP_YH:
-        p += xml_strcpy(p, NCX_YUMA_SIL_PREFIX);
+        p += xml_strcpy(instance, p, NCX_YUMA_SIL_PREFIX);
         break;
     default:
         ;
     }
 
-    p += xml_strcpy(p, mod->name);
+    p += xml_strcpy(instance, p, mod->name);
     if (cp->versionnames && mod->version) {
         *p++ = YANG_FILE_SEPCHAR;
-        p += xml_strcpy(p, mod->version);
+        p += xml_strcpy(instance, p, mod->version);
     }
-    xml_strcpy(p, ext); 
+    xml_strcpy(instance, p, ext); 
 
     return buff;
 
@@ -2085,17 +2142,18 @@ xmlChar *
 *   status
 *********************************************************************/
 status_t
-    xsd_do_documentation (const xmlChar *descr,
+    xsd_do_documentation (ncx_instance_t *instance,
+                          const xmlChar *descr,
                           val_value_t *val)
 {
     val_value_t *chnode;
 
     if (descr) {
-        chnode = make_documentation(descr);
+        chnode = make_documentation(instance, descr);
         if (!chnode) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(chnode, val);
+            val_add_child(instance, chnode, val);
         }
     }
 
@@ -2122,17 +2180,18 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xsd_do_reference (const xmlChar *ref,
+    xsd_do_reference (ncx_instance_t *instance,
+                      const xmlChar *ref,
                       val_value_t *val)
 {
     val_value_t *chnode;
 
     if (ref) {
-        chnode = make_reference(ref);
+        chnode = make_reference(instance, ref);
         if (!chnode) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(chnode, val);
+            val_add_child(instance, chnode, val);
         }
     }
 
@@ -2158,7 +2217,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    xsd_add_mod_documentation (const ncx_module_t *mod,
+    xsd_add_mod_documentation (ncx_instance_t *instance,
+                               const ncx_module_t *mod,
                                val_value_t *annot)
 {
     val_value_t      *doc, *appinfo, *appval;
@@ -2169,15 +2229,15 @@ status_t
     status_t          res;
     xmlChar           versionbuffer[NCX_VERSION_BUFFSIZE];
 
-    xsd_id = xmlns_xs_id();
-    ncx_id = xmlns_ncx_id();
+    xsd_id = xmlns_xs_id(instance);
+    ncx_id = xmlns_ncx_id(instance);
 
-    res = ncx_get_version(versionbuffer, NCX_VERSION_BUFFSIZE);
+    res = ncx_get_version(instance, versionbuffer, NCX_VERSION_BUFFSIZE);
     if (res != NO_ERR) {
-        SET_ERROR(res);
-        xml_strcpy(versionbuffer, (const xmlChar *)"unknown");
+        SET_ERROR(instance, res);
+        xml_strcpy(instance, versionbuffer, (const xmlChar *)"unknown");
     }
-    versionlen = xml_strlen(versionbuffer);
+    versionlen = xml_strlen(instance, versionbuffer);
 
     /* create first <documentation> element */
     banner0 = XSD_BANNER_0Y;
@@ -2185,84 +2245,84 @@ status_t
     banner1b = (mod->ismod) ? NULL : XSD_BANNER_1B;
 
     /* figure out the buffer length first */
-    len = xml_strlen(banner0) +
-        xml_strlen(mod->sourcefn) +
-        xml_strlen(XSD_BANNER_0END) +
+    len = xml_strlen(instance, banner0) +
+        xml_strlen(instance, mod->sourcefn) +
+        xml_strlen(instance, XSD_BANNER_0END) +
         versionlen + 
-        xml_strlen(banner1) +           /* (Sub)Module */
-        xml_strlen(XSD_BANNER_3);            /* Version */
+        xml_strlen(instance, banner1) +           /* (Sub)Module */
+        xml_strlen(instance, XSD_BANNER_3);            /* Version */
 
     if (mod->organization) {
-        len += xml_strlen(XSD_BANNER_2) +     /* organization */
-            xml_strlen(mod->organization);
+        len += xml_strlen(instance, XSD_BANNER_2) +     /* organization */
+            xml_strlen(instance, mod->organization);
     }
 
     if (banner1b) {
-        len += xml_strlen(XSD_BANNER_1B) + xml_strlen(mod->belongs);
+        len += xml_strlen(instance, XSD_BANNER_1B) + xml_strlen(instance, mod->belongs);
     }
 
-    len += xml_strlen(mod->name);
+    len += xml_strlen(instance, mod->name);
 
     if (mod->version) {
-        len += xml_strlen(mod->version);
+        len += xml_strlen(instance, mod->version);
     } else {
-        len += xml_strlen(NCX_EL_NONE);
+        len += xml_strlen(instance, NCX_EL_NONE);
     }
 
     if (mod->contact_info) {
-        len += (xml_strlen(XSD_BANNER_5) + xml_strlen(mod->contact_info));
+        len += (xml_strlen(instance, XSD_BANNER_5) + xml_strlen(instance, mod->contact_info));
     }
 
-    str = m__getMem(len+1);
+    str = m__getMem(instance, len+1);
     if (!str) {
         return ERR_INTERNAL_MEM;
     }
 
     /* build the module documentation in one buffer */
     str2 = str;
-    str2 += xml_strcpy(str2, banner0);
-    str2 += xml_strcpy(str2, mod->sourcefn);
-    str2 += xml_strcpy(str2, XSD_BANNER_0END);
-    str2 += xml_strcpy(str2, versionbuffer);
-    str2 += xml_strcpy(str2, banner1);
-    str2 += xml_strcpy(str2, mod->name);
+    str2 += xml_strcpy(instance, str2, banner0);
+    str2 += xml_strcpy(instance, str2, mod->sourcefn);
+    str2 += xml_strcpy(instance, str2, XSD_BANNER_0END);
+    str2 += xml_strcpy(instance, str2, versionbuffer);
+    str2 += xml_strcpy(instance, str2, banner1);
+    str2 += xml_strcpy(instance, str2, mod->name);
 
     if (banner1b) {
-        str2 += xml_strcpy(str2, XSD_BANNER_1B);
-        str2 += xml_strcpy(str2, mod->belongs);
+        str2 += xml_strcpy(instance, str2, XSD_BANNER_1B);
+        str2 += xml_strcpy(instance, str2, mod->belongs);
     }
 
     if (mod->organization) {
-        str2 += xml_strcpy(str2, XSD_BANNER_2);
-        str2 += xml_strcpy(str2, mod->organization);
+        str2 += xml_strcpy(instance, str2, XSD_BANNER_2);
+        str2 += xml_strcpy(instance, str2, mod->organization);
     }
 
-    str2 += xml_strcpy(str2, XSD_BANNER_3);
+    str2 += xml_strcpy(instance, str2, XSD_BANNER_3);
     if (mod->version) {
-        str2 += xml_strcpy(str2, mod->version);
+        str2 += xml_strcpy(instance, str2, mod->version);
     } else {
-        str2 += xml_strcpy(str2, NCX_EL_NONE);
+        str2 += xml_strcpy(instance, str2, NCX_EL_NONE);
     }
 
     if (mod->contact_info) {
-        str2 += xml_strcpy(str2, XSD_BANNER_5);
-        str2 += xml_strcpy(str2, mod->contact_info);
+        str2 += xml_strcpy(instance, str2, XSD_BANNER_5);
+        str2 += xml_strcpy(instance, str2, mod->contact_info);
     }
 
-    doc = xml_val_new_string(XSD_DOCUMENTATION, xsd_id, str);
+    doc = xml_val_new_string(instance, XSD_DOCUMENTATION, xsd_id, str);
     if (!doc) {
-        m__free(str);
+        m__free(instance, str);
         return ERR_INTERNAL_MEM;
     } else {
-        val_add_child(doc, annot);
+        val_add_child(instance, doc, annot);
     }
 
     if (mod->descr) {
-        doc = make_documentation(mod->descr);
+        doc = make_documentation(instance, mod->descr);
         if (!doc) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(doc, annot);
+            val_add_child(instance, doc, annot);
         }
     }
 
@@ -2272,77 +2332,78 @@ status_t
         mod->organization || 
         mod->contact_info) {
 
-        appinfo = xml_val_new_struct(NCX_EL_APPINFO, xsd_id);
+        appinfo = xml_val_new_struct(instance, NCX_EL_APPINFO, xsd_id);
         if (!appinfo) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(appinfo, annot);
+            val_add_child(instance, appinfo, annot);
         }
 
         if (mod->ref) {
-            appval = make_reference(mod->ref);
+            appval = make_reference(instance, mod->ref);
             if (!appval) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(appval, appinfo);
+                val_add_child(instance, appval, appinfo);
             }
         }
 
         if (mod->source) {
-            appval = xml_val_new_cstring(NCX_EL_SOURCE, ncx_id, mod->source);
+            appval = xml_val_new_cstring(instance, NCX_EL_SOURCE, ncx_id, mod->source);
             if (!appval) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(appval, appinfo);
+                val_add_child(instance, appval, appinfo);
             }
         }
 
         if (mod->belongs) {
-            appval = xml_val_new_cstring(YANG_K_BELONGS_TO, ncx_id, 
+            appval = xml_val_new_cstring(instance, YANG_K_BELONGS_TO, ncx_id, 
                                          mod->belongs);
             if (!appval) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(appval, appinfo);
+                val_add_child(instance, appval, appinfo);
             }
         }
 
         if (mod->organization) {
-            appval = xml_val_new_cstring(YANG_K_ORGANIZATION, ncx_id, 
+            appval = xml_val_new_cstring(instance, YANG_K_ORGANIZATION, ncx_id, 
                                          mod->organization);
             if (!appval) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(appval, appinfo);
+                val_add_child(instance, appval, appinfo);
             }
         }
 
         if (mod->contact_info) {
-            appval = xml_val_new_cstring(YANG_K_CONTACT, ncx_id,
+            appval = xml_val_new_cstring(instance, YANG_K_CONTACT, ncx_id,
                                          mod->contact_info);
             if (!appval) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(appval, appinfo);
+                val_add_child(instance, appval, appinfo);
             }
         }
     }
 
-    if (!dlq_empty(&mod->revhistQ)) {
-        appinfo = xml_val_new_struct(NCX_EL_APPINFO, xsd_id);
+    if (!dlq_empty(instance, &mod->revhistQ)) {
+        appinfo = xml_val_new_struct(instance, NCX_EL_APPINFO, xsd_id);
         if (!appinfo) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(appinfo, annot);
+            val_add_child(instance, appinfo, annot);
         }
-        res = add_revhist(mod, appinfo);
+        res = add_revhist(instance, mod, appinfo);
         if (res != NO_ERR) {
             return res;
         }
     }
 
-    if (!dlq_empty(&mod->appinfoQ)) {
-        appval = make_appinfo(&mod->appinfoQ,
+    if (!dlq_empty(instance, &mod->appinfoQ)) {
+        appval = make_appinfo(instance,
+                              &mod->appinfoQ,
                               NCX_ACCESS_NONE, 
                               NULL, 
                               NULL, 
@@ -2351,7 +2412,7 @@ status_t
         if (!appval) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(appval, annot);
+            val_add_child(instance, appval, annot);
         }
     }        
 
@@ -2378,7 +2439,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xsd_add_imports (yang_pcb_t *pcb,
+    xsd_add_imports (ncx_instance_t *instance,
+                     yang_pcb_t *pcb,
                      const ncx_module_t *mod,
                      const yangdump_cvtparms_t *cp,
                      val_value_t *val)
@@ -2392,60 +2454,65 @@ status_t
     boolean                   use_xsi;
 
     use_xsi = FALSE;
-    id = xmlns_xs_id();
+    id = xmlns_xs_id(instance);
 
     if (use_xsi) {
         /* add <import> element to val for the XML namespace XSD */
-        imval = xml_val_new_flag(NCX_EL_IMPORT, id);
+        imval = xml_val_new_flag(instance, NCX_EL_IMPORT, id);
         if (!imval) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(imval, val);
+            val_add_child(instance, imval, val);
         }
 
-        res = xml_val_add_cattr(NCX_EL_NAMESPACE, 0, NCX_XML_URN, imval);
+        res = xml_val_add_cattr(instance, NCX_EL_NAMESPACE, 0, NCX_XML_URN, imval);
         if (res == NO_ERR) {
-            res = xml_val_add_cattr(XSD_LOC, 0, NCX_XML_SLOC, imval);
+            res = xml_val_add_cattr(instance, XSD_LOC, 0, NCX_XML_SLOC, imval);
         }
         if (res != NO_ERR) {
             return res;
         }
     }
 
-    /* add import for NCX extensions used in the XSD,
-     * but not imported into the data model module
-     */
-    imval = xml_val_new_flag(NCX_EL_IMPORT, id);
-    if (!imval) {
+    if (xml_strcmp(instance, xmlns_get_ns_name(instance, mod->nsid), NCX_URN)) {
+      /* add import for NCX extensions used in the XSD,
+       * but not imported into the data model module
+       */
+      imval = xml_val_new_flag(instance, NCX_EL_IMPORT, id);
+      if (!imval) {
         return ERR_INTERNAL_MEM;
-    } else {
-        val_add_child(imval, val);
-    }
-    res = xml_val_add_cattr(NCX_EL_NAMESPACE, 0, NCX_URN, imval);
-    if (res != NO_ERR) {
+      } else {
+        val_add_child(instance, imval, val);
+      }
+      res = xml_val_add_cattr(instance, NCX_EL_NAMESPACE, 0, NCX_URN, imval);
+      if (res != NO_ERR) {
         return res;
-    }
-    str = make_schema_loc(cp->schemaloc, 
-                          NCX_MOD, 
-                          (cp->versionnames) ? mod->version : NULL,
-                          NCX_URN,
-                          cp->versionnames);
-    if (str) {
-        res = xml_val_add_attr(XSD_LOC, 0, str, imval);
+      }
+      str = make_schema_loc(instance, 
+                            cp->schemaloc, 
+                            NCX_MOD, 
+                            (cp->versionnames) ? mod->version : NULL, 
+                            NCX_URN, 
+                            true, 
+                            cp->versionnames);
+      if (str) {
+        res = xml_val_add_attr(instance, XSD_LOC, 0, str, imval);
         if (res != NO_ERR) {
-            m__free(str);
+            m__free(instance, str);
             return res;
         }
-    } else {
+      } else {
         return ERR_INTERNAL_MEM;
+      }
     }
 
     /* add XSD import for each YANG import */
     if (cp->unified && mod->ismod) {
-        for (impptr = (const yang_import_ptr_t *)dlq_firstEntry(&mod->saveimpQ);
+        for (impptr = (const yang_import_ptr_t *)dlq_firstEntry(instance, &mod->saveimpQ);
              impptr != NULL;
-             impptr = (const yang_import_ptr_t *)dlq_nextEntry(impptr)) {
-            res = add_one_import(pcb,
+             impptr = (const yang_import_ptr_t *)dlq_nextEntry(instance, impptr)) {
+            res = add_one_import(instance,
+                                 pcb,
                                  impptr->modname, 
                                  impptr->revision,
                                  cp, val);
@@ -2454,10 +2521,11 @@ status_t
             }
         }
     } else {
-        for (import = (const ncx_import_t *)dlq_firstEntry(&mod->importQ);
+        for (import = (const ncx_import_t *)dlq_firstEntry(instance, &mod->importQ);
              import != NULL;
-             import = (const ncx_import_t *)dlq_nextEntry(import)) {
-            res = add_one_import(pcb,
+             import = (const ncx_import_t *)dlq_nextEntry(instance, import)) {
+            res = add_one_import(instance,
+                                 pcb,
                                  import->module, 
                                  import->revision,
                                  cp, val);
@@ -2489,7 +2557,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xsd_add_includes (const ncx_module_t *mod,
+    xsd_add_includes (ncx_instance_t *instance,
+                      const ncx_module_t *mod,
                       const yangdump_cvtparms_t *cp,
                       val_value_t *val)
 {
@@ -2499,27 +2568,27 @@ status_t
     xmlns_id_t           id;
     status_t             res;
 
-    id = xmlns_xs_id();
+    id = xmlns_xs_id(instance);
 
-    for (inc = (const ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+    for (inc = (const ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
          inc != NO_ERR;
-         inc = (const ncx_include_t *)dlq_nextEntry(inc)) {
+         inc = (const ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
-        incval = xml_val_new_flag(NCX_EL_INCLUDE, id);
+        incval = xml_val_new_flag(instance, NCX_EL_INCLUDE, id);
         if (!incval) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(incval, val);   /* add early */
+            val_add_child(instance, incval, val);   /* add early */
         }
 
-        str = make_include_location(inc->submodule, cp->schemaloc);
+        str = make_include_location(instance, inc->submodule, cp->schemaloc);
         if (!str) {
             return ERR_INTERNAL_MEM;
         }
 
-        res = xml_val_add_attr(XSD_LOC, 0, str, incval);
+        res = xml_val_add_attr(instance, XSD_LOC, 0, str, incval);
         if (res != NO_ERR) {
-            m__free(str);
+            m__free(instance, str);
             return res;
         }
     }
@@ -2548,14 +2617,15 @@ status_t
 *   new element data struct or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xsd_new_element (const ncx_module_t *mod,
+    xsd_new_element (ncx_instance_t *instance,
+                     const ncx_module_t *mod,
                      const xmlChar *name,
                      const typ_def_t *typdef,
                      const typ_def_t *parent,
                      boolean hasnodes,
                      boolean hasindex)
 {
-    return new_element(mod, name, typdef, parent, 
+    return new_element(instance, mod, name, typdef, parent, 
                        hasnodes, hasindex, NULL);
 }   /* xsd_new_element */
 
@@ -2579,7 +2649,8 @@ val_value_t *
 *   new element data struct or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xsd_new_leaf_element (const ncx_module_t *mod,
+    xsd_new_leaf_element (ncx_instance_t *instance,
+                          const ncx_module_t *mod,
                           const obj_template_t *obj,
                           boolean hasnodes,
                           boolean addtype,
@@ -2594,11 +2665,13 @@ val_value_t *
     boolean           isleaf;
     status_t          res;
 
+    (void)hasnodes;
+
     if (obj->objtype == OBJ_TYP_LEAF) {
         isleaf = TRUE;
         typdef = obj->def.leaf->typdef;
         leafdef = obj->def.leaf->defval;
-        def = typ_get_default(typdef);
+        def = typ_get_default(instance, typdef);
     } else {
         isleaf = FALSE;
         typdef = obj->def.leaflist->typdef;
@@ -2606,32 +2679,35 @@ val_value_t *
         def = NULL;
     }
 
-    if (hasnodes) {
-        elem = xml_val_new_struct(XSD_ELEMENT, xmlns_xs_id());
-    } else {
-        elem = xml_val_new_flag(XSD_ELEMENT, xmlns_xs_id());
-    }
+    // Just assume complex, so that the caller doesn't have to calculate it correctly...
+    // This is somewhat of a hack, but we were getting a SEGV in augments before this change
+    //if (hasnodes) {
+        elem = xml_val_new_struct(instance, XSD_ELEMENT, xmlns_xs_id(instance));
+    //} else {
+    //    elem = xml_val_new_flag(instance, XSD_ELEMENT, xmlns_xs_id(instance));
+    //}
     if (!elem) {
         return NULL;
     }
 
     /* add the name attribute */
-    res = xml_val_add_cattr(NCX_EL_NAME,
+    res = xml_val_add_cattr(instance,
+                            NCX_EL_NAME,
                             0,
-                            obj_get_name(obj), 
+                            obj_get_name(instance, obj), 
                             elem);
     if (res != NO_ERR) {
-        val_free_value(elem);
+        val_free_value(instance, elem);
         return NULL;
     }
 
     if (addtype) {
-        btyp = typ_get_basetype(typdef);
-        if (btyp != NCX_BT_EMPTY) {
+        btyp = typ_get_basetype(instance, typdef);
+        if (btyp != NCX_BT_EMPTY && btyp != NCX_BT_UNION) {
             /* add the type attribute */
-            res = xsd_add_type_attr(mod, typdef, elem);
+            res = xsd_add_type_attr(instance, mod, typdef, elem);
             if (res != NO_ERR) {
-                val_free_value(elem);
+                val_free_value(instance, elem);
                 return NULL;
             }
         }
@@ -2640,15 +2716,15 @@ val_value_t *
     /* check if a default attribute is needed */
     if (!iskey) {
         if (leafdef) {
-            res = xml_val_add_cattr(NCX_EL_DEFAULT, 0, leafdef, elem);
+            res = xml_val_add_cattr(instance, NCX_EL_DEFAULT, 0, leafdef, elem);
             if (res != NO_ERR) {
-                val_free_value(elem);
+                val_free_value(instance, elem);
                 return NULL;
             }
         } else if (def) {
-            res = xml_val_add_cattr(NCX_EL_DEFAULT, 0, def, elem);
+            res = xml_val_add_cattr(instance, NCX_EL_DEFAULT, 0, def, elem);
             if (res != NO_ERR) {
-                val_free_value(elem);
+                val_free_value(instance, elem);
                 return NULL;
             }
         }
@@ -2658,19 +2734,19 @@ val_value_t *
         if (!iskey) {
             /* add the attributes for a leaf */
             if (!(obj->flags & OBJ_FL_MANDATORY)) {
-                res = xml_val_add_cattr(XSD_MIN_OCCURS, 0, XSD_ZERO, elem);
+                res = xml_val_add_cattr(instance, XSD_MIN_OCCURS, 0, XSD_ZERO, elem);
             }
         }
     } else {
         /* add the attributes for a leaf-list */
         if (obj->def.leaflist->minset) {
             sprintf((char *)numbuff, "%u", obj->def.leaflist->minelems);
-            res = xml_val_add_cattr(XSD_MIN_OCCURS, 0, numbuff, elem);
+            res = xml_val_add_cattr(instance, XSD_MIN_OCCURS, 0, numbuff, elem);
         } else {
-            res = xml_val_add_cattr(XSD_MIN_OCCURS, 0, XSD_ZERO, elem);
+            res = xml_val_add_cattr(instance, XSD_MIN_OCCURS, 0, XSD_ZERO, elem);
         }
         if (res != NO_ERR) {
-            val_free_value(elem);
+            val_free_value(instance, elem);
             return NULL;
         }
 
@@ -2680,12 +2756,12 @@ val_value_t *
             } else {
                 sprintf((char *)numbuff, "%s", XSD_UNBOUNDED);
             }
-            res = xml_val_add_cattr(XSD_MAX_OCCURS, 0, numbuff, elem);
+            res = xml_val_add_cattr(instance, XSD_MAX_OCCURS, 0, numbuff, elem);
         } else {
-            res = xml_val_add_cattr(XSD_MAX_OCCURS, 0, XSD_UNBOUNDED, elem);
+            res = xml_val_add_cattr(instance, XSD_MAX_OCCURS, 0, XSD_UNBOUNDED, elem);
         }
         if (res != NO_ERR) {
-            val_free_value(elem);
+            val_free_value(instance, elem);
             return NULL;
         }
     }
@@ -2712,7 +2788,8 @@ val_value_t *
 *   status
 *********************************************************************/
 status_t
-    xsd_add_parmtype_attr (xmlns_id_t targns,
+    xsd_add_parmtype_attr (ncx_instance_t *instance,
+                           xmlns_id_t targns,
                            const typ_template_t *typ,
                            val_value_t *val)
 {
@@ -2723,18 +2800,18 @@ status_t
     /* set the data type */
     if (typ->nsid == targns) {
         /* this is in the targetNamespace */
-        return xml_val_add_cattr(NCX_EL_TYPE, 0, typ->name, val);
+        return xml_val_add_cattr(instance, NCX_EL_TYPE, 0, typ->name, val);
     } else {
         /* construct the QName for the attribute type */
-        str = xml_val_make_qname(typ->nsid, typ->name);
+        str = xml_val_make_qname(instance, typ->nsid, typ->name);
         if (!str) {
             return ERR_INTERNAL_MEM;
         }
 
         /* add the base or type attribute */
-        res = xml_val_add_attr(NCX_EL_TYPE, 0, str, val);
+        res = xml_val_add_attr(instance, NCX_EL_TYPE, 0, str, val);
         if (res != NO_ERR) {
-            m__free(str);
+            m__free(instance, str);
             return res;
         }
     }
@@ -2930,7 +3007,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xsd_do_annotation (const xmlChar *descr,
+    xsd_do_annotation (ncx_instance_t *instance,
+                       const xmlChar *descr,
                        const xmlChar *ref,
                        const xmlChar *condition,
                        const xmlChar *units,
@@ -2948,46 +3026,47 @@ status_t
         ref || 
         condition || 
         units || 
-        (appinfoQ && !dlq_empty(appinfoQ)) ||
+        (appinfoQ && !dlq_empty(instance, appinfoQ)) ||
         maxacc != NCX_ACCESS_NONE || 
         (status != NCX_STATUS_NONE && status != NCX_STATUS_CURRENT)) {
 
-        annot = xml_val_new_struct(XSD_ANNOTATION, xmlns_xs_id());
+        annot = xml_val_new_struct(instance, XSD_ANNOTATION, xmlns_xs_id(instance));
         if (!annot) {
             return ERR_INTERNAL_MEM;
         }
 
         if (descr) {
-            chval = make_documentation(descr);
+            chval = make_documentation(instance, descr);
             if (!chval) {
-                val_free_value(annot);
+                val_free_value(instance, annot);
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(chval, annot);
+                val_add_child(instance, chval, annot);
             }
         }
 
-        if ((appinfoQ && !dlq_empty(appinfoQ)) ||
+        if ((appinfoQ && !dlq_empty(instance, appinfoQ)) ||
             maxacc != NCX_ACCESS_NONE || 
             condition || 
             units ||
             ref ||
             (status != NCX_STATUS_NONE && status != NCX_STATUS_CURRENT)) {
-            chval = make_appinfo(appinfoQ, 
+            chval = make_appinfo(instance, 
+                                 appinfoQ, 
                                  maxacc,
                                  condition,
                                  units, 
                                  ref,
                                  status);
             if (!chval) {
-                val_free_value(annot);
+                val_free_value(instance, annot);
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(chval, annot);
+                val_add_child(instance, chval, annot);
             }
         }
                 
-        val_add_child(annot, val);
+        val_add_child(instance, annot, val);
     }
     return NO_ERR;
 
@@ -3012,7 +3091,8 @@ status_t
 *    NULL if some error (*res != NO_ERR)
 *********************************************************************/
 val_value_t *
-    xsd_make_obj_annotation (obj_template_t *obj,
+    xsd_make_obj_annotation (ncx_instance_t *instance,
+                             obj_template_t *obj,
                              status_t  *res)
 {
     val_value_t    *annot, *doc, *appinfo;
@@ -3020,7 +3100,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!obj || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3029,40 +3109,40 @@ val_value_t *
     doc = NULL;
     appinfo = NULL;
 
-    descr = obj_get_description(obj);
+    descr = obj_get_description(instance, obj);
     if (descr) {
-        doc = make_documentation(descr);
+        doc = make_documentation(instance, descr);
         if (!doc) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
     }
 
-    appinfo = make_obj_appinfo(obj, res);
+    appinfo = make_obj_appinfo(instance, obj, res);
     if (*res != NO_ERR) {
         if (doc) {
-            val_free_value(doc);
+            val_free_value(instance, doc);
         }
         return NULL;
     }
 
     if (doc != NULL || appinfo != NULL) {
-        annot = xml_val_new_struct(XSD_ANNOTATION, xmlns_xs_id());
+        annot = xml_val_new_struct(instance, XSD_ANNOTATION, xmlns_xs_id(instance));
         if (!annot) {
             if (appinfo) {
-                val_free_value(appinfo);
+                val_free_value(instance, appinfo);
             }
             if (doc) {
-                val_free_value(doc);
+                val_free_value(instance, doc);
             }
             *res = ERR_INTERNAL_MEM;
             return NULL;
         } else {
             if (doc) {
-                val_add_child(doc, annot);
+                val_add_child(instance, doc, annot);
             }
             if (appinfo) {
-                val_add_child(appinfo, annot);
+                val_add_child(instance, appinfo, annot);
             }
         }
     }
@@ -3089,7 +3169,8 @@ val_value_t *
 *    status
 *********************************************************************/
 status_t
-    xsd_do_type_annotation (const typ_template_t *typ,
+    xsd_do_type_annotation (ncx_instance_t *instance,
+                            const typ_template_t *typ,
                             val_value_t *val)
 {
     val_value_t    *annot, *chval;
@@ -3100,7 +3181,7 @@ status_t
 
 #ifdef DEBUG
     if (!typ || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3109,44 +3190,44 @@ status_t
     res = NO_ERR;
 
     if (typ->typdef.tclass == NCX_CL_SIMPLE &&
-        typ_get_basetype(&typ->typdef)==NCX_BT_LEAFREF) {
-        path = typ_get_leafref_path(&typ->typdef);
+        typ_get_basetype(instance, &typ->typdef)==NCX_BT_LEAFREF) {
+        path = typ_get_leafref_path(instance, &typ->typdef);
     }
 
     if (typ->descr || typ->ref || 
         typ->defval || typ->units || path ||
-        !dlq_empty(&typ->appinfoQ) ||
+        !dlq_empty(instance, &typ->appinfoQ) ||
         (typ->status != NCX_STATUS_NONE && 
          typ->status != NCX_STATUS_CURRENT)) {
         
-        xsd_id = xmlns_xs_id();
+        xsd_id = xmlns_xs_id(instance);
 
-        annot = xml_val_new_struct(XSD_ANNOTATION, xsd_id);
+        annot = xml_val_new_struct(instance, XSD_ANNOTATION, xsd_id);
         if (!annot) {
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(annot, val);
+            val_add_child(instance, annot, val);
         }
 
         if (typ->descr) {
-            chval = make_documentation(typ->descr);
+            chval = make_documentation(instance, typ->descr);
             if (!chval) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(chval, annot);
+                val_add_child(instance, chval, annot);
             }
         }
 
-        if (!dlq_empty(&typ->appinfoQ) || typ->ref ||
+        if (!dlq_empty(instance, &typ->appinfoQ) || typ->ref ||
             typ->units || typ->defval || path ||
             (typ->status != NCX_STATUS_NONE && 
              typ->status != NCX_STATUS_CURRENT)) {
 
-            chval = make_type_appinfo(typ, path);
+            chval = make_type_appinfo(instance, typ, path);
             if (!chval) {
                 return ERR_INTERNAL_MEM;
             } else {
-                val_add_child(chval, annot);
+                val_add_child(instance, chval, annot);
             }
         }
     }
@@ -3174,7 +3255,8 @@ status_t
 *    NULL if some error (*res != NO_ERR)
 *********************************************************************/
 val_value_t *
-    xsd_make_group_annotation (const grp_template_t *grp,
+    xsd_make_group_annotation (ncx_instance_t *instance,
+                               const grp_template_t *grp,
                                status_t  *res)
 {
     val_value_t  *annot, *chval;
@@ -3183,52 +3265,53 @@ val_value_t *
 
 #ifdef DEBUG
     if (!grp || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     annot = NULL;
 
-    if (grp->descr || grp->ref || !dlq_empty(&grp->appinfoQ) ||
+    if (grp->descr || grp->ref || !dlq_empty(instance, &grp->appinfoQ) ||
         (grp->status != NCX_STATUS_NONE && 
          grp->status != NCX_STATUS_CURRENT)) {
         
-        xsd_id = xmlns_xs_id();
+        xsd_id = xmlns_xs_id(instance);
 
-        annot = xml_val_new_struct(XSD_ANNOTATION, xsd_id);
+        annot = xml_val_new_struct(instance, XSD_ANNOTATION, xsd_id);
         if (!annot) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
 
         if (grp->descr) {
-            chval = make_documentation(grp->descr);
+            chval = make_documentation(instance, grp->descr);
             if (!chval) {
-                val_free_value(annot);
+                val_free_value(instance, annot);
                 *res = ERR_INTERNAL_MEM;
                 return NULL;
             } else {
-                val_add_child(chval, annot);
+                val_add_child(instance, chval, annot);
             }
         }
 
         if (grp->ref ||
-            !dlq_empty(&grp->appinfoQ) ||
+            !dlq_empty(instance, &grp->appinfoQ) ||
             (grp->status != NCX_STATUS_NONE && 
              grp->status != NCX_STATUS_CURRENT)) {
-            chval = make_appinfo(&grp->appinfoQ, 
+            chval = make_appinfo(instance, 
+                                 &grp->appinfoQ, 
                                  NCX_ACCESS_NONE,
                                  NULL, 
                                  NULL,
                                  grp->ref,
                                  grp->status);
             if (!chval) {
-                val_free_value(annot);
+                val_free_value(instance, annot);
                 *res = ERR_INTERNAL_MEM;
                 return NULL;
             } else {
-                val_add_child(chval, annot);
+                val_add_child(instance, chval, annot);
             }
         }
     }
@@ -3264,34 +3347,43 @@ val_value_t *
 *   status
 *********************************************************************/
 status_t
-    xsd_add_aughook (val_value_t *val)
+    xsd_add_aughook (ncx_instance_t *instance, val_value_t *val)
 {
     val_value_t   *aug;
     status_t       res;
     
-    aug = xml_val_new_flag(XSD_ANY, xmlns_xs_id());
+#ifdef RIFT
+    /* This is generating a xsd:any element to make the container extensible.
+     * In general, this is messy and generating a lot of xerces runtime errors.
+     * augments are handled differently, so supressing this for now
+     */
+    return NO_ERR;
+#endif
+
+    aug = xml_val_new_flag(instance, XSD_ANY, xmlns_xs_id(instance));
+
     if (!aug) {
         return ERR_INTERNAL_MEM;
     } else {
-        val_add_child(aug, val);  /* add early */
+        val_add_child(instance, aug, val);  /* add early */
     }
 
-    res = xml_val_add_cattr(XSD_MIN_OCCURS, 0, XSD_ZERO, aug);
+    res = xml_val_add_cattr(instance, XSD_MIN_OCCURS, 0, XSD_ZERO, aug);
     if (res != NO_ERR) {
         return res;
     }
 
-    res = xml_val_add_cattr(XSD_MAX_OCCURS, 0, XSD_UNBOUNDED, aug);
+    res = xml_val_add_cattr(instance, XSD_MAX_OCCURS, 0, XSD_UNBOUNDED, aug);
     if (res != NO_ERR) {
         return res;
     }
 
-    res = xml_val_add_cattr(XSD_NAMESPACE, 0, XSD_OTHER, aug);
+    res = xml_val_add_cattr(instance, XSD_NAMESPACE, 0, XSD_OTHER, aug);
     if (res != NO_ERR) {
         return res;
     }
 
-    res = xml_val_add_cattr(XSD_PROC_CONTENTS, 0, XSD_LAX, aug);
+    res = xml_val_add_cattr(instance, XSD_PROC_CONTENTS, 0, XSD_LAX, aug);
     if (res != NO_ERR) {
         return res;
     }
@@ -3313,23 +3405,23 @@ status_t
 *   malloced buffer with the typename
 *********************************************************************/
 xmlChar *
-    xsd_make_rpc_output_typename (const obj_template_t *obj)
+    xsd_make_rpc_output_typename (ncx_instance_t *instance, const obj_template_t *obj)
 {
     const xmlChar  *name;
     xmlChar        *buff, *p;
     uint32          len;
 
-    name = obj_get_name(obj);
-    len = xml_strlen(name) + xml_strlen(XSD_OUTPUT_TYPEEXT);
+    name = obj_get_name(instance, obj);
+    len = xml_strlen(instance, name) + xml_strlen(instance, XSD_OUTPUT_TYPEEXT);
 
-    buff = m__getMem(len+1);
+    buff = m__getMem(instance, len+1);
     if (!buff) {
         return NULL;
     }
 
     p = buff;
-    p += xml_strcpy(p, name);
-    p += xml_strcpy(p, XSD_OUTPUT_TYPEEXT);
+    p += xml_strcpy(instance, p, name);
+    p += xml_strcpy(instance, p, XSD_OUTPUT_TYPEEXT);
 
     /*** ADD NAME COLLISION DETECTION LATER !!! ***/
 
@@ -3357,11 +3449,12 @@ xmlChar *
 *   status
 *********************************************************************/
 status_t
-    xsd_add_type_attr (const ncx_module_t *mod,
+    xsd_add_type_attr (ncx_instance_t *instance,
+                       const ncx_module_t *mod,
                        const typ_def_t *typdef,
                        val_value_t *val)
 {
-    return add_basetype_attr(TRUE, mod, typdef, val);
+    return add_basetype_attr(instance, TRUE, mod, typdef, val);
 
 }   /* xsd_add_type_attr */
 
@@ -3380,7 +3473,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    test_basetype_attr (const ncx_module_t *mod,
+    test_basetype_attr (ncx_instance_t *instance,
+                        const ncx_module_t *mod,
                         const typ_def_t *typdef)
 {
     status_t       res;
@@ -3390,7 +3484,7 @@ status_t
 
 #ifdef DEBUG
     if (mod == NULL || typdef == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3402,12 +3496,12 @@ status_t
     case NCX_CL_SIMPLE:
         break;
     case NCX_CL_COMPLEX:
-        btyp = typ_get_basetype(typdef);
+        btyp = typ_get_basetype(instance, typdef);
         switch (btyp) {
         case NCX_BT_ANY:
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case NCX_CL_NAMED:
@@ -3423,7 +3517,8 @@ status_t
              * They are already in the registry, so name collision
              * can be checked that way
              */
-            test = ncx_find_typname(typdef->def.named.typ, 
+            test = ncx_find_typname(instance, 
+                                    typdef->def.named.typ, 
                                     &mod->typnameQ);
             if (test == NULL) {
                 res = ERR_NCX_SKIPPED;
@@ -3432,7 +3527,7 @@ status_t
         break;
     case NCX_CL_REF:
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;

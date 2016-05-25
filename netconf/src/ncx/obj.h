@@ -30,6 +30,7 @@ date	     init     comment
 ----------------------------------------------------------------------
 09-dec-07    abb      Begun
 21jul08      abb      start obj-based rewrite
+02Sep14      rajv     Support for unique tag ids
 
 */
 
@@ -441,6 +442,7 @@ typedef struct obj_template_t_ {
     uint32         flags;              /* see OBJ_FL_* definitions */
     ncx_error_t    tkerr;
     grp_template_t *grp;          /* non-NULL == in a grp.datadefQ */
+    uint32         objtag;
 
     /* 3 back pointers */
     struct obj_template_t_ *parent;
@@ -571,7 +573,8 @@ typedef struct obj_deviation_t_ {
  *   FALSE if walk should terminate 
  */
 typedef boolean
-    (*obj_walker_fn_t) (obj_template_t *obj,
+    (*obj_walker_fn_t) (struct ncx_instance_t_ *instance,
+			obj_template_t *obj,
 			void *cookie1,
 			void *cookie2);
 
@@ -595,7 +598,7 @@ typedef boolean
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern obj_template_t *
-    obj_new_template (obj_type_t objtype);
+    obj_new_template (struct ncx_instance_t_ *instance, obj_type_t objtype, uint32 nodetag);
 
 
 /********************************************************************
@@ -610,7 +613,7 @@ extern obj_template_t *
 *    obj == obj_template_t data structure to free
 *********************************************************************/
 extern void 
-    obj_free_template (obj_template_t *obj);
+    obj_free_template (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -629,7 +632,8 @@ extern void
 *    pointer to obj_template_t or NULL if not found in 'que'
 *********************************************************************/
 extern obj_template_t *
-    obj_find_template (dlq_hdr_t  *que,
+    obj_find_template (struct ncx_instance_t_ *instance,
+		       dlq_hdr_t  *que,
 		       const xmlChar *modname,
 		       const xmlChar *objname);
 
@@ -651,7 +655,8 @@ extern obj_template_t *
 *    pointer to obj_template_t or NULL if not found in 'que'
 *********************************************************************/
 extern const obj_template_t *
-    obj_find_template_con (dlq_hdr_t  *que,
+    obj_find_template_con (struct ncx_instance_t_ *instance,
+			   dlq_hdr_t  *que,
 			   const xmlChar *modname,
 			   const xmlChar *objname);
 
@@ -672,7 +677,8 @@ extern const obj_template_t *
 *    pointer to obj_template_t or NULL if not found in 'que'
 *********************************************************************/
 extern obj_template_t *
-    obj_find_template_test (dlq_hdr_t  *que,
+    obj_find_template_test (struct ncx_instance_t_ *instance,
+			    dlq_hdr_t  *que,
 			    const xmlChar *modname,
 			    const xmlChar *objname);
 
@@ -696,7 +702,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t *
-    obj_find_template_top (ncx_module_t *mod,
+    obj_find_template_top (struct ncx_instance_t_ *instance,
+			   ncx_module_t *mod,
 			   const xmlChar *modname,
 			   const xmlChar *objname);
 
@@ -730,7 +737,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t *
-    obj_find_template_top_ex (ncx_module_t *mod,
+    obj_find_template_top_ex (struct ncx_instance_t_ *instance,
+                              ncx_module_t *mod,
                               const xmlChar *modname,
                               const xmlChar *objname,
                               ncx_name_match_t match_names,
@@ -758,7 +766,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t *
-    obj_find_template_all (ncx_module_t *mod,
+    obj_find_template_all (struct ncx_instance_t_ *instance,
+                           ncx_module_t *mod,
                            const xmlChar *modname,
                            const xmlChar *objname);
 
@@ -783,9 +792,28 @@ extern obj_template_t *
 *    pointer to obj_template_t or NULL if not found
 *********************************************************************/
 extern obj_template_t *
-    obj_find_child (obj_template_t  *obj,
+    obj_find_child (struct ncx_instance_t_ *instance,
+		    obj_template_t  *obj,
 		    const xmlChar *modname,
 		    const xmlChar *objname);
+
+/********************************************************************
+ * FUNCTION obj_find_child_lr
+ *
+ * Mimics function obj_find_child exactly, with the only
+ * difference that it takes in an extra parameter to take
+ * the pcb->source.
+ * This is done as a seperate function only to avoid change in 
+ * 'obj_find_child' which would have then caused changes in multiple
+ * places
+ */
+
+extern obj_template_t *
+    obj_find_child_lr (struct ncx_instance_t_ *instance,
+        obj_template_t  *obj,
+        const xmlChar *modname,
+        const xmlChar *objname,
+        void* pcb);
 
 
 /********************************************************************
@@ -819,7 +847,8 @@ extern obj_template_t *
 *    pointer to obj_template_t or NULL if not found
 *********************************************************************/
 extern obj_template_t *
-    obj_find_child_ex (obj_template_t  *obj,
+    obj_find_child_ex (struct ncx_instance_t_ *instance,
+                       obj_template_t  *obj,
                        const xmlChar *modname,
                        const xmlChar *objname,
                        ncx_name_match_t match_names,
@@ -845,7 +874,8 @@ extern obj_template_t *
 *    pointer to obj_template_t or NULL if not found
 *********************************************************************/
 extern obj_template_t *
-    obj_find_child_str (obj_template_t  *obj,
+    obj_find_child_str (struct ncx_instance_t_ *instance,
+			obj_template_t  *obj,
 			const xmlChar *modname,
 			const xmlChar *objname,
 			uint32 objnamelen);
@@ -879,7 +909,8 @@ extern obj_template_t *
 *    pointer to obj_template_t or NULL if not found
 *********************************************************************/
 extern obj_template_t *
-    obj_match_child_str (obj_template_t *obj,
+    obj_match_child_str (struct ncx_instance_t_ *instance,
+			 obj_template_t *obj,
 			 const xmlChar *modname,
 			 const xmlChar *objname,
 			 uint32 objnamelen,
@@ -902,7 +933,7 @@ extern obj_template_t *
 *    NULL if not found 
 *********************************************************************/
 extern obj_template_t *
-    obj_first_child (obj_template_t *obj);
+    obj_first_child (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -921,7 +952,7 @@ extern obj_template_t *
 *    NULL if not found 
 *********************************************************************/
 extern obj_template_t *
-    obj_last_child (obj_template_t *obj);
+    obj_last_child (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -940,7 +971,7 @@ extern obj_template_t *
 *    NULL if not found 
 *********************************************************************/
 extern obj_template_t *
-    obj_next_child (obj_template_t *obj);
+    obj_next_child (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -959,7 +990,7 @@ extern obj_template_t *
 *    NULL if not found 
 *********************************************************************/
 extern obj_template_t *
-    obj_previous_child (obj_template_t *obj);
+    obj_previous_child (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -979,7 +1010,7 @@ extern obj_template_t *
 *    NULL if not found 
 *********************************************************************/
 extern obj_template_t *
-    obj_first_child_deep (obj_template_t *obj);
+    obj_first_child_deep (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -999,7 +1030,7 @@ extern obj_template_t *
 *    NULL if not found 
 *********************************************************************/
 extern obj_template_t *
-    obj_next_child_deep (obj_template_t *obj);
+    obj_next_child_deep (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -1042,7 +1073,8 @@ extern obj_template_t *
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    obj_find_all_children (ncx_module_t *exprmod,
+    obj_find_all_children (struct ncx_instance_t_ *instance,
+			   ncx_module_t *exprmod,
 			   obj_walker_fn_t walkerfn,
 			   void *cookie1,
 			   void *cookie2,
@@ -1100,7 +1132,8 @@ extern boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    obj_find_all_ancestors (ncx_module_t *exprmod,
+    obj_find_all_ancestors (struct ncx_instance_t_ *instance,
+			    ncx_module_t *exprmod,
 			    obj_walker_fn_t walkerfn,
 			    void *cookie1,
 			    void *cookie2,
@@ -1160,7 +1193,8 @@ extern boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    obj_find_all_descendants (ncx_module_t *exprmod,
+    obj_find_all_descendants (struct ncx_instance_t_ *instance,
+			      ncx_module_t *exprmod,
 			      obj_walker_fn_t walkerfn,
 			      void *cookie1,
 			      void *cookie2,
@@ -1222,7 +1256,8 @@ extern boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 extern boolean
-    obj_find_all_pfaxis (ncx_module_t *exprmod,
+    obj_find_all_pfaxis (struct ncx_instance_t_ *instance,
+			 ncx_module_t *exprmod,
 			 obj_walker_fn_t walkerfn,
 			 void *cookie1,
 			 void *cookie2,
@@ -1251,7 +1286,8 @@ extern boolean
 *    pointer to obj_case_t for requested case, NULL if not found
 *********************************************************************/
 extern obj_case_t *
-    obj_find_case (obj_choice_t *choic,
+    obj_find_case (struct ncx_instance_t_ *instance,
+		   obj_choice_t *choic,
 		   const xmlChar *modname,
 		   const xmlChar *casname);
 
@@ -1272,7 +1308,8 @@ extern obj_case_t *
 *    pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern obj_template_t * 
-    obj_new_rpcio (obj_template_t *rpcobj,
+    obj_new_rpcio (struct ncx_instance_t_ *instance,
+		   obj_template_t *rpcobj,
 		   const xmlChar *name);
 
 
@@ -1285,7 +1322,7 @@ extern obj_template_t *
 *    datadefQ == Q of obj_template_t to clean
 *********************************************************************/
 extern void
-    obj_clean_datadefQ (dlq_hdr_t *que);
+    obj_clean_datadefQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -1301,7 +1338,8 @@ extern void
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern typ_template_t *
-    obj_find_type (obj_template_t *obj,
+    obj_find_type (struct ncx_instance_t_ *instance,
+		   obj_template_t *obj,
 		   const xmlChar *typname);
 
 
@@ -1317,7 +1355,7 @@ extern typ_template_t *
 *  pointer to first typ_template_t struct if present, NULL otherwise
 *********************************************************************/
 extern typ_template_t *
-    obj_first_typedef (obj_template_t *obj);
+    obj_first_typedef (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -1333,7 +1371,8 @@ extern typ_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern grp_template_t *
-    obj_find_grouping (obj_template_t *obj,
+    obj_find_grouping (struct ncx_instance_t_ *instance,
+		       obj_template_t *obj,
 		       const xmlChar *grpname);
 
 /********************************************************************
@@ -1348,7 +1387,7 @@ extern grp_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern grp_template_t *
-    obj_first_grouping (obj_template_t *obj);
+    obj_first_grouping (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -1371,7 +1410,8 @@ extern grp_template_t *
 *   status
 *********************************************************************/
 extern status_t 
-    obj_set_named_type (tk_chain_t *tkc,
+    obj_set_named_type (struct ncx_instance_t_ *instance,
+			tk_chain_t *tkc,
 			ncx_module_t *mod,
 			const xmlChar *typname,
 			typ_def_t *typdef,
@@ -1407,7 +1447,8 @@ extern status_t
 *   NULL if malloc failer error or internal error
 *********************************************************************/
 extern obj_template_t *
-    obj_clone_template (ncx_module_t *mod,
+    obj_clone_template (struct ncx_instance_t_ *instance,
+			ncx_module_t *mod,
 			obj_template_t *srcobj,
 			dlq_hdr_t *mobjQ);
 
@@ -1442,7 +1483,8 @@ extern obj_template_t *
 *   NULL if malloc failer error or internal error
 *********************************************************************/
 extern obj_template_t *
-    obj_clone_template_case (ncx_module_t *mod,
+    obj_clone_template_case (struct ncx_instance_t_ *instance,
+			     ncx_module_t *mod,
 			     obj_template_t *srcobj,
 			     dlq_hdr_t *mobjQ);
 
@@ -1459,7 +1501,7 @@ extern obj_template_t *
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 extern obj_unique_t *
-    obj_new_unique (void);
+    obj_new_unique (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1471,7 +1513,7 @@ extern obj_unique_t *
 *   un == obj_unique_t struct to init
 *********************************************************************/
 extern void
-    obj_init_unique (obj_unique_t *un);
+    obj_init_unique (struct ncx_instance_t_ *instance, obj_unique_t *un);
 
 
 /********************************************************************
@@ -1483,7 +1525,7 @@ extern void
 *   un == obj_unique_t struct to free
 *********************************************************************/
 extern void
-    obj_free_unique (obj_unique_t *un);
+    obj_free_unique (struct ncx_instance_t_ *instance, obj_unique_t *un);
 
 
 /********************************************************************
@@ -1495,7 +1537,7 @@ extern void
 *   un == obj_unique_t struct to clean
 *********************************************************************/
 extern void
-    obj_clean_unique (obj_unique_t *un);
+    obj_clean_unique (struct ncx_instance_t_ *instance, obj_unique_t *un);
 
 
 /********************************************************************
@@ -1507,7 +1549,7 @@ extern void
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 extern obj_unique_comp_t *
-    obj_new_unique_comp (void);
+    obj_new_unique_comp (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1519,7 +1561,7 @@ extern obj_unique_comp_t *
 *   unc == obj_unique_comp_t struct to free
 *********************************************************************/
 extern void
-    obj_free_unique_comp (obj_unique_comp_t *unc);
+    obj_free_unique_comp (struct ncx_instance_t_ *instance, obj_unique_comp_t *unc);
 
 
 /********************************************************************
@@ -1536,7 +1578,8 @@ extern void
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 extern obj_unique_t *
-    obj_find_unique (dlq_hdr_t *que,
+    obj_find_unique (struct ncx_instance_t_ *instance,
+		     dlq_hdr_t *que,
 		     const xmlChar *xpath);
 
 
@@ -1552,7 +1595,7 @@ extern obj_unique_t *
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 extern obj_unique_t *
-    obj_first_unique (obj_template_t *listobj);
+    obj_first_unique (struct ncx_instance_t_ *instance, obj_template_t *listobj);
 
 
 
@@ -1568,7 +1611,7 @@ extern obj_unique_t *
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 extern obj_unique_t *
-    obj_next_unique (obj_unique_t *un);
+    obj_next_unique (struct ncx_instance_t_ *instance, obj_unique_t *un);
 
 
 /********************************************************************
@@ -1583,7 +1626,7 @@ extern obj_unique_t *
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 extern obj_unique_comp_t *
-    obj_first_unique_comp (obj_unique_t *un);
+    obj_first_unique_comp (struct ncx_instance_t_ *instance, obj_unique_t *un);
 
 
 /********************************************************************
@@ -1598,7 +1641,7 @@ extern obj_unique_comp_t *
 *   pointer to next entry or NULL if none
 *********************************************************************/
 extern obj_unique_comp_t *
-    obj_next_unique_comp (obj_unique_comp_t *uncomp);
+    obj_next_unique_comp (struct ncx_instance_t_ *instance, obj_unique_comp_t *uncomp);
 
 
 /********************************************************************
@@ -1610,7 +1653,7 @@ extern obj_unique_comp_t *
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 extern obj_key_t *
-    obj_new_key (void);
+    obj_new_key (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1622,7 +1665,7 @@ extern obj_key_t *
 *   key == obj_key_t struct to free
 *********************************************************************/
 extern void
-    obj_free_key (obj_key_t *key);
+    obj_free_key (struct ncx_instance_t_ *instance, obj_key_t *key);
 
 
 /********************************************************************
@@ -1639,7 +1682,8 @@ extern void
 *   pointer to found key component or NULL if not found
 *********************************************************************/
 extern obj_key_t *
-    obj_find_key (dlq_hdr_t *que,
+    obj_find_key (struct ncx_instance_t_ *instance,
+		  dlq_hdr_t *que,
 		  const xmlChar *keycompname);
 
 
@@ -1657,7 +1701,8 @@ extern obj_key_t *
 *   pointer to found key component or NULL if not found
 *********************************************************************/
 extern obj_key_t *
-    obj_find_key2 (dlq_hdr_t *que,
+    obj_find_key2 (struct ncx_instance_t_ *instance,
+		   dlq_hdr_t *que,
 		   obj_template_t *keyobj);
 
 
@@ -1673,7 +1718,7 @@ extern obj_key_t *
 *   pointer to first key component or NULL if not found
 *********************************************************************/
 extern obj_key_t *
-    obj_first_key (obj_template_t *obj);
+    obj_first_key (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -1688,7 +1733,7 @@ extern obj_key_t *
 *   pointer to first key component or NULL if not found
 *********************************************************************/
 extern const obj_key_t *
-    obj_first_ckey (const obj_template_t *obj);
+    obj_first_ckey (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -1703,7 +1748,7 @@ extern const obj_key_t *
 *   pointer to next key component or NULL if not found
 *********************************************************************/
 extern obj_key_t *
-    obj_next_key (obj_key_t *objkey);
+    obj_next_key (struct ncx_instance_t_ *instance, obj_key_t *objkey);
 
 
 /********************************************************************
@@ -1718,7 +1763,7 @@ extern obj_key_t *
 *   pointer to next key component or NULL if not found
 *********************************************************************/
 extern const obj_key_t *
-    obj_next_ckey (const obj_key_t *objkey);
+    obj_next_ckey (struct ncx_instance_t_ *instance, const obj_key_t *objkey);
 
 
 /********************************************************************
@@ -1733,7 +1778,7 @@ extern const obj_key_t *
 *   number of keys in the obj_key_t Q
 *********************************************************************/
 extern uint32
-    obj_key_count (const obj_template_t *obj);
+    obj_key_count (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -1748,7 +1793,7 @@ extern uint32
 *   number of keys in ancestor-or-self nodes
 *********************************************************************/
 extern uint32
-    obj_key_count_to_root (obj_template_t *obj);
+    obj_key_count_to_root (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -1768,7 +1813,8 @@ extern uint32
 *
 *********************************************************************/
 extern void
-    obj_traverse_keys (obj_template_t *obj,
+    obj_traverse_keys (struct ncx_instance_t_ *instance,
+                       obj_template_t *obj,
                        void *cookie1,
                        void *cookie2,
                        obj_walker_fn_t walkerfn);
@@ -1786,7 +1832,7 @@ extern void
 *   TRUE if any OBJ_TYP_RPC found, FALSE if not
 *********************************************************************/
 extern boolean
-    obj_any_rpcs (const dlq_hdr_t *datadefQ);
+    obj_any_rpcs (struct ncx_instance_t_ *instance, const dlq_hdr_t *datadefQ);
 
 
 /********************************************************************
@@ -1801,7 +1847,7 @@ extern boolean
 *   TRUE if any OBJ_TYP_NOTIF found, FALSE if not
 *********************************************************************/
 extern boolean
-    obj_any_notifs (const dlq_hdr_t *datadefQ);
+    obj_any_notifs (struct ncx_instance_t_ *instance, const dlq_hdr_t *datadefQ);
 
 
 /********************************************************************
@@ -1813,7 +1859,7 @@ extern boolean
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern obj_deviate_t *
-    obj_new_deviate (void);
+    obj_new_deviate (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1825,7 +1871,7 @@ extern obj_deviate_t *
 *   deviate == pointer to the struct to clean and free
 *********************************************************************/
 extern void
-    obj_free_deviate (obj_deviate_t *deviate);
+    obj_free_deviate (struct ncx_instance_t_ *instance, obj_deviate_t *deviate);
 
 
 /********************************************************************
@@ -1839,7 +1885,7 @@ extern void
 *   const string version of the enum
 *********************************************************************/
 extern const xmlChar *
-    obj_get_deviate_arg (obj_deviate_arg_t devarg);
+    obj_get_deviate_arg (struct ncx_instance_t_ *instance, obj_deviate_arg_t devarg);
 
 
 /********************************************************************
@@ -1851,7 +1897,7 @@ extern const xmlChar *
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern obj_deviation_t *
-    obj_new_deviation (void);
+    obj_new_deviation (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1863,7 +1909,7 @@ extern obj_deviation_t *
 *   deviation == pointer to the struct to clean and free
 *********************************************************************/
 extern void
-    obj_free_deviation (obj_deviation_t *deviation);
+    obj_free_deviation (struct ncx_instance_t_ *instance, obj_deviation_t *deviation);
 
 
 /********************************************************************
@@ -1875,7 +1921,7 @@ extern void
 *   deviationQ == pointer to Q of the structs to clean and free
 *********************************************************************/
 extern void
-    obj_clean_deviationQ (dlq_hdr_t *deviationQ);
+    obj_clean_deviationQ (struct ncx_instance_t_ *instance, dlq_hdr_t *deviationQ);
 
 
 /********************************************************************
@@ -1894,7 +1940,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    obj_gen_object_id (const obj_template_t *obj,
+    obj_gen_object_id (struct ncx_instance_t_ *instance,
+		       const obj_template_t *obj,
 		       xmlChar  **buff);
 
 
@@ -1909,7 +1956,8 @@ extern status_t
  * \return status
  *********************************************************************/
 extern status_t 
-    obj_gen_object_id_xpath (const obj_template_t *obj,
+    obj_gen_object_id_xpath (struct ncx_instance_t_ *instance,
+                             const obj_template_t *obj,
                              xmlChar  **buff);
 
 
@@ -1921,7 +1969,8 @@ extern status_t
  * \param buff the pointer to address of buffer to use
  * \return status
  *********************************************************************/
-extern status_t obj_gen_object_id_unique (const obj_template_t *obj, 
+extern status_t obj_gen_object_id_unique (struct ncx_instance_t_ *instance, 
+                                          const obj_template_t *obj, 
                                           const obj_template_t *stopobj,
                                           xmlChar  **buff);
 
@@ -1945,7 +1994,8 @@ extern status_t obj_gen_object_id_unique (const obj_template_t *obj,
 *   status
 *********************************************************************/
 extern status_t
-    obj_gen_object_id_code (ncx_module_t *mod,
+    obj_gen_object_id_code (struct ncx_instance_t_ *instance,
+                            ncx_module_t *mod,
                             const obj_template_t *obj,
                             xmlChar  **buff);
 
@@ -1972,7 +2022,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    obj_copy_object_id (const obj_template_t *obj,
+    obj_copy_object_id (struct ncx_instance_t_ *instance,
+			const obj_template_t *obj,
 			xmlChar  *buff,
 			uint32 bufflen,
 			uint32 *reallen);
@@ -2000,7 +2051,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    obj_copy_object_id_mod (const obj_template_t *obj,
+    obj_copy_object_id_mod (struct ncx_instance_t_ *instance,
+                            const obj_template_t *obj,
                             xmlChar  *buff,
                             uint32 bufflen,
                             uint32 *reallen);
@@ -2024,7 +2076,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    obj_gen_aughook_id (const obj_template_t *obj,
+    obj_gen_aughook_id (struct ncx_instance_t_ *instance,
+			const obj_template_t *obj,
 			xmlChar  **buff);
 
 
@@ -2040,7 +2093,7 @@ extern status_t
 *   pointer to the name field, NULL if some error or unnamed
 *********************************************************************/
 extern const xmlChar * 
-    obj_get_name (const obj_template_t *obj);
+    obj_get_name (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 
@@ -2057,7 +2110,8 @@ extern const xmlChar *
 *   status
 *********************************************************************/
 extern status_t
-    obj_set_name (obj_template_t *obj,
+    obj_set_name (struct ncx_instance_t_ *instance,
+                  obj_template_t *obj,
                   const xmlChar *objname);
 
 
@@ -2079,7 +2133,7 @@ extern status_t
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_has_name (const obj_template_t *obj);
+    obj_has_name (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2096,7 +2150,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_has_text_content (const obj_template_t *obj);
+    obj_has_text_content (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 
@@ -2112,7 +2166,7 @@ extern boolean
 *   YANG status clause for this object
 *********************************************************************/
 extern ncx_status_t
-    obj_get_status (const obj_template_t *obj);
+    obj_get_status (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2127,7 +2181,7 @@ extern ncx_status_t
 *   YANG description string for this object
 *********************************************************************/
 extern const xmlChar *
-    obj_get_description (const obj_template_t *obj);
+    obj_get_description (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2143,7 +2197,7 @@ extern const xmlChar *
 *   YANG description string for this object
 *********************************************************************/
 extern const xmlChar *
-    obj_get_alt_description (const obj_template_t *obj);
+    obj_get_alt_description (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2158,7 +2212,7 @@ extern const xmlChar *
 *   YANG description string for this object
 *********************************************************************/
 extern const void *
-    obj_get_description_addr (const obj_template_t *obj);
+    obj_get_description_addr (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2173,7 +2227,7 @@ extern const void *
 *   YANG reference string for this object
 *********************************************************************/
 extern const xmlChar *
-    obj_get_reference (const obj_template_t *obj);
+    obj_get_reference (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2188,7 +2242,7 @@ extern const xmlChar *
 *   YANG reference string for this object
 *********************************************************************/
 extern const void *
-    obj_get_reference_addr (const obj_template_t *obj);
+    obj_get_reference_addr (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2206,7 +2260,7 @@ extern const void *
 *   FALSE if config set to FALSE
 *   
 *********************************************************************/
-#define obj_is_config obj_get_config_flag_deep
+#define obj_is_config(instance, obj) obj_get_config_flag_deep(instance, obj)
 
 
 /********************************************************************
@@ -2225,7 +2279,7 @@ extern const void *
 *   
 *********************************************************************/
 extern boolean
-    obj_get_config_flag (const obj_template_t *obj);
+    obj_get_config_flag (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2250,7 +2304,8 @@ extern boolean
 *   
 *********************************************************************/
 extern boolean
-    obj_get_config_flag2 (const obj_template_t *obj,
+    obj_get_config_flag2 (struct ncx_instance_t_ *instance,
+			  const obj_template_t *obj,
 			  boolean *setflag);
 
 
@@ -2267,7 +2322,7 @@ extern boolean
 *   ncx_access_t enumeration
 *********************************************************************/
 extern ncx_access_t
-    obj_get_max_access (const obj_template_t *obj);
+    obj_get_max_access (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2282,7 +2337,7 @@ extern ncx_access_t
 *   pointer to the appinfoQ for this object
 *********************************************************************/
 extern dlq_hdr_t *
-    obj_get_appinfoQ (obj_template_t *obj);
+    obj_get_appinfoQ (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -2297,7 +2352,7 @@ extern dlq_hdr_t *
 *   pointer to the mustQ for this object
 *********************************************************************/
 extern dlq_hdr_t *
-    obj_get_mustQ (const obj_template_t *obj);
+    obj_get_mustQ (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2312,7 +2367,7 @@ extern dlq_hdr_t *
 *   name string for this object type
 *********************************************************************/
 extern const xmlChar *
-    obj_get_typestr (const obj_template_t *obj);
+    obj_get_typestr (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2327,7 +2382,7 @@ extern const xmlChar *
 *    pointer to Q of obj_template, or NULL if none
 *********************************************************************/
 extern dlq_hdr_t *
-    obj_get_datadefQ (obj_template_t *obj);
+    obj_get_datadefQ (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -2342,7 +2397,7 @@ extern dlq_hdr_t *
 *    pointer to Q of obj_template, or NULL if none
 *********************************************************************/
 extern const dlq_hdr_t *
-    obj_get_cdatadefQ (const obj_template_t *obj);
+    obj_get_cdatadefQ (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 
@@ -2361,7 +2416,7 @@ extern const dlq_hdr_t *
 *   pointer to default value string or NULL if none
 *********************************************************************/
 extern const xmlChar *
-    obj_get_default (const obj_template_t *obj);
+    obj_get_default (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2376,7 +2431,7 @@ extern const xmlChar *
 *   pointer to default case object template OBJ_TYP_CASE
 *********************************************************************/
 extern obj_template_t *
-    obj_get_default_case (obj_template_t *obj);
+    obj_get_default_case (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -2393,7 +2448,7 @@ extern obj_template_t *
 *   level that this object is located, by checking the parent chain
 *********************************************************************/
 extern uint32
-    obj_get_level (const obj_template_t *obj);
+    obj_get_level (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2410,7 +2465,7 @@ extern uint32
 *   TRUE if any nested typedefs, FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_has_typedefs (const obj_template_t *obj);
+    obj_has_typedefs (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2442,7 +2497,7 @@ extern typ_def_t *
 *    have a typdef
 *********************************************************************/
 extern const typ_def_t *
-    obj_get_ctypdef (const obj_template_t  *obj);
+    obj_get_ctypdef (struct ncx_instance_t_ *instance, const obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2457,7 +2512,7 @@ extern const typ_def_t *
 *    base type enumeration
 *********************************************************************/
 extern ncx_btype_t
-    obj_get_basetype (const obj_template_t  *obj);
+    obj_get_basetype (struct ncx_instance_t_ *instance, const obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2502,7 +2557,7 @@ extern const xmlChar *
 *    const pointer to mod prefix
 *********************************************************************/
 extern const xmlChar *
-    obj_get_mod_name (const obj_template_t  *obj);
+    obj_get_mod_name (struct ncx_instance_t_ *instance, const obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2517,7 +2572,7 @@ extern const xmlChar *
 *    pointer to module
 *********************************************************************/
 extern ncx_module_t *
-    obj_get_mod (obj_template_t  *obj);
+    obj_get_mod (struct ncx_instance_t_ *instance, obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2532,7 +2587,7 @@ extern ncx_module_t *
 *    const pointer to mod version or NULL if none
 *********************************************************************/
 extern const xmlChar *
-    obj_get_mod_version (const obj_template_t  *obj);
+    obj_get_mod_version (struct ncx_instance_t_ *instance, const obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2547,7 +2602,7 @@ extern const xmlChar *
 *    const pointer to type name string
 *********************************************************************/
 extern const xmlChar *
-    obj_get_type_name (const obj_template_t  *obj);
+    obj_get_type_name (struct ncx_instance_t_ *instance, const obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2562,7 +2617,7 @@ extern const xmlChar *
 *    namespace ID
 *********************************************************************/
 extern xmlns_id_t
-    obj_get_nsid (const obj_template_t *);
+    obj_get_nsid (struct ncx_instance_t_ *instance, const obj_template_t *);
 
 
 /********************************************************************
@@ -2577,7 +2632,7 @@ extern xmlns_id_t
 *    instance qualifier enumeration
 *********************************************************************/
 extern ncx_iqual_t
-    obj_get_iqualval (obj_template_t  *obj);
+    obj_get_iqualval (struct ncx_instance_t_ *instance, obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2593,7 +2648,8 @@ extern ncx_iqual_t
 *    instance qualifier enumeration
 *********************************************************************/
 extern ncx_iqual_t
-    obj_get_iqualval_ex (obj_template_t  *obj,
+    obj_get_iqualval_ex (struct ncx_instance_t_ *instance,
+			 obj_template_t  *obj,
 			 boolean required);
 
 
@@ -2613,7 +2669,8 @@ extern ncx_iqual_t
 *    TRUE if min-elements is set, FALSE if not or N/A
 *********************************************************************/
 extern boolean
-    obj_get_min_elements (obj_template_t  *obj,
+    obj_get_min_elements (struct ncx_instance_t_ *instance,
+			  obj_template_t  *obj,
 			  uint32 *minelems);
 
 
@@ -2633,7 +2690,8 @@ extern boolean
 *    TRUE if max-elements is set, FALSE if not or N/A
 *********************************************************************/
 extern boolean
-    obj_get_max_elements (obj_template_t  *obj,
+    obj_get_max_elements (struct ncx_instance_t_ *instance,
+			  obj_template_t  *obj,
 			  uint32 *maxelems);
 
 
@@ -2649,7 +2707,7 @@ extern boolean
 *    pointer to units clause, or NULL if none
 *********************************************************************/
 extern const xmlChar *
-    obj_get_units (obj_template_t  *obj);
+    obj_get_units (struct ncx_instance_t_ *instance, obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2664,7 +2722,7 @@ extern const xmlChar *
 *    pointer to the parent of this object or NULL if none
 *********************************************************************/
 extern obj_template_t *
-    obj_get_parent (obj_template_t  *obj);
+    obj_get_parent (struct ncx_instance_t_ *instance, obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2680,7 +2738,7 @@ extern obj_template_t *
 *    pointer to the parent of this object or NULL if none
 *********************************************************************/
 extern const obj_template_t *
-    obj_get_cparent (const obj_template_t  *obj);
+    obj_get_cparent (struct ncx_instance_t_ *instance, const obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2696,7 +2754,7 @@ extern const obj_template_t *
 *    pointer to the parent of this object or NULL if none
 *********************************************************************/
 extern obj_template_t *
-    obj_get_real_parent (obj_template_t  *obj);
+    obj_get_real_parent (struct ncx_instance_t_ *instance, obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2712,7 +2770,7 @@ extern obj_template_t *
 *   NULL if none
 *********************************************************************/
 extern const xmlChar *
-    obj_get_presence_string (const obj_template_t *obj);
+    obj_get_presence_string (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2728,7 +2786,7 @@ extern const xmlChar *
 *   NULL if none
 *********************************************************************/
 extern void *
-    obj_get_presence_string_field (const obj_template_t *obj);
+    obj_get_presence_string_field (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2764,7 +2822,8 @@ extern void *
  *   status
  *********************************************************************/
 extern status_t 
-    obj_get_child_node (obj_template_t *obj,
+    obj_get_child_node (struct ncx_instance_t_ *instance,
+			obj_template_t *obj,
 			obj_template_t *chobj,
 			const xml_node_t *curnode,
 			boolean xmlorder,
@@ -2785,7 +2844,7 @@ extern status_t
 *   number of child nodes
 *********************************************************************/
 extern uint32
-    obj_get_child_count (const obj_template_t *obj);
+    obj_get_child_count (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2801,7 +2860,7 @@ extern uint32
 *   pointer to the name field, NULL if some error or unnamed
 *********************************************************************/
 extern obj_template_t * 
-    obj_get_default_parm (obj_template_t *obj);
+    obj_get_default_parm (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -2823,7 +2882,7 @@ extern obj_template_t *
 *   FALSE if config set to FALSE
 *********************************************************************/
 extern boolean
-    obj_get_config_flag_deep (const obj_template_t *obj);
+    obj_get_config_flag_deep (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2846,7 +2905,8 @@ extern boolean
 *   !!! ignore if *ingrp == TRUE
 *********************************************************************/
 extern boolean
-    obj_get_config_flag_check (const obj_template_t *obj,
+    obj_get_config_flag_check (struct ncx_instance_t_ *instance,
+                               const obj_template_t *obj,
                                boolean *ingrp);
 
 
@@ -2863,7 +2923,7 @@ extern boolean
 *     0 if some error
 *********************************************************************/
 extern uint8
-    obj_get_fraction_digits (const obj_template_t  *obj);
+    obj_get_fraction_digits (struct ncx_instance_t_ *instance, const obj_template_t  *obj);
 
 /********************************************************************
 * FUNCTION obj_get_first_iffeature
@@ -2878,7 +2938,7 @@ extern uint8
 *     NULL if none available
 *********************************************************************/
 extern const ncx_iffeature_t *
-    obj_get_first_iffeature (const obj_template_t *obj);
+    obj_get_first_iffeature (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -2894,7 +2954,7 @@ extern const ncx_iffeature_t *
 *     NULL if none available
 *********************************************************************/
 extern const ncx_iffeature_t *
-    obj_get_next_iffeature (const ncx_iffeature_t *iffeature);
+    obj_get_next_iffeature (struct ncx_instance_t_ *instance, const ncx_iffeature_t *iffeature);
 
 
 /********************************************************************
@@ -2910,7 +2970,7 @@ extern const ncx_iffeature_t *
 *    FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_leaf (const obj_template_t  *obj);
+    obj_is_leaf (ncx_instance_t *instance, const obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2926,7 +2986,7 @@ extern boolean
 *    FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_leafy (const obj_template_t  *obj);
+    obj_is_leafy (ncx_instance_t *instance, const obj_template_t  *obj);
 
 
 /********************************************************************
@@ -2942,7 +3002,7 @@ extern boolean
 *   FALSE if object is not mandatory
 *********************************************************************/
 extern boolean
-    obj_is_mandatory (obj_template_t *obj);
+    obj_is_mandatory (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -2960,7 +3020,8 @@ extern boolean
 *   FALSE if object is not mandatory
 *********************************************************************/
 extern boolean
-    obj_is_mandatory_when_ex (obj_template_t *obj,
+    obj_is_mandatory_when_ex (struct ncx_instance_t_ *instance,
+                              obj_template_t *obj,
                               boolean config_only);
 
 
@@ -2978,7 +3039,7 @@ extern boolean
 *   FALSE if object is not mandatory
 *********************************************************************/
 extern boolean
-    obj_is_mandatory_when (obj_template_t *obj);
+    obj_is_mandatory_when (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -2995,7 +3056,7 @@ extern boolean
 *   FALSE if object is not cloned
 *********************************************************************/
 extern boolean
-    obj_is_cloned (const obj_template_t *obj);
+    obj_is_cloned (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3012,7 +3073,7 @@ extern boolean
 *   FALSE if object is not sourced from an augment
 *********************************************************************/
 extern boolean
-    obj_is_augclone (const obj_template_t *obj);
+    obj_is_augclone (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3028,7 +3089,7 @@ extern boolean
 *   FALSE if object is not a refinement
 *********************************************************************/
 extern boolean
-    obj_is_refine (const obj_template_t *obj);
+    obj_is_refine (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3045,7 +3106,7 @@ extern boolean
 *   FALSE if defined within notification or RPC (or some error)
 *********************************************************************/
 extern boolean
-    obj_is_data (const obj_template_t *obj);
+    obj_is_data (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3063,7 +3124,7 @@ extern boolean
 *   FALSE if defined within notification or RPC (or some error)
 *********************************************************************/
 extern boolean
-    obj_is_data_db (const obj_template_t *obj);
+    obj_is_data_db (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3079,7 +3140,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_in_rpc (const obj_template_t *obj);
+    obj_in_rpc (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3095,7 +3156,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_in_rpc_reply (const obj_template_t *obj);
+    obj_in_rpc_reply (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3127,7 +3188,7 @@ extern boolean
 *   FALSE if not an RPC method
 *********************************************************************/
 extern boolean
-    obj_is_rpc (const obj_template_t *obj);
+    obj_is_rpc (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3143,7 +3204,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_notif (const obj_template_t *obj);
+    obj_is_notif (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3161,7 +3222,7 @@ extern boolean
 *   FALSE if object is not empty of subclauses
 *********************************************************************/
 extern boolean
-    obj_is_empty (const obj_template_t *obj);
+    obj_is_empty (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3177,7 +3238,8 @@ extern boolean
 *    TRUE is a match, FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_is_match (const obj_template_t  *obj1,
+    obj_is_match (struct ncx_instance_t_ *instance,
+		  const obj_template_t  *obj1,
 		  const obj_template_t *obj2);
 
 
@@ -3194,7 +3256,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_hidden (const obj_template_t *obj);
+    obj_is_hidden (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3226,7 +3288,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_password (const obj_template_t *obj);
+    obj_is_password (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3242,7 +3304,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_xsdlist (const obj_template_t *obj);
+    obj_is_xsdlist (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3258,7 +3320,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_cli (const obj_template_t *obj);
+    obj_is_cli (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3290,7 +3352,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_abstract (const obj_template_t *obj);
+    obj_is_abstract (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3306,7 +3368,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_xpath_string (const obj_template_t *obj);
+    obj_is_xpath_string (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3322,7 +3384,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_schema_instance_string (const obj_template_t *obj);
+    obj_is_schema_instance_string (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3338,7 +3400,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_secure (const obj_template_t *obj);
+    obj_is_secure (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3354,7 +3416,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_very_secure (const obj_template_t *obj);
+    obj_is_very_secure (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3370,7 +3432,7 @@ extern boolean
 *   FALSE if object is user-ordered
 *********************************************************************/
 extern boolean
-    obj_is_system_ordered (const obj_template_t *obj);
+    obj_is_system_ordered (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3386,7 +3448,7 @@ extern boolean
 *   FALSE if object is not an NP-container
 *********************************************************************/
 extern boolean
-    obj_is_np_container (const obj_template_t *obj);
+    obj_is_np_container (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3403,7 +3465,7 @@ extern boolean
 *    FALSE if any if-features are present and FALSE
 *********************************************************************/
 extern boolean
-    obj_is_enabled (const obj_template_t *obj);
+    obj_is_enabled (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3420,7 +3482,7 @@ extern boolean
 *    FALSE if multiple instances are allowed
 *********************************************************************/
 extern boolean
-    obj_is_single_instance (obj_template_t *obj);
+    obj_is_single_instance (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3436,7 +3498,7 @@ extern boolean
 *    FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_is_short_case (obj_template_t *obj);
+    obj_is_short_case (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3453,7 +3515,7 @@ extern boolean
 *    FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_is_top (const obj_template_t *obj);
+    obj_is_top (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3472,7 +3534,7 @@ extern boolean
 *   FALSE if object is not OK for CLI
 *********************************************************************/
 extern boolean
-    obj_ok_for_cli (obj_template_t *obj);
+    obj_ok_for_cli (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3488,7 +3550,7 @@ extern boolean
 *   FALSE if no datadb child nodes found
 *********************************************************************/
 extern boolean
-    obj_has_children (obj_template_t *obj);
+    obj_has_children (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3504,7 +3566,7 @@ extern boolean
 *   FALSE if no datadb read-only child nodes found
 *********************************************************************/
 extern boolean
-    obj_has_ro_children (obj_template_t *obj);
+    obj_has_ro_children (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3520,7 +3582,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_rpc_has_input (obj_template_t *obj);
+    obj_rpc_has_input (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3536,7 +3598,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    obj_rpc_has_output (obj_template_t *obj);
+    obj_rpc_has_output (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3553,7 +3615,7 @@ extern boolean
  *   FALSE otherwise
  *********************************************************************/
 extern boolean
-    obj_has_when_stmts (obj_template_t *obj);
+    obj_has_when_stmts (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3569,7 +3631,7 @@ extern boolean
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern obj_metadata_t * 
-    obj_new_metadata (void);
+    obj_new_metadata (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -3584,7 +3646,7 @@ extern obj_metadata_t *
 *    meta == obj_metadata_t data structure to free
 *********************************************************************/
 extern void 
-    obj_free_metadata (obj_metadata_t *meta);
+    obj_free_metadata (struct ncx_instance_t_ *instance, obj_metadata_t *meta);
 
 
 /********************************************************************
@@ -3600,7 +3662,8 @@ extern void
 *    status
 *********************************************************************/
 extern status_t
-    obj_add_metadata (obj_metadata_t *meta,
+    obj_add_metadata (struct ncx_instance_t_ *instance,
+		      obj_metadata_t *meta,
 		      obj_template_t *obj);
 
 
@@ -3617,7 +3680,8 @@ extern status_t
 *    pointer to found entry, NULL if not found
 *********************************************************************/
 extern obj_metadata_t *
-    obj_find_metadata (const obj_template_t *obj,
+    obj_find_metadata (struct ncx_instance_t_ *instance,
+		       const obj_template_t *obj,
 		       const xmlChar *name);
 
 
@@ -3633,7 +3697,7 @@ extern obj_metadata_t *
 *    pointer to first entry, NULL if none
 *********************************************************************/
 extern obj_metadata_t *
-    obj_first_metadata (const obj_template_t *obj);
+    obj_first_metadata (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3648,7 +3712,7 @@ extern obj_metadata_t *
 *    pointer to next entry, NULL if none
 *********************************************************************/
 extern obj_metadata_t *
-    obj_next_metadata (const obj_metadata_t *meta);
+    obj_next_metadata (struct ncx_instance_t_ *instance, const obj_metadata_t *meta);
 
 
 /********************************************************************
@@ -3665,7 +3729,7 @@ extern obj_metadata_t *
  *    obj == object template to reorder
  *********************************************************************/
 extern void
-    obj_sort_children (obj_template_t *obj);
+    obj_sort_children (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3681,7 +3745,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    obj_set_ncx_flags (obj_template_t *obj);
+    obj_set_ncx_flags (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 
@@ -3698,7 +3762,7 @@ extern void
 *   number of enabled child nodes
 *********************************************************************/
 extern uint32
-    obj_enabled_child_count (obj_template_t *obj);
+    obj_enabled_child_count (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3713,7 +3777,8 @@ extern uint32
 *   indent == indent amount
 *********************************************************************/
 extern void
-    obj_dump_child_list (dlq_hdr_t *datadefQ,
+    obj_dump_child_list (struct ncx_instance_t_ *instance,
+                         dlq_hdr_t *datadefQ,
                          uint32  startindent,
                          uint32 indent);
 
@@ -3730,7 +3795,7 @@ extern void
 *   pointer to key string or NULL if none or not a list
 *********************************************************************/
 extern const xmlChar *
-    obj_get_keystr (obj_template_t *obj);
+    obj_get_keystr (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 
@@ -3744,7 +3809,7 @@ extern const xmlChar *
 *
 *********************************************************************/
 extern void
-    obj_delete_obsolete (dlq_hdr_t  *objQ);
+    obj_delete_obsolete (struct ncx_instance_t_ *instance, dlq_hdr_t  *objQ);
 
 
 /********************************************************************
@@ -3759,7 +3824,7 @@ extern void
 *   pointer to alt-name of NULL if none
 *********************************************************************/
 extern const xmlChar *
-    obj_get_altname (const obj_template_t *obj);
+    obj_get_altname (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3775,7 +3840,7 @@ extern const xmlChar *
 *    have a leafref target object
 *********************************************************************/
 extern obj_template_t *
-    obj_get_leafref_targobj (obj_template_t  *obj);
+    obj_get_leafref_targobj (struct ncx_instance_t_ *instance, obj_template_t  *obj);
 
 /********************************************************************
  * Get the target object for an augments object
@@ -3784,7 +3849,7 @@ extern obj_template_t *
  *   or NULL if this object type does not have an augment target object
  *********************************************************************/
 extern obj_template_t *
-    obj_get_augment_targobj (obj_template_t  *obj);
+    obj_get_augment_targobj (ncx_instance_t *instance, obj_template_t  *obj);
 
 
 /********************************************************************
@@ -3800,7 +3865,7 @@ extern obj_template_t *
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_cli_equals_ok (const obj_template_t *obj);
+    obj_is_cli_equals_ok (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3816,7 +3881,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_sil_delete_children_first (const obj_template_t *obj);
+    obj_is_sil_delete_children_first (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3826,7 +3891,7 @@ extern boolean
  * \param parent the obj_template of the parent
  *********************************************************************/
 extern void 
-    obj_add_child (obj_template_t *child, obj_template_t *parent);
+    obj_add_child (struct ncx_instance_t_ *instance, obj_template_t *child, obj_template_t *parent);
 
 
 /********************************************************************
@@ -3843,7 +3908,7 @@ extern void
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_block_user_create (const obj_template_t *obj);
+    obj_is_block_user_create (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3860,7 +3925,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_block_user_update (const obj_template_t *obj);
+    obj_is_block_user_update (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3877,7 +3942,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    obj_is_block_user_delete (const obj_template_t *obj);
+    obj_is_block_user_delete (ncx_instance_t *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -3891,7 +3956,7 @@ extern boolean
 *   malloced struct or NULL if memory error
 *********************************************************************/
 extern obj_iffeature_ptr_t *
-    obj_new_iffeature_ptr (ncx_iffeature_t *iff);
+    obj_new_iffeature_ptr (struct ncx_instance_t_ *instance, ncx_iffeature_t *iff);
 
 
 /********************************************************************
@@ -3902,7 +3967,7 @@ extern obj_iffeature_ptr_t *
 * INPUTS:
 *   iffptr == struct to free
 *********************************************************************/
-extern void obj_free_iffeature_ptr (obj_iffeature_ptr_t *iffptr);
+extern void obj_free_iffeature_ptr (struct ncx_instance_t_ *instance, obj_iffeature_ptr_t *iffptr);
 
 
 /********************************************************************
@@ -3912,7 +3977,7 @@ extern void obj_free_iffeature_ptr (obj_iffeature_ptr_t *iffptr);
  * \return pointer to first entry or NULL if none
  *********************************************************************/
 extern obj_iffeature_ptr_t *
-    obj_first_iffeature_ptr (obj_template_t *obj);
+    obj_first_iffeature_ptr (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3922,7 +3987,7 @@ extern obj_iffeature_ptr_t *
  * \return pointer to next entry or NULL if none
  *********************************************************************/
 extern obj_iffeature_ptr_t *
-    obj_next_iffeature_ptr (obj_iffeature_ptr_t *iffptr);
+    obj_next_iffeature_ptr (struct ncx_instance_t_ *instance, obj_iffeature_ptr_t *iffptr);
 
 
 /********************************************************************
@@ -3936,7 +4001,7 @@ extern obj_iffeature_ptr_t *
 *   malloced struct or NULL if memory error
 *********************************************************************/
 extern obj_xpath_ptr_t *
-    obj_new_xpath_ptr (struct xpath_pcb_t_ *xpath);
+    obj_new_xpath_ptr (struct ncx_instance_t_ *instance, struct xpath_pcb_t_ *xpath);
 
 
 /********************************************************************
@@ -3947,7 +4012,7 @@ extern obj_xpath_ptr_t *
 * INPUTS:
 *   xptr == struct to free
 *********************************************************************/
-extern void obj_free_xpath_ptr (obj_xpath_ptr_t *xptr);
+extern void obj_free_xpath_ptr (struct ncx_instance_t_ *instance, obj_xpath_ptr_t *xptr);
 
 
 /********************************************************************
@@ -3957,7 +4022,7 @@ extern void obj_free_xpath_ptr (obj_xpath_ptr_t *xptr);
  * \return pointer to first entry or NULL if none
  *********************************************************************/
 extern obj_xpath_ptr_t *
-    obj_first_xpath_ptr (obj_template_t *obj);
+    obj_first_xpath_ptr (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -3967,8 +4032,20 @@ extern obj_xpath_ptr_t *
  * \return pointer to next entry or NULL if none
  *********************************************************************/
 extern obj_xpath_ptr_t *
-    obj_next_xpath_ptr (obj_xpath_ptr_t *xptr);
+    obj_next_xpath_ptr (struct ncx_instance_t_ *instance, obj_xpath_ptr_t *xptr);
 
+/********************************************************************
+* FUNCTION obj_get_obj_tag
+* 
+* Get A unique tag for this object
+*
+* INPUTS:
+*    obj  == object to check
+*
+* RETURNS:
+*    A unique tag for this object
+*********************************************************************/
+extern uint32 obj_get_obj_tag (const obj_template_t  *obj);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

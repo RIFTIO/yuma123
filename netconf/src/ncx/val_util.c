@@ -73,11 +73,11 @@ date         init     comment
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 static val_index_t * 
-    new_index (val_value_t *valnode)
+    new_index (ncx_instance_t *instance, val_value_t *valnode)
 {
     val_index_t  *in;
 
-    in = m__getObj(val_index_t);
+    in = m__getObj(instance, val_index_t);
     if (!in) {
         return NULL;
     }
@@ -110,7 +110,8 @@ static val_index_t *
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    choice_check (val_value_t *val,
+    choice_check (ncx_instance_t *instance,
+                  val_value_t *val,
                   obj_template_t *choicobj)
 {
     val_value_t           *chval, *testval;
@@ -128,15 +129,16 @@ static status_t
      * and the accessible case nodes will be child nodes
      * of that complex parent type
      */
-    chval = val_get_choice_first_set(val, choicobj);
+    chval = val_get_choice_first_set(instance, val, choicobj);
     if (!chval) {
-        if (obj_is_mandatory(choicobj)) {
+        if (obj_is_mandatory(instance, choicobj)) {
             /* error missing choice */
             retres = ERR_NCX_MISSING_CHOICE;
-            log_error("\nError: Nothing selected for "
+            log_error(instance,
+                      "\nError: Nothing selected for "
                       "mandatory choice '%s'",
-                      obj_get_name(choicobj));
-            ncx_print_errormsg(NULL, NULL, retres);
+                      obj_get_name(instance, choicobj));
+            ncx_print_errormsg(instance, NULL, NULL, retres);
         }
         return retres;
     }
@@ -145,26 +147,27 @@ static status_t
      * first make sure all the mandatory case 
      * objects are present
      */
-    res = val_instance_check(val, chval->casobj);
+    res = val_instance_check(instance, val, chval->casobj);
     if (res != NO_ERR) {
         retres = res;
     }
 
     /* check if any objects from other cases are present */
-    testval = val_get_choice_next_set(choicobj, chval);
+    testval = val_get_choice_next_set(instance, choicobj, chval);
     while (testval) {
         if ((testval->casobj != chval->casobj) &&
             (testval->casobj->parent == chval->casobj->parent)) {
             /* error: extra case object in this choice */
             retres = ERR_NCX_EXTRA_CHOICE;
-            log_error("\nError: Extra object '%s' "
+            log_error(instance, 
+                      "\nError: Extra object '%s' "
                       "in choice '%s'; Case '%s' already selected", 
                       testval->name,
-                      obj_get_name(choicobj),
-                      obj_get_name(chval->casobj));
-            ncx_print_errormsg(NULL, NULL, retres);
+                      obj_get_name(instance, choicobj),
+                      obj_get_name(instance, chval->casobj));
+            ncx_print_errormsg(instance, NULL, NULL, retres);
         }
-        testval = val_get_choice_next_set(choicobj, testval);
+        testval = val_get_choice_next_set(instance, choicobj, testval);
     }
     return retres;
 
@@ -210,7 +213,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t 
-    add_defaults (val_value_t *val,
+    add_defaults (ncx_instance_t *instance,
+                  val_value_t *val,
                   val_value_t *rootval,
                   val_value_t *cxtval,
                   boolean scriptmode,
@@ -219,7 +223,7 @@ static status_t
 #ifdef DEBUG
     /* test in static fn because it is so recursive */
     if (!val || !val->obj) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -234,7 +238,7 @@ static status_t
     status_t res = NO_ERR;
 
     /* skip any uses or augment nodes */
-    if (!obj_has_name(obj)) {
+    if (!obj_has_name(instance, obj)) {
         return NO_ERR;
     }
 
@@ -247,9 +251,9 @@ static status_t
      * Objects without children will drop through the loop
      * All the uses and augment nodes will be skipped,
      */
-    for (chobj = obj_first_child(obj);
+    for (chobj = obj_first_child(instance, obj);
          chobj != NULL && res == NO_ERR;
-         chobj = obj_next_child(chobj)) {
+         chobj = obj_next_child(instance, chobj)) {
 
         const xmlChar *defval = NULL;
         val_value_t *chval = NULL, *testval = NULL, *chcxtval = NULL;
@@ -262,13 +266,13 @@ static status_t
             break;
         case OBJ_TYP_LEAF:
             /* first check if this leaf even has a default */
-            defval = obj_get_default(chobj);
+            defval = obj_get_default(instance, chobj);
             if (!defval) {
                 continue;
             }
 
             /* check if the child leaf is a config node */
-            if (!obj_is_config(chobj)) {
+            if (!obj_is_config(instance, chobj)) {
                 continue;
             }
 
@@ -276,7 +280,8 @@ static status_t
              * with it; skip this leaf if when FALSE
              */
             if (rootval) {
-                res = val_check_obj_when((cxtval) ? cxtval : val, 
+                res = val_check_obj_when(instance, 
+                                         (cxtval) ? cxtval : val, 
                                          rootval, NULL, chobj,
                                          &condresult, &whencount);
                 if (res != NO_ERR) {
@@ -284,9 +289,10 @@ static status_t
                 }
                 if (whencount && !condresult) {
                     if (LOGDEBUG3) {
-                        log_debug3("\nadd_default: skipping false when '%s:%s'",
-                                   obj_get_mod_name(chobj),
-                                   obj_get_name(chobj));
+                        log_debug3(instance,
+                                   "\nadd_default: skipping false when '%s:%s'",
+                                   obj_get_mod_name(instance, chobj),
+                                   obj_get_name(instance, chobj));
                     }
                     continue;
                 }
@@ -295,19 +301,20 @@ static status_t
             /* node is not conditional or when=TRUE
              * check if the node exists alread
              */
-            chval = val_find_child(val, obj_get_mod_name(chobj),
-                                   obj_get_name(chobj));
+            chval = val_find_child(instance, val, obj_get_mod_name(instance, chobj),
+                                   obj_get_name(instance, chobj));
             if (!chval) {
-                res = cli_parse_parm(NULL, val, chobj, defval, scriptmode);
+                res = cli_parse_parm(instance, NULL, val, chobj, defval, scriptmode);
                 if (res==NO_ERR) {
-                    chval = val_find_child(val, obj_get_mod_name(chobj),
-                                           obj_get_name(chobj));
+                    chval = val_find_child(instance, val, obj_get_mod_name(instance, chobj),
+                                           obj_get_name(instance, chobj));
                     if (!chval) {
-                        SET_ERROR(ERR_INTERNAL_VAL);
+                        SET_ERROR(instance, ERR_INTERNAL_VAL);
                     } else {
                         if (LOGDEBUG4) {
-                            log_debug4("\nadd default leaf '%s:%s'",
-                                       val_get_mod_name(chval),
+                            log_debug4(instance,
+                                       "\nadd default leaf '%s:%s'",
+                                       val_get_mod_name(instance, chval),
                                        chval->name);
                         }
                         chval->flags |= VAL_FL_DEFSET;
@@ -321,27 +328,27 @@ static status_t
              * If a partial case is present, then try to fill in 
              * any of the nodes with defaults
              */
-            if (obj_is_mandatory(chobj)) {
+            if (obj_is_mandatory(instance, chobj)) {
                 break;
             }
 
             /* get the default case for this choice (if any) */
-            casobj = obj_get_default_case(chobj);
+            casobj = obj_get_default_case(instance, chobj);
 
             /* check if the choice has been set at all */
-            testval = val_get_choice_first_set(val, chobj);
+            testval = val_get_choice_first_set(instance, val, chobj);
             if (testval) {
                 /* use the selected case instead of the default case */
                 casobj = testval->casobj;
                 if (!casobj) {
-                    res = SET_ERROR(ERR_INTERNAL_VAL);
+                    res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             }
             if (casobj) {
                 /* add all the default nodes in the default case
                  * or selected case 
                  */
-                res = add_defaults(val, rootval, cxtval, scriptmode, casobj);
+                res = add_defaults(instance, val, rootval, cxtval, scriptmode, casobj);
             }
             break;
         case OBJ_TYP_LEAF_LIST:
@@ -358,28 +365,30 @@ static status_t
             /* add defaults to the subtrees of existing
              * complex nodes, but do not add any new ones
              */
-            chval = val_find_child(val, 
-                                   obj_get_mod_name(chobj),
-                                   obj_get_name(chobj));
+            chval = val_find_child(instance, 
+                                   val, 
+                                   obj_get_mod_name(instance, chobj),
+                                   obj_get_name(instance, chobj));
             if (chval) {
                 if (cxtval) {
-                    chcxtval = val_first_child_match(cxtval, chval);
+                    chcxtval = val_first_child_match(instance, cxtval, chval);
                 }
-                res = add_defaults(chval, rootval, chcxtval, scriptmode, NULL);
+                res = add_defaults(instance, chval, rootval, chcxtval, scriptmode, NULL);
             }
 
             if (chobj->objtype == OBJ_TYP_LIST) {
                 while (res == NO_ERR && chval) {
-                    chval = val_find_next_child(val,
-                                                obj_get_mod_name(chobj),
-                                                obj_get_name(chobj),
+                    chval = val_find_next_child(instance,
+                                                val,
+                                                obj_get_mod_name(instance, chobj),
+                                                obj_get_name(instance, chobj),
                                                 chval);
                     if (chval) {
                         if (chcxtval) {
-                            chcxtval = val_next_child_match(cxtval, chval,
+                            chcxtval = val_next_child_match(instance, cxtval, chval,
                                                             chcxtval);
                         }
-                        res = add_defaults(chval, rootval, chcxtval, 
+                        res = add_defaults(instance, chval, rootval, chcxtval, 
                                            scriptmode, NULL);
                     }
                 }
@@ -388,7 +397,7 @@ static status_t
         case OBJ_TYP_RPC:
         case OBJ_TYP_NOTIF:
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
     return res;
@@ -423,7 +432,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    get_index_comp (xml_msg_hdr_t *mhdr,
+    get_index_comp (ncx_instance_t *instance,
+                    xml_msg_hdr_t *mhdr,
                     ncx_instfmt_t format,
                     const val_value_t *val,
                     xmlChar *buff,
@@ -441,13 +451,13 @@ static status_t
         quotes = TRUE;
     } else if (typ_is_string(val->btyp)) {
         quotes = (format==NCX_IFMT_CLI) ?
-            val_need_quotes(VAL_STR(val)) : TRUE;
+            val_need_quotes(instance, VAL_STR(val)) : TRUE;
     } else if (typ_is_number(val->btyp)) {
         quotes = FALSE;
     } else {
         switch (val->btyp) {
         case NCX_BT_ENUM:
-            quotes = val_need_quotes(VAL_ENUM_NAME(val));
+            quotes = val_need_quotes(instance, VAL_ENUM_NAME(val));
             break;
         case NCX_BT_BOOLEAN:
             quotes = FALSE;
@@ -463,32 +473,32 @@ static status_t
             quotes = FALSE;
             break;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
     /* check if foo:parmname='parmval' format is needed */
     if (format==NCX_IFMT_XPATH1 || format==NCX_IFMT_XPATH2) {
         if (mhdr) {
-            prefix = xml_msg_get_prefix_xpath(mhdr, val->nsid);
+            prefix = xml_msg_get_prefix_xpath(instance, mhdr, val->nsid);
         } else {
-            prefix = xmlns_get_ns_prefix(val->nsid);
+            prefix = xmlns_get_ns_prefix(instance, val->nsid);
         }
         if (!prefix) {
             return ERR_INTERNAL_MEM;
         }
 
         if (buff) {
-            buff += xml_strcpy(buff, prefix);
+            buff += xml_strcpy(instance, buff, prefix);
             *buff++ = ':';
         }
-        total += xml_strlen(prefix);
+        total += xml_strlen(instance, prefix);
         total++;
 
         if (buff) {
-            buff += xml_strcpy(buff, val->name);
+            buff += xml_strcpy(instance, buff, val->name);
         }
-        total += xml_strlen(val->name);
+        total += xml_strlen(instance, val->name);
 
         if (buff) {
             *buff++ = VAL_EQUAL_CH;
@@ -505,9 +515,9 @@ static status_t
         total++;  
     }
 
-    res = val_sprintf_simval_nc(buff, val, &cnt);
+    res = val_sprintf_simval_nc(instance, buff, val, &cnt);
     if (res != NO_ERR) {
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
     if (buff) {
         buff += cnt;
@@ -564,7 +574,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    get_instance_string (xml_msg_hdr_t *mhdr,
+    get_instance_string (ncx_instance_t *instance,
+                         xml_msg_hdr_t *mhdr,
                          ncx_instfmt_t format,
                          const val_value_t *val,
                          boolean stop_at_root,
@@ -592,7 +603,7 @@ static status_t
         root = TRUE;
     }
     if (!root) {
-        res = get_instance_string(mhdr, format, val->parent,
+        res = get_instance_string(instance, mhdr, format, val->parent,
                                    stop_at_root, buff, &cnt);
     }
 
@@ -616,30 +627,30 @@ static status_t
         /* get the prefix and name of the RPC method 
          * instead of this node named 'input'
          */
-        rpcid = obj_get_nsid(val->obj->parent);
+        rpcid = obj_get_nsid(instance, val->obj->parent);
         if (rpcid) {
             if (mhdr) {
-                prefix = xml_msg_get_prefix_xpath(mhdr, rpcid);
+                prefix = xml_msg_get_prefix_xpath(instance, mhdr, rpcid);
             } else {
-                prefix = xmlns_get_ns_prefix(rpcid);
+                prefix = xmlns_get_ns_prefix(instance, rpcid);
             }
         }
-        name = obj_get_name(val->obj->parent);
+        name = obj_get_name(instance, val->obj->parent);
     } else {
         /* make sure the prefix is in the message header so
          * an xmlns directive will be generated for this prefix
          */
         if (mhdr) {
-            prefix = xml_msg_get_prefix_xpath(mhdr, val->nsid);
+            prefix = xml_msg_get_prefix_xpath(instance, mhdr, val->nsid);
         } else {
-            prefix = xmlns_get_ns_prefix(val->nsid);
+            prefix = xmlns_get_ns_prefix(instance, val->nsid);
         }
         name = val->name;
     }
 
 #ifdef DEBUG
     if (!prefix || !*prefix || !name || !*name) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
@@ -662,28 +673,28 @@ static status_t
     if (root && val->obj->objtype == OBJ_TYP_RPCIO) {
         /* copy prefix */
         if (mhdr) {
-            ncprefix = xml_msg_get_prefix_xpath(mhdr, xmlns_nc_id());
+            ncprefix = xml_msg_get_prefix_xpath(instance, mhdr, xmlns_nc_id(instance));
             if (!ncprefix) {
                 return ERR_INTERNAL_MEM;
             }
         } else {
-            ncprefix = xmlns_get_ns_prefix(xmlns_nc_id());
+            ncprefix = xmlns_get_ns_prefix(instance, xmlns_nc_id(instance));
             if (!ncprefix) {
-                return SET_ERROR(ERR_INTERNAL_VAL);
+                return SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         if (buff) {
-            buff += xml_strcpy(buff, ncprefix);
+            buff += xml_strcpy(instance, buff, ncprefix);
             *buff++ = ':';
         }
-        cnt += xml_strlen(ncprefix);
+        cnt += xml_strlen(instance, ncprefix);
         cnt++;
 
         /* copy name */
         if (buff) {
-            buff += xml_strcpy(buff, NCX_EL_RPC);
+            buff += xml_strcpy(instance, buff, NCX_EL_RPC);
         }
-        cnt += xml_strlen(NCX_EL_RPC);
+        cnt += xml_strlen(instance, NCX_EL_RPC);
 
         /* add another path sep char */
         if (buff) {
@@ -696,28 +707,28 @@ static status_t
 
     /* add prefix string for this component */
     if (buff && !skiproot) {
-        buff += xml_strcpy(buff, prefix);
+        buff += xml_strcpy(instance, buff, prefix);
         *buff++ = ':';
     }
     if (!skiproot) {
-        cnt += xml_strlen(prefix);
+        cnt += xml_strlen(instance, prefix);
         cnt++;
     }
 
     /* add name string for this component */
     if (buff && !skiproot) {
-        buff += xml_strcpy(buff, name);
+        buff += xml_strcpy(instance, buff, name);
     }
     if (!skiproot) {
-        cnt += xml_strlen(name);
+        cnt += xml_strlen(instance, name);
     }
 
     total = cnt;
 
     /* check if this is a value node with an index clause */
-    if (!dlq_empty(&val->indexQ)) {
+    if (!dlq_empty(instance, &val->indexQ)) {
         cnt = 0;
-        res = val_get_index_string(mhdr, format, val, buff, &cnt);
+        res = val_get_index_string(instance, mhdr, format, val, buff, &cnt);
         if (res == NO_ERR) {
             if (buff) {
                 buff[cnt] = 0;
@@ -725,14 +736,15 @@ static status_t
             total += cnt;
         }
     } else if (val->parent) {
-        childcnt = val_child_inst_cnt(val->parent,
-                                      val_get_mod_name(val),
+        childcnt = val_child_inst_cnt(instance,
+                                      val->parent,
+                                      val_get_mod_name(instance, val),
                                       val->name);
         if (childcnt > 1) {     
             /* there are multiple unnamed instances, so force
              * an instance ID on any of them
              */
-            cnt = val_get_child_inst_id(val->parent, val);
+            cnt = val_get_child_inst_id(instance, val->parent, val);
             if (cnt > 0) {
                 /* add an instance ID like foo[3] */
                 if (buff) {
@@ -743,16 +755,16 @@ static status_t
                 snprintf((char *)numbuff, sizeof(numbuff), "%u", cnt);
 
                 if (buff) {
-                    buff += xml_strcpy(buff, numbuff);
+                    buff += xml_strcpy(instance, buff, numbuff);
                 }
-                total += xml_strlen(numbuff);
+                total += xml_strlen(instance, numbuff);
 
                 if (buff) {
                     *buff++ = ']';
                 }
                 total++;
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
     }
@@ -774,7 +786,7 @@ static status_t
 *
 *********************************************************************/
 static void
-    purge_errors (val_value_t *val)
+    purge_errors (ncx_instance_t *instance, val_value_t *val)
 {
 
     if (!typ_has_children(val->btyp)) {
@@ -782,22 +794,23 @@ static void
     }
 
     val_value_t *nextval;
-    val_value_t *chval = (val_value_t *)dlq_firstEntry(&val->v.childQ);
+    val_value_t *chval = (val_value_t *)dlq_firstEntry(instance, &val->v.childQ);
     for (; chval != NULL; chval = nextval) {
 
-        nextval = (val_value_t *)dlq_nextEntry(chval);
+        nextval = (val_value_t *)dlq_nextEntry(instance, chval);
 
         if (chval->res != NO_ERR) {
-            log_debug("\nDeleting error node '%s:%s' (%s)",
-                      val_get_mod_name(chval), chval->name,
+            log_debug(instance,
+                      "\nDeleting error node '%s:%s' (%s)",
+                      val_get_mod_name(instance, chval), chval->name,
                       get_error_string(chval->res));
             if (obj_is_key(chval->obj)) {
-                val_remove_key(chval);
+                val_remove_key(instance, chval);
             }
-            val_remove_child(chval);
-            val_free_value(chval);
+            val_remove_child(instance, chval);
+            val_free_value(instance, chval);
         } else if (typ_has_children(chval->btyp)) {
-            purge_errors(chval);
+            purge_errors(instance, chval);
         }
     }
 
@@ -824,7 +837,8 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    check_when_stmt (val_value_t *val,
+    check_when_stmt (ncx_instance_t *instance,
+                     val_value_t *val,
                      val_value_t *valroot,
                      val_value_t *context,
                      xpath_pcb_t *whenstmt,
@@ -832,26 +846,26 @@ static status_t
 {
     status_t res = NO_ERR;
     xpath_result_t *result = 
-        xpath1_eval_expr(whenstmt, context, valroot, FALSE /* logerrors */, 
+        xpath1_eval_expr(instance, whenstmt, context, valroot, FALSE /* logerrors */, 
                          TRUE /* configonly */, &res);
     if (result == NULL || res != NO_ERR) {
         *condresult = FALSE;
     } else {
-        boolean whentest = xpath_cvt_boolean(result);
+        boolean whentest = xpath_cvt_boolean(instance, result);
         *condresult = whentest;
         if (LOGDEBUG3) {
             if (whentest) {
-                log_debug3("\nval: when test '%s' OK for node '%s' with "
+                log_debug3(instance, "\nval: when test '%s' OK for node '%s' with "
                            "context '%s'", whenstmt->exprstr, 
                            val->name, context->name);
             } else {
-                log_debug3("\nval: when test '%s' failed for node '%s' "
+                log_debug3(instance, "\nval: when test '%s' failed for node '%s' "
                            "with context '%s'", whenstmt->exprstr, 
                            val->name, context->name);
             }
         }
     }
-    xpath_free_result(result);
+    xpath_free_result(instance, result);
 
     return res;
 
@@ -905,7 +919,7 @@ static status_t
  *
  *********************************************************************/
 void
-    val_set_canonical_order (val_value_t *val)
+    val_set_canonical_order (ncx_instance_t *instance, val_value_t *val)
 {
     obj_template_t        *chobj;
     const obj_key_t       *key;
@@ -915,7 +929,7 @@ void
     assert( val && "val is NULL!" );
     assert( val->obj && "val->obj is NULL!" );
 
-    if (val_is_virtual(val)) {
+    if (val_is_virtual(instance, val)) {
         return;
     }
 
@@ -931,7 +945,7 @@ void
     case OBJ_TYP_CHOICE:
     case OBJ_TYP_CASE:
     case OBJ_TYP_RPC:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     case OBJ_TYP_LIST:
     case OBJ_TYP_CONTAINER:
@@ -939,27 +953,27 @@ void
     case OBJ_TYP_NOTIF:
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     if (skip) {
 #ifdef VAL_UTIL_DEBUG_CANONICAL
-        log_debug3("\nval_canonical skip '%s'", val->name);
+        log_debug3(instance, "\nval_canonical skip '%s'", val->name);
 #endif
         return;
     }
 
 #ifdef VAL_UTIL_DEBUG_CANONICAL
-    log_debug3("\nval_canonical start '%s'", val->name);
+    log_debug3(instance, "\nval_canonical start '%s'", val->name);
     if (LOGDEBUG4) {
-        val_dump_value(val, 0);
+        val_dump_value(instance, val, 0);
     }
 #endif
 
     /* transfer all the val->childQ nodes to the tempQ */
-    dlq_createSQue(&tempQ);
-    dlq_block_enque(&val->v.childQ, &tempQ);
+    dlq_createSQue(instance, &tempQ);
+    dlq_block_enque(instance, &val->v.childQ, &tempQ);
 
     switch (val->obj->objtype) {
     case OBJ_TYP_LEAF:
@@ -972,47 +986,47 @@ void
     case OBJ_TYP_CHOICE:
     case OBJ_TYP_CASE:
     case OBJ_TYP_RPC:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         break;
     case OBJ_TYP_LIST:
         /* for a list, put all the key leafs first */
-        for (key = obj_first_ckey(val->obj);
+        for (key = obj_first_ckey(instance, val->obj);
              key != NULL;
-             key = obj_next_ckey(key)) {
+             key = obj_next_ckey(instance, key)) {
 
-            chval = val_find_child_que(&tempQ, obj_get_mod_name(key->keyobj),
-                                       obj_get_name(key->keyobj));
+            chval = val_find_child_que(instance, &tempQ, obj_get_mod_name(instance, key->keyobj),
+                                       obj_get_name(instance, key->keyobj));
             if (chval) {
-                dlq_remove(chval);
-                val_add_child(chval, val);
+                dlq_remove(instance, chval);
+                val_add_child(instance, chval, val);
             }
         }
         /* fall through to do the rest of the child nodes */
     case OBJ_TYP_CONTAINER:
         if (obj_is_root(val->obj)) {
-            while (!dlq_empty(&tempQ)) {
-                chval = (val_value_t *)dlq_deque(&tempQ);
-                val_add_child_sorted(chval, val);
-                val_set_canonical_order(chval);
+            while (!dlq_empty(instance, &tempQ)) {
+                chval = (val_value_t *)dlq_deque(instance, &tempQ);
+                val_add_child_sorted(instance, chval, val);
+                val_set_canonical_order(instance, chval);
             }
             break;
         }
         /* else fall through to normal container or list case */
     case OBJ_TYP_RPCIO:
     case OBJ_TYP_NOTIF:
-        for (chobj = obj_first_child_deep(val->obj);
+        for (chobj = obj_first_child_deep(instance, val->obj);
              chobj != NULL;
-             chobj = obj_next_child_deep(chobj)) {
+             chobj = obj_next_child_deep(instance, chobj)) {
 
             if (obj_is_key(chobj)) {
                 continue;
             }
 
-            chval = val_find_child_que(&tempQ, obj_get_mod_name(chobj),
-                                       obj_get_name(chobj));
+            chval = val_find_child_que(instance, &tempQ, obj_get_mod_name(instance, chobj),
+                                       obj_get_name(instance, chobj));
             while (chval) {
-                dlq_remove(chval);
-                val_add_child_sorted(chval, val);
+                dlq_remove(instance, chval);
+                val_add_child_sorted(instance, chval, val);
 
                 switch (chval->obj->objtype) {
                 case OBJ_TYP_LEAF:
@@ -1023,37 +1037,38 @@ void
                         break;
                     } /* else fall through */
                 case OBJ_TYP_LIST:
-                    val_set_canonical_order(chval);
+                    val_set_canonical_order(instance, chval);
                     break;
                 default:
                     ;
                 }
-                chval = val_find_child_que(&tempQ, obj_get_mod_name(chobj),
-                                           obj_get_name(chobj));
+                chval = val_find_child_que(instance, &tempQ, obj_get_mod_name(instance, chobj),
+                                           obj_get_name(instance, chobj));
             }
         }
 
         /* check left over nodes */
-        if (dlq_count(&tempQ)) {
+        if (dlq_count(instance, &tempQ)) {
             /* could be some error nodes left over not
              * part of the schema definition
              */
-            log_debug("\nset_canonical: %d leftover nodes added "
+            log_debug(instance,
+                      "\nset_canonical: %d leftover nodes added "
                       " to end of childQ for val %s",
-                      dlq_count(&tempQ), val->name);
-            dlq_block_enque(&tempQ, &val->v.childQ);
+                      dlq_count(instance, &tempQ), val->name);
+            dlq_block_enque(instance, &tempQ, &val->v.childQ);
         }
 
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 #ifdef VAL_UTIL_DEBUG_CANONICAL
-    log_debug3("\nval_canonical end '%s'", val->name);
+    log_debug3(instance, "\nval_canonical end '%s'", val->name);
     //log_debug4("\n   tempQ count is %u", dlq_count(&tempQ));
     if (LOGDEBUG4) {
-        val_dump_value(val, 0);
+        val_dump_value(instance, val, 0);
     }
 #endif
 
@@ -1077,7 +1092,8 @@ void
  *   status
  *********************************************************************/
 status_t 
-    val_gen_index_comp  (const obj_key_t *in,
+    val_gen_index_comp  (ncx_instance_t *instance,
+                         const obj_key_t *in,
                          val_value_t *val)
 {
     val_value_t       *chval;
@@ -1086,7 +1102,7 @@ status_t
 
 #ifdef DEBUG
     if (!in || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1094,17 +1110,18 @@ status_t
     found = FALSE;
     res = NO_ERR;
 
-    for (chval = (val_value_t *)dlq_firstEntry(&val->v.childQ);
+    for (chval = (val_value_t *)dlq_firstEntry(instance, &val->v.childQ);
          chval != NULL && !found && res==NO_ERR;
-         chval = (val_value_t *)dlq_nextEntry(chval)) {
+         chval = (val_value_t *)dlq_nextEntry(instance, chval)) {
 
         if (chval->index) {
             continue;
-        } else if (val_get_nsid(chval) != obj_get_nsid(in->keyobj)) {
+        } else if (val_get_nsid(instance, chval) != obj_get_nsid(instance, in->keyobj)) {
             continue;
-        } else if (!xml_strcmp(obj_get_name(in->keyobj), 
+        } else if (!xml_strcmp(instance, 
+                               obj_get_name(instance, in->keyobj), 
                                chval->name)) {
-            res = val_gen_key_entry(chval);
+            res = val_gen_key_entry(instance, chval);
             if (res == NO_ERR) {
                 found = TRUE;
             }
@@ -1137,25 +1154,25 @@ status_t
  *   status
  *********************************************************************/
 status_t 
-    val_gen_key_entry  (val_value_t *keyval)
+    val_gen_key_entry  (ncx_instance_t *instance, val_value_t *keyval)
 {
     val_index_t       *valin;
     status_t           res;
 
 #ifdef DEBUG
     if (!keyval || !keyval->parent) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
-    valin = new_index(keyval);
+    valin = new_index(instance, keyval);
     if (!valin) {
         res = ERR_INTERNAL_MEM;
     } else {
         /* save the index marker record */
         keyval->index = valin;
-        dlq_enque(valin, &keyval->parent->indexQ);
+        dlq_enque(instance, valin, &keyval->parent->indexQ);
     }
 
     return res;
@@ -1180,7 +1197,8 @@ status_t
  *   status
  *********************************************************************/
 status_t 
-    val_gen_index_chain (const obj_template_t *obj,
+    val_gen_index_chain (ncx_instance_t *instance,
+                         const obj_template_t *obj,
                          val_value_t *val)
 {
     const obj_key_t       *key;
@@ -1188,18 +1206,18 @@ status_t
 
 #ifdef DEBUG
     if (!obj || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (obj->objtype != OBJ_TYP_LIST) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     /* 0 or more index components expected */
-    for (key = obj_first_ckey(obj);
+    for (key = obj_first_ckey(instance, obj);
          key != NULL;
-         key = obj_next_ckey(key)) {
-        res = val_gen_index_comp(key, val);
+         key = obj_next_ckey(instance, key)) {
+        res = val_gen_index_comp(instance, key, val);
         if (res != NO_ERR) {
             return res;
         }
@@ -1248,12 +1266,13 @@ status_t
  *   status
  *********************************************************************/
 status_t 
-    val_add_defaults (val_value_t *val,
+    val_add_defaults (ncx_instance_t *instance,
+                      val_value_t *val,
                       val_value_t *rootval,
                       val_value_t *cxtval,
                       boolean scriptmode)
 {
-    return add_defaults(val, rootval, cxtval, scriptmode, NULL);
+    return add_defaults(instance, val, rootval, cxtval, scriptmode, NULL);
 
 } /* val_add_defaults */
 
@@ -1277,7 +1296,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    val_instance_check (val_value_t  *val,
+    val_instance_check (ncx_instance_t *instance,
+                        val_value_t  *val,
                         obj_template_t *obj)
 {
     obj_template_t        *chobj;
@@ -1289,11 +1309,11 @@ status_t
     retres = NO_ERR;
 
     /* check all the child nodes for correct number of instances */
-    for (chobj = obj_first_child(obj);
+    for (chobj = obj_first_child(instance, obj);
          chobj != NULL;
-         chobj = obj_next_child(chobj)) {
+         chobj = obj_next_child(instance, chobj)) {
 
-        iqual = obj_get_iqualval(chobj);
+        iqual = obj_get_iqualval(instance, chobj);
         minerr = FALSE;
         maxerr = FALSE;
         minelems = 0;
@@ -1319,18 +1339,19 @@ status_t
 
         switch (chobj->objtype) {
         case OBJ_TYP_CHOICE:
-            res = choice_check(val, chobj);
+            res = choice_check(instance, val, chobj);
             if (res != NO_ERR) {
                 retres = res;
             }
             continue;
         case OBJ_TYP_CASE:
-            retres = SET_ERROR(ERR_INTERNAL_VAL);
+            retres = SET_ERROR(instance, ERR_INTERNAL_VAL);
             continue;
         default:
-            cnt = val_instance_count(val, 
-                                     obj_get_mod_name(chobj),
-                                     obj_get_name(chobj));
+            cnt = val_instance_count(instance, 
+                                     val, 
+                                     obj_get_mod_name(instance, chobj),
+                                     obj_get_name(instance, chobj));
         }
 
         if (minset) {
@@ -1338,12 +1359,13 @@ status_t
                 /* not enough instances error */
                 minerr = TRUE;
                 retres = ERR_NCX_MISSING_VAL_INST;
-                log_error("\nError: Not enough instances of object '%s' "
+                log_error(instance,
+                          "\nError: Not enough instances of object '%s' "
                           "Got '%u', needed '%u'",
-                          obj_get_name(chobj), 
+                          obj_get_name(instance, chobj), 
                           cnt, 
                           minelems);
-                ncx_print_errormsg(NULL, NULL, retres);
+                ncx_print_errormsg(instance, NULL, NULL, retres);
             }
         }
 
@@ -1352,12 +1374,13 @@ status_t
                 /* too many instances error */
                 maxerr = TRUE;
                 retres = ERR_NCX_EXTRA_VAL_INST;
-                log_error("\nError: Too many instances of object '%s' entered "
+                log_error(instance,
+                          "\nError: Too many instances of object '%s' entered "
                           "Got '%u', allowed '%u'",
-                          obj_get_name(chobj), 
+                          obj_get_name(instance, chobj), 
                           cnt, 
                           maxelems);
-                ncx_print_errormsg(NULL, NULL, retres);
+                ncx_print_errormsg(instance, NULL, NULL, retres);
             }
         }
 
@@ -1366,39 +1389,43 @@ status_t
             if (cnt < 1 && !minerr) {
                 /* missing single parameter */
                 retres = ERR_NCX_MISSING_VAL_INST;
-                log_error("\nError: Mandatory object '%s' is missing",
-                          obj_get_name(chobj));
-                ncx_print_errormsg(NULL, NULL, retres);
+                log_error(instance,
+                          "\nError: Mandatory object '%s' is missing",
+                          obj_get_name(instance, chobj));
+                ncx_print_errormsg(instance, NULL, NULL, retres);
             } else if (cnt > 1 && !maxerr) {
                 /* too many parameters */
                 retres = ERR_NCX_EXTRA_VAL_INST;
-                log_error("\nError: Extra instances of object '%s' entered",
-                          obj_get_name(chobj));
-                ncx_print_errormsg(NULL, NULL, retres);
+                log_error(instance,
+                          "\nError: Extra instances of object '%s' entered",
+                          obj_get_name(instance, chobj));
+                ncx_print_errormsg(instance, NULL, NULL, retres);
             }
             break;
         case NCX_IQUAL_OPT:
             if (cnt > 1 && !maxerr) {
                 /* too many parameters */
                 retres = ERR_NCX_EXTRA_VAL_INST;
-                log_error("\nError: Extra instances of object '%s' entered",
-                          obj_get_name(chobj));
-                ncx_print_errormsg(NULL, NULL, retres);
+                log_error(instance,
+                          "\nError: Extra instances of object '%s' entered",
+                          obj_get_name(instance, chobj));
+                ncx_print_errormsg(instance, NULL, NULL, retres);
             }
             break;
         case NCX_IQUAL_1MORE:
             if (cnt < 1 && !minerr) {
                 /* missing parameter error */
                 retres = ERR_NCX_MISSING_VAL_INST;
-                log_error("\nError: Mandatory object '%s' is missing",
-                          obj_get_name(chobj));
-                ncx_print_errormsg(NULL, NULL, retres);
+                log_error(instance,
+                          "\nError: Mandatory object '%s' is missing",
+                          obj_get_name(instance, chobj));
+                ncx_print_errormsg(instance, NULL, NULL, retres);
             }
             break;
         case NCX_IQUAL_ZMORE:
             break;
         default:
-            retres = SET_ERROR(ERR_INTERNAL_VAL);
+            retres = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
     }
@@ -1424,21 +1451,22 @@ status_t
 *   pointer to first value struct or NULL if choice not set
 *********************************************************************/
 val_value_t *
-    val_get_choice_first_set (val_value_t *val,
+    val_get_choice_first_set (ncx_instance_t *instance,
+                              val_value_t *val,
                               const obj_template_t *obj)
 {
     val_value_t  *chval;
 
 #ifdef DEBUG
     if (!val || !obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (chval = val_get_first_child(val);
+    for (chval = val_get_first_child(instance, val);
          chval != NULL;
-         chval = val_get_next_child(chval)) {
+         chval = val_get_next_child(instance, chval)) {
 
         if (chval->casobj != NULL) {
             boolean done2 = FALSE;
@@ -1481,21 +1509,22 @@ val_value_t *
 *   pointer to first value struct or NULL if choice not set
 *********************************************************************/
 val_value_t *
-    val_get_choice_next_set (const obj_template_t *obj,
+    val_get_choice_next_set (ncx_instance_t *instance,
+                             const obj_template_t *obj,
                              val_value_t *curchild)
 {
     val_value_t  *chval;
 
 #ifdef DEBUG
     if (!obj || !curchild) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    for (chval = val_get_next_child(curchild);
+    for (chval = val_get_next_child(instance, curchild);
          chval != NULL;
-         chval = val_get_next_child(chval)) {
+         chval = val_get_next_child(instance, chval)) {
 
         if (chval->casobj && chval->casobj->parent==obj) {
             return chval;
@@ -1522,7 +1551,8 @@ val_value_t *
 *   pointer to first value struct or NULL if choice not set
 *********************************************************************/
 boolean
-    val_choice_is_set (val_value_t *val,
+    val_choice_is_set (ncx_instance_t *instance,
+                       val_value_t *val,
                        obj_template_t *obj)
 {
     obj_template_t        *cas, *child;
@@ -1531,16 +1561,16 @@ boolean
 
 #ifdef DEBUG
     if (!val || !obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
     chval = NULL;
     done = FALSE;
-    for (testval = val_get_first_child(val);
+    for (testval = val_get_first_child(instance, val);
          testval != NULL && !done;
-         testval = val_get_next_child(testval)) {
+         testval = val_get_next_child(instance, testval)) {
 
         if (testval->casobj != NULL) {
             boolean done2 = FALSE;
@@ -1572,18 +1602,18 @@ boolean
     cas = chval->casobj;
 
     /* check if all the mandatory parms are present in this case */
-    for (child = obj_first_child(cas);
+    for (child = obj_first_child(instance, cas);
          child != NULL;
-         child = obj_next_child(child)) {
+         child = obj_next_child(instance, child)) {
 
-        if (!obj_is_config(child)) {
+        if (!obj_is_config(instance, child)) {
             continue;
         }
-        if (!obj_is_mandatory(child)) {
+        if (!obj_is_mandatory(instance, child)) {
             continue;
         }
-        if (!val_find_child(val, obj_get_mod_name(child),
-                           obj_get_name(child))) {
+        if (!val_find_child(instance, val, obj_get_mod_name(instance, child),
+                           obj_get_name(instance, child))) {
             return FALSE;
         }
     }
@@ -1603,12 +1633,12 @@ boolean
 *
 *********************************************************************/
 void
-    val_purge_errors_from_root (val_value_t *val)
+    val_purge_errors_from_root (ncx_instance_t *instance, val_value_t *val)
 {
 
     assert( val && "val is NULL!" );
 
-    purge_errors(val);
+    purge_errors(instance, val);
     val->res = NO_ERR;
 
 }  /* val_purge_errors_from_root */
@@ -1629,7 +1659,8 @@ void
  *   status
  *********************************************************************/
 val_value_t *
-    val_new_child_val (xmlns_id_t   nsid,
+    val_new_child_val (ncx_instance_t *instance,
+                       xmlns_id_t   nsid,
                        const xmlChar *name,
                        boolean copyname,
                        val_value_t *parent,
@@ -1638,18 +1669,18 @@ val_value_t *
 {
     val_value_t *chval;
 
-    chval = val_new_value();
+    chval = val_new_value(instance);
     if (!chval) {
         return NULL;
     }
 
     /* save a const pointer to the name of this field */
     if (copyname) {
-        chval->dname = xml_strdup(name);
+        chval->dname = xml_strdup(instance, name);
         if (chval->dname) {
             chval->name = chval->dname;
         } else {
-            val_free_value(chval);
+            val_free_value(instance, chval);
             return NULL;
         }
     } else {
@@ -1687,12 +1718,13 @@ val_value_t *
 *   status
 *********************************************************************/
 status_t
-    val_gen_instance_id (xml_msg_hdr_t *mhdr,
+    val_gen_instance_id (ncx_instance_t *instance,
+                         xml_msg_hdr_t *mhdr,
                          const val_value_t  *val, 
                          ncx_instfmt_t format,
                          xmlChar  **buff)
 {
-    return val_gen_instance_id_ex(mhdr, val, format, TRUE, buff);
+    return val_gen_instance_id_ex(instance, mhdr, val, format, TRUE, buff);
 
 }  /* val_gen_instance_id */
 
@@ -1720,7 +1752,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    val_gen_instance_id_ex (xml_msg_hdr_t *mhdr,
+    val_gen_instance_id_ex (ncx_instance_t *instance,
+                            xml_msg_hdr_t *mhdr,
                             const val_value_t  *val, 
                             ncx_instfmt_t format,
                             boolean stop_at_root,
@@ -1733,7 +1766,7 @@ status_t
     status_t  res;
 
     /* figure out the length of the parmset instance ID */
-    res = get_instance_string(mhdr, format, val, stop_at_root, NULL, &len);
+    res = get_instance_string(instance, mhdr, format, val, stop_at_root, NULL, &len);
     if (res != NO_ERR) {
         return res;
     }
@@ -1749,7 +1782,7 @@ status_t
     }
 
     /* get a buffer to fit the instance ID string */
-    *buff = (xmlChar *)m__getMem(len+1);
+    *buff = (xmlChar *)m__getMem(instance, len+1);
     if (!*buff) {
         return ERR_INTERNAL_MEM;
     } else {
@@ -1757,20 +1790,20 @@ status_t
     }
 
     if (obj_is_root(val->obj) && len == 1) {
-        xml_strcpy(*buff, (const xmlChar *)"/");
+        xml_strcpy(instance, *buff, (const xmlChar *)"/");
         len2 = 1;
     } else {
         /* get the instance ID string for real this time */
-        res = get_instance_string(mhdr, format, val, stop_at_root, 
+        res = get_instance_string(instance, mhdr, format, val, stop_at_root, 
                                   *buff, &len2);
         if (res != NO_ERR) {
-            m__free(*buff);
+            m__free(instance, *buff);
             *buff = NULL;
         }
     }
 
     if (res == NO_ERR && len != len2) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -1804,7 +1837,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    val_gen_split_instance_id (xml_msg_hdr_t *mhdr,
+    val_gen_split_instance_id (ncx_instance_t *instance,
+                               xml_msg_hdr_t *mhdr,
                                const val_value_t  *val, 
                                ncx_instfmt_t format,
                                xmlns_id_t leaf_nsid,
@@ -1819,12 +1853,12 @@ status_t
 
 #ifdef DEBUG 
     if (!val || !leaf_name || !buff) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (leaf_nsid) {
-        leaf_pfix = xmlns_get_ns_prefix(leaf_nsid);
+        leaf_pfix = xmlns_get_ns_prefix(instance, leaf_nsid);
     }
     if (!leaf_pfix) {
         leaf_pfix = (const xmlChar *)"inv";
@@ -1832,7 +1866,7 @@ status_t
 
     if (!(stop_at_root && val->obj && obj_is_root(val->obj))) {
         /* figure out the length of the parmset instance ID */
-        res = get_instance_string(mhdr, format, val, stop_at_root, NULL, &len);
+        res = get_instance_string(instance, mhdr, format, val, stop_at_root, NULL, &len);
         if (res != NO_ERR) {
             return res;
         }
@@ -1845,11 +1879,11 @@ status_t
     }
 
     /* get the length of the extra leaf '/pfix:name' */
-    leaf_len = 1 + xml_strlen(leaf_pfix) + 1 + 
-        xml_strlen(leaf_name);
+    leaf_len = 1 + xml_strlen(instance, leaf_pfix) + 1 + 
+        xml_strlen(instance, leaf_name);
 
     /* get a buffer to fit the instance ID string */
-    *buff = (xmlChar *)m__getMem(len+leaf_len+1);
+    *buff = (xmlChar *)m__getMem(instance, len+leaf_len+1);
     if (!*buff) {
         return ERR_INTERNAL_MEM;
     } else {
@@ -1858,18 +1892,18 @@ status_t
 
     /* get the instance ID string for real this time */
     if (!(stop_at_root && val->obj && obj_is_root(val->obj))) {
-        res = get_instance_string(mhdr, format, val, stop_at_root, *buff, &len);
+        res = get_instance_string(instance, mhdr, format, val, stop_at_root, *buff, &len);
     }
     if (res != NO_ERR) {
-        m__free(*buff);
+        m__free(instance, *buff);
         *buff = NULL;
     } else {
         xmlChar  *p = *buff;
         p += len;
         *p++ = '/';
-        p += xml_strcpy(p, leaf_pfix);
+        p += xml_strcpy(instance, p, leaf_pfix);
         *p++ = ':';
-        xml_strcpy(p, leaf_name);
+        xml_strcpy(instance, p, leaf_name);
     }
 
     return res;
@@ -1900,7 +1934,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    val_get_index_string (xml_msg_hdr_t *mhdr,
+    val_get_index_string (ncx_instance_t *instance,
+                          xml_msg_hdr_t *mhdr,
                           ncx_instfmt_t format,
                           const val_value_t *val,
                           xmlChar *buff,
@@ -1913,7 +1948,7 @@ status_t
 
 #ifdef DEBUG
     if (!val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1922,11 +1957,11 @@ status_t
     *len = 0;
 
     /* get the first index node value struct */
-    valin = (const val_index_t *)dlq_firstEntry(&val->indexQ);
+    valin = (const val_index_t *)dlq_firstEntry(instance, &val->indexQ);
     if (valin) {
         ival = valin->val;
     } else {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* check that there is at least one index component */
@@ -1941,7 +1976,7 @@ status_t
     /* at least one real index component; generate entire index */
     while (ival) {
         /* generate one component, or N if it is a struct */
-        res = get_index_comp(mhdr, format, ival, buff, &cnt);
+        res = get_index_comp(instance, mhdr, format, ival, buff, &cnt);
         if (res != NO_ERR) {
             return res;
         } else {
@@ -1953,7 +1988,7 @@ status_t
 
         /* setup next index component */
         nextival = NULL;
-        valin = (const val_index_t *)dlq_nextEntry(valin);
+        valin = (const val_index_t *)dlq_nextEntry(instance, valin);
         if (valin) {
             nextival = valin->val;
         } 
@@ -1974,7 +2009,7 @@ status_t
                  * add the index separator string ' and ' 
                  */
                 if (buff) {
-                    buff += xml_strcpy(buff, VAL_XPATH_INDEX_SEPSTR);
+                    buff += xml_strcpy(instance, buff, VAL_XPATH_INDEX_SEPSTR);
                 }
                 total += VAL_XPATH_INDEX_SEPLEN;
                 break;
@@ -1986,7 +2021,7 @@ status_t
                 total++;
                 break;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
 
@@ -2038,7 +2073,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    val_check_obj_when (val_value_t *val,
+    val_check_obj_when (ncx_instance_t *instance,
+                        val_value_t *val,
                         val_value_t *valroot,
                         val_value_t *objval,
                         obj_template_t *obj,
@@ -2071,19 +2107,19 @@ status_t
              * nodes in the test!  This should seem obvious
              * but it is still allowed in YANG
              */
-            dummychild = val_new_value();
+            dummychild = val_new_value(instance);
             if (!dummychild) {
                 return ERR_INTERNAL_MEM;
             }
-            val_init_from_template(dummychild, obj);
-            val_add_child(dummychild, val);
+            val_init_from_template(instance, dummychild, obj);
+            val_add_child(instance, dummychild, val);
             usechild = dummychild;
         }
 
-        res = check_when_stmt(val, valroot, usechild, obj->when, condresult);
+        res = check_when_stmt(instance, val, valroot, usechild, obj->when, condresult);
         if (dummychild) {
-            val_remove_child(dummychild);
-            val_free_value(dummychild);
+            val_remove_child(instance, dummychild);
+            val_free_value(instance, dummychild);
         }
         if (res != NO_ERR || !*condresult) {
             if (whencount) {
@@ -2104,10 +2140,10 @@ status_t
     /* !! the parent node is passed in so it is the context node
      * !! when xptrs are saved in the object
      */
-    obj_xpath_ptr_t *xptr = obj_first_xpath_ptr(obj);
-    for (; xptr; xptr = obj_next_xpath_ptr(xptr)) {
+    obj_xpath_ptr_t *xptr = obj_first_xpath_ptr(instance, obj);
+    for (; xptr; xptr = obj_next_xpath_ptr(instance, xptr)) {
         cnt++;
-        res = check_when_stmt(val, valroot, val, 
+        res = check_when_stmt(instance, val, valroot, val, 
                               xptr->xpath, condresult);
         if (res != NO_ERR || !*condresult) {
             if (whencount) {
@@ -2126,7 +2162,7 @@ status_t
 
             if (testobj->when) {
                 cnt++;
-                res = check_when_stmt(val, valroot, val->parent, 
+                res = check_when_stmt(instance, val, valroot, val->parent, 
                                       testobj->when, condresult);
                 if (res != NO_ERR || !*condresult) {
                     if (whencount) {
@@ -2136,10 +2172,10 @@ status_t
                 }
             }
             
-            for (xptr = obj_first_xpath_ptr(testobj);
-                 xptr; xptr = obj_next_xpath_ptr(xptr)) {
+            for (xptr = obj_first_xpath_ptr(instance, testobj);
+                 xptr; xptr = obj_next_xpath_ptr(instance, xptr)) {
                 cnt++;
-                res = check_when_stmt(val, valroot, val->parent, 
+                res = check_when_stmt(instance, val, valroot, val->parent, 
                                       xptr->xpath, condresult);
                 if (res != NO_ERR || !*condresult) {
                     if (whencount) {
@@ -2177,12 +2213,12 @@ status_t
 *    pointer to xpath control block or NULL if none
 *********************************************************************/
 xpath_pcb_t *
-    val_get_xpathpcb (val_value_t *val)
+    val_get_xpathpcb (ncx_instance_t *instance, val_value_t *val)
 {
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -2204,12 +2240,12 @@ xpath_pcb_t *
 *    pointer to xpath control block or NULL if none
 *********************************************************************/
 const xpath_pcb_t *
-    val_get_const_xpathpcb (const val_value_t *val)
+    val_get_const_xpathpcb (ncx_instance_t *instance, const val_value_t *val)
 {
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -2239,7 +2275,8 @@ const xpath_pcb_t *
 *    NULL if some error
 *********************************************************************/
 val_value_t *
-    val_make_simval_obj (obj_template_t *obj,
+    val_make_simval_obj (ncx_instance_t *instance,
+                         obj_template_t *obj,
                          const xmlChar *valstr,
                          status_t  *res)
 {
@@ -2247,27 +2284,28 @@ val_value_t *
 
 #ifdef DEBUG
     if (!obj || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    newval = val_new_value();
+    newval = val_new_value(instance);
     if (!newval) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
-    val_init_from_template(newval, obj);
+    val_init_from_template(instance, newval, obj);
 
-    *res = val_set_simval(newval,
+    *res = val_set_simval(instance,
+                          newval,
                           obj_get_typdef(obj),
-                          obj_get_nsid(obj),
-                          obj_get_name(obj),
+                          obj_get_nsid(instance, obj),
+                          obj_get_name(instance, obj),
                           valstr);
 
     if (*res != NO_ERR) {
-        val_free_value(newval);
+        val_free_value(instance, newval);
         newval = NULL;
     }
 
@@ -2294,20 +2332,22 @@ val_value_t *
 *   status
 *********************************************************************/
 status_t 
-    val_set_simval_obj (val_value_t  *val,
+    val_set_simval_obj (ncx_instance_t *instance,
+                        val_value_t  *val,
                         obj_template_t *obj,
                         const xmlChar *valstr)
 {
 #ifdef DEBUG
     if (!val || !obj) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return val_set_simval(val,
+    return val_set_simval(instance,
+                          val,
                           obj_get_typdef(obj),
-                          obj_get_nsid(obj),
-                          obj_get_name(obj),
+                          obj_get_nsid(instance, obj),
+                          obj_get_name(instance, obj),
                           valstr);
 
 }  /* val_set_simval_obj */
@@ -2334,50 +2374,55 @@ status_t
 *  status
 *********************************************************************/
 status_t
-    val_set_warning_parms (val_value_t *parentval)
+    val_set_warning_parms (ncx_instance_t *instance, val_value_t *parentval)
 {
     val_value_t        *parmval;
     status_t            res = NO_ERR;
 
 #ifdef DEBUG
     if (!parentval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!(parentval->btyp == NCX_BT_CONTAINER || 
           parentval->btyp == NCX_BT_LIST)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     /* warn-idlen parameter */
-    parmval = val_find_child(parentval,
-                             val_get_mod_name(parentval),
+    parmval = val_find_child(instance,
+                             parentval,
+                             val_get_mod_name(instance, parentval),
                              NCX_EL_WARN_IDLEN);
     if (parmval && parmval->res == NO_ERR) {
-        ncx_set_warn_idlen(VAL_UINT(parmval));
+        ncx_set_warn_idlen(instance, VAL_UINT(parmval));
     }
 
     /* warn-linelen parameter */
-    parmval = val_find_child(parentval,
-                             val_get_mod_name(parentval),
+    parmval = val_find_child(instance,
+                             parentval,
+                             val_get_mod_name(instance, parentval),
                              NCX_EL_WARN_LINELEN);
     if (parmval && parmval->res == NO_ERR) {
-        ncx_set_warn_linelen(VAL_UINT(parmval));
+        ncx_set_warn_linelen(instance, VAL_UINT(parmval));
     }
 
     /* warn-off parameter */
-    for (parmval = val_find_child(parentval,
-                                  val_get_mod_name(parentval),
+    for (parmval = val_find_child(instance,
+                                  parentval,
+                                  val_get_mod_name(instance, parentval),
                                   NCX_EL_WARN_OFF);
          parmval != NULL;
-         parmval = val_find_next_child(parentval,
-                                       val_get_mod_name(parentval),
+         parmval = val_find_next_child(instance,
+                                       parentval,
+                                       val_get_mod_name(instance, parentval),
                                        NCX_EL_WARN_OFF,
                                        parmval)) {
         if (parmval->res == NO_ERR) {
-            res = ncx_turn_off_warning(VAL_UINT(parmval));
+            res = ncx_turn_off_warning(instance, VAL_UINT(parmval));
             if (res != NO_ERR) {
-                log_error("\nError: disable warning failed (%s)",
+                log_error(instance,
+                          "\nError: disable warning failed (%s)",
                           get_error_string(res));
             }
         }
@@ -2409,7 +2454,7 @@ status_t
 *  status
 *********************************************************************/
 status_t
-    val_set_logging_parms (val_value_t *parentval)
+    val_set_logging_parms (ncx_instance_t *instance, val_value_t *parentval)
 {
     val_value_t        *val;
     char               *logfilename;
@@ -2418,53 +2463,57 @@ status_t
 
 #ifdef DEBUG
     if (!parentval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!(parentval->btyp == NCX_BT_CONTAINER || 
           parentval->btyp == NCX_BT_LIST)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     logappend = FALSE;
 
     /* get the log-level parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_LOGLEVEL);
     if (val && val->res == NO_ERR) {
         log_set_debug_level
-            (log_get_debug_level_enum
-             ((const char *)VAL_ENUM_NAME(val)));
-        if (log_get_debug_level() == LOG_DEBUG_NONE) {
-            log_error("\nError: invalid log-level value (%s)",
+            (instance, log_get_debug_level_enum
+             (instance, (const char *)VAL_ENUM_NAME(val)));
+        if (log_get_debug_level(instance) == LOG_DEBUG_NONE) {
+            log_error(instance,
+                      "\nError: invalid log-level value (%s)",
                       (const char *)VAL_ENUM_NAME(val));
             return ERR_NCX_INVALID_VALUE;
         }
     }
 
-    val = val_find_child(parentval, val_get_mod_name(parentval),
+    val = val_find_child(instance, parentval, val_get_mod_name(instance, parentval),
                          NCX_EL_LOGAPPEND);
     if (val && val->res == NO_ERR) {
         logappend = TRUE;
     }
 
     /* get the log file name parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_LOG);
     if (val && val->res == NO_ERR && VAL_STR(val)) {
-        if (!log_is_open()) {
+        if (!log_is_open(instance)) {
             res = NO_ERR;
-            logfilename = (char *)ncx_get_source(VAL_STR(val), &res);
+            logfilename = (char *)ncx_get_source(instance, VAL_STR(val), &res);
             if (logfilename) {
-                res = log_open(logfilename, logappend, TRUE);
+                res = log_open(instance, logfilename, logappend, TRUE);
                 if (res != NO_ERR) {
-                    log_error("\nError: open logfile '%s' failed (%s)",
+                    log_error(instance,
+                              "\nError: open logfile '%s' failed (%s)",
                               logfilename,
                               get_error_string(res));
                 }
-                m__free(logfilename);
+                m__free(instance, logfilename);
             }
         }
     }
@@ -2493,42 +2542,45 @@ status_t
 *  status
 *********************************************************************/
 status_t
-    val_set_path_parms (val_value_t *parentval)
+    val_set_path_parms (ncx_instance_t *instance, val_value_t *parentval)
 {
     val_value_t        *val;
 
 #ifdef DEBUG
     if (!parentval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!(parentval->btyp == NCX_BT_CONTAINER || 
           parentval->btyp == NCX_BT_LIST)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     /* get the modpath parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_MODPATH);
     if (val && val->res == NO_ERR) {
-        ncxmod_set_modpath(VAL_STR(val));
+        ncxmod_set_modpath(instance, VAL_STR(val));
     }
 
     /* get the datapath parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_DATAPATH);
     if (val && val->res == NO_ERR) {
-        ncxmod_set_datapath(VAL_STR(val));
+        ncxmod_set_datapath(instance, VAL_STR(val));
     }
 
     /* get the runpath parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_RUNPATH);
     if (val && val->res == NO_ERR) {
-        ncxmod_set_runpath(VAL_STR(val));
+        ncxmod_set_runpath(instance, VAL_STR(val));
     }
 
     return NO_ERR;
@@ -2549,26 +2601,27 @@ status_t
 *  status
 *********************************************************************/
 status_t
-    val_set_subdirs_parm (val_value_t *parentval)
+    val_set_subdirs_parm (ncx_instance_t *instance, val_value_t *parentval)
 {
     val_value_t        *val;
 
 #ifdef DEBUG
     if (!parentval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!(parentval->btyp == NCX_BT_CONTAINER || 
           parentval->btyp == NCX_BT_LIST)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     /* get the subdirs parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_SUBDIRS);
     if (val && val->res == NO_ERR) {
-        ncxmod_set_subdirs(VAL_BOOL(val));
+        ncxmod_set_subdirs(instance, VAL_BOOL(val));
     }
 
     return NO_ERR;
@@ -2597,108 +2650,122 @@ status_t
 *  status
 *********************************************************************/
 status_t
-    val_set_feature_parms (val_value_t *parentval)
+    val_set_feature_parms (ncx_instance_t *instance, val_value_t *parentval)
 {
     val_value_t        *val;
     status_t   res = NO_ERR;
 
 #ifdef DEBUG
     if (!parentval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!(parentval->btyp == NCX_BT_CONTAINER || 
           parentval->btyp == NCX_BT_LIST)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     /* get the feature-code-default parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_FEATURE_CODE_DEFAULT);
     if (val && val->res == NO_ERR) {
-        if (!xml_strcmp(VAL_ENUM_NAME(val),
+        if (!xml_strcmp(instance,
+                        VAL_ENUM_NAME(val),
                         NCX_EL_DYNAMIC)) {
-            ncx_set_feature_code_default(NCX_FEATURE_CODE_DYNAMIC);
-        } else if (!xml_strcmp(VAL_ENUM_NAME(val),
+            ncx_set_feature_code_default(instance, NCX_FEATURE_CODE_DYNAMIC);
+        } else if (!xml_strcmp(instance,
+                               VAL_ENUM_NAME(val),
                                NCX_EL_STATIC)) {
-            ncx_set_feature_code_default(NCX_FEATURE_CODE_STATIC);
+            ncx_set_feature_code_default(instance, NCX_FEATURE_CODE_STATIC);
         } else {
             return ERR_NCX_INVALID_VALUE;
         }
     }
 
     /* get the feature-enable-default parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_FEATURE_ENABLE_DEFAULT);
     if (val && val->res == NO_ERR) {
-        ncx_set_feature_enable_default(VAL_BOOL(val));
+        ncx_set_feature_enable_default(instance, VAL_BOOL(val));
     }
 
     /* process the feature-static leaf-list */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_FEATURE_STATIC);
     while (val && val->res == NO_ERR) {
-        res = ncx_set_feature_code_entry(VAL_STR(val),
+        res = ncx_set_feature_code_entry(instance,
+                                         VAL_STR(val),
                                          NCX_FEATURE_CODE_STATIC);
         if (res != NO_ERR) {
             return res;
         }
 
-        val = val_find_next_child(parentval, 
-                                  val_get_mod_name(parentval),
+        val = val_find_next_child(instance, 
+                                  parentval, 
+                                  val_get_mod_name(instance, parentval),
                                   NCX_EL_FEATURE_STATIC,
                                   val);
     }
 
     /* process the feature-dynamic leaf-list */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_FEATURE_DYNAMIC);
     while (val && val->res == NO_ERR) {
-        res = ncx_set_feature_code_entry(VAL_STR(val),
+        res = ncx_set_feature_code_entry(instance,
+                                         VAL_STR(val),
                                          NCX_FEATURE_CODE_DYNAMIC);
         if (res != NO_ERR) {
             return res;
         }
 
-        val = val_find_next_child(parentval, 
-                                  val_get_mod_name(parentval),
+        val = val_find_next_child(instance, 
+                                  parentval, 
+                                  val_get_mod_name(instance, parentval),
                                   NCX_EL_FEATURE_DYNAMIC,
                                   val);
     }
 
 
     /* process the feature-enable leaf-list */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_FEATURE_ENABLE);
     while (val && val->res == NO_ERR) {
-        res = ncx_set_feature_enable_entry(VAL_STR(val), TRUE);
+        res = ncx_set_feature_enable_entry(instance, VAL_STR(val), TRUE);
         if (res != NO_ERR) {
             return res;
         }
 
-        val = val_find_next_child(parentval, 
-                                  val_get_mod_name(parentval),
+        val = val_find_next_child(instance, 
+                                  parentval, 
+                                  val_get_mod_name(instance, parentval),
                                   NCX_EL_FEATURE_ENABLE,
                                   val);
     }
 
     /* process the feature-disable leaf-list */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_FEATURE_DISABLE);
     while (val && val->res == NO_ERR) {
-        res = ncx_set_feature_enable_entry(VAL_STR(val), FALSE);
+        res = ncx_set_feature_enable_entry(instance, VAL_STR(val), FALSE);
         if (res != NO_ERR) {
             return res;
         }
 
-        val = val_find_next_child(parentval, 
-                                  val_get_mod_name(parentval),
+        val = val_find_next_child(instance, 
+                                  parentval, 
+                                  val_get_mod_name(instance, parentval),
                                   NCX_EL_FEATURE_DISABLE,
                                   val);
     }
@@ -2722,42 +2789,45 @@ status_t
 *    status:  at least 1 protocol must be selected
 *********************************************************************/
 status_t
-    val_set_protocols_parm (val_value_t *parentval)
+    val_set_protocols_parm (ncx_instance_t *instance, val_value_t *parentval)
 {
     val_value_t        *val;
     boolean             anyset = FALSE;
 
 #ifdef DEBUG
     if (!parentval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!(parentval->btyp == NCX_BT_CONTAINER || 
           parentval->btyp == NCX_BT_LIST)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     /* get the protocols parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_PROTOCOLS);
     if (val && val->res == NO_ERR) {
         /* set to the values specified */
-        if (ncx_string_in_list(NCX_EL_NETCONF10,
+        if (ncx_string_in_list(instance,
+                               NCX_EL_NETCONF10,
                                &(VAL_BITS(val)))) {
             anyset = TRUE;
-            ncx_set_protocol_enabled(NCX_PROTO_NETCONF10);
+            ncx_set_protocol_enabled(instance, NCX_PROTO_NETCONF10);
         }
-        if (ncx_string_in_list(NCX_EL_NETCONF11,
+        if (ncx_string_in_list(instance,
+                               NCX_EL_NETCONF11,
                                &(VAL_BITS(val)))) {
             anyset = TRUE;
-            ncx_set_protocol_enabled(NCX_PROTO_NETCONF11);
+            ncx_set_protocol_enabled(instance, NCX_PROTO_NETCONF11);
         }
     } else {
         /* set to the default -- all versions enabled */
         anyset = TRUE;
-        ncx_set_protocol_enabled(NCX_PROTO_NETCONF10);
-        ncx_set_protocol_enabled(NCX_PROTO_NETCONF11);
+        ncx_set_protocol_enabled(instance, NCX_PROTO_NETCONF10);
+        ncx_set_protocol_enabled(instance, NCX_PROTO_NETCONF11);
     }
     
     return (anyset) ? NO_ERR : ERR_NCX_MISSING_PARM;
@@ -2780,7 +2850,8 @@ status_t
 *    status:  at least 1 protocol must be selected
 *********************************************************************/
 status_t
-    val_set_ses_protocols_parm (ses_cb_t *scb,
+    val_set_ses_protocols_parm (ncx_instance_t *instance,
+                                ses_cb_t *scb,
                                 val_value_t *parentval)
 {
     val_value_t        *val;
@@ -2788,38 +2859,41 @@ status_t
 
 #ifdef DEBUG
     if (!parentval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!(parentval->btyp == NCX_BT_CONTAINER || 
           parentval->btyp == NCX_BT_LIST)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     /* get the protocols parameter */
-    val = val_find_child(parentval, 
-                         val_get_mod_name(parentval),
+    val = val_find_child(instance, 
+                         parentval, 
+                         val_get_mod_name(instance, parentval),
                          NCX_EL_PROTOCOLS);
     if (val && val->res == NO_ERR) {
         /* set to the values specified */
-        if (ncx_string_in_list(NCX_EL_NETCONF10,
+        if (ncx_string_in_list(instance,
+                               NCX_EL_NETCONF10,
                                &(VAL_BITS(val)))) {
             anyset = TRUE;
-            ses_set_protocols_requested(scb, NCX_PROTO_NETCONF10);
+            ses_set_protocols_requested(instance, scb, NCX_PROTO_NETCONF10);
         }
-        if (ncx_string_in_list(NCX_EL_NETCONF11,
+        if (ncx_string_in_list(instance,
+                               NCX_EL_NETCONF11,
                                &(VAL_BITS(val)))) {
             anyset = TRUE;
-            ses_set_protocols_requested(scb, NCX_PROTO_NETCONF11);
+            ses_set_protocols_requested(instance, scb, NCX_PROTO_NETCONF11);
         }
     } else {
         /* set to the default -- whatever was set globally */
         anyset = TRUE;
-        if (ncx_protocol_enabled(NCX_PROTO_NETCONF10)) {
-            ses_set_protocols_requested(scb, NCX_PROTO_NETCONF10);
+        if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF10)) {
+            ses_set_protocols_requested(instance, scb, NCX_PROTO_NETCONF10);
         }
-        if (ncx_protocol_enabled(NCX_PROTO_NETCONF11)) {
-            ses_set_protocols_requested(scb, NCX_PROTO_NETCONF11);
+        if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF11)) {
+            ses_set_protocols_requested(instance, scb, NCX_PROTO_NETCONF11);
         }
     }
     
@@ -2849,7 +2923,8 @@ status_t
 *   of 
 *********************************************************************/
 status_t
-    val_ok_to_partial_lock (val_value_t *val,
+    val_ok_to_partial_lock (ncx_instance_t *instance,
+                            val_value_t *val,
                             ses_id_t sesid,
                             ses_id_t *lockowner)
 {
@@ -2861,14 +2936,14 @@ status_t
 
 #ifdef DEBUG
     if (val == NULL || lockowner == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (sesid == 0) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }        
 #endif
 
-    if (!val_is_config_data(val)) {
+    if (!val_is_config_data(instance, val)) {
         return ERR_NCX_NOT_CONFIG;
     }
 
@@ -2881,7 +2956,7 @@ status_t
         if (val->plock[i] == NULL) {
             anyavail = TRUE;
         } else {
-            owner = plock_get_sid(val->plock[i]);
+            owner = plock_get_sid(instance, val->plock[i]);
             if (owner != sesid) {
                 *lockowner = owner;
                 return ERR_NCX_LOCK_DENIED;
@@ -2893,15 +2968,16 @@ status_t
         return ERR_NCX_RESOURCE_DENIED;
     }
 
-    for (childval = val_get_first_child(val);
+    for (childval = val_get_first_child(instance, val);
          childval != NULL;
-         childval = val_get_next_child(childval)) {
+         childval = val_get_next_child(instance, childval)) {
 
-        if (!val_is_config_data(childval)) {
+        if (!val_is_config_data(instance, childval)) {
             continue;
         }
 
-        res = val_ok_to_partial_lock(childval, 
+        res = val_ok_to_partial_lock(instance, 
+                                     childval, 
                                      sesid, 
                                      lockowner);
         if (res != NO_ERR) {
@@ -2930,7 +3006,8 @@ status_t
 *   of locks reached or lock already help by another session
 *********************************************************************/
 status_t
-    val_set_partial_lock (val_value_t *val,
+    val_set_partial_lock (ncx_instance_t *instance,
+                          val_value_t *val,
                           plock_cb_t *plcb)
 {
     uint32           i;
@@ -2939,22 +3016,22 @@ status_t
 
 #ifdef DEBUG
     if (val == NULL || plcb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    if (!val_is_config_data(val)) {
+    if (!val_is_config_data(instance, val)) {
         return ERR_NCX_NOT_CONFIG;
     }
 
-    newsid = plock_get_sid(plcb);
+    newsid = plock_get_sid(instance, plcb);
 
     /* check for an empty slot and locked-by-another session */
     anyavail = FALSE;
     for (i = 0; i < VAL_MAX_PLOCKS; i++) {
         if (val->plock[i] == NULL) {
             anyavail = TRUE;
-        } else if (plock_get_sid(val->plock[i]) != newsid) {
+        } else if (plock_get_sid(instance, val->plock[i]) != newsid) {
             return ERR_NCX_LOCK_DENIED;
         }
     }
@@ -2987,7 +3064,8 @@ status_t
 *
 *********************************************************************/
 void
-    val_clear_partial_lock (val_value_t *val,
+    val_clear_partial_lock (ncx_instance_t *instance,
+                            val_value_t *val,
                             plock_cb_t *plcb)
 {
     val_value_t   *childval;
@@ -2995,12 +3073,12 @@ void
 
 #ifdef DEBUG
     if (val == NULL || plcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    if (!val_is_config_data(val)) {
+    if (!val_is_config_data(instance, val)) {
         return;
     }
 
@@ -3012,12 +3090,12 @@ void
         }
     }
 
-    for (childval = val_get_first_child(val);
+    for (childval = val_get_first_child(instance, val);
          childval != NULL;
-         childval = val_get_next_child(childval)) {
+         childval = val_get_next_child(instance, childval)) {
 
-        if (val_is_config_data(childval)) {
-            val_clear_partial_lock(childval, plcb);
+        if (val_is_config_data(instance, childval)) {
+            val_clear_partial_lock(instance, childval, plcb);
         }
     }
 
@@ -3049,7 +3127,8 @@ void
 *    status, NO_ERR indicates no partial lock conflicts
 *********************************************************************/
 status_t
-    val_write_ok (val_value_t *val,
+    val_write_ok (ncx_instance_t *instance,
+                  val_value_t *val,
                   op_editop_t editop,
                   ses_id_t sesid,
                   boolean checkup,
@@ -3063,7 +3142,7 @@ status_t
 
 #ifdef DEBUG
     if (val == NULL || lockid == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3071,13 +3150,13 @@ status_t
         return NO_ERR;
     }
 
-    if (!val_is_config_data(val)) {
+    if (!val_is_config_data(instance, val)) {
         return ERR_NCX_NO_ACCESS_MAX;
     }
 
     /* quick exit check */
-    running = cfg_get_config_id(NCX_CFGID_RUNNING);
-    if (cfg_first_partial_lock(running) == NULL) {
+    running = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
+    if (cfg_first_partial_lock(instance, running) == NULL) {
         return NO_ERR;
     }
 
@@ -3091,9 +3170,9 @@ status_t
         if (val->plock[i] == NULL) {
             continue;
         }
-        if (plock_get_sid(val->plock[i]) != sesid) {
+        if (plock_get_sid(instance, val->plock[i]) != sesid) {
             /* this node locked by another session */
-            *lockid = plock_get_id(val->plock[i]);
+            *lockid = plock_get_id(instance, val->plock[i]);
             return ERR_NCX_IN_USE_LOCKED;
         }
     }
@@ -3109,9 +3188,9 @@ status_t
                 if (upval->plock[i] == NULL) {
                     continue;
                 }
-                if (plock_get_sid(upval->plock[i]) != sesid) {
+                if (plock_get_sid(instance, upval->plock[i]) != sesid) {
                     /* this node locked by another session */
-                    *lockid = plock_get_id(upval->plock[i]);
+                    *lockid = plock_get_id(instance, upval->plock[i]);
                     return ERR_NCX_IN_USE_LOCKED;
                 }
             }
@@ -3132,12 +3211,12 @@ status_t
         editop == OP_EDITOP_DELETE ||
         editop == OP_EDITOP_REMOVE) {
 
-        for (childval = val_get_first_child(val);
+        for (childval = val_get_first_child(instance, val);
              childval != NULL;
-             childval = val_get_next_child(childval)) {
+             childval = val_get_next_child(instance, childval)) {
 
-            if (val_is_config_data(childval)) {
-                res = val_write_ok(childval, editop, sesid, FALSE, lockid);
+            if (val_is_config_data(instance, childval)) {
+                res = val_write_ok(instance, childval, editop, sesid, FALSE, lockid);
                 if (res != NO_ERR) {
                     return res;
                 }
@@ -3163,7 +3242,8 @@ status_t
 *
 *********************************************************************/
 void
-    val_check_swap_resnode (val_value_t *curval,
+    val_check_swap_resnode (ncx_instance_t *instance,
+                            val_value_t *curval,
                             val_value_t *newval)
 {
     if (curval == NULL || newval == NULL) {
@@ -3174,8 +3254,8 @@ void
     for (; i < VAL_MAX_PLOCKS; i++) {
         newval->plock[i] = curval->plock[i];
         if (curval->plock[i] != NULL) {
-            xpath_result_t *result = plock_get_final_result(curval->plock[i]);
-            xpath_nodeset_swap_valptr(result, curval, newval);
+            xpath_result_t *result = plock_get_final_result(instance, curval->plock[i]);
+            xpath_nodeset_swap_valptr(instance, result, curval, newval);
         }
     }
 
@@ -3193,7 +3273,7 @@ void
 *
 *********************************************************************/
 void
-    val_check_delete_resnode (val_value_t *curval)
+    val_check_delete_resnode (ncx_instance_t *instance, val_value_t *curval)
 {
     if (curval == NULL) {
         return;
@@ -3202,8 +3282,8 @@ void
     uint32 i = 0;
     for (; i < VAL_MAX_PLOCKS; i++) {
         if (curval->plock[i] != NULL) {
-            xpath_result_t *result = plock_get_final_result((curval->plock[i]));
-            xpath_nodeset_delete_valptr(result, curval);
+            xpath_result_t *result = plock_get_final_result(instance, (curval->plock[i]));
+            xpath_nodeset_delete_valptr(instance, result, curval);
         }
     }
 
@@ -3223,7 +3303,8 @@ void
 *   none
 *********************************************************************/
 void
-    val_write_extern (ses_cb_t *scb,
+    val_write_extern (ncx_instance_t *instance,
+                      ses_cb_t *scb,
                       const val_value_t *val)
 {
     FILE               *fil;
@@ -3231,13 +3312,14 @@ void
     int                 ch, lastch;
 
     if (val->v.fname == NULL) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     fil = fopen((const char *)val->v.fname, "r");
     if (fil == NULL) {
-        log_error("\nError: open extern var "
+        log_error(instance,
+                  "\nError: open extern var "
                   "file '%s' failed",
                   val->v.fname);
         return;
@@ -3254,7 +3336,7 @@ void
 
         if (ch == EOF) {
             if (lastch && !inxml) {
-                ses_putchar(scb, (uint32)lastch);
+                ses_putchar(instance, scb, (uint32)lastch);
             }
             fclose(fil);
             done = TRUE;
@@ -3285,7 +3367,7 @@ void
             /* first time xmldone is true skip this */
             if (xmldone && !inxml) {
                 if (lastch) {
-                    ses_putchar(scb, (uint32)lastch);
+                    ses_putchar(instance, scb, (uint32)lastch);
                 }
             }
 
@@ -3297,7 +3379,7 @@ void
             }
         } else {
             if (lastch) {
-                ses_putchar(scb, (uint32)lastch);
+                ses_putchar(instance, scb, (uint32)lastch);
             }
         }
 
@@ -3319,11 +3401,12 @@ void
 *   none
 *********************************************************************/
 void
-    val_write_intern (ses_cb_t *scb,
+    val_write_intern (ncx_instance_t *instance,
+                      ses_cb_t *scb,
                       const val_value_t *val)
 {
     if (val->v.intbuff) {
-        ses_putstr(scb, val->v.intbuff);
+        ses_putstr(instance, scb, val->v.intbuff);
     }
     
 }  /* val_write_intern */
@@ -3355,7 +3438,8 @@ void
 *   !!!! check for ERR_NCX_SKIPPED !!!
 *********************************************************************/
 val_value_t *
-    val_get_value (ses_cb_t *scb,
+    val_get_value (ncx_instance_t *instance,
+                   ses_cb_t *scb,
                    xml_msg_hdr_t *msg,
                    val_value_t *val,
                    val_nodetest_fn_t testfn,
@@ -3369,7 +3453,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!scb || !msg || !val || !malloced || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3378,7 +3462,7 @@ val_value_t *
 
     /* check the user filter callback function */
     if (testfn) {
-        if (!(*testfn)(msg->withdef, TRUE, val)) {
+        if (!(*testfn)(instance, msg->withdef, TRUE, val)) {
             *res = ERR_NCX_SKIPPED;
             return NULL;
         }
@@ -3393,8 +3477,8 @@ val_value_t *
         }
     }
                                    
-    if (val_is_virtual(val)) {
-        v_val = val_get_virtual_value(scb, val, res);
+    if (val_is_virtual(instance, val)) {
+        v_val = val_get_virtual_value(instance, scb, val, res);
         if (!v_val) {
             return NULL;
         }
@@ -3403,23 +3487,25 @@ val_value_t *
     useval = (v_val) ? v_val : val;
 
     if (useval->btyp == NCX_BT_LEAFREF) {
-        typ_def_t *realtypdef = typ_get_xref_typdef(val->typdef);
+        typ_def_t *realtypdef = typ_get_xref_typdef(instance, val->typdef);
         if (realtypdef) {
-            switch (typ_get_basetype(realtypdef)) {
+            switch (typ_get_basetype(instance, realtypdef)) {
             case NCX_BT_STRING:
             case NCX_BT_BINARY:
             case NCX_BT_BOOLEAN:
             case NCX_BT_ENUM:
                 break;
             default:
-                realval = val_make_simval(realtypdef,
-                                          val_get_nsid(useval),
+                realval = val_make_simval(instance,
+                                          realtypdef,
+                                          val_get_nsid(instance, useval),
                                           useval->name,
                                           VAL_STR(useval),
                                           res);
                 if (realval) {
                     *malloced = TRUE;
-                    val_move_fields_for_xml(val, 
+                    val_move_fields_for_xml(instance, 
+                                            val, 
                                             realval,
                                             msg->acm_cbfn == NULL);
                     return realval;
@@ -3428,7 +3514,7 @@ val_value_t *
                 }
             }
         } else {
-            *res = SET_ERROR(ERR_INTERNAL_VAL);
+            *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             return NULL;
         }
     }
@@ -3455,7 +3541,8 @@ val_value_t *
 *
 *********************************************************************/
 void
-    val_traverse_keys (val_value_t *val,
+    val_traverse_keys (ncx_instance_t *instance,
+                       val_value_t *val,
                        void *cookie1,
                        void *cookie2,
                        val_walker_fn_t walkerfn)
@@ -3464,7 +3551,7 @@ void
 
 #ifdef DEBUG
     if (!val || !val->obj || !walkerfn) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -3474,19 +3561,19 @@ void
     }
 
     if (val->parent != NULL) {
-        val_traverse_keys(val->parent, cookie1, cookie2, walkerfn);
+        val_traverse_keys(instance, val->parent, cookie1, cookie2, walkerfn);
     }
 
     if (val->btyp != NCX_BT_LIST) {
         return;
     }
 
-    for (valkey = val_get_first_key(val);
+    for (valkey = val_get_first_key(instance, val);
          valkey != NULL;
-         valkey = val_get_next_key(valkey)) {
+         valkey = val_get_next_key(instance, valkey)) {
 
         if (valkey->val) {
-            boolean ret = (*walkerfn)(valkey->val, cookie1, cookie2);
+            boolean ret = (*walkerfn)(instance, valkey->val, cookie1, cookie2);
             if (!ret) {
                 return;
             }
@@ -3511,26 +3598,26 @@ void
 *   status
 *********************************************************************/
 status_t
-    val_build_index_chains (val_value_t *val)
+    val_build_index_chains (ncx_instance_t *instance, val_value_t *val)
 {
     val_value_t *childval = NULL;
     status_t     res = NO_ERR;
 
 #ifdef DEBUG
     if (!val || !val->obj) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    if (obj_is_leafy(val->obj)) {
+    if (obj_is_leafy(instance, val->obj)) {
         return NO_ERR;
     }
 
-    for (childval = val_get_first_child(val);
+    for (childval = val_get_first_child(instance, val);
          childval != NULL;
-         childval = val_get_next_child(childval)) {
-        if (!obj_is_leafy(childval->obj)) {
-            res = val_build_index_chains(childval);
+         childval = val_get_next_child(instance, childval)) {
+        if (!obj_is_leafy(instance, childval->obj)) {
+            res = val_build_index_chains(instance, childval);
             if (res != NO_ERR) {
                 return res;
             }
@@ -3542,13 +3629,13 @@ status_t
         return NO_ERR;
     }
 
-    if (!dlq_empty(&val->indexQ)) {
+    if (!dlq_empty(instance, &val->indexQ)) {
         /* assume index chain already built */
         return NO_ERR;
     }
 
     /* 0 or more index components expected */
-    res = val_gen_index_chain(val->obj, val);
+    res = val_gen_index_chain(instance, val->obj, val);
     return res;
     
 }  /* val_build_index_chains */

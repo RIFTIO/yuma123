@@ -86,7 +86,7 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    agt_state_init (void);
+    agt_state_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -102,7 +102,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_state_init2 (void);
+    agt_state_init2 (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -116,7 +116,7 @@ extern status_t
 *   none
 *********************************************************************/
 extern void 
-    agt_state_cleanup (void);
+    agt_state_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -131,7 +131,7 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    agt_state_add_session (ses_cb_t *scb);
+    agt_state_add_session (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -144,7 +144,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    agt_state_remove_session (ses_id_t sid);
+    agt_state_remove_session (struct ncx_instance_t_ *instance, ses_id_t sid);
 
 
 /********************************************************************
@@ -159,7 +159,7 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    agt_state_add_module_schema (ncx_module_t *mod);
+    agt_state_add_module_schema (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

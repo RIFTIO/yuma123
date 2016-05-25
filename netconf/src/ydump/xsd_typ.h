@@ -89,7 +89,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_types (const ncx_module_t *mod,
+    xsd_add_types (struct ncx_instance_t_ *instance,
+		   const ncx_module_t *mod,
 		   val_value_t *val);
 
 
@@ -110,7 +111,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_local_types (const ncx_module_t *mod,
+    xsd_add_local_types (struct ncx_instance_t_ *instance,
+			 const ncx_module_t *mod,
 			 val_value_t *val);
 
 
@@ -133,7 +135,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_finish_simpleType (const ncx_module_t *mod,
+    xsd_finish_simpleType (struct ncx_instance_t_ *instance,
+			   const ncx_module_t *mod,
 			   typ_def_t *typdef,
 			   val_value_t *val);
 
@@ -160,7 +163,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_finish_namedType (const ncx_module_t *mod,
+    xsd_finish_namedType (struct ncx_instance_t_ *instance,
+			  const ncx_module_t *mod,
 			  typ_def_t *typdef,
 			  val_value_t *val);
 
@@ -182,7 +186,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_finish_union (const ncx_module_t *mod,
+    xsd_finish_union (struct ncx_instance_t_ *instance,
+		      const ncx_module_t *mod,
 		      typ_def_t *typdef,
 		      val_value_t *val);
 

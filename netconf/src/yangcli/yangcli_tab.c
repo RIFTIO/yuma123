@@ -235,7 +235,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_parm_completion (obj_template_t *parmobj,
+    fill_parm_completion (ncx_instance_t *instance,
+                          obj_template_t *parmobj,
                           WordCompletion *cpl,
                           completion_state_t *comstate,
                           const char *line,
@@ -250,7 +251,7 @@ static status_t
     status_t               res;
 
 #ifdef YANGCLI_TAB_DEBUG
-    log_debug2("\n*** fill parm %s ***\n", obj_get_name(parmobj));
+    log_debug2(instance, "\n*** fill parm %s ***\n", obj_get_name(instance, parmobj));
 #endif
 
     typdef = obj_get_typdef(parmobj);
@@ -259,18 +260,18 @@ static status_t
     }
 
     res = NO_ERR;
-    basetypdef = typ_get_base_typdef(typdef);
-    btyp = obj_get_basetype(parmobj);
+    basetypdef = typ_get_base_typdef(instance, typdef);
+    btyp = obj_get_basetype(instance, parmobj);
 
     switch (btyp) {
     case NCX_BT_ENUM:
     case NCX_BT_BITS:
-        for (typenum = typ_first_enumdef(basetypdef);
+        for (typenum = typ_first_enumdef(instance, basetypdef);
              typenum != NULL && res == NO_ERR;
-             typenum = typ_next_enumdef(typenum)) {
+             typenum = typ_next_enumdef(instance, typenum)) {
 
 #ifdef YANGCLI_TAB_DEBUG
-            log_debug2("\n*** found enubit  %s ***\n", typenum->name);
+            log_debug2(instance, "\n*** found enubit  %s ***\n", typenum->name);
 #endif
 
             res = fill_one_parm_completion(cpl, comstate, line,
@@ -299,7 +300,7 @@ static status_t
     /* no current values to show;
      * just use the default if any
      */
-    defaultstr = (const char *)obj_get_default(parmobj);
+    defaultstr = (const char *)obj_get_default(instance, parmobj);
     if (defaultstr) {
         res = fill_one_parm_completion(cpl, comstate, line, defaultstr,
                                        word_start, word_end, parmlen);
@@ -310,7 +311,7 @@ static status_t
 }  /* fill_parm_completion */
 
 static status_t
-    fill_xpath_predicate_completion (obj_template_t *rpc, obj_template_t *parentObj,
+    fill_xpath_predicate_completion (struct ncx_instance_t_ *instance, obj_template_t *rpc, obj_template_t *parentObj,
                                     WordCompletion *cpl,
                                     const char *line,
                                     int word_start,
@@ -338,7 +339,7 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_xpath_children_completion (obj_template_t *rpc, obj_template_t *parentObj,
+    fill_xpath_children_completion (ncx_instance_t *instance, obj_template_t *rpc, obj_template_t *parentObj,
                                     WordCompletion *cpl,
                                     const char *line,
                                     int word_start,
@@ -362,7 +363,8 @@ static status_t
             if (parentObj == NULL)
                 return NO_ERR;
             obj_template_t *childObj = 
-                obj_find_child(parentObj,
+                obj_find_child(instance,
+                               parentObj,
                                NULL/*obj_get_mod_name(parentObj)*/,
                                (const xmlChar *)childName);
             cmdlen = word_end - word_iter;
@@ -370,20 +372,20 @@ static status_t
             // put the children path with topObj into the recursive 
             // lookup function
             if(line[word_iter] == '/') {
-                return fill_xpath_children_completion(rpc, childObj,
+                return fill_xpath_children_completion(instance, rpc, childObj,
                                                       cpl,line, word_iter,
                                                       word_end, cmdlen);
             } else if(line[word_iter] == '[') {
-                return fill_xpath_predicate_completion(rpc, childObj,
+                return fill_xpath_predicate_completion(instance, rpc, childObj,
                                                       cpl,line, word_iter,
                                                       word_end, cmdlen);
             }
         }
         word_iter ++;
     }
-    obj_template_t * childObj = obj_first_child_deep(parentObj);
-    for(;childObj!=NULL; childObj = obj_next_child_deep(childObj)) {
-        pathname = obj_get_name(childObj);
+    obj_template_t * childObj = obj_first_child_deep(instance, parentObj);
+    for(;childObj!=NULL; childObj = obj_next_child_deep(instance, childObj)) {
+        pathname = obj_get_name(instance, childObj);
         /* check if there is a partial command name */
         if (cmdlen > 0 &&
             strncmp((const char *)pathname,
@@ -393,14 +395,14 @@ static status_t
             continue;
         }
 
-        if( !obj_is_data_db(childObj)) {
+        if( !obj_is_data_db(instance, childObj)) {
             /* object is either rpc or notification*/
             continue;
         }
 
-        if(!obj_get_config_flag(childObj)) {
+        if(!obj_get_config_flag(instance, childObj)) {
             const xmlChar* rpc_name;
-            rpc_name = obj_get_name(rpc);
+            rpc_name = obj_get_name(instance, rpc);
             if(0==strcmp((const char*)rpc_name, "create")) continue;
             if(0==strcmp((const char*)rpc_name, "replace")) continue;
             if(0==strcmp((const char*)rpc_name, "delete")) continue;
@@ -436,7 +438,7 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_xpath_predicate_completion (obj_template_t *rpc, obj_template_t *parentObj,
+    fill_xpath_predicate_completion (ncx_instance_t *instance, obj_template_t *rpc, obj_template_t *parentObj,
                                     WordCompletion *cpl,
                                     const char *line,
                                     int word_start,
@@ -453,7 +455,7 @@ static status_t
         if (line[word_iter] == ']') {
             // The second ']'
             // fill parentObj child completion
-            int predicate_len = word_iter - word_start;
+            //int predicate_len = word_iter - word_start;
             if (parentObj == NULL)
                 return NO_ERR;
 
@@ -464,15 +466,15 @@ static status_t
 
             cmdlen = word_end - word_iter;
 
-            return fill_xpath_children_completion(rpc, parentObj,
+            return fill_xpath_children_completion(instance, rpc, parentObj,
                                                   cpl,line, word_iter,
                                                       word_end, cmdlen);
         }
         word_iter ++;
     }
-    obj_template_t * childObj = obj_first_child_deep(parentObj);
-    for(;childObj!=NULL; childObj = obj_next_child_deep(childObj)) {
-        pathname = obj_get_name(childObj);
+    obj_template_t * childObj = obj_first_child_deep(instance, parentObj);
+    for(;childObj!=NULL; childObj = obj_next_child_deep(instance, childObj)) {
+        pathname = obj_get_name(instance, childObj);
         /* check if there is a partial command name */
         if (cmdlen > 0 &&
             strncmp((const char *)pathname,
@@ -482,21 +484,21 @@ static status_t
             continue;
         }
 
-        if( !obj_is_data_db(childObj)) {
+        if( !obj_is_data_db(instance, childObj)) {
             /* object is either rpc or notification*/
             continue;
         }
 
-        if(!obj_get_config_flag(childObj)) {
+        if(!obj_get_config_flag(instance, childObj)) {
             const xmlChar* rpc_name;
-            rpc_name = obj_get_name(rpc);
+            rpc_name = obj_get_name(instance, rpc);
             if(0==strcmp((const char*)rpc_name, "create")) continue;
             if(0==strcmp((const char*)rpc_name, "replace")) continue;
             if(0==strcmp((const char*)rpc_name, "delete")) continue;
         }
 
-        if(!obj_is_leaf(childObj)) {
-            const xmlChar* rpc_name;
+        if(!obj_is_leaf(instance, childObj)) {
+            //const xmlChar* rpc_name;
             continue;
         }
 
@@ -527,15 +529,16 @@ static status_t
  *   pointer to object if found, NULL if not found
  *********************************************************************/
 static obj_template_t * 
-    check_find_xpath_top_obj (ncx_module_t *mod,
+    check_find_xpath_top_obj (ncx_instance_t *instance,
+                              ncx_module_t *mod,
                               const char *line,
                               int word_start,
                               int cmdlen)
 {
-    obj_template_t *modObj = ncx_get_first_object(mod);
+    obj_template_t *modObj = ncx_get_first_object(instance, mod);
     for(; modObj!=NULL; 
-        modObj = ncx_get_next_object(mod, modObj)) {
-        const xmlChar *pathname = obj_get_name(modObj);
+        modObj = ncx_get_next_object(instance, mod, modObj)) {
+        const xmlChar *pathname = obj_get_name(instance, modObj);
         /* check if there is a partial command name */
         if (cmdlen > 0 && !strncmp((const char *)pathname,
                                    &line[word_start],
@@ -571,7 +574,8 @@ static obj_template_t *
  *   status
  *********************************************************************/
 static obj_template_t *
-    find_xpath_top_obj (completion_state_t *comstate,
+    find_xpath_top_obj (ncx_instance_t *instance,
+                        completion_state_t *comstate,
                         const char *line,
                         int word_start,
                         int word_end)
@@ -580,14 +584,14 @@ static obj_template_t *
     int cmdlen = (word_end - 1) - word_start;
     obj_template_t *modObj;
 
-    if (use_servercb(comstate->server_cb)) {
+    if (use_servercb(instance, comstate->server_cb)) {
         modptr_t *modptr;
         for (modptr = (modptr_t *)
-                 dlq_firstEntry(&comstate->server_cb->modptrQ);
+                 dlq_firstEntry(instance, &comstate->server_cb->modptrQ);
              modptr != NULL;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            modObj = check_find_xpath_top_obj(modptr->mod, line,
+            modObj = check_find_xpath_top_obj(instance, modptr->mod, line,
                                               word_start, cmdlen);
             if (modObj != NULL) {
                 return modObj;
@@ -595,21 +599,21 @@ static obj_template_t *
         }
 
         /* check manager loaded commands next */
-        for (modptr = (modptr_t *)dlq_firstEntry(get_mgrloadQ());
+        for (modptr = (modptr_t *)dlq_firstEntry(instance, get_mgrloadQ());
              modptr != NULL;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            modObj = check_find_xpath_top_obj(modptr->mod, line,
+            modObj = check_find_xpath_top_obj(instance, modptr->mod, line,
                                               word_start, cmdlen);
             if (modObj != NULL) {
                 return modObj;
             }
         }
     } else {
-        ncx_module_t * mod = ncx_get_first_session_module();
-        for(;mod!=NULL; mod = ncx_get_next_session_module(mod)) {
+        ncx_module_t * mod = ncx_get_first_session_module(instance);
+        for(;mod!=NULL; mod = ncx_get_next_session_module(instance, mod)) {
 
-            modObj = check_find_xpath_top_obj(mod, line,
+            modObj = check_find_xpath_top_obj(instance, mod, line,
                                               word_start, cmdlen);
             if (modObj != NULL) {
                 return modObj;
@@ -641,7 +645,8 @@ static obj_template_t *
  *   status
  *********************************************************************/
 static status_t
-    check_save_xpath_completion (
+    check_save_xpath_completion (ncx_instance_t *instance,
+        
         obj_template_t *rpc,
         WordCompletion *cpl,
         ncx_module_t *mod,
@@ -650,32 +655,33 @@ static status_t
         int word_end,
         int cmdlen)
 {
-    obj_template_t * modObj = ncx_get_first_object(mod);
+    obj_template_t * modObj = ncx_get_first_object(instance, mod);
     for (; modObj != NULL; 
-         modObj = ncx_get_next_object(mod, modObj)) {
+         modObj = ncx_get_next_object(instance, mod, modObj)) {
 
-        if (!obj_is_data_db(modObj)) {
+        if (!obj_is_data_db(instance, modObj)) {
             /* object is either rpc or notification*/
             continue;
         }
 
-        const xmlChar *pathname = obj_get_name(modObj);
+        const xmlChar *pathname = obj_get_name(instance, modObj);
         /* check if there is a partial command name */
         if (cmdlen > 0 && strncmp((const char *)pathname, 
                                   &line[word_start], cmdlen)) {
             continue;
         }
 
-        if(!obj_get_config_flag(modObj)) {
+        if(!obj_get_config_flag(instance, modObj)) {
             const xmlChar* rpc_name;
-            rpc_name = obj_get_name(rpc);
+            rpc_name = obj_get_name(instance, rpc);
             if(0==strcmp((const char*)rpc_name, "create")) continue;
             if(0==strcmp((const char*)rpc_name, "replace")) continue;
             if(0==strcmp((const char*)rpc_name, "delete")) continue;
         }
 
 #ifdef DEBUG_TRACE
-        log_debug2("\nFilling from module %s, object %s", 
+        log_debug2(instance, 
+                   "\nFilling from module %s, object %s", 
                    mod->name, pathname);
 #endif
 
@@ -712,7 +718,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_xpath_root_completion (
+    fill_xpath_root_completion (ncx_instance_t *instance,
+        
         obj_template_t *rpc,
         WordCompletion *cpl,
         completion_state_t *comstate,
@@ -723,11 +730,11 @@ static status_t
 {
     status_t res;
 
-    if (use_servercb(comstate->server_cb)) {
+    if (use_servercb(instance, comstate->server_cb)) {
         modptr_t *modptr = (modptr_t *)
-            dlq_firstEntry(&comstate->server_cb->modptrQ);
-        for (; modptr != NULL; modptr = (modptr_t *)dlq_nextEntry(modptr)) {
-            res = check_save_xpath_completion(rpc, cpl, modptr->mod, line,
+            dlq_firstEntry(instance, &comstate->server_cb->modptrQ);
+        for (; modptr != NULL; modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
+            res = check_save_xpath_completion(instance, rpc, cpl, modptr->mod, line,
                                               word_start, word_end, cmdlen);
             if (res != NO_ERR) {
                 return res;
@@ -735,19 +742,19 @@ static status_t
         }
 
         /* check manager loaded commands next */
-        for (modptr = (modptr_t *)dlq_firstEntry(get_mgrloadQ());
+        for (modptr = (modptr_t *)dlq_firstEntry(instance, get_mgrloadQ());
              modptr != NULL;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
-            res = check_save_xpath_completion(rpc, cpl, modptr->mod, line,
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
+            res = check_save_xpath_completion(instance, rpc, cpl, modptr->mod, line,
                                               word_start, word_end, cmdlen);
             if (res != NO_ERR) {
                 return res;
             }
         }
     } else {
-        ncx_module_t * mod = ncx_get_first_session_module();
-        for (;mod!=NULL; mod = ncx_get_next_session_module(mod)) {
-            res = check_save_xpath_completion(rpc, cpl, mod, line,
+        ncx_module_t * mod = ncx_get_first_session_module(instance);
+        for (;mod!=NULL; mod = ncx_get_next_session_module(instance, mod)) {
+            res = check_save_xpath_completion(instance, rpc, cpl, mod, line,
                                               word_start, word_end, cmdlen);
             if (res != NO_ERR) {
                 return res;
@@ -788,7 +795,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_one_xpath_completion (obj_template_t *rpc,
+    fill_one_xpath_completion (ncx_instance_t *instance,
+                               obj_template_t *rpc,
                                WordCompletion *cpl,
                                completion_state_t *comstate,
                                const char *line,
@@ -813,7 +821,7 @@ static status_t
               // The second '/' is found
               // TODO: find the top level obj and fill its child completion
 //            log_write("more than 1\n");
-              obj_template_t * topObj = find_xpath_top_obj(comstate, line,
+              obj_template_t * topObj = find_xpath_top_obj(instance, comstate, line,
                                                            word_start,
                                                            word_iter);
 
@@ -821,7 +829,7 @@ static status_t
 
               // put the children path with topObj into the recursive 
               // lookup function
-              return fill_xpath_children_completion (rpc, topObj, cpl, line,
+              return fill_xpath_children_completion (instance, rpc, topObj, cpl, line,
                                                      word_iter, word_end, 
                                                      cmdlen);
         }
@@ -829,7 +837,7 @@ static status_t
     }
 
     // The second '/' is not found
-    return fill_xpath_root_completion(rpc, cpl, comstate, line, 
+    return fill_xpath_root_completion(instance, rpc, cpl, comstate, line, 
                                       word_start, word_end, cmdlen);
 
 }  /* fill_one_xpath_completion */
@@ -862,7 +870,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_one_rpc_completion_parms (obj_template_t *rpc,
+    fill_one_rpc_completion_parms (ncx_instance_t *instance,
+                                   obj_template_t *rpc,
                                    WordCompletion *cpl,
                                    completion_state_t *comstate,
                                    const char *line,
@@ -877,21 +886,21 @@ static status_t
     boolean                hasval;
 
     if(line[word_start] == '/') {
-        return fill_one_xpath_completion(rpc, cpl, comstate, line, word_start,
+        return fill_one_xpath_completion(instance, rpc, cpl, comstate, line, word_start,
                                          word_end, cmdlen);
     }
 
-    inputobj = obj_find_child(rpc, NULL, YANG_K_INPUT);
-    if (inputobj == NULL || !obj_has_children(inputobj)) {
+    inputobj = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
+    if (inputobj == NULL || !obj_has_children(instance, inputobj)) {
         /* no input parameters */
         return NO_ERR;
     }
 
-    for (obj = obj_first_child_deep(inputobj);
+    for (obj = obj_first_child_deep(instance, inputobj);
          obj != NULL;
-         obj = obj_next_child_deep(obj)) {
+         obj = obj_next_child_deep(instance, obj)) {
 
-        parmname = obj_get_name(obj);
+        parmname = obj_get_name(instance, obj);
 
         /* check if there is a partial command name */
         if (cmdlen > 0 &&
@@ -900,7 +909,7 @@ static status_t
             continue;
         }
 
-        btyp = obj_get_basetype(obj);
+        btyp = obj_get_basetype(instance, obj);
         hasval = (btyp == NCX_BT_EMPTY) ? FALSE : TRUE;
 
         retval = cpl_add_completion(cpl, line, word_start, word_end,
@@ -945,7 +954,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_one_module_completion_commands (ncx_module_t *mod,
+    fill_one_module_completion_commands (ncx_instance_t *instance,
+                                         ncx_module_t *mod,
                                          WordCompletion *cpl,
                                          completion_state_t *comstate,
                                          const char *line,
@@ -962,22 +972,22 @@ static status_t
     yangcli_mod = get_yangcli_mod();
     toponly = FALSE;
     if (mod == yangcli_mod &&
-        !use_servercb(comstate->server_cb)) {
+        !use_servercb(instance, comstate->server_cb)) {
         toponly = TRUE;
     }
 
     /* check all the OBJ_TYP_RPC objects in the module */
-    for (obj = ncx_get_first_object(mod);
+    for (obj = ncx_get_first_object(instance, mod);
          obj != NULL;
-         obj = ncx_get_next_object(mod, obj)) {
+         obj = ncx_get_next_object(instance, mod, obj)) {
 
-        if (!obj_is_rpc(obj)) {
+        if (!obj_is_rpc(instance, obj)) {
             continue;
         }
 
-        cmdname = obj_get_name(obj);
+        cmdname = obj_get_name(instance, obj);
 
-        if (toponly && !is_top_command(cmdname)) {
+        if (toponly && !is_top_command(instance, cmdname)) {
             continue;
         }
 
@@ -1027,7 +1037,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_one_completion_commands (WordCompletion *cpl,
+    fill_one_completion_commands (ncx_instance_t *instance,
+                                  WordCompletion *cpl,
                                   completion_state_t *comstate,
                                   const char *line,
                                   int word_start,
@@ -1046,50 +1057,52 @@ static status_t
          * to limit the definitions to that module 
          */
         res = fill_one_module_completion_commands
-            (comstate->cmdmodule, cpl, comstate, line, word_start,
+            (instance, comstate->cmdmodule, cpl, comstate, line, word_start,
              word_end, cmdlen);
     } else {
-        if (use_servercb(comstate->server_cb)) {
+        if (use_servercb(instance, comstate->server_cb)) {
             /* list server commands first */
             for (modptr = (modptr_t *)
-                     dlq_firstEntry(&comstate->server_cb->modptrQ);
+                     dlq_firstEntry(instance, &comstate->server_cb->modptrQ);
                  modptr != NULL && res == NO_ERR;
-                 modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+                 modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
 #ifdef DEBUG_TRACE
-                log_debug("\nFilling from server_cb module %s", 
+                log_debug(instance, 
+                          "\nFilling from server_cb module %s", 
                           modptr->mod->name);
 #endif
 
                 res = fill_one_module_completion_commands
-                    (modptr->mod, cpl, comstate, line, word_start,
+                    (instance, modptr->mod, cpl, comstate, line, word_start,
                      word_end, cmdlen);
             }
 
             /* list manager loaded commands next */
             for (modptr = (modptr_t *)
-                     dlq_firstEntry(get_mgrloadQ());
+                     dlq_firstEntry(instance, get_mgrloadQ());
                  modptr != NULL && res == NO_ERR;
-                 modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+                 modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
 #ifdef DEBUG_TRACE
-                log_debug("\nFilling from mgrloadQ module %s", 
+                log_debug(instance, 
+                          "\nFilling from mgrloadQ module %s", 
                           modptr->mod->name);
 #endif
 
                 res = fill_one_module_completion_commands
-                    (modptr->mod, cpl, comstate, line, word_start,
+                    (instance, modptr->mod, cpl, comstate, line, word_start,
                      word_end, cmdlen);
             }
         }
 
 #ifdef DEBUG_TRACE
         /* use the yangcli top commands every time */
-        log_debug("\nFilling from yangcli module");
+        log_debug(instance, "\nFilling from yangcli module");
 #endif
 
         res = fill_one_module_completion_commands
-            (get_yangcli_mod(), cpl, comstate, line, word_start,
+            (instance, get_yangcli_mod(), cpl, comstate, line, word_start,
              word_end, cmdlen);
     }
 
@@ -1206,7 +1219,8 @@ static boolean
  *   status
  *********************************************************************/
 static status_t
-    find_parm_start (obj_template_t *inputobj,
+    find_parm_start (ncx_instance_t *instance,
+                     obj_template_t *inputobj,
                      const char *line,
                      int word_start,
                      int word_end,
@@ -1363,14 +1377,14 @@ static status_t
             }
 
             /* try to find this parameter name */
-            childobj = obj_find_child_str(inputobj, NULL,
+            childobj = obj_find_child_str(instance, inputobj, NULL,
                                           (const xmlChar *)seqstart,
                                           (uint32)(str - seqstart));
             if (childobj == NULL) {
                 matchcount = 0;
 
                 /* try to match this parameter name */
-                childobj = obj_match_child_str(inputobj, NULL,
+                childobj = obj_match_child_str(instance, inputobj, NULL,
                                                (const xmlChar *)seqstart,
                                                (uint32)(str - seqstart),
                                                &matchcount);
@@ -1399,7 +1413,7 @@ static status_t
             /* check if the parameter is an empty, which
              * means another parameter is expected, not a value
              */
-            if (obj_get_basetype(childobj) == NCX_BT_EMPTY) {
+            if (obj_get_basetype(instance, childobj) == NCX_BT_EMPTY) {
                 *expectparm = TRUE;
             } else {
                 /* normal leaf parameter; needs a value */
@@ -1423,14 +1437,14 @@ static status_t
         *tokenstart = (int)((equals+1) - line);
 
         /* try to find the parameter name */
-        childobj = obj_find_child_str(inputobj, NULL,
+        childobj = obj_find_child_str(instance, inputobj, NULL,
                                       (const xmlChar *)seqstart,
                                       (uint32)(equals - seqstart));
         if (childobj == NULL) {
             matchcount = 0;
             
             /* try to match this parameter name */
-            childobj = obj_match_child_str(inputobj, NULL,
+            childobj = obj_match_child_str(instance, inputobj, NULL,
                                            (const xmlChar *)seqstart,
                                            (uint32)(equals - seqstart),
                                            &matchcount);
@@ -1513,7 +1527,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    parse_backwards_parm (WordCompletion *cpl,
+    parse_backwards_parm (ncx_instance_t *instance,
+                          WordCompletion *cpl,
                           completion_state_t *comstate,
                           const char *line,
                           int word_start,
@@ -1526,7 +1541,7 @@ static status_t
     boolean                expectparm, emptyexit;
 
     if (word_end == 0) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     res = NO_ERR;
@@ -1537,7 +1552,7 @@ static status_t
     rpc = comstate->cmdobj;
     inputobj = comstate->cmdinput;
 
-    res = find_parm_start(inputobj, line, word_start, word_end, &expectparm,
+    res = find_parm_start(instance, inputobj, line, word_start, word_end, &expectparm,
                           &emptyexit, &parmobj, &tokenstart);
     if (res != NO_ERR || emptyexit) {
         return res;
@@ -1550,10 +1565,10 @@ static status_t
          */
 
 #ifdef YANGCLI_TAB_DEBUG
-        log_debug2("\n*** fill one RPC %s parms ***\n", obj_get_name(rpc));
+        log_debug2(instance, "\n*** fill one RPC %s parms ***\n", obj_get_name(instance, rpc));
 #endif
 
-        res = fill_one_rpc_completion_parms(rpc, cpl, comstate, line,
+        res = fill_one_rpc_completion_parms(instance, rpc, cpl, comstate, line,
                                             tokenstart, word_end, 
                                             word_end - tokenstart);
     } else if (parmobj) {
@@ -1563,10 +1578,10 @@ static status_t
          */
 
 #ifdef YANGCLI_TAB_DEBUG
-        log_debug2("\n*** fill one parm in backwards ***\n");
+        log_debug2(instance, "\n*** fill one parm in backwards ***\n");
 #endif
 
-        res = fill_parm_completion(parmobj, cpl, comstate, line, tokenstart,
+        res = fill_parm_completion(instance, parmobj, cpl, comstate, line, tokenstart,
                                    word_end, word_end - tokenstart);
     } /* else nothing to do */
 
@@ -1601,7 +1616,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    fill_parm_values (WordCompletion *cpl,
+    fill_parm_values (ncx_instance_t *instance,
+                      WordCompletion *cpl,
                       completion_state_t *comstate,
                       const char *line,
                       int word_start,
@@ -1617,10 +1633,10 @@ static status_t
     /*** NEED TO CHECK FOR STRING QUOTES ****/
 
 #ifdef YANGCLI_TAB_DEBUG
-    log_debug2("\n*** fill parm values ***\n");
+    log_debug2(instance, "\n*** fill parm values ***\n");
 #endif
 
-    res = fill_parm_completion(comstate->cmdcurparm, cpl, comstate, line,
+    res = fill_parm_completion(instance, comstate->cmdcurparm, cpl, comstate, line,
                                word_start, word_end, word_end - word_start);
 
     return res;
@@ -1712,7 +1728,8 @@ static void strip_predicate(char* line, char* line_striped)
  *   status
  *********************************************************************/
 static status_t
-    fill_completion_commands (WordCompletion *cpl,
+    fill_completion_commands (ncx_instance_t *instance,
+                              WordCompletion *cpl,
                               completion_state_t *comstate,
                               const char *line,
                               int word_end)
@@ -1743,7 +1760,7 @@ static status_t
         /* found only spaces so far or
          * nothing entered yet 
          */
-        res = fill_one_completion_commands(cpl, comstate, line, word_end,
+        res = fill_one_completion_commands(instance, cpl, comstate, line, word_end,
                                            word_end, 0);
         if (res != NO_ERR) {
             cpl_record_error(cpl, get_error_string(res));
@@ -1804,7 +1821,7 @@ static status_t
                  */
                 word_start = (int)(str - line);
             } else if (equaldone) {
-                res = fill_one_completion_commands(cpl, comstate, line,
+                res = fill_one_completion_commands(instance, cpl, comstate, line,
                                                    word_end, word_end, 0);
                 if (res != NO_ERR) {
                     cpl_record_error(cpl, get_error_string(res));
@@ -1843,7 +1860,7 @@ static status_t
         /* get all the commands that start with the same
          * characters for length == 'cmdlen'
          */
-        res = fill_one_completion_commands(cpl, comstate, line, word_start,
+        res = fill_one_completion_commands(instance, cpl, comstate, line, word_start,
                                            word_end, cmdlen);
         if (res != NO_ERR) {
             cpl_record_error(cpl, get_error_string(res));
@@ -1857,7 +1874,7 @@ static status_t
      */
     cmdname = &line[word_start];
 
-    buffer = xml_strndup((const xmlChar *)cmdname, (uint32)cmdlen);
+    buffer = xml_strndup(instance, (const xmlChar *)cmdname, (uint32)cmdlen);
 
     if (buffer == NULL) {
         if (cpl != NULL) {
@@ -1869,8 +1886,8 @@ static status_t
     dtyp = NCX_NT_OBJ;
     res = NO_ERR;
     comstate->cmdobj = (obj_template_t *)
-        parse_def(comstate->server_cb, &dtyp, buffer, &retlen, &res);
-    m__free(buffer);
+        parse_def(instance, comstate->server_cb, &dtyp, buffer, &retlen, &res);
+    m__free(instance, buffer);
 
     if (comstate->cmdobj == NULL) {
         if (cpl != NULL) {
@@ -1893,7 +1910,7 @@ static status_t
     /* check where E-O-WSP search stopped */
     if (str == &line[word_end]) {
         /* stopped before entering any parameters */
-        res = fill_one_rpc_completion_parms(comstate->cmdobj, cpl, 
+        res = fill_one_rpc_completion_parms(instance, comstate->cmdobj, cpl, 
                                             comstate, line,
                                             word_start, word_end, 0);
         return res;
@@ -1903,9 +1920,9 @@ static status_t
     /* there is more text entered; check if this rpc
      * really has any input parameters or not
      */
-    inputobj = obj_find_child(comstate->cmdobj, NULL, YANG_K_INPUT);
+    inputobj = obj_find_child(instance, comstate->cmdobj, NULL, YANG_K_INPUT);
     if (inputobj == NULL ||
-        !obj_has_children(inputobj)) {
+        !obj_has_children(instance, inputobj)) {
         /* no input parameters expected */
         return NO_ERR;
     } else {
@@ -1986,7 +2003,7 @@ static status_t
      * quoted string so figure out the
      * parm in progress and check for completions
      */
-    res = parse_backwards_parm(cpl, comstate, line_striped, word_start, word_end);
+    res = parse_backwards_parm(instance, cpl, comstate, line_striped, word_start, word_end);
     free(line_striped);
     return res;
 
@@ -2091,7 +2108,8 @@ static status_t
  *                         1 - Error.
  */
 int
-    yangcli_tab_callback (WordCompletion *cpl, 
+    yangcli_tab_callback (ncx_instance_t *instance, 
+                          WordCompletion *cpl, 
                           void *data,
                           const char *line, 
                           int word_end)
@@ -2102,7 +2120,7 @@ int
 
 #ifdef DEBUG
     if (!cpl || !data || !line) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 1;
     }
 #endif
@@ -2125,13 +2143,13 @@ int
 
     switch (comstate->cmdstate) {
     case CMD_STATE_FULL:
-        res = fill_completion_commands(cpl, comstate, line, word_end);
+        res = fill_completion_commands(instance, cpl, comstate, line, word_end);
         if (res != NO_ERR) {
             retval = 1;
         }
         break;
     case CMD_STATE_GETVAL:
-        res = fill_parm_values(cpl, comstate, line, 0, word_end);
+        res = fill_parm_values(instance, cpl, comstate, line, 0, word_end);
         if (res != NO_ERR) {
             retval = 1;
         }
@@ -2147,12 +2165,12 @@ int
         break;
     case CMD_STATE_NONE:
         /* command state not initialized */
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         retval = 1;
         break;
     default:
         /* command state garbage value */
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         retval = 1;
     }
 

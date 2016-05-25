@@ -102,7 +102,8 @@ typedef enum agt_rpc_phase_t_ {
  * The same template is used for all RPC callback phases
  */
 typedef status_t 
-    (*agt_rpc_method_t) (ses_cb_t *scb,
+    (*agt_rpc_method_t) (struct ncx_instance_t_ *instance,
+			 ses_cb_t *scb,
 			 rpc_msg_t *msg,
 			 xml_node_t *methnode);
 
@@ -125,7 +126,8 @@ typedef struct agt_rpc_cbset_t_ {
  *   status of the output operation
  */
 typedef status_t 
-    (*agt_rpc_data_cb_t) (ses_cb_t *scb, 
+    (*agt_rpc_data_cb_t) (struct ncx_instance_t_ *instance,
+			  ses_cb_t *scb, 
 			  rpc_msg_t *msg,
 			  uint32 indent);
 
@@ -152,7 +154,7 @@ typedef status_t
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 extern status_t 
-    agt_rpc_init (void);
+    agt_rpc_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -164,7 +166,7 @@ extern status_t
 *
 *********************************************************************/
 extern void 
-    agt_rpc_cleanup (void);
+    agt_rpc_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -182,7 +184,8 @@ extern void
 *    status of the operation
 *********************************************************************/
 extern status_t 
-    agt_rpc_register_method (const xmlChar *module,
+    agt_rpc_register_method (struct ncx_instance_t_ *instance,
+			     const xmlChar *module,
 			     const xmlChar *method_name,
 			     agt_rpc_phase_t  phase,
 			     agt_rpc_method_t method);
@@ -199,7 +202,8 @@ extern status_t
 *    method_name == RPC method name
 *********************************************************************/
 extern void 
-    agt_rpc_support_method (const xmlChar *module,
+    agt_rpc_support_method (struct ncx_instance_t_ *instance,
+                            const xmlChar *module,
                             const xmlChar *method_name);
 
 
@@ -214,7 +218,8 @@ extern void
 *    method_name == RPC method name
 *********************************************************************/
 extern void
-    agt_rpc_unsupport_method (const xmlChar *module,
+    agt_rpc_unsupport_method (struct ncx_instance_t_ *instance,
+			      const xmlChar *module,
 			      const xmlChar *method_name);
 
 
@@ -229,7 +234,8 @@ extern void
 *    method_name == RPC method name
 *********************************************************************/
 extern void
-    agt_rpc_unregister_method (const xmlChar *module,
+    agt_rpc_unregister_method (struct ncx_instance_t_ *instance,
+			       const xmlChar *module,
 			       const xmlChar *method_name);
 
 
@@ -246,7 +252,8 @@ extern void
 *   top == top element descriptor
 *********************************************************************/
 extern void
-    agt_rpc_dispatch (ses_cb_t  *scb,
+    agt_rpc_dispatch (struct ncx_instance_t_ *instance,
+		      ses_cb_t  *scb,
 		      xml_node_t *top);
 
 /********************************************************************
@@ -276,7 +283,8 @@ extern void
 *     status
 *********************************************************************/
 extern status_t
-    agt_rpc_load_config_file (const xmlChar *filespec,
+    agt_rpc_load_config_file (struct ncx_instance_t_ *instance,
+			      const xmlChar *filespec,
 			      cfg_template_t  *cfg,
                               boolean isload,
                               ses_id_t  use_sid);
@@ -316,7 +324,8 @@ extern status_t
 *   NULL if some error, check errorQ and *res
 *********************************************************************/
 extern val_value_t *
-    agt_rpc_get_config_file (const xmlChar *filespec,
+    agt_rpc_get_config_file (struct ncx_instance_t_ *instance,
+                             const xmlChar *filespec,
                              cfg_template_t *targetcfg,
                              ses_id_t  use_sid,
                              dlq_hdr_t *errorQ,
@@ -341,7 +350,8 @@ extern val_value_t *
 *   status
 *********************************************************************/
 extern status_t
-    agt_rpc_fill_rpc_error (const rpc_err_rec_t *err,
+    agt_rpc_fill_rpc_error (struct ncx_instance_t_ *instance,
+			    const rpc_err_rec_t *err,
 			    val_value_t *rpcerror);
 
 
@@ -357,7 +367,8 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    agt_rpc_send_error_reply (ses_cb_t *scb,
+    agt_rpc_send_error_reply (struct ncx_instance_t_ *instance,
+                              ses_cb_t *scb,
                               status_t retres);
 
 #ifdef __cplusplus

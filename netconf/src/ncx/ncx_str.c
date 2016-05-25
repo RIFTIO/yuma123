@@ -111,23 +111,24 @@ date         init     comment
 *      1 if str1 is > str2
 *********************************************************************/
 int32
-    ncx_compare_strs (const ncx_str_t *str1,
+    ncx_compare_strs (ncx_instance_t *instance,
+                      const ncx_str_t *str1,
                       const ncx_str_t *str2,
                       ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!str1 || !str2) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
     if (!typ_is_string(btyp)) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 0;
     }   
 
-    return xml_strcmp(*str1, *str2);
+    return xml_strcmp(instance, *str1, *str2);
 
     /*NOTREACHED*/
 }  /* ncx_compare_strs */
@@ -154,13 +155,14 @@ int32
 *     status
 *********************************************************************/
 status_t
-    ncx_copy_str (const ncx_str_t *str1,
+    ncx_copy_str (ncx_instance_t *instance,
+                  const ncx_str_t *str1,
                   ncx_str_t *str2,
                   ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!str1 || !str2) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
     if (!(typ_is_string(btyp) || btyp==NCX_BT_BITS)) {
@@ -168,7 +170,7 @@ status_t
     }   
 
     if (*str1) {
-        *str2 = xml_strdup(*str1);
+        *str2 = xml_strdup(instance, *str1);
         if (!*str2) {
             return ERR_INTERNAL_MEM;
         }
@@ -192,18 +194,18 @@ status_t
 *    str == ncx_str_t data structure to clean
 *********************************************************************/
 void 
-    ncx_clean_str (ncx_str_t *str)
+    ncx_clean_str (ncx_instance_t *instance, ncx_str_t *str)
 {
 #ifdef DEBUG
     if (!str) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;  
     }
 #endif
 
     /* clean the num->union, depending on base type */
     if (*str) {
-        m__free(*str);
+        m__free(instance, *str);
         *str = NULL;
     }
 

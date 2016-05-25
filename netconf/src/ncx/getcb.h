@@ -72,6 +72,8 @@ date	     init     comment
 extern "C" {
 #endif
 
+struct ncx_instance_t_;
+
 /********************************************************************
 *								    *
 *			 C O N S T A N T S			    *
@@ -112,7 +114,8 @@ typedef enum getcb_mode_t_ {
  *    status:
  */
 typedef status_t 
-    (*getcb_fn_t) (ses_cb_t *scb,
+    (*getcb_fn_t) (struct ncx_instance_t_ *instance,
+		   ses_cb_t *scb,
 		   getcb_mode_t cbmode,
 		   const val_value_t *virval,
 		   val_value_t *dstval);

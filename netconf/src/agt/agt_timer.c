@@ -76,15 +76,17 @@ static uint32      skip_count;
 *   timer_id or zero if none available
 *********************************************************************/
 static agt_timer_cb_t *
-    find_timer_cb (uint32 timer_id)
+    find_timer_cb (ncx_instance_t *instance, uint32 timer_id)
 {
     agt_timer_cb_t *timer_cb;
 
+    ((void)(instance));
+
     for (timer_cb = (agt_timer_cb_t *)
-             dlq_firstEntry(&timer_cbQ);
+             dlq_firstEntry(instance, &timer_cbQ);
          timer_cb != NULL;
          timer_cb = (agt_timer_cb_t *)
-             dlq_nextEntry(timer_cb)) {
+             dlq_nextEntry(instance, timer_cb)) {
         if (timer_cb->timer_id == timer_id) {
             return timer_cb;
         }
@@ -105,7 +107,7 @@ static agt_timer_cb_t *
 *   timer_id or zero if none available
 *********************************************************************/
 static uint32
-    get_timer_id (void)
+    get_timer_id (ncx_instance_t *instance)
 {
     agt_timer_cb_t *timer_cb;
     uint32          id;
@@ -114,14 +116,14 @@ static uint32
         return next_id++;
     }
 
-    if (dlq_empty(&timer_cbQ)) {
+    if (dlq_empty(instance, &timer_cbQ)) {
         next_id = 1;
         return next_id++;
     }
 
     id = 1;
     while (id < NCX_MAX_UINT) {
-        timer_cb = find_timer_cb(id);
+        timer_cb = find_timer_cb(instance, id);
         if (timer_cb == NULL) {
             return id;
         }
@@ -143,11 +145,11 @@ static uint32
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 static agt_timer_cb_t *
-    new_timer_cb (void)
+    new_timer_cb (ncx_instance_t *instance)
 {
     agt_timer_cb_t *timer_cb;
 
-    timer_cb = m__getObj(agt_timer_cb_t);
+    timer_cb = m__getObj(instance, agt_timer_cb_t);
     if (timer_cb == NULL) {
         return NULL;
     }
@@ -167,10 +169,10 @@ static agt_timer_cb_t *
 *
 *********************************************************************/
 static void
-    free_timer_cb (agt_timer_cb_t *timer_cb)
+    free_timer_cb (ncx_instance_t *instance, agt_timer_cb_t *timer_cb)
 {
 
-    m__free(timer_cb);
+    m__free(instance, timer_cb);
 
 } /* free_timer_cb */
 
@@ -186,10 +188,10 @@ static void
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 void
-    agt_timer_init (void)
+    agt_timer_init (ncx_instance_t *instance)
 {
     if (!agt_timer_init_done) {
-        dlq_createSQue(&timer_cbQ);
+        dlq_createSQue(instance, &timer_cbQ);
         next_id = 1;
         skip_count = 0;
         agt_timer_init_done = TRUE;
@@ -205,14 +207,14 @@ void
 *
 *********************************************************************/
 void 
-    agt_timer_cleanup (void)
+    agt_timer_cleanup (ncx_instance_t *instance)
 {
     agt_timer_cb_t *timer_cb;
 
     if (agt_timer_init_done) {
-        while (!dlq_empty(&timer_cbQ)) {
-            timer_cb = (agt_timer_cb_t *)dlq_deque(&timer_cbQ);
-            free_timer_cb(timer_cb);
+        while (!dlq_empty(instance, &timer_cbQ)) {
+            timer_cb = (agt_timer_cb_t *)dlq_deque(instance, &timer_cbQ);
+            free_timer_cb(instance, timer_cb);
         }
         agt_timer_init_done = FALSE;
     }
@@ -228,7 +230,7 @@ void
 *
 *********************************************************************/
 void 
-    agt_timer_handler (void)
+    agt_timer_handler (ncx_instance_t *instance)
 {
     agt_timer_cb_t  *timer_cb, *next_timer_cb;
     time_t           timenow;
@@ -244,25 +246,27 @@ void
 
     (void)time(&timenow);
 
-    for (timer_cb = (agt_timer_cb_t *)dlq_firstEntry(&timer_cbQ);
+    for (timer_cb = (agt_timer_cb_t *)dlq_firstEntry(instance, &timer_cbQ);
          timer_cb != NULL;
          timer_cb = next_timer_cb) {
 
-        next_timer_cb = (agt_timer_cb_t *)dlq_nextEntry(timer_cb);
+        next_timer_cb = (agt_timer_cb_t *)dlq_nextEntry(instance, timer_cb);
 
         timediff = difftime(timenow, timer_cb->timer_start_time);
         if (timediff >= (double)timer_cb->timer_duration) {
             if (LOGDEBUG3) {
-                log_debug3("\nagt_timer: timer %u popped",
+                log_debug3(instance,
+                           "\nagt_timer: timer %u popped",
                            timer_cb->timer_id);
             }
 
-            retval = (*timer_cb->timer_cbfn)(timer_cb->timer_id,
+            retval = (*timer_cb->timer_cbfn)(instance,
+                                             timer_cb->timer_id,
                                              timer_cb->timer_cookie);
             if (retval != 0 || !timer_cb->timer_periodic) {
                 /* destroy this timer */
-                dlq_remove(timer_cb);
-                free_timer_cb(timer_cb);
+                dlq_remove(instance, timer_cb);
+                free_timer_cb(instance, timer_cb);
             } else {
                 /* reset this periodic timer */
                 (void)time(&timer_cb->timer_start_time);
@@ -295,7 +299,8 @@ void
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 status_t
-    agt_timer_create (uint32 seconds,
+    agt_timer_create (ncx_instance_t *instance,
+                      uint32 seconds,
                       boolean is_periodic,
                       agt_timer_fn_t  timer_fn,
                       void *cookie,
@@ -306,20 +311,20 @@ status_t
 
 #ifdef DEBUG
     if (timer_fn == NULL || ret_timer_id == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (seconds == 0) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     *ret_timer_id = 0;
-    timer_id = get_timer_id();
+    timer_id = get_timer_id(instance);
     if (timer_id == 0) {
         return ERR_NCX_RESOURCE_DENIED;
     }
 
-    timer_cb = new_timer_cb();
+    timer_cb = new_timer_cb(instance);
     if (timer_cb == NULL) {
         return ERR_INTERNAL_MEM;
     }
@@ -332,7 +337,7 @@ status_t
     timer_cb->timer_duration = seconds;
     timer_cb->timer_cookie = cookie;
 
-    dlq_enque(timer_cb, &timer_cbQ);
+    dlq_enque(instance, timer_cb, &timer_cbQ);
     return NO_ERR;
 
 } /* agt_timer_create */
@@ -354,18 +359,19 @@ status_t
 *   status, NO_ERR if all okay,
 *********************************************************************/
 status_t
-    agt_timer_restart (uint32 timer_id,
+    agt_timer_restart (ncx_instance_t *instance,
+                       uint32 timer_id,
                        uint32 seconds)
 {
     agt_timer_cb_t *timer_cb;
 
 #ifdef DEBUG
     if (seconds == 0) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
-    timer_cb = find_timer_cb(timer_id);
+    timer_cb = find_timer_cb(instance, timer_id);
     if (timer_cb == NULL) {
         return ERR_NCX_NOT_FOUND;
     }
@@ -390,19 +396,20 @@ status_t
 *
 *********************************************************************/
 void
-    agt_timer_delete (uint32 timer_id)
+    agt_timer_delete (ncx_instance_t *instance, uint32 timer_id)
 {
     agt_timer_cb_t *timer_cb;
 
-    timer_cb = find_timer_cb(timer_id);
+    timer_cb = find_timer_cb(instance, timer_id);
     if (timer_cb == NULL) {
-        log_warn("\nagt_timer: delete unknown timer '%u'",
+        log_warn(instance,
+                 "\nagt_timer: delete unknown timer '%u'",
                  timer_id);
         return;
     }
 
-    dlq_remove(timer_cb);
-    free_timer_cb(timer_cb);
+    dlq_remove(instance, timer_cb);
+    free_timer_cb(instance, timer_cb);
 
 } /* agt_timer_delete */
 

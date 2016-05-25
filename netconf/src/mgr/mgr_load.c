@@ -60,7 +60,8 @@ date         init     comment
 *     malloced val_value_t struct filled in with the contents
 *********************************************************************/
 val_value_t *
-    mgr_load_extern_file (const xmlChar *filespec,
+    mgr_load_extern_file (ncx_instance_t *instance,
+                          const xmlChar *filespec,
                           obj_template_t *targetobj,
                           status_t *res)
 {
@@ -73,13 +74,13 @@ val_value_t *
     topval = NULL;
 
     /* only supporting parsing of XML files for now */
-    if (!yang_fileext_is_xml(filespec)) {
+    if (!yang_fileext_is_xml(instance, filespec)) {
         *res = ERR_NCX_OPERATION_NOT_SUPPORTED;
         return NULL;
     }
 
     /* create a dummy session control block */
-    scb = mgr_ses_new_dummy_session();
+    scb = mgr_ses_new_dummy_session(instance);
     if (scb == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -87,29 +88,31 @@ val_value_t *
 
     if (targetobj == NULL) {
         isany = TRUE;
-        targetobj = ncx_get_gen_anyxml();
+        targetobj = ncx_get_gen_anyxml(instance);
     }
 
     if (LOGDEBUG2) {
-        log_debug2("\nLoading extern XML file as '%s'",
+        log_debug2(instance,
+                   "\nLoading extern XML file as '%s'",
                    filespec,
-                   (isany) ? NCX_EL_ANYXML : obj_get_name(targetobj));
+                   (isany) ? NCX_EL_ANYXML : obj_get_name(instance, targetobj));
     }
 
     /* setup the config file as the xmlTextReader input */
-    *res = xml_get_reader_from_filespec((const char *)filespec, 
+    *res = xml_get_reader_from_filespec(instance, 
+                                        (const char *)filespec, 
                                         &scb->reader);
     if (*res == NO_ERR) {
-        topval = val_new_value();
+        topval = val_new_value(instance);
         if (topval == NULL) {
             *res = ERR_INTERNAL_MEM;
         } else {
             /* do not initialize the new value! */
-            *res = mgr_val_parse(scb, targetobj, NULL, topval);
+            *res = mgr_val_parse(instance, scb, targetobj, NULL, topval);
         }
     }
 
-    mgr_ses_free_dummy_session(scb);
+    mgr_ses_free_dummy_session(instance, scb);
 
     return topval;
 

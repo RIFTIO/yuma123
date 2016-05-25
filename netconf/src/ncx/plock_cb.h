@@ -101,7 +101,8 @@ typedef struct plock_cb_t_ {
 *   this struct must be freed by the caller
 *********************************************************************/
 extern plock_cb_t *
-    plock_cb_new (uint32 sid,
+    plock_cb_new (struct ncx_instance_t_ *instance,
+                  uint32 sid,
                   status_t *res);
 
 
@@ -115,7 +116,7 @@ extern plock_cb_t *
 *
 *********************************************************************/
 extern void
-    plock_cb_free (plock_cb_t *plcb);
+    plock_cb_free (struct ncx_instance_t_ *instance, plock_cb_t *plcb);
 
 
 /********************************************************************
@@ -127,7 +128,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    plock_cb_reset_id (void);
+    plock_cb_reset_id (struct ncx_instance_t_ *instance);
 
 
 #ifdef __cplusplus

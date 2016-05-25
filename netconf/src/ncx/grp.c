@@ -96,20 +96,21 @@ date         init     comment
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 grp_template_t * 
-    grp_new_template (void)
+    grp_new_template (ncx_instance_t *instance, uint32 objtag)
 {
     grp_template_t  *grp;
 
-    grp = m__getObj(grp_template_t);
+    grp = m__getObj(instance, grp_template_t);
     if (!grp) {
         return NULL;
     }
     (void)memset(grp, 0x0, sizeof(grp_template_t));
-    dlq_createSQue(&grp->typedefQ);
-    dlq_createSQue(&grp->groupingQ);
-    dlq_createSQue(&grp->datadefQ);
-    dlq_createSQue(&grp->appinfoQ);
+    dlq_createSQue(instance, &grp->typedefQ);
+    dlq_createSQue(instance, &grp->groupingQ);
+    dlq_createSQue(instance, &grp->datadefQ);
+    dlq_createSQue(instance, &grp->appinfoQ);
     grp->status = NCX_STATUS_CURRENT;   /* default */
+    grp->objtag = objtag;
     return grp;
 
 }  /* grp_new_template */
@@ -127,30 +128,30 @@ grp_template_t *
 *    grp == grp_template_t data structure to free
 *********************************************************************/
 void 
-    grp_free_template (grp_template_t *grp)
+    grp_free_template (ncx_instance_t *instance, grp_template_t *grp)
 {
 #ifdef DEBUG
     if (!grp) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (grp->name) {
-        m__free(grp->name);
+        m__free(instance, grp->name);
     }
     if (grp->descr) {
-        m__free(grp->descr);
+        m__free(instance, grp->descr);
     }
     if (grp->ref) {
-        m__free(grp->ref);
+        m__free(instance, grp->ref);
     }
 
-    typ_clean_typeQ(&grp->typedefQ);
-    grp_clean_groupingQ(&grp->groupingQ);
-    obj_clean_datadefQ(&grp->datadefQ);
-    ncx_clean_appinfoQ(&grp->appinfoQ);
-    m__free(grp);
+    typ_clean_typeQ(instance, &grp->typedefQ);
+    grp_clean_groupingQ(instance, &grp->groupingQ);
+    obj_clean_datadefQ(instance, &grp->datadefQ);
+    ncx_clean_appinfoQ(instance, &grp->appinfoQ);
+    m__free(instance, grp);
 
 }  /* grp_free_template */
 
@@ -160,15 +161,15 @@ void
  *
  * \param que Q of grp_template_t data structures to free
  *********************************************************************/
-void grp_clean_groupingQ (dlq_hdr_t *que)
+void grp_clean_groupingQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     if (!que) {
         return;
     }
 
-    while (!dlq_empty(que)) {
-        grp_template_t *grp = (grp_template_t *)dlq_deque(que);
-        grp_free_template(grp);
+    while (!dlq_empty(instance, que)) {
+        grp_template_t *grp = (grp_template_t *)dlq_deque(instance, que);
+        grp_free_template(instance, grp);
     }
 }  /* grp_clean_groupingQ */
 
@@ -186,26 +187,26 @@ void grp_clean_groupingQ (dlq_hdr_t *que)
 *    FALSE if no embedded typedefs
 *********************************************************************/
 boolean
-    grp_has_typedefs (const grp_template_t *grp)
+    grp_has_typedefs (ncx_instance_t *instance, const grp_template_t *grp)
 {
     const grp_template_t *chgrp;
 
 #ifdef DEBUG
     if (!grp) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    if (!dlq_empty(&grp->typedefQ)) {
+    if (!dlq_empty(instance, &grp->typedefQ)) {
         return TRUE;
     }
 
     for (chgrp = (const grp_template_t *)
-             dlq_firstEntry(&grp->groupingQ);
+             dlq_firstEntry(instance, &grp->groupingQ);
          chgrp != NULL;
-         chgrp = (const grp_template_t *)dlq_nextEntry(chgrp)) {
-        if (grp_has_typedefs(chgrp)) {
+         chgrp = (const grp_template_t *)dlq_nextEntry(instance, chgrp)) {
+        if (grp_has_typedefs(instance, chgrp)) {
             return TRUE;
         }
     }
@@ -227,11 +228,11 @@ boolean
 *    const pointer to module name
 *********************************************************************/
 const xmlChar *
-    grp_get_mod_name (const grp_template_t *grp)
+    grp_get_mod_name (ncx_instance_t *instance, const grp_template_t *grp)
 {
 #ifdef DEBUG
     if (!grp || !grp->tkerr.mod) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif

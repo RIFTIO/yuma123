@@ -85,7 +85,8 @@ date         init     comment
 #endif
 
 static status_t 
-    consume_revision_date (tk_chain_t *tkc,
+    consume_revision_date (struct ncx_instance_t_ *instance,
+                           tk_chain_t *tkc,
                            ncx_module_t  *mod,
                            xmlChar **revstring);
 
@@ -108,7 +109,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    resolve_mod_appinfo (yang_pcb_t *pcb,
+    resolve_mod_appinfo (ncx_instance_t *instance,
+                         yang_pcb_t *pcb,
                          tk_chain_t  *tkc,
                          ncx_module_t *mod)
 {
@@ -119,27 +121,27 @@ static status_t
 
     retres = NO_ERR;
 
-    for (imp = (ncx_import_t *)dlq_firstEntry(&mod->importQ);
+    for (imp = (ncx_import_t *)dlq_firstEntry(instance, &mod->importQ);
          imp != NULL;
-         imp = (ncx_import_t *)dlq_nextEntry(imp)) {
+         imp = (ncx_import_t *)dlq_nextEntry(instance, imp)) {
 
-        res = ncx_resolve_appinfoQ(pcb, tkc, mod, &imp->appinfoQ);
+        res = ncx_resolve_appinfoQ(instance, pcb, tkc, mod, &imp->appinfoQ);
         CHK_EXIT(res, retres);
     }
 
-    for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+    for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
          inc != NULL;
-         inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+         inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
-        res = ncx_resolve_appinfoQ(pcb, tkc, mod, &inc->appinfoQ);
+        res = ncx_resolve_appinfoQ(instance, pcb, tkc, mod, &inc->appinfoQ);
         CHK_EXIT(res, retres);
     }
 
-    for (feature = (ncx_feature_t *)dlq_firstEntry(&mod->featureQ);
+    for (feature = (ncx_feature_t *)dlq_firstEntry(instance, &mod->featureQ);
          feature != NULL;
-         feature = (ncx_feature_t *)dlq_nextEntry(feature)) {
+         feature = (ncx_feature_t *)dlq_nextEntry(instance, feature)) {
 
-        res = ncx_resolve_appinfoQ(pcb, tkc, mod, &feature->appinfoQ);
+        res = ncx_resolve_appinfoQ(instance, pcb, tkc, mod, &feature->appinfoQ);
         CHK_EXIT(res, retres);
     }
 
@@ -164,7 +166,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_mod_hdr (tk_chain_t  *tkc,
+    consume_mod_hdr (ncx_instance_t *instance,
+                     tk_chain_t  *tkc,
                      ncx_module_t *mod)
 {
     const xmlChar *val;
@@ -186,9 +189,9 @@ static status_t
     while (!done) {
 
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         }
 
@@ -199,60 +202,61 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 res = NO_ERR;
             }
             continue;
         case TK_TT_RBRACE:
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
             continue;
         case TK_TT_TSTRING:
             break;  /* YANG clause assumed */
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_YANG_VERSION)) {
+        if (!xml_strcmp(instance, val, YANG_K_YANG_VERSION)) {
             /* Optional 'yang-version' field is present */
             if (ver) {
                 retres = ERR_NCX_ENTRY_EXISTS;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
             ver = TRUE;
 
             /* get the version number */
-            res = yang_consume_string(tkc, mod, &str);
+            res = yang_consume_string(instance, tkc, mod, &str);
             if (res != NO_ERR) {
                 retres = res;
             } else {
-                if (xml_strcmp(TK_CUR_VAL(tkc), YANG_VERSION_STR)) {
+                if (xml_strcmp(instance, TK_CUR_VAL(tkc), YANG_VERSION_STR)) {
                     retres = ERR_NCX_WRONG_VERSION;
-                    ncx_print_errormsg(tkc, mod, retres);
+                    ncx_print_errormsg(instance, tkc, mod, retres);
                 } else if (!mod->langver) {
                     mod->langver = YANG_VERSION_NUM;
                 }
             }
             if (str) {
-                m__free(str);
+                m__free(instance, str);
             }
 
-            res = yang_consume_semiapp(tkc, mod, &mod->appinfoQ);
+            res = yang_consume_semiapp(instance, tkc, mod, &mod->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
             }
-        } else if (!xml_strcmp(val, YANG_K_NAMESPACE)) {
-            res = yang_consume_strclause(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_NAMESPACE)) {
+            res = yang_consume_strclause(instance, 
+                                         tkc, 
                                          mod, 
                                          &mod->ns,
                                          &ns, 
@@ -262,33 +266,35 @@ static status_t
             } else {
                 /*** TBD: check valid URI ***/
             }
-        } else if (!xml_strcmp(val, YANG_K_PREFIX)) {
-            res = yang_consume_strclause(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_PREFIX)) {
+            res = yang_consume_strclause(instance, 
+                                         tkc, 
                                          mod, 
                                          &mod->prefix,
                                          &pfix, 
                                          &mod->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
-            } else if (!ncx_valid_name2(mod->prefix)) {
+            } else if (!ncx_valid_name2(instance, mod->prefix)) {
                 retres = ERR_NCX_INVALID_NAME;
-                log_error("\nError: invalid prefix value '%s'",
+                log_error(instance,
+                          "\nError: invalid prefix value '%s'",
                           mod->prefix);
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             } else {
-                ncx_check_warn_idlen(tkc, mod, mod->prefix);
+                ncx_check_warn_idlen(instance, tkc, mod, mod->prefix);
             }
-        } else if (!yang_top_keyword(val)) {
+        } else if (!yang_top_keyword(instance, val)) {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         } else {
             /* assume we reached the end of this sub-section
              * if there are simply clauses out of order, then
              * the compiler will not detect that.
              */
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
         }
     }
@@ -296,11 +302,11 @@ static status_t
     /* check missing mandatory sub-clauses */
     if (!mod->ns) {
         retres = ERR_NCX_DATA_MISSING;
-        ncx_mod_missing_err(tkc, mod, "mod-hdr", "namespace");
+        ncx_mod_missing_err(instance, tkc, mod, "mod-hdr", "namespace");
     }
     if (!mod->prefix) {
         retres = ERR_NCX_DATA_MISSING;
-        ncx_mod_missing_err(tkc, mod, "mod-hdr", "prefix");
+        ncx_mod_missing_err(instance, tkc, mod, "mod-hdr", "prefix");
     }
 
     return retres;
@@ -327,7 +333,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_belongs_to (tk_chain_t *tkc,
+    consume_belongs_to (ncx_instance_t *instance,
+                        tk_chain_t *tkc,
                         ncx_module_t  *mod)
 {
     const xmlChar      *val;
@@ -343,7 +350,7 @@ static status_t
     retres = NO_ERR;
 
     /* Get the mandatory module name */
-    res = yang_consume_id_string(tkc, mod, &mod->belongs);
+    res = yang_consume_id_string(instance, tkc, mod, &mod->belongs);
     if (res != NO_ERR) {
         return res;
     } 
@@ -351,9 +358,9 @@ static status_t
     /* Get the starting left brace for the sub-clauses
      * or a semi-colon to end the belongs-to statement
      */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
     switch (TK_CUR_TYP(tkc)) {
@@ -365,16 +372,16 @@ static status_t
     default:
         retres = ERR_NCX_WRONG_TKTYPE;
         expstr = "semi-colon or left brace";
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         done = TRUE;
     }
 
     /* get the prefix clause and any appinfo extensions */
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         }
 
@@ -385,11 +392,11 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             CHK_EXIT(res, retres);
             continue;
         case TK_TT_TSTRING:
@@ -399,38 +406,40 @@ static status_t
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value, should be 'prefix' */
-        if (!xml_strcmp(val, YANG_K_PREFIX)) {
-            res = yang_consume_strclause(tkc, 
+        if (!xml_strcmp(instance, val, YANG_K_PREFIX)) {
+            res = yang_consume_strclause(instance, 
+                                         tkc, 
                                          mod, 
                                          &mod->prefix,
                                          &pfixdone, 
                                          &mod->appinfoQ);
             if (res == NO_ERR &&
-                !ncx_valid_name2(mod->prefix)) {
+                !ncx_valid_name2(instance, mod->prefix)) {
                 res = ERR_NCX_INVALID_NAME;
-                log_error("\nError: invalid prefix value '%s'",
+                log_error(instance,
+                          "\nError: invalid prefix value '%s'",
                           mod->prefix);
-                ncx_print_errormsg(tkc, mod, res);
+                ncx_print_errormsg(instance, tkc, mod, res);
             } else {
-                ncx_check_warn_idlen(tkc, mod, mod->prefix);
+                ncx_check_warn_idlen(instance, tkc, mod, mod->prefix);
             }
             CHK_EXIT(res, retres);
         } else {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
         }
     }
 
     if (!mod->prefix) {
         retres = ERR_NCX_DATA_MISSING;
-        ncx_mod_missing_err(tkc, mod, "belongs-to", "prefix");
+        ncx_mod_missing_err(instance, tkc, mod, "belongs-to", "prefix");
     }
 
     return retres;
@@ -458,7 +467,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_feature (tk_chain_t *tkc,
+    consume_feature (ncx_instance_t *instance,
+                     tk_chain_t *tkc,
                      ncx_module_t  *mod)
 {
     const xmlChar      *val;
@@ -478,10 +488,10 @@ static status_t
     keep = TRUE;
     retres = NO_ERR;
 
-    feature = ncx_new_feature();
+    feature = ncx_new_feature(instance);
     if (!feature) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
     ncx_set_error(&feature->tkerr,
@@ -490,7 +500,7 @@ static status_t
                   TK_CUR_LPOS(tkc));
 
     /* Get the mandatory feature name */
-    res = yang_consume_id_string(tkc, mod, &feature->name);
+    res = yang_consume_id_string(instance, tkc, mod, &feature->name);
     if (res != NO_ERR) {
         /* do not keep -- must have a name field */
         retres = res;
@@ -500,10 +510,10 @@ static status_t
     /* Get the starting left brace for the sub-clauses
      * or a semi-colon to end the feature statement
      */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
-        ncx_free_feature(feature);
+        ncx_print_errormsg(instance, tkc, mod, res);
+        ncx_free_feature(instance, feature);
         return res;
     }
     switch (TK_CUR_TYP(tkc)) {
@@ -515,7 +525,7 @@ static status_t
     default:
         retres = ERR_NCX_WRONG_TKTYPE;
         expstr = "semi-colon or left brace";
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         done = TRUE;
     }
 
@@ -524,9 +534,9 @@ static status_t
     /* get the prefix clause and any appinfo extensions */
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             retres = res;
             done = TRUE;
             continue;
@@ -539,12 +549,12 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             retres = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
             done = TRUE;
             continue;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
@@ -559,39 +569,43 @@ static status_t
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value, should be 'prefix' */
-        if (!xml_strcmp(val, YANG_K_IF_FEATURE)) {
-            res = yang_consume_iffeature(tkc, 
+        if (!xml_strcmp(instance, val, YANG_K_IF_FEATURE)) {
+            res = yang_consume_iffeature(instance, 
+                                         tkc, 
                                          mod, 
                                          &feature->iffeatureQ,
                                          &feature->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_STATUS)) {
-            res = yang_consume_status(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_STATUS)) {
+            res = yang_consume_status(instance, 
+                                      tkc, 
                                       mod, 
                                       &feature->status,
                                       &stat, 
                                       &feature->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_DESCRIPTION)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_DESCRIPTION)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &feature->descr,
                                      &desc, 
                                      &feature->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_REFERENCE)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_REFERENCE)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &feature->ref,
                                      &ref, 
                                      &feature->appinfoQ);
         } else {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
         if (res != NO_ERR) {
@@ -604,33 +618,34 @@ static status_t
 
     /* check if feature already exists in this module */
     if (keep) {
-        testfeature = ncx_find_feature_all(mod, feature->name);
+        testfeature = ncx_find_feature_all(instance, mod, feature->name);
         if (testfeature) {
             retres = ERR_NCX_DUP_ENTRY;
-            log_error("\nError: feature '%s' already defined "
+            log_error(instance, 
+                      "\nError: feature '%s' already defined "
                       "in '%s' at line %u", 
                       feature->name,
                       testfeature->tkerr.mod->name,
                       testfeature->tkerr.linenum);
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
 
         feature->res = retres;
-        dlq_enque(feature, &mod->featureQ);
+        dlq_enque(instance, feature, &mod->featureQ);
 
         if (mod->stmtmode) {
-            stmt = yang_new_feature_stmt(feature);
+            stmt = yang_new_feature_stmt(instance, feature);
             if (stmt) {
-                dlq_enque(stmt, &mod->stmtQ);
+                dlq_enque(instance, stmt, &mod->stmtQ);
             } else {
-                log_error("\nError: malloc failure for feature_stmt");
+                log_error(instance, "\nError: malloc failure for feature_stmt");
                 retres = ERR_INTERNAL_MEM;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
         }
 
     } else {
-        ncx_free_feature(feature);
+        ncx_free_feature(instance, feature);
     }
 
     return retres;
@@ -657,7 +672,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    resolve_feature (yang_pcb_t *pcb,
+    resolve_feature (ncx_instance_t *instance,
+                     yang_pcb_t *pcb,
                      tk_chain_t *tkc,
                      ncx_module_t  *mod,
                      ncx_feature_t *feature)
@@ -670,24 +686,25 @@ static status_t
     retres = NO_ERR;
 
     /* check if there are any feature parameters set */
-    ncx_set_feature_parms(feature);
+    ncx_set_feature_parms(instance, feature);
      
     /* check if there are any if-feature statements inside
      * this feature that need to be resolved
      */
     for (iff = (ncx_iffeature_t *)
-             dlq_firstEntry(&feature->iffeatureQ);
+             dlq_firstEntry(instance, &feature->iffeatureQ);
          iff != NULL;
-         iff = (ncx_iffeature_t *)dlq_nextEntry(iff)) {
+         iff = (ncx_iffeature_t *)dlq_nextEntry(instance, iff)) {
 
         testfeature = NULL;
         errdone = FALSE;
         res = NO_ERR;
 
         if (iff->prefix &&
-            xml_strcmp(iff->prefix, mod->prefix)) {
+            xml_strcmp(instance, iff->prefix, mod->prefix)) {
             /* find the feature in another module */
-            res = yang_find_imp_feature(pcb,
+            res = yang_find_imp_feature(instance,
+                                        pcb,
                                         tkc, 
                                         mod, 
                                         iff->prefix,
@@ -698,25 +715,27 @@ static status_t
                 retres = res;
                 errdone = TRUE;
             }
-        } else if (!xml_strcmp(iff->name, feature->name)) {
+        } else if (!xml_strcmp(instance, iff->name, feature->name)) {
             /* error: if-feature foo inside feature foo */
             res = retres = ERR_NCX_DEF_LOOP;
-            log_error("\nError: 'if-feature %s' inside feature '%s'",
+            log_error(instance,
+                      "\nError: 'if-feature %s' inside feature '%s'",
                       iff->name, iff->name);
             tkc->curerr = &iff->tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             errdone = TRUE;
         } else {
-            testfeature = ncx_find_feature(mod, iff->name);
+            testfeature = ncx_find_feature(instance, mod, iff->name);
         }
 
         if (!testfeature && !errdone) {
-            log_error("\nError: Feature '%s' not found "
+            log_error(instance,
+                      "\nError: Feature '%s' not found "
                       "for if-feature statement",
                       iff->name);
             res = retres = ERR_NCX_DEF_NOT_FOUND;
             tkc->curerr = &iff->tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
 
         if (testfeature) {
@@ -750,7 +769,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    check_feature_loop (tk_chain_t *tkc,
+    check_feature_loop (ncx_instance_t *instance,
+                        tk_chain_t *tkc,
                         ncx_module_t  *mod,
                         ncx_feature_t *feature,
                         ncx_feature_t *startfeature)
@@ -764,9 +784,9 @@ static status_t
      * this feature that need to be resolved
      */
     for (iff = (ncx_iffeature_t *)
-             dlq_firstEntry(&feature->iffeatureQ);
+             dlq_firstEntry(instance, &feature->iffeatureQ);
          iff != NULL;
-         iff = (ncx_iffeature_t *)dlq_nextEntry(iff)) {
+         iff = (ncx_iffeature_t *)dlq_nextEntry(instance, iff)) {
 
         if (!iff->feature) {
             continue;
@@ -775,14 +795,15 @@ static status_t
         if (iff->feature == startfeature) {
             retres = res = ERR_NCX_DEF_LOOP;
             startfeature->res = res;
-            log_error("\nError: if-feature loop detected for '%s' "
+            log_error(instance,
+                      "\nError: if-feature loop detected for '%s' "
                       "in feature '%s'",
                       startfeature->name,
                       feature->name);
             tkc->curerr = &startfeature->tkerr;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
         } else if (iff->feature->res != ERR_NCX_DEF_LOOP) {
-            res = check_feature_loop(tkc, mod, iff->feature,
+            res = check_feature_loop(instance, tkc, mod, iff->feature,
                                      startfeature);
             if (res != NO_ERR) {
                 retres = res;
@@ -815,7 +836,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_identity (tk_chain_t *tkc,
+    consume_identity (ncx_instance_t *instance,
+                      tk_chain_t *tkc,
                       ncx_module_t  *mod)
 {
     const xmlChar      *val;
@@ -836,10 +858,10 @@ static status_t
     keep = TRUE;
     retres = NO_ERR;
 
-    identity = ncx_new_identity();
+    identity = ncx_new_identity(instance);
     if (!identity) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
     ncx_set_error(&identity->tkerr,
@@ -849,7 +871,7 @@ static status_t
     identity->isroot = TRUE;
 
     /* Get the mandatory identity name */
-    res = yang_consume_id_string(tkc, mod, &identity->name);
+    res = yang_consume_id_string(instance, tkc, mod, &identity->name);
     if (res != NO_ERR) {
         /* do not keep -- must have a name field */
         retres = res;
@@ -859,10 +881,10 @@ static status_t
     /* Get the starting left brace for the sub-clauses
      * or a semi-colon to end the identity statement
      */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
-        ncx_free_identity(identity);
+        ncx_print_errormsg(instance, tkc, mod, res);
+        ncx_free_identity(instance, identity);
         return res;
     }
     switch (TK_CUR_TYP(tkc)) {
@@ -874,7 +896,7 @@ static status_t
     default:
         retres = ERR_NCX_WRONG_TKTYPE;
         expstr = "semi-colon or left brace";
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         done = TRUE;
     }
 
@@ -883,9 +905,9 @@ static status_t
     /* get the prefix clause and any appinfo extensions */
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             retres = res;
             done = TRUE;
             continue;
@@ -898,12 +920,12 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             retres = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
             done = TRUE;
             continue;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
@@ -918,42 +940,46 @@ static status_t
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value, should be 'prefix' */
-        if (!xml_strcmp(val, YANG_K_BASE)) {
+        if (!xml_strcmp(instance, val, YANG_K_BASE)) {
             identity->isroot = FALSE;
-            res = yang_consume_pid(tkc, 
+            res = yang_consume_pid(instance, 
+                                   tkc, 
                                    mod, 
                                    &identity->baseprefix,
                                    &identity->basename,
                                    &base, 
                                    &identity->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_STATUS)) {
-            res = yang_consume_status(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_STATUS)) {
+            res = yang_consume_status(instance, 
+                                      tkc, 
                                       mod, 
                                       &identity->status,
                                       &stat, 
                                       &identity->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_DESCRIPTION)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_DESCRIPTION)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &identity->descr,
                                      &desc, 
                                      &identity->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_REFERENCE)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_REFERENCE)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &identity->ref,
                                      &ref, 
                                      &identity->appinfoQ);
         } else {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
         if (res != NO_ERR) {
@@ -966,31 +992,32 @@ static status_t
 
     /* check if feature already exists in this module */
     if (keep) {
-        testidentity = ncx_find_identity(mod, identity->name, TRUE);
+        testidentity = ncx_find_identity(instance, mod, identity->name, TRUE);
         if (testidentity) {
             retres = ERR_NCX_DUP_ENTRY;
-            log_error("\nError: identity '%s' already defined "
+            log_error(instance, 
+                      "\nError: identity '%s' already defined "
                       "in %s at line %u", 
                       identity->name,
                       testidentity->tkerr.mod->name,
                       testidentity->tkerr.linenum);
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
         identity->res = retres;
-        dlq_enque(identity, &mod->identityQ);
+        dlq_enque(instance, identity, &mod->identityQ);
 
         if (mod->stmtmode) {
-            stmt = yang_new_id_stmt(identity);
+            stmt = yang_new_id_stmt(instance, identity);
             if (stmt) {
-                dlq_enque(stmt, &mod->stmtQ);
+                dlq_enque(instance, stmt, &mod->stmtQ);
             } else {
-                log_error("\nError: malloc failure for id_stmt");
+                log_error(instance, "\nError: malloc failure for id_stmt");
                 retres = ERR_INTERNAL_MEM;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
         }
     } else {
-        ncx_free_identity(identity);
+        ncx_free_identity(instance, identity);
     }
 
     return retres;
@@ -1016,7 +1043,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    resolve_identity (yang_pcb_t *pcb,
+    resolve_identity (ncx_instance_t *instance,
+                      yang_pcb_t *pcb,
                       tk_chain_t *tkc,
                       ncx_module_t  *mod,
                       ncx_identity_t *identity)
@@ -1030,10 +1058,11 @@ static status_t
     boolean errdone = FALSE;
 
     if (identity->baseprefix && mod->prefix &&
-        xml_strcmp(identity->baseprefix, mod->prefix)) {
+        xml_strcmp(instance, identity->baseprefix, mod->prefix)) {
 
         /* find the identity in another module */
-        res = yang_find_imp_identity(pcb,
+        res = yang_find_imp_identity(instance,
+                                     pcb,
                                      tkc, 
                                      mod, 
                                      identity->baseprefix,
@@ -1044,20 +1073,22 @@ static status_t
             errdone = TRUE;
         }
     } else if (identity->name && identity->basename && 
-               !xml_strcmp(identity->name, identity->basename)) {
+               !xml_strcmp(instance, identity->name, identity->basename)) {
         /* error: 'base foo' inside 'identity foo' */
         res = ERR_NCX_DEF_LOOP;
-        log_error("\nError: 'base %s' inside identity '%s'",
+        log_error(instance,
+                  "\nError: 'base %s' inside identity '%s'",
                   identity->basename, identity->name);
         tkc->curerr = &identity->tkerr;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         errdone = TRUE;
     } else if (identity->basename) {
-        testidentity = ncx_find_identity(mod, identity->basename, FALSE);
+        testidentity = ncx_find_identity(instance, mod, identity->basename, FALSE);
     }
     if (!testidentity && !errdone) {
         if (identity->baseprefix || identity->basename) {
-            log_error("\nError: Base '%s%s%s' not found "
+            log_error(instance,
+                      "\nError: Base '%s%s%s' not found "
                       "for identity statement '%s'",
                       (identity->baseprefix) ? 
                       identity->baseprefix : EMPTY_STRING,
@@ -1066,13 +1097,14 @@ static status_t
                       (identity->name) ? identity->name : NCX_EL_NONE);
             res = ERR_NCX_DEF_NOT_FOUND;
         } else {
-            log_error("\nError: Invalid base name for identity statement '%s'",
+            log_error(instance,
+                      "\nError: Invalid base name for identity statement '%s'",
                       (identity->name) ? identity->name : NCX_EL_NONE);
             res = ERR_NCX_INVALID_NAME;
         }
 
         tkc->curerr = &identity->tkerr;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
     }
 
     if (testidentity) {
@@ -1103,7 +1135,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    check_identity_loop (tk_chain_t *tkc,
+    check_identity_loop (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          ncx_module_t  *mod,
                          ncx_identity_t *identity,
                          ncx_identity_t *startidentity)
@@ -1120,19 +1153,20 @@ static status_t
     } else if (identity->base == startidentity) {
         res = ERR_NCX_DEF_LOOP;
         startidentity->res = res;
-        log_error("\nError: identity base loop detected for '%s' "
+        log_error(instance,
+                  "\nError: identity base loop detected for '%s' "
                   "in identity '%s'",
                   startidentity->name,
                   identity->name);
         tkc->curerr = &startidentity->tkerr;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
     } else if (identity->base->res != ERR_NCX_DEF_LOOP) {
-        res = check_identity_loop(tkc, mod, 
+        res = check_identity_loop(instance, tkc, mod, 
                                   identity->base,
                                   startidentity);
         if (res == NO_ERR) {
             /* thread the idlink into the base identifier */
-            dlq_enque(&identity->idlink, &identity->base->childQ);
+            dlq_enque(instance, &identity->idlink, &identity->base->childQ);
             identity->idlink.inq = TRUE;
         }
     }
@@ -1158,7 +1192,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_submod_hdr (tk_chain_t  *tkc,
+    consume_submod_hdr (ncx_instance_t *instance,
+                        tk_chain_t  *tkc,
                         ncx_module_t *mod)
 {
     const xmlChar *val;
@@ -1176,9 +1211,9 @@ static status_t
     while (!done) {
 
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         }
 
@@ -1189,66 +1224,66 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             CHK_EXIT(res, retres);
             continue;
         case TK_TT_TSTRING:
             break;  /* YANG clause assumed */
         case TK_TT_RBRACE:
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_YANG_VERSION)) {
+        if (!xml_strcmp(instance, val, YANG_K_YANG_VERSION)) {
             /* Optional 'yang-version' field is present */
             if (ver) {
                 retres = ERR_NCX_ENTRY_EXISTS;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
             ver = TRUE;
 
             /* get the version number */
-            res = ncx_consume_token(tkc, mod, TK_TT_STRING);
+            res = ncx_consume_token(instance, tkc, mod, TK_TT_STRING);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
                     return res;
                 }
             } else {
-                if (xml_strcmp(TK_CUR_VAL(tkc), YANG_VERSION_STR)) {
+                if (xml_strcmp(instance, TK_CUR_VAL(tkc), YANG_VERSION_STR)) {
                     retres = ERR_NCX_WRONG_VERSION;
-                    ncx_print_errormsg(tkc, mod, retres);
+                    ncx_print_errormsg(instance, tkc, mod, retres);
                 } else {
                     mod->langver = YANG_VERSION_NUM;
                 }
             }
 
-            res = yang_consume_semiapp(tkc, mod, &mod->appinfoQ);
+            res = yang_consume_semiapp(instance, tkc, mod, &mod->appinfoQ);
             CHK_EXIT(res, retres);
-        } else if (!xml_strcmp(val, YANG_K_BELONGS_TO)) {
-            res = consume_belongs_to(tkc, mod);
+        } else if (!xml_strcmp(instance, val, YANG_K_BELONGS_TO)) {
+            res = consume_belongs_to(instance, tkc, mod);
             CHK_EXIT(res, retres);
-        } else if (!yang_top_keyword(val)) {
+        } else if (!yang_top_keyword(instance, val)) {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
         } else {
             /* assume we reached the end of this sub-section
              * if there are simply clauses out of order, then
              * the compiler will not detect that.
              */
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
         }
     }
@@ -1256,7 +1291,7 @@ static status_t
     /* check missing mandatory sub-clause */
     if (!mod->belongs) {
         retres = ERR_NCX_DATA_MISSING;
-        ncx_mod_missing_err(tkc, mod, "submod-hdr", "belongs-to");
+        ncx_mod_missing_err(instance, tkc, mod, "submod-hdr", "belongs-to");
     }
 
     return retres;
@@ -1284,7 +1319,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_import (tk_chain_t *tkc,
+    consume_import (ncx_instance_t *instance,
+                    tk_chain_t *tkc,
                     ncx_module_t  *mod,
                     yang_pcb_t *pcb)
 {
@@ -1308,10 +1344,10 @@ static status_t
     memset(&tkerr, 0x0, sizeof(tkerr));
 
     /* Get a new ncx_import_t to fill in */
-    imp = ncx_new_import();
+    imp = ncx_new_import(instance);
     if (!imp) {
         retres = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, retres);
+        ncx_print_errormsg(instance, tkc, mod, retres);
         return retres;
     } else {
         ncx_set_error(&imp->tkerr,
@@ -1322,23 +1358,23 @@ static status_t
     }
 
     /* Get the mandatory module name */
-    res = yang_consume_id_string(tkc, mod, &imp->module);
+    res = yang_consume_id_string(instance, tkc, mod, &imp->module);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
-            ncx_free_import(imp);
+            ncx_free_import(instance, imp);
             return res;
         }
     }
 
     /* HACK: need to replace when ietf-netconf.yang is supported */
     if (res == NO_ERR &&
-        !xml_strcmp(imp->module, NCXMOD_IETF_NETCONF)) {
+        !xml_strcmp(instance, imp->module, NCXMOD_IETF_NETCONF)) {
 
         /* force the parser to skip loading this import and just
          * use the yuma-netconf module instead
          */
-        testmod = ncx_find_module(NCXMOD_YUMA_NETCONF, NULL);
+        testmod = ncx_find_module(instance, NCXMOD_YUMA_NETCONF, NULL);
         if (testmod != NULL) {
             imp->force_yuma_nc = TRUE;
             imp->mod = testmod;
@@ -1346,11 +1382,11 @@ static status_t
     }
         
     /* Get the starting left brace for the sub-clauses */
-    res = ncx_consume_token(tkc, mod, TK_TT_LBRACE);
+    res = ncx_consume_token(instance, tkc, mod, TK_TT_LBRACE);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
-            ncx_free_import(imp);
+            ncx_free_import(instance, imp);
             return res;
         }
     }
@@ -1358,10 +1394,10 @@ static status_t
     /* get the prefix clause and any appinfo extensions */
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
-            ncx_free_import(imp);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
+            ncx_free_import(instance, imp);
             return res;
         }
 
@@ -1372,16 +1408,16 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
-            ncx_free_import(imp);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
+            ncx_free_import(instance, imp);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &imp->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &imp->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_import(imp);
+                    ncx_free_import(instance, imp);
                     return res;
                 }
             }
@@ -1393,14 +1429,15 @@ static status_t
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value, should be 'prefix' */
-        if (!xml_strcmp(val, YANG_K_PREFIX)) {
-            res = yang_consume_strclause(tkc, 
+        if (!xml_strcmp(instance, val, YANG_K_PREFIX)) {
+            res = yang_consume_strclause(instance, 
+                                         tkc, 
                                          mod, 
                                          &imp->prefix,
                                          &pfixdone, 
@@ -1408,20 +1445,20 @@ static status_t
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_import(imp);
+                    ncx_free_import(instance, imp);
                     return res;
                 }
             }
-        } else if (!xml_strcmp(val, YANG_K_REVISION_DATE)) {
+        } else if (!xml_strcmp(instance, val, YANG_K_REVISION_DATE)) {
             ncx_set_error(&tkerr,
                           mod,
                           TK_CUR_LNUM(tkc),
                           TK_CUR_LPOS(tkc));
             if (revdone) {
                 res = retres = ERR_NCX_ENTRY_EXISTS;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
                 if (imp->revision) {
-                    m__free(imp->revision);
+                    m__free(instance, imp->revision);
                     imp->revision = NULL;
                 }
             } else {
@@ -1429,40 +1466,41 @@ static status_t
                 revdone = TRUE;
             }
 
-            res = consume_revision_date(tkc, mod, &imp->revision);
+            res = consume_revision_date(instance, tkc, mod, &imp->revision);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_import(imp);
+                    ncx_free_import(instance, imp);
                     return res;
                 }
             }
 
-            res = yang_consume_semiapp(tkc, mod, &imp->appinfoQ);
+            res = yang_consume_semiapp(instance, tkc, mod, &imp->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_import(imp);
+                    ncx_free_import(instance, imp);
                     return res;
                 }
             }
         } else {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
         }
     }
 
     if (imp->revision) {
         /* validate the revision date */
-        res = yang_validate_date_string(tkc, 
+        res = yang_validate_date_string(instance, 
+                                        tkc, 
                                         mod, 
                                         &tkerr, 
                                         imp->revision);
         if (res != NO_ERR) {
             retres = res;
             if (NEED_EXIT(res)) {
-                ncx_free_import(imp);
+                ncx_free_import(instance, imp);
                 return res;
             }
         }
@@ -1476,7 +1514,7 @@ static status_t
          * any deviation statements found
          * don't really care how valid it is right now
          */
-        dlq_enque(imp, &mod->importQ);
+        dlq_enque(instance, imp, &mod->importQ);
         return NO_ERR;
     }
 
@@ -1484,7 +1522,8 @@ static status_t
     if (!imp->prefix) {
         retres = ERR_NCX_DATA_MISSING;
         tkc->curerr = &imp->tkerr;
-        ncx_mod_missing_err(tkc, 
+        ncx_mod_missing_err(instance, 
+                            tkc, 
                             mod, 
                             "import", 
                             "prefix");
@@ -1494,39 +1533,42 @@ static status_t
     if (imp->module && imp->prefix) {
 
         /* check if module already present */
-        testimp = ncx_find_import_test(mod, imp->module);
+        testimp = ncx_find_import_test(instance, mod, imp->module);
         if (testimp) {
             if (((testimp->revision && imp->revision) ||
                  (!testimp->revision && !imp->revision)) &&
-                yang_compare_revision_dates(testimp->revision, 
+                yang_compare_revision_dates(instance, 
+                                            testimp->revision, 
                                             imp->revision)) {
                 
-                log_error("\nError: invalid duplicate import found on line %u",
+                log_error(instance,
+                          "\nError: invalid duplicate import found on line %u",
                           testimp->tkerr.linenum);
                 retres = res = ERR_NCX_INVALID_DUP_IMPORT;
                 tkc->curerr = &imp->tkerr;
-                ncx_print_errormsg(tkc, mod, res);
+                ncx_print_errormsg(instance, tkc, mod, res);
             } else {
                 imp->usexsd = FALSE;
-                if (!xml_strcmp(testimp->prefix, imp->prefix)) {
+                if (!xml_strcmp(instance, testimp->prefix, imp->prefix)) {
                     /* warning for exact duplicate import */
-                    if (ncx_warning_enabled(ERR_NCX_DUP_IMPORT)) {
-                        log_warn("\nWarning: duplicate import "
+                    if (ncx_warning_enabled(instance, ERR_NCX_DUP_IMPORT)) {
+                        log_warn(instance,
+                                 "\nWarning: duplicate import "
                                  "found on line %u",
                                  testimp->tkerr.linenum);
                         res = ERR_NCX_DUP_IMPORT;
                         tkc->curerr = &imp->tkerr;
-                        ncx_print_errormsg(tkc, mod, res);
+                        ncx_print_errormsg(instance, tkc, mod, res);
                     } else {
                         ncx_inc_warnings(mod);
                     }
-                } else if (ncx_warning_enabled(ERR_NCX_PREFIX_DUP_IMPORT)) {
+                } else if (ncx_warning_enabled(instance, ERR_NCX_PREFIX_DUP_IMPORT)) {
                     /* warning for dup. import w/ different prefix */
-                    log_warn("\nWarning: same import with different prefix"
+                    log_warn(instance, "\nWarning: same import with different prefix"
                              " found on line %u", testimp->tkerr.linenum);
                     res = ERR_NCX_PREFIX_DUP_IMPORT;
                     tkc->curerr = &imp->tkerr;
-                    ncx_print_errormsg(tkc, mod, res);
+                    ncx_print_errormsg(instance, tkc, mod, res);
                 } else {
                     ncx_inc_warnings(mod);
                 }
@@ -1534,95 +1576,103 @@ static status_t
         }
 
         /* check simple module loop with itself */
-        if (imp->usexsd && !xml_strcmp(imp->module, mod->name)) {
-            log_error("\nError: import '%s' for current module",
+        if (imp->usexsd && !xml_strcmp(instance, imp->module, mod->name)) {
+            log_error(instance,
+                      "\nError: import '%s' for current module",
                       mod->name);
             retres = ERR_NCX_IMPORT_LOOP;
             tkc->curerr = &imp->tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
 
         /* check simple module loop with the top-level file */
-        if (imp->usexsd && xml_strcmp(mod->name, pcb->top->name) &&
-            !xml_strcmp(imp->module, pcb->top->name)) {
-            log_error("\nError: import loop for top-level %smodule '%s'",
+        if (imp->usexsd && xml_strcmp(instance, mod->name, pcb->top->name) &&
+            !xml_strcmp(instance, imp->module, pcb->top->name)) {
+            log_error(instance,
+                      "\nError: import loop for top-level %smodule '%s'",
                       (pcb->top->ismod) ? "" : "sub", 
                       imp->module);
             retres = ERR_NCX_IMPORT_LOOP;
             tkc->curerr = &imp->tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
 
         /* check simple submodule importing its parent module */
         if (imp->usexsd &&
-            mod->belongs && !xml_strcmp(mod->belongs, imp->module)) {
-            log_error("\nError: submodule '%s' cannot import its"
+            mod->belongs && !xml_strcmp(instance, mod->belongs, imp->module)) {
+            log_error(instance, 
+                      "\nError: submodule '%s' cannot import its"
                       " parent module '%s'", 
                       mod->name, 
                       imp->module);
             retres = ERR_NCX_IMPORT_LOOP;
             tkc->curerr = &imp->tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
 
         /* check prefix for this module corner-case */
-        if (mod->ismod && !xml_strcmp(imp->prefix, mod->prefix)) {
-            log_error("\nError: import '%s' using "
+        if (mod->ismod && !xml_strcmp(instance, imp->prefix, mod->prefix)) {
+            log_error(instance,
+                      "\nError: import '%s' using "
                       "prefix for current module (%s)",
                       imp->module, 
                       imp->prefix);
             retres = ERR_NCX_IN_USE;
             tkc->curerr = &imp->tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
             
         /* check if prefix already used in other imports */
-        testimp = ncx_find_pre_import_test(mod, imp->prefix);
+        testimp = ncx_find_pre_import_test(instance, mod, imp->prefix);
         if (testimp) {
-            if (xml_strcmp(testimp->module, imp->module)) {
+            if (xml_strcmp(instance, testimp->module, imp->module)) {
                 retres = ERR_NCX_IN_USE;
-                log_error("\nImport %s on line %u already using prefix %s",
+                log_error(instance,
+                          "\nImport %s on line %u already using prefix %s",
                           testimp->module, 
                           testimp->tkerr.linenum,
                           testimp->prefix);
                 tkc->curerr = &imp->tkerr;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
         }
         
         /* check for import loop */
-        node = yang_find_node(&pcb->impchainQ, 
+        node = yang_find_node(instance, 
+                              &pcb->impchainQ, 
                               imp->module,
                               imp->revision);
         if (node) {
-            log_error("\nError: loop created by import '%s'"
+            log_error(instance,
+                      "\nError: loop created by import '%s'"
                       " from module '%s', line %u",
                       imp->module, 
                       node->mod->name,
                       node->tkerr.linenum);
             retres = ERR_NCX_IMPORT_LOOP;
             tkc->curerr = &imp->tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
     }
 
     /* save or delete the import struct, except in search mode */
     if (retres == NO_ERR && imp->usexsd && !pcb->searchmode) {
-        node = yang_new_node();
+        node = yang_new_node(instance);
         if (!node) {
             retres = ERR_INTERNAL_MEM;
-            ncx_print_errormsg(tkc, mod, retres);
-            ncx_free_import(imp);
+            ncx_print_errormsg(instance, tkc, mod, retres);
+            ncx_free_import(instance, imp);
         } else {
-            impptr = yang_new_import_ptr(imp->module, 
+            impptr = yang_new_import_ptr(instance, 
+                                         imp->module, 
                                          imp->prefix,
                                          imp->revision);
             if (!impptr) {
                 retres = ERR_INTERNAL_MEM;
                 tkc->curerr = &imp->tkerr;
-                ncx_print_errormsg(tkc, mod, retres);
-                ncx_free_import(imp);
-                yang_free_node(node);
+                ncx_print_errormsg(instance, tkc, mod, retres);
+                ncx_free_import(instance, imp);
+                yang_free_node(instance, node);
             } else {
                 /* save the import used record and the import */
                 node->name = imp->module;
@@ -1633,16 +1683,16 @@ static status_t
                               imp->tkerr.linepos);
 
                 /* save the import on the impchain stack */
-                dlq_enque(node, &pcb->impchainQ);
+                dlq_enque(instance, node, &pcb->impchainQ);
 
                 /* save the import for prefix translation */
-                dlq_enque(imp, &mod->importQ);
+                dlq_enque(instance, imp, &mod->importQ);
 
                 /* save the import marker to keep a list
                  * of all the imports with no duplicates
                  * regardless of recursion or submodules
                  */
-                dlq_enque(impptr, &pcb->allimpQ);
+                dlq_enque(instance, impptr, &pcb->allimpQ);
 
                 /* load the module now instead of later for validation
                  * it may not get used, but assume it will 
@@ -1658,11 +1708,12 @@ static status_t
                      * All modes that need the token chain are for the
                      * top module, never an imported module
                      */
-                    impmod = ncx_find_module(imp->module, imp->revision);
+                    impmod = ncx_find_module(instance, imp->module, imp->revision);
                     if (impmod != NULL) {
                         res = NO_ERR;
                     } else {
-                        res = ncxmod_load_imodule(imp->module, 
+                        res = ncxmod_load_imodule(instance, 
+                                                  imp->module, 
                                                   imp->revision,
                                                   pcb, 
                                                   YANG_PT_IMPORT,
@@ -1674,7 +1725,7 @@ static status_t
                     imp->res = res;
                     imp->mod = impmod;
                 } else if (LOGDEBUG) {
-                    log_debug("\nSkipping import of ietf-netconf, "
+                    log_debug(instance, "\nSkipping import of ietf-netconf, "
                               "using yuma-netconf instead");
                 }
 
@@ -1683,37 +1734,39 @@ static status_t
                     if (get_errtyp(res) < ERR_TYP_WARN) {
                         retres = ERR_NCX_IMPORT_ERRORS;
                         if (imp->revision) {
-                            log_error("\nError: '%s' import of "
+                            log_error(instance,
+                                      "\nError: '%s' import of "
                                       "module '%s' revision '%s' failed",
                                       mod->sourcefn, 
                                       imp->module,
                                       imp->revision);
                         } else {
-                            log_error("\nError: '%s' import of "
+                            log_error(instance,
+                                      "\nError: '%s' import of "
                                       "module '%s' failed",
                                       mod->sourcefn, 
                                       imp->module);
                         }
                         tkc->curerr = &imp->tkerr;
-                        ncx_print_errormsg(tkc, mod, res);
+                        ncx_print_errormsg(instance, tkc, mod, res);
                     }
                 } /* else ignore the warnings */
 
                 /* remove the node in the import chain that 
                  * was added before the module was loaded
                  */
-                node = (yang_node_t *)dlq_lastEntry(&pcb->impchainQ);
+                node = (yang_node_t *)dlq_lastEntry(instance, &pcb->impchainQ);
                 if (node) {
-                    dlq_remove(node);
-                    yang_free_node(node);
+                    dlq_remove(instance, node);
+                    yang_free_node(instance, node);
                 } else {
-                    retres = SET_ERROR(ERR_INTERNAL_VAL);
+                    retres = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
 
             }
         }
     } else {
-        ncx_free_import(imp);
+        ncx_free_import(instance, imp);
     }
 
     return retres;
@@ -1740,7 +1793,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_include (tk_chain_t *tkc,
+    consume_include (ncx_instance_t *instance,
+                     tk_chain_t *tkc,
                      ncx_module_t  *mod,
                      yang_pcb_t *pcb)
 {
@@ -1763,10 +1817,10 @@ static status_t
     memset(&tkerr, 0x0, sizeof(tkerr));
 
     /* Get a new ncx_include_t to fill in */
-    inc = ncx_new_include();
+    inc = ncx_new_include(instance);
     if (!inc) {
         retres = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, retres);
+        ncx_print_errormsg(instance, tkc, mod, retres);
         return retres;
     } else {
         ncx_set_error(&inc->tkerr,
@@ -1777,11 +1831,11 @@ static status_t
     }
 
     /* Get the mandatory submodule name */
-    res = yang_consume_id_string(tkc, mod, &inc->submodule);
+    res = yang_consume_id_string(instance, tkc, mod, &inc->submodule);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
-            ncx_free_include(inc);
+            ncx_free_include(instance, inc);
             return res;
         }
     }
@@ -1789,10 +1843,10 @@ static status_t
     /* Get the starting left brace for the sub-clauses
      * or a semi-colon to end the include statement
      */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_free_include(inc);
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_free_include(instance, inc);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
     switch (TK_CUR_TYP(tkc)) {
@@ -1804,17 +1858,17 @@ static status_t
     default:
         retres = ERR_NCX_WRONG_TKTYPE;
         expstr = "semi-colon or left brace";
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         done = TRUE;
     }
 
     /* get the revision clause and any appinfo extensions */
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
-            ncx_free_include(inc);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
+            ncx_free_include(instance, inc);
             return res;
         }
 
@@ -1825,16 +1879,16 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
-            ncx_free_include(inc);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
+            ncx_free_include(instance, inc);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_include(inc);
+                    ncx_free_include(instance, inc);
                     return res;
                 }
             }
@@ -1846,13 +1900,13 @@ static status_t
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value, should be 'prefix' */
-        if (!xml_strcmp(val, YANG_K_REVISION_DATE)) {
+        if (!xml_strcmp(instance, val, YANG_K_REVISION_DATE)) {
             ncx_set_error(&tkerr,
                           mod,
                           TK_CUR_LNUM(tkc),
@@ -1860,9 +1914,9 @@ static status_t
 
             if (revdone) {
                 res = retres = ERR_NCX_ENTRY_EXISTS;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
                 if (inc->revision) {
-                    m__free(inc->revision);
+                    m__free(instance, inc->revision);
                     inc->revision = NULL;
                 }
             } else {
@@ -1870,40 +1924,41 @@ static status_t
                 revdone = TRUE;
             }
 
-            res = consume_revision_date(tkc, mod, &inc->revision);
+            res = consume_revision_date(instance, tkc, mod, &inc->revision);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_include(inc);
+                    ncx_free_include(instance, inc);
                     return res;
                 }
             }
 
-            res = yang_consume_semiapp(tkc, mod, &inc->appinfoQ);
+            res = yang_consume_semiapp(instance, tkc, mod, &inc->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_include(inc);
+                    ncx_free_include(instance, inc);
                     return res;
                 }
             }
         } else {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
         }
     }
 
     if (inc->revision) {
         /* validate the revision date */
-        res = yang_validate_date_string(tkc, 
+        res = yang_validate_date_string(instance, 
+                                        tkc, 
                                         mod, 
                                         &tkerr,
                                         inc->revision);
         if (res != NO_ERR) {
             retres = res;
             if (NEED_EXIT(res)) {
-                ncx_free_include(inc);
+                ncx_free_include(instance, inc);
                 return res;
             }
         }
@@ -1925,7 +1980,7 @@ static status_t
         /* hand off malloced 'inc' struct here
          * do not load the sub-module; not being used
          */
-        dlq_enque(inc, &mod->includeQ);
+        dlq_enque(instance, inc, &mod->includeQ);
         return NO_ERR;
     }
 
@@ -1935,87 +1990,94 @@ static status_t
     if (!inc->submodule) {
         retres = ERR_NCX_DATA_MISSING;
         tkc->curerr = &inc->tkerr;
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
-    } else if (!ncx_valid_name2(inc->submodule)) {
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+    } else if (!ncx_valid_name2(instance, inc->submodule)) {
         retres = ERR_NCX_INVALID_NAME;
         tkc->curerr = &inc->tkerr;
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
     } else {
         /* check if submodule already present */
-        testinc = ncx_find_include(mod, inc->submodule);
+        testinc = ncx_find_include(instance, mod, inc->submodule);
         if (testinc) {
             /* check if there is a revision conflict */
             if (((testinc->revision && inc->revision) ||
                  (!testinc->revision && !inc->revision)) &&
-                yang_compare_revision_dates(testinc->revision, 
+                yang_compare_revision_dates(instance, 
+                                            testinc->revision, 
                                             inc->revision)) {
-                log_error("\nError: invalid duplicate "
+                log_error(instance,
+                          "\nError: invalid duplicate "
                           "include found on line %u",
                           testinc->tkerr.linenum);
                 retres = res = ERR_NCX_INVALID_DUP_INCLUDE;
                 tkc->curerr = &inc->tkerr;
-                ncx_print_errormsg(tkc, mod, res);
+                ncx_print_errormsg(instance, tkc, mod, res);
             } else {
                 /* warning for same duplicate already in the
                  * include statements
                  */
                 inc->usexsd = FALSE;
-                if (ncx_warning_enabled(ERR_NCX_DUP_INCLUDE)) {
-                    log_warn("\nWarning: duplicate include found "
+                if (ncx_warning_enabled(instance, ERR_NCX_DUP_INCLUDE)) {
+                    log_warn(instance,
+                             "\nWarning: duplicate include found "
                              "on line %u",
                              testinc->tkerr.linenum);
                     res = ERR_NCX_DUP_INCLUDE;
                     tkc->curerr = &inc->tkerr;
-                    ncx_print_errormsg(tkc, mod, res);
+                    ncx_print_errormsg(instance, tkc, mod, res);
                 }  else {
                     ncx_inc_warnings(mod);
                 }
             }
         } else {
             /* check simple submodule loop with itself */
-            if (!xml_strcmp(inc->submodule, mod->name)) {
-                log_error("\nError: include '%s' for current submodule",
+            if (!xml_strcmp(instance, inc->submodule, mod->name)) {
+                log_error(instance,
+                          "\nError: include '%s' for current submodule",
                           mod->name);
                 retres = ERR_NCX_INCLUDE_LOOP;
                 tkc->curerr = &inc->tkerr;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
 
             /* check simple submodule loop with the top-level file */
             if (retres == NO_ERR &&
-                xml_strcmp(mod->name, pcb->top->name) &&
-                !xml_strcmp(inc->submodule, pcb->top->name)) {
-                log_error("\nError: include loop for top-level %smodule '%s'",
+                xml_strcmp(instance, mod->name, pcb->top->name) &&
+                !xml_strcmp(instance, inc->submodule, pcb->top->name)) {
+                log_error(instance,
+                          "\nError: include loop for top-level %smodule '%s'",
                           (pcb->top->ismod) ? "" : "sub", inc->submodule);
                 retres = ERR_NCX_INCLUDE_LOOP;
                 tkc->curerr = &inc->tkerr;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
 
             /* check simple submodule including its parent module */
             if (retres == NO_ERR &&
-                mod->belongs && !xml_strcmp(mod->belongs, inc->submodule)) {
-                log_error("\nError: submodule '%s' cannot include its"
+                mod->belongs && !xml_strcmp(instance, mod->belongs, inc->submodule)) {
+                log_error(instance, "\nError: submodule '%s' cannot include its"
                           " parent module '%s'", mod->name, inc->submodule);
                 retres = ERR_NCX_INCLUDE_LOOP;
                 tkc->curerr = &inc->tkerr;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
 
             /* check for include loop */
             if (retres == NO_ERR) {
-                node = yang_find_node(chainQ, 
+                node = yang_find_node(instance, 
+                                      chainQ, 
                                       inc->submodule,
                                       inc->revision);
                 if (node) {
-                    log_error("\nError: loop created by include '%s'"
+                    log_error(instance,
+                              "\nError: loop created by include '%s'"
                               " from %smodule '%s', line %u",
                               inc->submodule, (node->mod->ismod) ? "" : "sub",
                               node->mod->name, 
                               node->tkerr.linenum);
                     retres = ERR_NCX_INCLUDE_LOOP;
                     tkc->curerr = &inc->tkerr;
-                    ncx_print_errormsg(tkc, mod, retres);
+                    ncx_print_errormsg(instance, tkc, mod, retres);
                 }
             }
         }
@@ -2023,11 +2085,11 @@ static status_t
 
     /* save or delete the include struct */
     if (retres == NO_ERR && inc->usexsd) {
-        node = yang_new_node();
+        node = yang_new_node(instance);
         if (!node) {
             retres = ERR_INTERNAL_MEM;
-            ncx_print_errormsg(tkc, mod, retres);
-            ncx_free_include(inc);
+            ncx_print_errormsg(instance, tkc, mod, retres);
+            ncx_free_include(instance, inc);
         } else {
             /* save the include */
             node->name = inc->submodule;
@@ -2039,20 +2101,22 @@ static status_t
                           inc->tkerr.linepos);
 
             /* hand off malloced 'inc' struct here */
-            dlq_enque(inc, &mod->includeQ);
+            dlq_enque(instance, inc, &mod->includeQ);
 
             /* check if already parsed, and in the allincQ */
-            testnode = yang_find_node(allQ,
+            testnode = yang_find_node(instance,
+                                      allQ,
                                       inc->submodule,
                                       inc->revision);
             if (testnode == NULL) {
-                dlq_enque(node, chainQ);
+                dlq_enque(instance, node, chainQ);
 
                 foundmod = NULL;
 
                 /* load the module now instead of later for validation */
                 retres = 
-                    ncxmod_load_imodule(inc->submodule, 
+                    ncxmod_load_imodule(instance, 
+                                        inc->submodule, 
                                         inc->revision,
                                         pcb, 
                                         YANG_PT_INCLUDE,
@@ -2063,17 +2127,19 @@ static status_t
                     if (retres == ERR_NCX_MOD_NOT_FOUND ||
                         get_errtyp(res) < ERR_TYP_WARN) {
                         if (inc->revision) {
-                            log_error("\nError: include of "
+                            log_error(instance,
+                                      "\nError: include of "
                                       "submodule '%s' revision '%s' failed",
                                       inc->submodule, 
                                       inc->revision);
                         } else {
-                            log_error("\nError: include of "
+                            log_error(instance,
+                                      "\nError: include of "
                                       "submodule '%s' failed",
                                       inc->submodule); 
                         }
                         tkc->curerr = &inc->tkerr;
-                        ncx_print_errormsg(tkc, mod, retres);
+                        ncx_print_errormsg(instance, tkc, mod, retres);
                     } else {
                         /* ignore warnings */
                         retres = NO_ERR;
@@ -2083,12 +2149,12 @@ static status_t
                 /* remove the node in the include chain that 
                  * was added before the submodule was loaded
                  */
-                node = (yang_node_t *)dlq_lastEntry(chainQ);
+                node = (yang_node_t *)dlq_lastEntry(instance, chainQ);
                 if (node) {
-                    dlq_remove(node);
+                    dlq_remove(instance, node);
 
                     if (foundmod == NULL) {
-                        yang_free_node(node);
+                        yang_free_node(instance, node);
                     } else {
                         /* save this node in the mod->allincQ now
                          * because it may be needed while body-stmts
@@ -2096,14 +2162,15 @@ static status_t
                          */
                         node->submod = foundmod;
                         node->res = retres;
-                        dlq_enque(node, allQ);
+                        dlq_enque(instance, node, allQ);
 
                         /* save a back-ptr in the include directive as well */
                         inc->submod = foundmod;
 
                         if (LOGDEBUG3) {
                             if (node->mod && node->submod) {
-                                log_debug3("\nAdd node %p with submod "
+                                log_debug3(instance,
+                                           "\nAdd node %p with submod "
                                            "%p (%s) to mod (%s) "
                                            "in Q %p",
                                            node,
@@ -2112,14 +2179,16 @@ static status_t
                                            node->mod->name,
                                            allQ);
                             } else if (node->submod) {
-                                log_debug3("\nAdd node %p with submod %p (%s) "
+                                log_debug3(instance,
+                                           "\nAdd node %p with submod %p (%s) "
                                            "in Q %p",
                                            node,
                                            node->submod,
                                            node->submod->name,
                                            allQ);
                             } else if (node->mod) {
-                                log_debug3("\nAdd node %p with mod %p (%s) "
+                                log_debug3(instance,
+                                           "\nAdd node %p with mod %p (%s) "
                                            "in Q %p",
                                            node,
                                            node->mod,
@@ -2129,15 +2198,15 @@ static status_t
                         }
                     }
                 } else {
-                    SET_ERROR(ERR_INTERNAL_VAL);
+                    SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             } else {
                 inc->submod = testnode->submod;
-                yang_free_node(node);
+                yang_free_node(instance, node);
             }
         }
     } else {
-        ncx_free_include(inc);
+        ncx_free_include(instance, inc);
     }   
 
     return retres;
@@ -2165,7 +2234,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_linkage_stmts (tk_chain_t *tkc,
+    consume_linkage_stmts (ncx_instance_t *instance,
+                           tk_chain_t *tkc,
                            ncx_module_t  *mod,
                            yang_pcb_t *pcb)
 {
@@ -2188,9 +2258,9 @@ static status_t
         }
 
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         }
 
@@ -2201,43 +2271,43 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             CHK_EXIT(res, retres);
             continue;
         case TK_TT_TSTRING:
             break;  /* YANG clause assumed */
         case TK_TT_RBRACE:
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_IMPORT)) {
-            res = consume_import(tkc, mod, pcb);
+        if (!xml_strcmp(instance, val, YANG_K_IMPORT)) {
+            res = consume_import(instance, tkc, mod, pcb);
             CHK_EXIT(res, retres);
-        } else if (!xml_strcmp(val, YANG_K_INCLUDE)) {
-            res = consume_include(tkc, mod, pcb);
+        } else if (!xml_strcmp(instance, val, YANG_K_INCLUDE)) {
+            res = consume_include(instance, tkc, mod, pcb);
             CHK_EXIT(res, retres);
-        } else if (!yang_top_keyword(val)) {
+        } else if (!yang_top_keyword(instance, val)) {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
         } else {
             /* assume we reached the end of this sub-section
              * if there are simply clauses out of order, then
              * the compiler will not detect that.
              */
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
         }
     }
@@ -2263,7 +2333,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_meta_stmts (tk_chain_t  *tkc,
+    consume_meta_stmts (ncx_instance_t *instance,
+                        tk_chain_t  *tkc,
                         ncx_module_t *mod)
 {
     const xmlChar *val;
@@ -2284,9 +2355,9 @@ static status_t
     while (!done) {
 
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         }
 
@@ -2297,66 +2368,70 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             CHK_EXIT(res, retres);
             continue;
         case TK_TT_TSTRING:
             break;  /* YANG clause assumed */
         case TK_TT_RBRACE:
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_ORGANIZATION)) {
+        if (!xml_strcmp(instance, val, YANG_K_ORGANIZATION)) {
             /* 'organization' field is present */
-            res = yang_consume_strclause(tkc, 
+            res = yang_consume_strclause(instance, 
+                                         tkc, 
                                          mod, 
                                          &mod->organization,
                                          &org, 
                                          &mod->appinfoQ);
             CHK_EXIT(res, retres);
-        } else if (!xml_strcmp(val, YANG_K_CONTACT)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_CONTACT)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &mod->contact_info,
                                      &contact, 
                                      &mod->appinfoQ);
             CHK_EXIT(res, retres);
-        } else if (!xml_strcmp(val, YANG_K_DESCRIPTION)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_DESCRIPTION)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &mod->descr,
                                      &descr, 
                                      &mod->appinfoQ);
             CHK_EXIT(res, retres);
-        } else if (!xml_strcmp(val, YANG_K_REFERENCE)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_REFERENCE)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &mod->ref,
                                      &ref, 
                                      &mod->appinfoQ);
             CHK_EXIT(res, retres);
-        } else if (!yang_top_keyword(val)) {
+        } else if (!yang_top_keyword(instance, val)) {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
         } else {
             /* assume we reached the end of this sub-section
              * if there are simply clauses out of order, then
              * the compiler will not detect that.
              */
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
         }
     }
@@ -2389,7 +2464,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_revision_date (tk_chain_t *tkc,
+    consume_revision_date (ncx_instance_t *instance,
+                           tk_chain_t *tkc,
                            ncx_module_t  *mod,
                            xmlChar **revstring)
 {
@@ -2398,17 +2474,17 @@ static status_t
     status_t       res = NO_ERR;
 
     /* get the mandatory version identifier date string */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
     if (TK_CUR_STR(tkc)) {
-        *revstring = xml_strdup(TK_CUR_VAL(tkc));
+        *revstring = xml_strdup(instance, TK_CUR_VAL(tkc));
         if (!*revstring) {
             res = ERR_INTERNAL_MEM;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
         }
     } else if (TK_CUR_TYP(tkc)==TK_TT_DNUM) {
         xmlChar       *str = NULL;
@@ -2418,32 +2494,32 @@ static status_t
          * corner-cases like 2007 -11 -20 because an unquoted dateTime string 
          * is the same as 3 integers and if there are spaces between them
          * this will be parsed ok by tk.c */
-        str = m__getMem(REVBUFF_SIZE);
+        str = m__getMem(instance, REVBUFF_SIZE);
         if (!str) {
             res = ERR_INTERNAL_MEM;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         } 
         
         p = str;
-        p += xml_strcpy(p, TK_CUR_VAL(tkc));
-        res = ncx_consume_token(tkc, mod, TK_TT_DNUM);
+        p += xml_strcpy(instance, p, TK_CUR_VAL(tkc));
+        res = ncx_consume_token(instance, tkc, mod, TK_TT_DNUM);
         if ( NO_ERR == res ) {
-            p += xml_strcpy(p, TK_CUR_VAL(tkc));
-            res = ncx_consume_token(tkc, mod, TK_TT_DNUM);
+            p += xml_strcpy(instance, p, TK_CUR_VAL(tkc));
+            res = ncx_consume_token(instance, tkc, mod, TK_TT_DNUM);
             if ( NO_ERR == res ) {
-                xml_strcpy(p, TK_CUR_VAL(tkc));
+                xml_strcpy(instance, p, TK_CUR_VAL(tkc));
                 *revstring = str;
             }
         }
 
         if ( NO_ERR != res ) {
-            m__free(str);
+            m__free(instance, str);
         }
     } else {
         const char    *expstr = "date-arg-str";
         res = ERR_NCX_WRONG_TKTYPE;
-        ncx_mod_exp_err(tkc, mod, res, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, res, expstr);
     }
 
     return res;
@@ -2469,7 +2545,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_revision (tk_chain_t *tkc,
+    consume_revision (ncx_instance_t *instance,
+                      tk_chain_t *tkc,
                       ncx_module_t  *mod)
 {
     ncx_revhist_t *rev, *testrev;
@@ -2487,10 +2564,10 @@ static status_t
     res = NO_ERR;
     retres = NO_ERR;
 
-    rev = ncx_new_revhist();
+    rev = ncx_new_revhist(instance);
     if (!rev) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     } else {
         ncx_set_error(&rev->tkerr,
@@ -2500,11 +2577,11 @@ static status_t
     }
 
     /* get the mandatory version identifier date string */
-    res = consume_revision_date(tkc, mod, &rev->version);
+    res = consume_revision_date(instance, tkc, mod, &rev->version);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
-            ncx_free_revhist(rev);
+            ncx_free_revhist(instance, rev);
             return res;
         }
     }
@@ -2512,10 +2589,10 @@ static status_t
     /* Get the starting left brace for the sub-clauses
      * or a semi-colon to end the revision statement
      */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
-        ncx_free_revhist(rev);
+        ncx_print_errormsg(instance, tkc, mod, res);
+        ncx_free_revhist(instance, rev);
         return res;
     }
     switch (TK_CUR_TYP(tkc)) {
@@ -2527,17 +2604,17 @@ static status_t
     default:
         retres = ERR_NCX_WRONG_TKTYPE;
         expstr = "semi-colon or left brace";
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         done = TRUE;
     }
 
     /* get the description clause and any appinfo extensions */
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_print_errormsg(tkc, mod, res);
-            ncx_free_revhist(rev);
+            ncx_print_errormsg(instance, tkc, mod, res);
+            ncx_free_revhist(instance, rev);
             return res;
         }
 
@@ -2548,16 +2625,16 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_print_errormsg(tkc, mod, res);
-            ncx_free_revhist(rev);
+            ncx_print_errormsg(instance, tkc, mod, res);
+            ncx_free_revhist(instance, rev);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_revhist(rev);
+                    ncx_free_revhist(instance, rev);
                     return res;
                 }
             }
@@ -2569,15 +2646,16 @@ static status_t
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token str so check the value, should be 'description' */
-        if (!xml_strcmp(val, YANG_K_DESCRIPTION)) {
+        if (!xml_strcmp(instance, val, YANG_K_DESCRIPTION)) {
             /* Mandatory 'description' field is present */
-            res = yang_consume_descr(tkc, 
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &rev->descr,
                                      &descrdone, 
@@ -2585,13 +2663,14 @@ static status_t
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_revhist(rev);
+                    ncx_free_revhist(instance, rev);
                     return res;
                 }
             }
-        } else if (!xml_strcmp(val, YANG_K_REFERENCE)) {
+        } else if (!xml_strcmp(instance, val, YANG_K_REFERENCE)) {
             /* Optional 'reference' field is present */
-            res = yang_consume_descr(tkc, 
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &rev->ref,
                                      &refdone, 
@@ -2599,41 +2678,43 @@ static status_t
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    ncx_free_revhist(rev);
+                    ncx_free_revhist(instance, rev);
                     return res;
                 }
             }
         } else {
             retres = ERR_NCX_WRONG_TKVAL;
-            log_error("\nError: invalid reference-stmt");
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            log_error(instance, "\nError: invalid reference-stmt");
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
             continue;
         }
     }
 
     if (rev->version) {
         /* check if the version string is valid */
-        res = yang_validate_date_string(tkc, 
+        res = yang_validate_date_string(instance, 
+                                        tkc, 
                                         mod, 
                                         &rev->tkerr, 
                                         rev->version);
         CHK_EXIT(res, retres);
             
         /* check if the revision is already present */
-        testrev = ncx_find_revhist(mod, rev->version);
+        testrev = ncx_find_revhist(instance, mod, rev->version);
         if (testrev) {
             /* error for dup. revision with same version */
             retres = ERR_NCX_DUP_ENTRY;
-            log_error("\nError: revision with same date on line %u",
+            log_error(instance,
+                      "\nError: revision with same date on line %u",
                       testrev->tkerr.linenum);
             tkc->curerr = &rev->tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
     }
 
     /* save the revision struct */
     rev->res = retres;
-    dlq_enque(rev, &mod->revhistQ);
+    dlq_enque(instance, rev, &mod->revhistQ);
     return retres;
 
 }  /* consume_revision */
@@ -2657,7 +2738,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_revision_stmts (tk_chain_t *tkc,
+    consume_revision_stmts (ncx_instance_t *instance,
+                            tk_chain_t *tkc,
                             ncx_module_t  *mod,
                             yang_pcb_t *pcb)
 {
@@ -2677,9 +2759,9 @@ static status_t
     while (!done) {
 
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         }
 
@@ -2690,40 +2772,40 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             CHK_EXIT(res, retres);
             continue;
         case TK_TT_TSTRING:
             break;  /* YANG clause assumed */
         case TK_TT_RBRACE:
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
             continue;
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_REVISION)) {
-            res = consume_revision(tkc, mod);
+        if (!xml_strcmp(instance, val, YANG_K_REVISION)) {
+            res = consume_revision(instance, tkc, mod);
             CHK_EXIT(res, retres);
-        } else if (!yang_top_keyword(val)) {
+        } else if (!yang_top_keyword(instance, val)) {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
         } else {
             /* assume we reached the end of this sub-section
              * if there are simply clauses out of order, then
              * the compiler will not detect that.
              */
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             done = TRUE;
         }
     }
@@ -2732,22 +2814,23 @@ static status_t
      * highest value date string
      */
     val = NULL;
-    for (rev = (ncx_revhist_t *)dlq_firstEntry(&mod->revhistQ);
+    for (rev = (ncx_revhist_t *)dlq_firstEntry(instance, &mod->revhistQ);
          rev != NULL;
-         rev = (ncx_revhist_t *)dlq_nextEntry(rev)) {
+         rev = (ncx_revhist_t *)dlq_nextEntry(instance, rev)) {
 
         if (rev->res == NO_ERR) {
             if (!val) {
                 /* first pass through loop */
                 val = rev->version;
             } else {
-                ret = yang_compare_revision_dates(rev->version, val);
+                ret = yang_compare_revision_dates(instance, rev->version, val);
                 if (ret > 0) {
-                    if (ncx_warning_enabled(ERR_NCX_BAD_REV_ORDER)) {
-                        log_warn("\nWarning: revision dates not in "
+                    if (ncx_warning_enabled(instance, ERR_NCX_BAD_REV_ORDER)) {
+                        log_warn(instance, "\nWarning: revision dates not in "
                                  "descending order");
                         tkc->curerr = &rev->tkerr;
-                        ncx_print_errormsg(tkc, 
+                        ncx_print_errormsg(instance, 
+                                           tkc, 
                                            mod, 
                                            ERR_NCX_BAD_REV_ORDER);
                     } else {
@@ -2763,7 +2846,7 @@ static status_t
     /* assign the module version string */
     if (val) {
         /* valid date string found */
-        mod->version = xml_strdup(val);
+        mod->version = xml_strdup(instance, val);
     }
 
     /* check if revision warnings should be skipped */
@@ -2773,8 +2856,9 @@ static status_t
 
     /* leave the version NULL if no good revision dates found */
     if (!val) {
-        if (ncx_warning_enabled(ERR_NCX_NO_REVISION)) {
-            log_warn("\nWarning: no revision statements "
+        if (ncx_warning_enabled(instance, ERR_NCX_NO_REVISION)) {
+            log_warn(instance,
+                     "\nWarning: no revision statements "
                      "for %smodule '%s'",
                      (mod->ismod) ? "" : "sub", mod->name);
             mod->warnings++;
@@ -2782,14 +2866,15 @@ static status_t
             ncx_inc_warnings(mod);
         }
     } else if (pcb->revision && 
-               yang_compare_revision_dates(val, pcb->revision)) {
+               yang_compare_revision_dates(instance, val, pcb->revision)) {
 
-        log_error("\nError: found version '%s' instead of "
+        log_error(instance,
+                  "\nError: found version '%s' instead of "
                   "requested version '%s'",
                   (val) ? val : EMPTY_STRING,
                   pcb->revision);
         retres = ERR_NCX_WRONG_VERSION;
-        ncx_print_errormsg(tkc, mod, retres);
+        ncx_print_errormsg(instance, tkc, mod, retres);
     }
 
     return retres;
@@ -2814,7 +2899,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_body_stmts (yang_pcb_t *pcb,
+    consume_body_stmts (ncx_instance_t *instance,
+                        yang_pcb_t *pcb,
                         tk_chain_t *tkc,
                         ncx_module_t  *mod)
 {
@@ -2825,9 +2911,9 @@ static status_t
     while (!done) {
 
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             if (res == ERR_NCX_EOF) {
                 res = ERR_NCX_MISSING_RBRACE;
             }
@@ -2841,23 +2927,23 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             return res;
         case TK_TT_RBRACE:
             /* found end of module */
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             return retres;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &mod->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &mod->appinfoQ);
             CHK_EXIT(res, retres);
             continue;
         case TK_TT_TSTRING:
             break;  /* YANG clause assumed */
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            yang_skip_statement(tkc, mod);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            yang_skip_statement(instance, tkc, mod);
             continue;
         }
 
@@ -2866,27 +2952,27 @@ static status_t
          * the data-def-stmts, which can appear within
          * groupings and nested objects
          */
-        if (!xml_strcmp(val, YANG_K_EXTENSION)) {
-            res = yang_ext_consume_extension(tkc, mod);
-        } else if (!xml_strcmp(val, YANG_K_FEATURE)) {
-            res = consume_feature(tkc, mod);
-        } else if (!xml_strcmp(val, YANG_K_IDENTITY)) {
-            res = consume_identity(tkc, mod);
-        } else if (!xml_strcmp(val, YANG_K_TYPEDEF)) {
-            res = yang_typ_consume_typedef( pcb, tkc, mod, &mod->typeQ );
-        } else if (!xml_strcmp(val, YANG_K_GROUPING)) {
-            res = yang_grp_consume_grouping( pcb, tkc, mod, &mod->groupingQ, 
+        if (!xml_strcmp(instance, val, YANG_K_EXTENSION)) {
+            res = yang_ext_consume_extension(instance, tkc, mod);
+        } else if (!xml_strcmp(instance, val, YANG_K_FEATURE)) {
+            res = consume_feature(instance, tkc, mod);
+        } else if (!xml_strcmp(instance, val, YANG_K_IDENTITY)) {
+            res = consume_identity(instance, tkc, mod);
+        } else if (!xml_strcmp(instance, val, YANG_K_TYPEDEF)) {
+            res = yang_typ_consume_typedef(instance,  pcb, tkc, mod, &mod->typeQ );
+        } else if (!xml_strcmp(instance, val, YANG_K_GROUPING)) {
+            res = yang_grp_consume_grouping(instance,  pcb, tkc, mod, &mod->groupingQ, 
                                              NULL );
-        } else if (!xml_strcmp(val, YANG_K_RPC)) {
-            res = yang_obj_consume_rpc( pcb, tkc, mod );
-        } else if (!xml_strcmp(val, YANG_K_NOTIFICATION)) {
-            res = yang_obj_consume_notification( pcb, tkc, mod );
-        } else if (!xml_strcmp(val, YANG_K_AUGMENT)) {
-            res = yang_obj_consume_augment( pcb, tkc, mod );
-        } else if (!xml_strcmp(val, YANG_K_DEVIATION)) {
-            res = yang_obj_consume_deviation( pcb, tkc, mod );
+        } else if (!xml_strcmp(instance, val, YANG_K_RPC)) {
+            res = yang_obj_consume_rpc(instance,  pcb, tkc, mod );
+        } else if (!xml_strcmp(instance, val, YANG_K_NOTIFICATION)) {
+            res = yang_obj_consume_notification(instance,  pcb, tkc, mod );
+        } else if (!xml_strcmp(instance, val, YANG_K_AUGMENT)) {
+            res = yang_obj_consume_augment(instance,  pcb, tkc, mod );
+        } else if (!xml_strcmp(instance, val, YANG_K_DEVIATION)) {
+            res = yang_obj_consume_deviation(instance,  pcb, tkc, mod );
         } else {
-            res = yang_obj_consume_datadef( pcb, tkc, mod, &mod->datadefQ, 
+            res = yang_obj_consume_datadef(instance,  pcb, tkc, mod, &mod->datadefQ, 
                                             NULL );
         }
         CHK_EXIT(res, retres);
@@ -2911,7 +2997,7 @@ static status_t
 *   FALSE if name check failed
 *********************************************************************/
 static boolean
-    check_module_name (ncx_module_t *mod)
+    check_module_name (ncx_instance_t *instance, ncx_module_t *mod)
 {
     const xmlChar *str;
     boolean  ret = TRUE;
@@ -2925,7 +3011,7 @@ static boolean
         if (*str == '@') {
             len1 = (uint32)(str - mod->sourcefn);
         } else {
-            len1 = xml_strlen(mod->sourcefn);
+            len1 = xml_strlen(instance, mod->sourcefn);
             if (len1 > 2) {
                 str = &mod->sourcefn[len1-1];
                 while (str > mod->sourcefn && *str != '.') {
@@ -2941,11 +3027,12 @@ static boolean
             }
         }
 
-        len2 = xml_strlen(mod->name);
+        len2 = xml_strlen(instance, mod->name);
 
         if (len1 != len2) {
             ret = FALSE;
-        } else if (xml_strncmp(mod->sourcefn,
+        } else if (xml_strncmp(instance,
+                               mod->sourcefn,
                                mod->name,
                                len1)) {
             ret = FALSE;
@@ -2988,7 +3075,8 @@ static boolean
 *   status of the operation
 *********************************************************************/
 static status_t 
-    parse_yang_module (tk_chain_t  *tkc,
+    parse_yang_module (ncx_instance_t *instance,
+                       tk_chain_t  *tkc,
                        ncx_module_t *mod,
                        yang_pcb_t *pcb,
                        yang_parsetype_t ptyp,
@@ -3002,14 +3090,14 @@ static status_t
 
 #ifdef YANG_PARSE_DEBUG_TRACE
     if (LOGDEBUG3) {
-        log_debug3("\nEnter parse_yang_module");
+        log_debug3(instance, "\nEnter parse_yang_module");
         if (mod->sourcefn) {
-            log_debug3(" %s", mod->sourcefn);
+            log_debug3(instance, " %s", mod->sourcefn);
         }
-        yang_dump_nodeQ(&pcb->impchainQ, "impchainQ");
-        yang_dump_nodeQ(&pcb->incchainQ, "incchainQ");
+        yang_dump_nodeQ(instance, &pcb->impchainQ, "impchainQ");
+        yang_dump_nodeQ(instance, &pcb->incchainQ, "incchainQ");
         if (mod->ismod) {
-            yang_dump_nodeQ(&mod->allincQ, "allincQ");
+            yang_dump_nodeQ(instance, &mod->allincQ, "allincQ");
         }
     }
 #endif
@@ -3021,25 +3109,27 @@ static status_t
     *wasadded = FALSE;
 
     /* could be module or submodule -- get the first keyword */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
     } else if (TK_CUR_ID(tkc)) {
         /* got an ID token, make sure it is correct to continue */
         res = NO_ERR;
-        if (!xml_strcmp(TK_CUR_VAL(tkc), YANG_K_MODULE)) {
+        if (!xml_strcmp(instance, TK_CUR_VAL(tkc), YANG_K_MODULE)) {
             ismain = TRUE;
-            TK_BKUP(tkc);
-            res = ncx_consume_name(tkc, 
+            TK_BKUP(instance, tkc);
+            res = ncx_consume_name(instance, 
+                                   tkc, 
                                    mod, 
                                    YANG_K_MODULE, 
                                    &mod->name, 
                                    NCX_REQ, 
                                    TK_TT_LBRACE);
-        } else if (!xml_strcmp(TK_CUR_VAL(tkc), YANG_K_SUBMODULE)) {
+        } else if (!xml_strcmp(instance, TK_CUR_VAL(tkc), YANG_K_SUBMODULE)) {
             ismain = FALSE;
-            TK_BKUP(tkc);
-            res = ncx_consume_name(tkc, 
+            TK_BKUP(instance, tkc);
+            res = ncx_consume_name(instance, 
+                                   tkc, 
                                    mod, 
                                    YANG_K_SUBMODULE, 
                                    &mod->name, 
@@ -3047,11 +3137,12 @@ static status_t
                                    TK_TT_LBRACE);
         } else {
             res = ERR_NCX_WRONG_TKVAL;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
         }
 #ifdef YANG_PARSE_DEBUG_MEMORY
         if (res == NO_ERR && LOGDEBUG3) {
-            log_debug3(" malloced %p %smodule '%s'",
+            log_debug3(instance,
+                       " malloced %p %smodule '%s'",
                        mod,
                        ismain ? "" : "sub",
                        mod->name);
@@ -3059,7 +3150,7 @@ static status_t
 #endif
     } else {
         res = ERR_NCX_WRONG_TKTYPE;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
     }
     CHK_EXIT(res, retres);
 
@@ -3073,9 +3164,9 @@ static status_t
      */
     if (pcb->deviationmode && !ismain) {
         res = ERR_NCX_EXP_MODULE;
-        log_error("\nError: deviation or annotation "
+        log_error(instance, "\nError: deviation or annotation "
                   "cannot be a submodule");
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -3090,30 +3181,31 @@ static status_t
         break;
     case YANG_PT_INCLUDE:
         if (ismain) {
-            log_error("\nError: including module '%s', "
+            log_error(instance, "\nError: including module '%s', "
                       "should be submodule", mod->name);
             retres = ERR_NCX_EXP_SUBMODULE;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             return retres;
         }
         break;
     case YANG_PT_IMPORT:
         if (!ismain) {
-            log_error("\nError: importing submodule '%s', "
+            log_error(instance, "\nError: importing submodule '%s', "
                       "should be module", mod->name);
             retres = ERR_NCX_EXP_MODULE;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             return retres;
         }
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 
 #ifdef YANG_PARSE_DEBUG
     if (res == NO_ERR && LOGDEBUG2) {
-        log_debug2("\nyang_parse: Start %smodule '%s' OK",
+        log_debug2(instance,
+                   "\nyang_parse: Start %smodule '%s' OK",
                    ismain ? "" : "sub",
                    mod->name);
     }
@@ -3122,14 +3214,16 @@ static status_t
     mod->ismod = ismain;
 
     /* check if the file name matches the [sub]module name given */
-    if (check_module_name(mod) == FALSE) {
-        if (ncx_warning_enabled(ERR_NCX_FILE_MOD_MISMATCH)) {
-            log_warn("\nWarning: base file name in '%s' should match "
+    if (check_module_name(instance, mod) == FALSE) {
+        if (ncx_warning_enabled(instance, ERR_NCX_FILE_MOD_MISMATCH)) {
+            log_warn(instance,
+                     "\nWarning: base file name in '%s' should match "
                      "the %smodule name '%s'",
                      mod->sourcefn,
                      ismain ? "" : "sub",
                      mod->name);
-            ncx_print_errormsg(tkc, 
+            ncx_print_errormsg(instance, 
+                               tkc, 
                                mod, 
                                ERR_NCX_FILE_MOD_MISMATCH);
         } else {
@@ -3139,29 +3233,29 @@ static status_t
 
     if (ismain) {
         /* consume module-header-stmts */
-        res = consume_mod_hdr(tkc, mod);
+        res = consume_mod_hdr(instance, tkc, mod);
         CHK_EXIT(res, retres);
     } else {
         /* consume submodule-header-stmts */
-        res = consume_submod_hdr(tkc, mod);
+        res = consume_submod_hdr(instance, tkc, mod);
         CHK_EXIT(res, retres);
     }
 
     if (mod->prefix == NULL) {
         if (retres == NO_ERR) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             retres = ERR_NCX_INVALID_VALUE;
         }
-        log_error("\nError: cannot continue without module prefix set");
+        log_error(instance, "\nError: cannot continue without module prefix set");
         return retres;
     }
 
     if (mod->ismod && mod->ns == NULL) {
         if (retres == NO_ERR) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             retres = ERR_NCX_INVALID_VALUE;
         }
-        log_error("\nError: cannot continue without module namespace set");
+        log_error(instance, "\nError: cannot continue without module namespace set");
         return retres;
     }
 
@@ -3171,28 +3265,29 @@ static status_t
      */
     if (!(pcb->deviationmode || pcb->diffmode || pcb->searchmode)) {
         /* add real or temp module NS to the registry */
-        res = ncx_add_namespace_to_registry(mod, pcb->parsemode);
+        res = ncx_add_namespace_to_registry(instance, mod, pcb->parsemode);
         CHK_EXIT(res, retres);
     }
 
     /* Get the linkage statements (imports, include) */
-    res = consume_linkage_stmts(tkc, mod, pcb);
+    res = consume_linkage_stmts(instance, tkc, mod, pcb);
     CHK_EXIT(res, retres);
 
     if (!pcb->keepmode && retres != NO_ERR) {
         if (LOGDEBUG) {
-            log_debug("\nStop parsing '%s' due to linkage errors",
+            log_debug(instance,
+                      "\nStop parsing '%s' due to linkage errors",
                       mod->name);
         }
         return retres;
     }
 
     /* Get the meta statements (organization, etc.) */
-    res = consume_meta_stmts(tkc, mod);
+    res = consume_meta_stmts(instance, tkc, mod);
     CHK_EXIT(res, retres);
 
     /* Get the revision statements */
-    res = consume_revision_stmts(tkc, mod, pcb);
+    res = consume_revision_stmts(instance, tkc, mod, pcb);
     CHK_EXIT(res, retres);
 
     /* make sure there is at least name and prefix to continue
@@ -3217,10 +3312,10 @@ static status_t
      * if yuma-netconf.yang is already loaded.
      */
     if (mod->ismod && 
-        !xml_strcmp(mod->name, NCXMOD_IETF_NETCONF)) {
+        !xml_strcmp(instance, mod->name, NCXMOD_IETF_NETCONF)) {
 
-        if (ncx_find_module(NCXMOD_NETCONF, NULL) != NULL) {
-            mod->nsid = xmlns_nc_id();
+        if (ncx_find_module(instance, NCXMOD_NETCONF, NULL) != NULL) {
+            mod->nsid = xmlns_nc_id(instance);
             ietfnetconf = TRUE;
         }
     }
@@ -3232,7 +3327,7 @@ static status_t
      */
     if (mod->ismod && 
         !pcb->diffmode &&
-        ncx_find_module(mod->name, mod->version)) {
+        ncx_find_module(instance, mod->name, mod->version)) {
         switch (ptyp) {
         case YANG_PT_TOP:
             loaded = TRUE;
@@ -3245,22 +3340,22 @@ static status_t
     }
 
     /* Get the definition statements */
-    res = consume_body_stmts(pcb, tkc, mod);
+    res = consume_body_stmts(instance, pcb, tkc, mod);
     CHK_EXIT(res, retres);
     if (res != ERR_NCX_EOF) {
         if (res != ERR_NCX_MISSING_RBRACE) {
             /* the next node should be the '(sub)module' end node */
-            res = ncx_consume_token(tkc, mod, TK_TT_RBRACE);
+            res = ncx_consume_token(instance, tkc, mod, TK_TT_RBRACE);
             if (res != ERR_NCX_EOF) {
                 CHK_EXIT(res, retres);
 
                 /* check extra tokens left over */
-                res = TK_ADV(tkc);
+                res = TK_ADV(instance, tkc);
                 if (res == NO_ERR) {
                     retres = ERR_NCX_EXTRA_NODE;
-                    log_error("\nError: Extra input after end of module"
+                    log_error(instance, "\nError: Extra input after end of module"
                               " starting on line %u", TK_CUR_LNUM(tkc));
-                    ncx_print_errormsg(tkc, mod, retres);
+                    ncx_print_errormsg(instance, tkc, mod, retres);
                 }
             }
         }
@@ -3274,43 +3369,43 @@ static status_t
          * deviationQ within the parser control block
          */
         if (LOGDEBUG4) {
-            log_debug4("\nyang_parse: resolve deviations");
+            log_debug4(instance, "\nyang_parse: resolve deviations");
         }
-        res = yang_obj_resolve_deviations(pcb, tkc, mod);
+        res = yang_obj_resolve_deviations(instance, pcb, tkc, mod);
         return res;
     }
 
     /* check all the module level extension usage */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve appinfoQ");
+        log_debug4(instance, "\nyang_parse: resolve appinfoQ");
     }
-    res = ncx_resolve_appinfoQ(pcb, tkc, mod, &mod->appinfoQ);
+    res = ncx_resolve_appinfoQ(instance, pcb, tkc, mod, &mod->appinfoQ);
     CHK_EXIT(res, retres);
 
     /* check all the module level extension usage
      * within the include, import, and feature statements
      */
-    res = resolve_mod_appinfo(pcb, tkc, mod);
+    res = resolve_mod_appinfo(instance, pcb, tkc, mod);
     CHK_EXIT(res, retres);
 
     /* resolve any if-feature statements within the featureQ */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve features");
+        log_debug4(instance, "\nyang_parse: resolve features");
     }
-    for (feature = (ncx_feature_t *)dlq_firstEntry(&mod->featureQ);
+    for (feature = (ncx_feature_t *)dlq_firstEntry(instance, &mod->featureQ);
          feature != NULL;
-         feature = (ncx_feature_t *)dlq_nextEntry(feature)) {
+         feature = (ncx_feature_t *)dlq_nextEntry(instance, feature)) {
 
-        res = resolve_feature(pcb, tkc, mod, feature);
+        res = resolve_feature(instance, pcb, tkc, mod, feature);
         CHK_EXIT(res, retres);
     }
 
     /* check for any if-feature loops caused by this module */
-    for (feature = (ncx_feature_t *)dlq_firstEntry(&mod->featureQ);
+    for (feature = (ncx_feature_t *)dlq_firstEntry(instance, &mod->featureQ);
          feature != NULL;
-         feature = (ncx_feature_t *)dlq_nextEntry(feature)) {
+         feature = (ncx_feature_t *)dlq_nextEntry(instance, feature)) {
 
-        res = check_feature_loop(tkc, mod, feature, feature);
+        res = check_feature_loop(instance, tkc, mod, feature, feature);
         CHK_EXIT(res, retres);
     }
 
@@ -3318,65 +3413,65 @@ static status_t
      * within the identityQ 
      */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve identities");
+        log_debug4(instance, "\nyang_parse: resolve identities");
     }
-    for (identity = (ncx_identity_t *)dlq_firstEntry(&mod->identityQ);
+    for (identity = (ncx_identity_t *)dlq_firstEntry(instance, &mod->identityQ);
          identity != NULL;
-         identity = (ncx_identity_t *)dlq_nextEntry(identity)) {
+         identity = (ncx_identity_t *)dlq_nextEntry(instance, identity)) {
 
-        res = resolve_identity(pcb, tkc, mod, identity);
+        res = resolve_identity(instance, pcb, tkc, mod, identity);
         CHK_EXIT(res, retres);
     }
 
     /* resolve any identity base loops within the identityQ */
-    for (identity = (ncx_identity_t *)dlq_firstEntry(&mod->identityQ);
+    for (identity = (ncx_identity_t *)dlq_firstEntry(instance, &mod->identityQ);
          identity != NULL;
-         identity = (ncx_identity_t *)dlq_nextEntry(identity)) {
+         identity = (ncx_identity_t *)dlq_nextEntry(instance, identity)) {
 
-        res = check_identity_loop(tkc, mod, identity, identity);
+        res = check_identity_loop(instance, tkc, mod, identity, identity);
         CHK_EXIT(res, retres);
     }
 
     /* Validate any module-level typedefs */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve typedefs");
+        log_debug4(instance, "\nyang_parse: resolve typedefs");
     }
-    res = yang_typ_resolve_typedefs(pcb, tkc, mod, &mod->typeQ, NULL);
+    res = yang_typ_resolve_typedefs(instance, pcb, tkc, mod, &mod->typeQ, NULL);
     CHK_EXIT(res, retres);
 
     /* Validate any module-level groupings */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve groupings");
+        log_debug4(instance, "\nyang_parse: resolve groupings");
     }
-    res = yang_grp_resolve_groupings(pcb, tkc, mod, &mod->groupingQ, NULL);
+    res = yang_grp_resolve_groupings(instance, pcb, tkc, mod, &mod->groupingQ, NULL);
     CHK_EXIT(res, retres);
 
     /* Validate any module-level data-def-stmts */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve datadefs");
+        log_debug4(instance, "\nyang_parse: resolve datadefs");
     }
-    res = yang_obj_resolve_datadefs(pcb, tkc, mod, &mod->datadefQ);
+    res = yang_obj_resolve_datadefs(instance, pcb, tkc, mod, &mod->datadefQ);
     CHK_EXIT(res, retres);
 
     /* Expand and validate any uses-stmts within module-level groupings */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve groupings complete");
+        log_debug4(instance, "\nyang_parse: resolve groupings complete");
     }
-    res = yang_grp_resolve_complete(pcb, tkc, mod, &mod->groupingQ, NULL);
+    res = yang_grp_resolve_complete(instance, pcb, tkc, mod, &mod->groupingQ, NULL);
     CHK_EXIT(res, retres);
 
     /* Expand and validate any uses-stmts within module-level datadefs */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve uses");
+        log_debug4(instance, "\nyang_parse: resolve uses");
     }
-    res = yang_obj_resolve_uses(pcb, tkc, mod, &mod->datadefQ);
+    res = yang_obj_resolve_uses(instance, pcb, tkc, mod, &mod->datadefQ);
     CHK_EXIT(res, retres);
 
     /* Expand and validate any augment-stmts within module-level datadefs */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve augments");
+        log_debug4(instance, "\nyang_parse: resolve augments");
     }
-    res = yang_obj_resolve_augments(pcb, tkc, mod, &mod->datadefQ);
+    res = yang_obj_resolve_augments(instance, pcb, tkc, mod, &mod->datadefQ);
     CHK_EXIT(res, retres);
 
     /* Expand and validate any deviation-stmts within the module
@@ -3387,29 +3482,29 @@ static status_t
      * !!! target object pointers
      */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve deviations");
+        log_debug4(instance, "\nyang_parse: resolve deviations");
     }
-    res = yang_obj_resolve_deviations(pcb, tkc, mod);
+    res = yang_obj_resolve_deviations(instance, pcb, tkc, mod);
     CHK_EXIT(res, retres);
 
     /* remove any nodes that were marked as deleted by deviations */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: remove deleted nodes");
+        log_debug4(instance, "\nyang_parse: remove deleted nodes");
     }
-    res = yang_obj_remove_deleted_nodes(pcb, tkc, mod, &mod->datadefQ);
+    res = yang_obj_remove_deleted_nodes(instance, pcb, tkc, mod, &mod->datadefQ);
 
     /* One final check for grouping integrity */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve grp final");
+        log_debug4(instance, "\nyang_parse: resolve grp final");
     }
-    res = yang_grp_resolve_final(pcb, tkc, mod, &mod->groupingQ);
+    res = yang_grp_resolve_final(instance, pcb, tkc, mod, &mod->groupingQ);
     CHK_EXIT(res, retres);
 
     /* Final check for object integrity */
     if (LOGDEBUG4) {
-        log_debug4("\nyang_parse: resolve obj final");
+        log_debug4(instance, "\nyang_parse: resolve obj final");
     }
-    res = yang_obj_resolve_final(pcb, tkc, mod, &mod->datadefQ, FALSE);
+    res = yang_obj_resolve_final(instance, pcb, tkc, mod, &mod->datadefQ, FALSE);
     CHK_EXIT(res, retres);
 
     /* Validate all the XPath expressions within all cooked objects */
@@ -3420,24 +3515,24 @@ static status_t
          * the imported module, top module, or top submodule
          */
         if (LOGDEBUG4) {
-            log_debug4("\nyang_parse: resolve xpath");
+            log_debug4(instance, "\nyang_parse: resolve xpath");
         }
 
-        res = yang_obj_resolve_xpath(tkc, mod, &mod->datadefQ);
+        res = yang_obj_resolve_xpath(instance, tkc, mod, &mod->datadefQ);
         CHK_EXIT(res, retres);
 
         /* fill in all the list keys in cross-submodule augments */
-        for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
             if (node->submod) {
-                res = yang_obj_top_resolve_final(pcb, tkc, node->submod,
+                res = yang_obj_top_resolve_final(instance, pcb, tkc, node->submod,
                                                  &node->submod->datadefQ);
                 CHK_EXIT(res, retres);
 
                 /* resolve XPath in submodules */
-                res = yang_obj_resolve_xpath(tkc, node->submod,
+                res = yang_obj_resolve_xpath(instance, tkc, node->submod,
                                              &node->submod->datadefQ);
                 CHK_EXIT(res, retres);
             }
@@ -3448,22 +3543,22 @@ static status_t
          * so another check for cloned lists is needed here
          */
         if (LOGDEBUG4) {
-            log_debug4("\nyang_parse: resolve augments final");
+            log_debug4(instance, "\nyang_parse: resolve augments final");
         }
-        res = yang_obj_resolve_augments_final(pcb, tkc, mod, &mod->datadefQ);
+        res = yang_obj_resolve_augments_final(instance, pcb, tkc, mod, &mod->datadefQ);
         CHK_EXIT(res, retres);
 
         /* fill in all the list keys in cross-submodule augments */
-        for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
             if (node->submod == NULL) {
                 continue;
             }
 
             /* check submod augmenting external modules */
-            res = yang_obj_resolve_augments_final(pcb, tkc, node->submod, 
+            res = yang_obj_resolve_augments_final(instance, pcb, tkc, node->submod, 
                                                   &node->submod->datadefQ);
             CHK_EXIT(res, retres);
         }
@@ -3474,44 +3569,44 @@ static status_t
          * these leafs with defaults is needed
          */
         if (LOGDEBUG4) {
-            log_debug4("\nyang_parse: resolve XPath final");
+            log_debug4(instance, "\nyang_parse: resolve XPath final");
         }
-        res = yang_obj_resolve_xpath_final(pcb, tkc, mod, &mod->datadefQ);
+        res = yang_obj_resolve_xpath_final(instance, pcb, tkc, mod, &mod->datadefQ);
         CHK_EXIT(res, retres);
 
         /* final XPath check for all sub-modules */
-        for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
             if (node->submod == NULL) {
                 continue;
             }
 
             /* check submod augmenting external modules */
-            res = yang_obj_resolve_xpath_final(pcb, tkc, node->submod, 
+            res = yang_obj_resolve_xpath_final(instance, pcb, tkc, node->submod, 
                                                &node->submod->datadefQ);
             CHK_EXIT(res, retres);
         }
 
         /* final check of defvals in typedefs */
         if (LOGDEBUG4) {
-            log_debug4("\nyang_parse: resolve XPath final");
+            log_debug4(instance, "\nyang_parse: resolve XPath final");
         }
-        res = yang_typ_resolve_typedefs_final(tkc, mod, &mod->typeQ);
+        res = yang_typ_resolve_typedefs_final(instance, tkc, mod, &mod->typeQ);
         CHK_EXIT(res, retres);
 
         /* final XPath check in typedefs for all sub-modules */
-        for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
             if (node->submod == NULL) {
                 continue;
             }
 
             /* check submod augmenting external modules */
-            res = yang_typ_resolve_typedefs_final(tkc, node->submod, 
+            res = yang_typ_resolve_typedefs_final(instance, tkc, node->submod, 
                                                   &node->submod->typeQ);
             CHK_EXIT(res, retres);
         }
@@ -3525,29 +3620,29 @@ static status_t
     }
 
     /* check for loops in any leafref XPath targets */
-    res = yang_obj_check_leafref_loops(tkc, mod, &mod->datadefQ);
+    res = yang_obj_check_leafref_loops(instance, tkc, mod, &mod->datadefQ);
     CHK_EXIT(res, retres);
 
     /* Check for imports not used warnings */
-    yang_check_imports_used(tkc, mod);
+    yang_check_imports_used(instance, tkc, mod);
 
     /* save the module parse status */
     mod->status = retres;
 
     /* make sure there is at least name and prefix to continue */
-    if (!mod->name || !ncx_valid_name2(mod->name)) {
+    if (!mod->name || !ncx_valid_name2(instance, mod->name)) {
         return retres;
     }
     if (mod->ismod) {
-        if (!mod->prefix || !ncx_valid_name2(mod->prefix)) {
+        if (!mod->prefix || !ncx_valid_name2(instance, mod->prefix)) {
             return retres;
         }
     } else if (mod->prefix) {
-        if (mod->ismod && !ncx_valid_name2(mod->prefix)) {
+        if (mod->ismod && !ncx_valid_name2(instance, mod->prefix)) {
             return retres;
         }
     } else {
-        mod->prefix = xml_strdup(EMPTY_STRING);
+        mod->prefix = xml_strdup(instance, EMPTY_STRING);
         if (!mod->prefix) {
             return ERR_INTERNAL_MEM;
         }
@@ -3566,9 +3661,9 @@ static status_t
                 res = NO_ERR;
                 done = FALSE;
                 for (node = (yang_node_t *)
-                         dlq_firstEntry(&mod->allincQ);
+                         dlq_firstEntry(instance, &mod->allincQ);
                      node != NULL && !done;
-                     node = (yang_node_t *)dlq_nextEntry(node)) {
+                     node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
                     if (node->submod) {
                         if (node->submod->status != NO_ERR) {
@@ -3588,9 +3683,9 @@ static status_t
                 if (ietfnetconf) {
                     res = NO_ERR;
                 } else if (pcb->diffmode || pcb->parsemode) {
-                    res = ncx_add_to_modQ(mod);
+                    res = ncx_add_to_modQ(instance, mod);
                 } else {
-                    res = ncx_add_to_registry(mod);
+                    res = ncx_add_to_registry(instance, mod);
                 }
                 if (res != NO_ERR) {
                     retres = res;
@@ -3604,7 +3699,7 @@ static status_t
                 }
             }
         } else if (mod->ns) {
-            mod->nsid = xmlns_find_ns_by_name(mod->ns);
+            mod->nsid = xmlns_find_ns_by_name(instance, mod->ns);
         }
         break;
     case YANG_PT_INCLUDE:
@@ -3612,7 +3707,7 @@ static status_t
         *wasadded = TRUE;
         break;
     default:
-        retres = SET_ERROR(ERR_INTERNAL_VAL);
+        retres = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return retres;
@@ -3630,7 +3725,8 @@ static status_t
 *   str == source string to use
 *********************************************************************/
 static void
-    set_source (ncx_module_t *mod,
+    set_source (ncx_instance_t *instance,
+                ncx_module_t *mod,
                 xmlChar *str)
 {
     /* save the source of this ncx-module for monitor / debug 
@@ -3639,7 +3735,7 @@ static void
     mod->source = str;
 
     /* find the start of the file name */
-    mod->sourcefn = &str[xml_strlen(str)];
+    mod->sourcefn = &str[xml_strlen(instance, str)];
     while (mod->sourcefn > str &&
            *mod->sourcefn != NCX_PATHSEP_CH) {
         mod->sourcefn--;
@@ -3661,13 +3757,14 @@ static void
 *   res the result of the operation.
 *********************************************************************/
 static status_t
-    load_yang_module ( const xmlChar  *filespec,
+    load_yang_module (ncx_instance_t *instance,
+                        const xmlChar  *filespec,
                        const xmlChar  *filename,
                        tk_chain_t     **tkc )
 {
     FILE           *fp = NULL;
 
-    log_debug( "\nLoading YANG module from file:\n  %s", filespec );
+    log_debug(instance,  "\nLoading YANG module from file:\n  %s", filespec );
     /* open the YANG source file for reading */
     fp = fopen( (const char *)filename, "r" );
     if (!fp) {
@@ -3676,15 +3773,15 @@ static status_t
 
     /* setup the token chain to parse this YANG file */
     /* get a new token chain */
-    *tkc = tk_new_chain();
+    *tkc = tk_new_chain(instance);
     if ( !*tkc ) {
-        log_error("\nyang_parse malloc error");
+        log_error(instance, "\nyang_parse malloc error");
         fclose(fp);
         return ERR_INTERNAL_MEM;
     }
     else {
         // hand off management of fp
-        tk_setup_chain_yang( *tkc, fp, filename );
+        tk_setup_chain_yang(instance,  *tkc, fp, filename );
     }
 
     return NO_ERR;
@@ -3701,23 +3798,25 @@ static status_t
 *   res the result of the operation.
 *********************************************************************/
 static status_t
-    load_yin_module ( const xmlChar  *filespec,
+    load_yin_module (ncx_instance_t *instance,
+                       const xmlChar  *filespec,
                       const xmlChar  *filename,
                       tk_chain_t     **tkc )
 {
     status_t res = NO_ERR;
 
-    log_debug( "\nLoading YIN module from file:\n  %s", filespec );
+    log_debug(instance,  "\nLoading YIN module from file:\n  %s", filespec );
     /* just make sure the file exists for now */
-    if ( !ncxmod_test_filespec( filename ) ) {
+    if ( !ncxmod_test_filespec(instance,  filename ) ) {
         return ERR_NCX_MISSING_FILE;
     }
 
     /* setup the token chain to parse this YANG file */
     /* get a new token chain */
-    *tkc = yinyang_convert_token_chain( filename, &res );
+    *tkc = yinyang_convert_token_chain(instance,  filename, &res );
     if ( !*tkc ) {
-        log_error( "\nyang_parse: Invalid YIN file (%s)", 
+        log_error(instance, 
+                    "\nyang_parse: Invalid YIN file (%s)", 
                    get_error_string(res) );
         if ( NO_ERR == res ) {
             res = ERR_INTERNAL_MEM;
@@ -3738,14 +3837,15 @@ static status_t
 *   res the result of the operation.
 *********************************************************************/
 static ncx_module_t*
-   configure_module( xmlChar        *filename,
+   configure_module(ncx_instance_t *instance,
+                      xmlChar        *filename,
                      yang_pcb_t     *pcb )
 {
    ncx_module_t *mod = NULL;
 
-    mod = ncx_new_module();
+    mod = ncx_new_module(instance);
     if (mod) {
-        set_source(mod, filename); /* hand off 'str' malloced memory here */
+        set_source(instance, mod, filename); /* hand off 'str' malloced memory here */
 
         /* set the back-ptr to parent of this submodule 
          * or NULL if this is not a submodule
@@ -3794,7 +3894,8 @@ static ncx_module_t*
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_parse_from_filespec (const xmlChar *filespec,
+    yang_parse_from_filespec (ncx_instance_t *instance,
+                              const xmlChar *filespec,
                               yang_pcb_t *pcb,
                               yang_parsetype_t ptyp,
                               boolean isyang)
@@ -3808,15 +3909,15 @@ status_t
 
 #ifdef DEBUG
     if (!filespec || !pcb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* expand and copy the filespec */
-    str = ncx_get_source(filespec, &res);
+    str = ncx_get_source(instance, filespec, &res);
     if ( !str || NO_ERR != res ) {
         if ( str ) {
-            m__free( str );
+            m__free(instance,  str );
         }
         else {
             res = ERR_INTERNAL_MEM;
@@ -3824,30 +3925,30 @@ status_t
         return res;
     }
 
-    res = (isyang) ? load_yang_module( filespec, str, &tkc )
-                   : load_yin_module( filespec, str, &tkc );
+    res = (isyang) ? load_yang_module(instance,  filespec, str, &tkc )
+                   : load_yin_module(instance,  filespec, str, &tkc );
 
     if ( !tkc ) {
-        m__free( str );
+        m__free(instance,  str );
         return ( NO_ERR == res ) ? ERR_INTERNAL_MEM : res;
     }
     else if ( NO_ERR != res ) {
-        tk_free_chain(tkc);
-        m__free( str );
+        tk_free_chain(instance, tkc);
+        m__free(instance,  str );
         return res;
     }
     
     if ( pcb->docmode && (ptyp == YANG_PT_TOP || ptyp == YANG_PT_INCLUDE)) {
-        tk_setup_chain_docmode(tkc);
+        tk_setup_chain_docmode(instance, tkc);
     }
 
-    mod = configure_module( str, pcb );
+    mod = configure_module(instance,  str, pcb );
     if ( !mod ) {
-        m__free( str );
+        m__free(instance,  str );
         if ( tkc->fp ) {
             fclose( tkc->fp );
         }
-        tk_free_chain(tkc);
+        tk_free_chain(instance, tkc);
         return  ERR_INTERNAL_MEM;
     }
 
@@ -3855,38 +3956,38 @@ status_t
         /* serialize the file into language tokens
          * !!! need to change this later because it may use too
          * !!! much memory in embedded parsers */
-        res = tk_tokenize_input(tkc, mod);
+        res = tk_tokenize_input(instance, tkc, mod);
         if ( NO_ERR != res ) {
-            ncx_free_module(mod);
+            ncx_free_module(instance, mod);
 
             if ( tkc->fp ) {
                 fclose( tkc->fp );
             }
-            tk_free_chain(tkc);
+            tk_free_chain(instance, tkc);
             return res;
         }
     }
 
 #ifdef YANG_PARSE_TK_DEBUG
-     tk_dump_chain(tkc);
+     tk_dump_chain(instance, tkc);
 #endif
 
     /* parse the module and validate it only if a token chain
      * was properly parsed; set this only once for the top module
      */
     if ( pcb->savetkc && !pcb->docmode && pcb->tkc == NULL) {
-        pcb->tkc = tk_clone_chain(tkc);
+        pcb->tkc = tk_clone_chain(instance, tkc);
         if (pcb->tkc == NULL) {
-            ncx_free_module(mod);
+            ncx_free_module(instance, mod);
             if ( tkc->fp ) {
                 fclose( tkc->fp );
             }
-            tk_free_chain(tkc);
+            tk_free_chain(instance, tkc);
             return  ERR_INTERNAL_MEM;
         }
     }
 
-    res = parse_yang_module( tkc, mod, pcb, ptyp, &wasadd );
+    res = parse_yang_module(instance,  tkc, mod, pcb, ptyp, &wasadd );
 
     if (pcb->top == mod) {
         pcb->topadded = wasadd;
@@ -3909,7 +4010,7 @@ status_t
                 (ptyp == YANG_PT_IMPORT && !mod->ismod) ||
                 (ptyp == YANG_PT_INCLUDE && mod->ismod)) {
                 pcb->retmod = NULL;
-                ncx_free_module(mod);
+                ncx_free_module(instance, mod);
                 mod = NULL;
             }
         } 
@@ -3922,7 +4023,7 @@ status_t
                 pcb->top = NULL;
             }
             pcb->retmod = NULL;
-            ncx_free_module(mod);
+            ncx_free_module(instance, mod);
             mod = NULL;
         } /* else the module will be freed in ncx_cleanup or ncx_free_module
            * for a submodule */
@@ -3933,7 +4034,7 @@ status_t
             pcb->top = NULL;
         }
         pcb->retmod = NULL;
-        ncx_free_module(mod);
+        ncx_free_module(instance, mod);
         mod = NULL;
     } else if (!wasadd) {
         /* module was not added to the registry which means it was already 
@@ -3946,7 +4047,7 @@ status_t
                 pcb->top = NULL;
             }
             pcb->retmod = NULL;
-            ncx_free_module(mod);
+            ncx_free_module(instance, mod);
             mod = NULL;
         } else if (!(pcb->diffmode || pcb->searchmode)) {
             /* do not swap out diffmode or searchmode for all other modes, 
@@ -3960,9 +4061,9 @@ status_t
                      * pieces */
                     if (pcb->keepmode) {
                         keepmod = TRUE;
-                    } else if (xml_strcmp(mod->name, NCXMOD_IETF_NETCONF)) {
+                    } else if (xml_strcmp(instance, mod->name, NCXMOD_IETF_NETCONF)) {
                         /* swap with the real module already done */
-                        pcb->top = ncx_find_module(mod->name, mod->version);
+                        pcb->top = ncx_find_module(instance, mod->name, mod->version);
                         pcb->retmod = NULL;
                     } else {
                         keepmod = TRUE;
@@ -4008,7 +4109,7 @@ status_t
             }
 
             if (!keepmod) {
-                ncx_free_module(mod);
+                ncx_free_module(instance, mod);
                 mod = NULL;
             }
         }
@@ -4027,7 +4128,7 @@ status_t
          * token chain is desired, not * the clone like YIN parsing */
         pcb->tkc = tkc;
     } else {
-        tk_free_chain(tkc);
+        tk_free_chain(instance, tkc);
     }
 
     return res;

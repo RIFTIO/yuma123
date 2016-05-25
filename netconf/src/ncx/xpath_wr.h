@@ -73,7 +73,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    xpath_wr_expr (ses_cb_t *scb,
+    xpath_wr_expr (struct ncx_instance_t_ *instance,
+		   ses_cb_t *scb,
 		   val_value_t *xpathval);
 
 #ifdef __cplusplus

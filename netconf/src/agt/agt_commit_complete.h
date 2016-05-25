@@ -50,12 +50,12 @@ typedef status_t (*agt_commit_complete_cb_t)(void);
 /**
  * Initialise the callback commit module.
  */
-extern void agt_commit_complete_init( void );
+extern void agt_commit_complete_init( struct ncx_instance_t_ *instance );
 
 /**
  * Cleanup the callback commit module.
  */
-extern void agt_commit_complete_cleanup( void );
+extern void agt_commit_complete_cleanup( struct ncx_instance_t_ *instance );
 
 /**
  * Register a commit complete callback.
@@ -69,7 +69,8 @@ extern void agt_commit_complete_cleanup( void );
  * \param cb the commit complete function.
  * \return the status of the operation.
  */
-extern status_t agt_commit_complete_register( const xmlChar *modname,
+extern status_t agt_commit_complete_register(struct ncx_instance_t_ *instance,
+                                               const xmlChar *modname,
                                               agt_commit_complete_cb_t cb );
 
 /**
@@ -78,7 +79,7 @@ extern status_t agt_commit_complete_register( const xmlChar *modname,
  *
  * \param modname the name of the module unregistering the callback
  */
-extern void agt_commit_complete_unregister( const xmlChar *modname );
+extern void agt_commit_complete_unregister(struct ncx_instance_t_ *instance,  const xmlChar *modname );
 
 /**
  * Complete a commit operation.
@@ -89,7 +90,7 @@ extern void agt_commit_complete_unregister( const xmlChar *modname );
  *
  * \return the ERR_OK or the status of the first failing callback.
  */
-extern status_t agt_commit_complete( void );
+extern status_t agt_commit_complete( struct ncx_instance_t_ *instance );
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

@@ -134,61 +134,63 @@ date         init     comment
  *    malloced and filled out value node
  *********************************************************************/
 static val_value_t *
-    convert_result_to_val (xpath_result_t *result)
+    convert_result_to_val (ncx_instance_t *instance, xpath_result_t *result)
 {
     val_value_t      *resultval, *childval;
     xpath_resnode_t  *resnode;
     xmlns_id_t        ncid;
 
     resultval = NULL;
-    ncid = xmlns_nc_id();
+    ncid = xmlns_nc_id(instance);
 
     switch (result->restype) {
     case XP_RT_NONE:
         /* this should be an error, but treat as an empty result */
-        resultval = xml_val_new_flag(NCX_EL_DATA, ncid);
+        resultval = xml_val_new_flag(instance, NCX_EL_DATA, ncid);
         break;
     case XP_RT_NODESET:
-        if (dlq_empty(&result->r.nodeQ)) {
-            resultval = xml_val_new_flag(NCX_EL_DATA, ncid);
+        if (dlq_empty(instance, &result->r.nodeQ)) {
+            resultval = xml_val_new_flag(instance, NCX_EL_DATA, ncid);
         } else {
-            resultval = xml_val_new_struct(NCX_EL_DATA, ncid);
+            resultval = xml_val_new_struct(instance, NCX_EL_DATA, ncid);
             for (resnode = (xpath_resnode_t *)
-                     dlq_firstEntry(&result->r.nodeQ);
+                     dlq_firstEntry(instance, &result->r.nodeQ);
                  resnode != NULL;
                  resnode = (xpath_resnode_t *)
-                     dlq_nextEntry(resnode)) {
+                     dlq_nextEntry(instance, resnode)) {
 
-                childval = val_clone(resnode->node.valptr);
+                childval = val_clone(instance, resnode->node.valptr);
                 if (childval == NULL) {
-                    val_free_value(resultval);
+                    val_free_value(instance, resultval);
                     return NULL;
                 }
-                val_add_child(childval, resultval);
+                val_add_child(instance, childval, resultval);
             }
         }
         break;
     case XP_RT_NUMBER:
-        resultval = xml_val_new_number(NCX_EL_DATA,
+        resultval = xml_val_new_number(instance,
+                                       NCX_EL_DATA,
                                        ncid,
                                        &result->r.num,
                                        NCX_BT_FLOAT64);
         break;
     case XP_RT_STRING:
-        resultval = xml_val_new_cstring(NCX_EL_DATA, ncid, result->r.str);
+        resultval = xml_val_new_cstring(instance, NCX_EL_DATA, ncid, result->r.str);
         break;
     case XP_RT_BOOLEAN:
         /* !!! this is wrong but not sure if any XML conversion used it !!!
          * contains empty string if FALSE; <data/> if TUR
          *resultval = xml_val_new_boolean(NCX_EL_DATA, ncid, result->r.boo);
          */
-        resultval = xml_val_new_cstring(NCX_EL_DATA, 
+        resultval = xml_val_new_cstring(instance, 
+                                        NCX_EL_DATA, 
                                         ncid,
                                         (result->r.boo) ? 
                                         NCX_EL_TRUE : NCX_EL_FALSE);
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return resultval;
@@ -213,7 +215,8 @@ static val_value_t *
  *    status
  *********************************************************************/
 status_t
-    do_eval (server_cb_t *server_cb,
+    do_eval (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len)
@@ -236,22 +239,23 @@ status_t
 
     res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset == NULL) {
         return res;
     }
     if (res != NO_ERR) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
     if (valset->res != NO_ERR) {
         res = valset->res;
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
     /* get the expr parameter */
-    expr = val_find_child(valset, 
+    expr = val_find_child(instance, 
+                          valset, 
                           YANGCLI_MOD, 
                           YANGCLI_EXPR);
     if (expr == NULL) {
@@ -262,7 +266,8 @@ status_t
 
     if (res == NO_ERR) {
         /* get the optional docroot parameter */
-        docroot = val_find_child(valset, 
+        docroot = val_find_child(instance, 
+                                 valset, 
                                  YANGCLI_MOD, 
                                  YANGCLI_DOCROOT);
         if (docroot && docroot->res != NO_ERR) {
@@ -271,7 +276,7 @@ status_t
     }
 
     if (res == NO_ERR && docroot == NULL) {
-        dummydoc = xml_val_new_struct(NCX_EL_DATA, xmlns_nc_id());
+        dummydoc = xml_val_new_struct(instance, NCX_EL_DATA, xmlns_nc_id(instance));
         if (dummydoc == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
@@ -281,14 +286,16 @@ status_t
 
     if (res == NO_ERR) {
         /* got all the parameters, and setup the XPath control block */
-        pcb = xpath_new_pcb_ex(VAL_STR(expr), 
-                               xpath_getvar_fn,
+        pcb = xpath_new_pcb_ex(instance, 
+                               VAL_STR(expr), 
+                               (xpath_getvar_fn_t)xpath_getvar_fn,
                                server_cb->runstack_context);
         if (pcb == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
             /* try to parse the XPath expression */
-            result = xpath1_eval_expr(pcb, 
+            result = xpath1_eval_expr(instance, 
+                                      pcb, 
                                       docroot, /* context */
                                       docroot,
                                       TRUE,
@@ -297,7 +304,7 @@ status_t
 
             if (result != NULL && res == NO_ERR) {
                 /* create a result val out of the XPath result */
-                resultval = convert_result_to_val(result);
+                resultval = convert_result_to_val(instance, result);
                 if (resultval == NULL) {
                     res = ERR_INTERNAL_MEM;
                 }
@@ -323,38 +330,38 @@ status_t
              * Retain the <data> container:
              *   <data> contains multiple elements
              */
-            if (typ_is_simple(resultval->btyp)) {
-                resultstr = val_make_sprintf_string(resultval);
+            if (typ_is_simple(instance, resultval->btyp)) {
+                resultstr = val_make_sprintf_string(instance, resultval);
                 if (resultstr == NULL) {
                     res = ERR_INTERNAL_MEM;
                 } else {
-                    val_free_value(resultval);
+                    val_free_value(instance, resultval);
                     resultval = NULL;
                 }
             } else {
-                childcnt = val_child_cnt(resultval);
+                childcnt = val_child_cnt(instance, resultval);
                 if (childcnt == 1) {
                     /* check if the child is a simple 
                      * type or complex type
                      */
-                    childval = val_get_first_child(resultval);
+                    childval = val_get_first_child(instance, resultval);
                     if (childval == NULL) {
-                        res = SET_ERROR(ERR_INTERNAL_VAL);
-                    } else if (typ_is_simple(childval->btyp)) {
+                        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
+                    } else if (typ_is_simple(instance, childval->btyp)) {
                         /* convert the simple val to a string */
-                        resultstr = val_make_sprintf_string(childval);
+                        resultstr = val_make_sprintf_string(instance, childval);
                         if (resultstr == NULL) {
                             res = ERR_INTERNAL_MEM;
                         } else {
-                            val_free_value(resultval);
+                            val_free_value(instance, resultval);
                             resultval = NULL;
                         }
                     } else {
                         /* remove the complex node from the
                          * data container
                          */
-                        val_remove_child(childval);
-                        val_free_value(resultval);
+                        val_remove_child(instance, childval);
+                        val_free_value(instance, resultval);
                         resultval = childval;
                     }
                 } else {
@@ -367,7 +374,8 @@ status_t
                 
             if (res == NO_ERR) {
                 /* save the filled in value */
-                res = finish_result_assign(server_cb, 
+                res = finish_result_assign(instance, 
+                                           server_cb, 
                                            resultval, 
                                            resultstr);
                 /* resultvar is freed no matter what */
@@ -375,21 +383,22 @@ status_t
             }
         }
     } else {
-        clear_result(server_cb);
+        clear_result(instance, server_cb);
     }
     
     /* cleanup and exit */
-    val_free_value(valset);
-    xpath_free_pcb(pcb);
-    xpath_free_result(result);
-    val_free_value(resultval);
+    val_free_value(instance, valset);
+    xpath_free_pcb(instance, pcb);
+    xpath_free_result(instance, result);
+    val_free_value(instance, resultval);
     if (resultstr) {
-        m__free(resultstr);
+        m__free(instance, resultstr);
     }
-    val_free_value(dummydoc);
+    val_free_value(instance, dummydoc);
 
     if (res != NO_ERR) {
-        log_error("\nError: XPath evaluation failed (%s)", 
+        log_error(instance, 
+                  "\nError: XPath evaluation failed (%s)", 
                   get_error_string(res));
     }
 

@@ -127,17 +127,18 @@ typedef struct y_yuma_arp_T_arp_ {
 
 /* yuma-arp module init 1 */
 extern status_t
-    y_yuma_arp_init (
+    y_yuma_arp_init (struct ncx_instance_t_ *instance,
+        
         const xmlChar *modname,
         const xmlChar *revision);
 
 /* yuma-arp module init 2 */
 extern status_t
-    y_yuma_arp_init2 (void);
+    y_yuma_arp_init2 (struct ncx_instance_t_ *instance);
 
 /* yuma-arp module cleanup */
 extern void
-    y_yuma_arp_cleanup (void);
+    y_yuma_arp_cleanup (struct ncx_instance_t_ *instance);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

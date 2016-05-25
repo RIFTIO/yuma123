@@ -43,6 +43,8 @@ date	     init     comment
 extern "C" {
 #endif
 
+struct ncx_instance_t_;
+
 /********************************************************************
 *								    *
 *			 C O N S T A N T S			    *
@@ -81,7 +83,8 @@ extern "C" {
  *    status:
  */
 typedef status_t 
-    (*agt_cb_fn_t) (ses_cb_t  *scb,
+    (*agt_cb_fn_t) (struct ncx_instance_t_ *instance,
+		    ses_cb_t  *scb,
 		    rpc_msg_t *msg,
 		    agt_cbtyp_t cbtyp,
 		    op_editop_t  editop,
@@ -108,7 +111,7 @@ typedef struct agt_cb_fnset_t_ {
 *
 *********************************************************************/
 extern void
-    agt_cb_init (void);
+    agt_cb_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -118,7 +121,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_cb_cleanup (void);
+    agt_cb_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -145,7 +148,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t 
-    agt_cb_register_callback (const xmlChar *modname,
+    agt_cb_register_callback (struct ncx_instance_t_ *instance,
+			      const xmlChar *modname,
 			      const xmlChar *defpath,
 			      const xmlChar *version,
 			      const agt_cb_fn_t cbfn);
@@ -173,7 +177,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t 
-    agt_cb_register_callbacks (const xmlChar *modname,
+    agt_cb_register_callbacks (struct ncx_instance_t_ *instance,
+			       const xmlChar *modname,
 			       const xmlChar *defpath,
 			       const xmlChar *version,
 			       const agt_cb_fnset_t *cbfnset);
@@ -192,7 +197,8 @@ extern status_t
 *   none
 *********************************************************************/
 extern void
-    agt_cb_unregister_callbacks (const xmlChar *modname,
+    agt_cb_unregister_callbacks (struct ncx_instance_t_ *instance,
+				 const xmlChar *modname,
 				 const xmlChar *defpath);
 
 #ifdef __cplusplus

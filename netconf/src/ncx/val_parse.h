@@ -19,14 +19,16 @@ extern "C" {
 
 
 status_t 
-    val_parse_split (ses_cb_t  *scb,
+    val_parse_split (ncx_instance_t *instance,
+                     ses_cb_t  *scb,
                        obj_template_t *obj,
                        obj_template_t *output,
                        const xml_node_t *startnode,
                        val_value_t  *retval);
 
 status_t 
-    val_parse (ses_cb_t  *scb,
+    val_parse (ncx_instance_t *instance,
+               ses_cb_t  *scb,
                obj_template_t *obj,
                const xml_node_t *startnode,
                val_value_t  *retval);

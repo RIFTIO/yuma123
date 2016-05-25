@@ -150,7 +150,8 @@ date         init     comment
  *   status
  *********************************************************************/
 static status_t
-    do_if_elif (server_cb_t *server_cb,
+    do_if_elif (ncx_instance_t *instance,
+                server_cb_t *server_cb,
                 obj_template_t *rpc,
                 const xmlChar *line,
                 uint32  len,
@@ -169,22 +170,23 @@ static status_t
     cond = FALSE;
     res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset == NULL) {
         return res;
     }
     if (res != NO_ERR) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
     if (valset->res != NO_ERR) {
         res = valset->res;
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
     /* get the expr parameter */
-    expr = val_find_child(valset, 
+    expr = val_find_child(instance, 
+                          valset, 
                           YANGCLI_MOD, 
                           YANGCLI_EXPR);
     if (expr == NULL) {
@@ -195,7 +197,8 @@ static status_t
 
     if (res == NO_ERR) {
         /* get the optional docroot parameter */
-        docroot = val_find_child(valset, 
+        docroot = val_find_child(instance, 
+                                 valset, 
                                  YANGCLI_MOD, 
                                  YANGCLI_DOCROOT);
         if (docroot && docroot->res != NO_ERR) {
@@ -204,7 +207,7 @@ static status_t
     }
 
     if (res == NO_ERR && docroot == NULL) {
-        dummydoc = xml_val_new_struct(NCX_EL_DATA, xmlns_nc_id());
+        dummydoc = xml_val_new_struct(instance, NCX_EL_DATA, xmlns_nc_id(instance));
         if (dummydoc == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
@@ -214,18 +217,20 @@ static status_t
 
     if (res == NO_ERR) {
         /* got all the parameters, and setup the XPath control block */
-        pcb = xpath_new_pcb_ex(VAL_STR(expr), 
-                               xpath_getvar_fn,
+        pcb = xpath_new_pcb_ex(instance, 
+                               VAL_STR(expr), 
+                               (xpath_getvar_fn_t)xpath_getvar_fn,
                                server_cb->runstack_context);
         if (pcb == NULL) {
             res = ERR_INTERNAL_MEM;
         } else if ((isif && 
-                    runstack_get_cond_state(server_cb->runstack_context)) ||
+                    runstack_get_cond_state(instance, server_cb->runstack_context)) ||
                    (!isif && 
-                    !runstack_get_if_used(server_cb->runstack_context))) {
+                    !runstack_get_if_used(instance, server_cb->runstack_context))) {
 
             /* figure out if this if or elif block is enabled or not */
-            result = xpath1_eval_expr(pcb, 
+            result = xpath1_eval_expr(instance, 
+                                      pcb, 
                                       docroot, /* context */
                                       docroot,
                                       TRUE,
@@ -233,29 +238,29 @@ static status_t
                                       &res);
             if (result != NULL && res == NO_ERR) {
                 /* get new condition state for this loop */
-                cond = xpath_cvt_boolean(result);
+                cond = xpath_cvt_boolean(instance, result);
             } 
-            xpath_free_result(result);
+            xpath_free_result(instance, result);
         }
 
         if (res == NO_ERR) {
             if (isif) {
-                res = runstack_handle_if(server_cb->runstack_context, cond);
+                res = runstack_handle_if(instance, server_cb->runstack_context, cond);
             } else {
-                res = runstack_handle_elif(server_cb->runstack_context, cond);
+                res = runstack_handle_elif(instance, server_cb->runstack_context, cond);
             }
         }
     }
 
     /* cleanup and exit */
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
     if (pcb) {
-        xpath_free_pcb(pcb);
+        xpath_free_pcb(instance, pcb);
     }
     if (dummydoc) {
-        val_free_value(dummydoc);
+        val_free_value(instance, dummydoc);
     }
     return res;
 
@@ -282,7 +287,8 @@ static status_t
  *   status
  *********************************************************************/
 status_t
-    do_while (server_cb_t *server_cb,
+    do_while (ncx_instance_t *instance,
+              server_cb_t *server_cb,
               obj_template_t *rpc,
               const xmlChar *line,
               uint32  len)
@@ -299,22 +305,23 @@ status_t
     res = NO_ERR;
     maxloopsval = YANGCLI_DEF_MAXLOOPS;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset == NULL) {
         return res;
     }
     if (res != NO_ERR) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
     if (valset->res != NO_ERR) {
         res = valset->res;
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
     /* get the expr parameter */
-    expr = val_find_child(valset, 
+    expr = val_find_child(instance, 
+                          valset, 
                           YANGCLI_MOD, 
                           YANGCLI_EXPR);
     if (expr == NULL) {
@@ -325,20 +332,21 @@ status_t
 
     if (res == NO_ERR) {
         /* get the optional docroot parameter */
-        docroot = val_find_child(valset, 
+        docroot = val_find_child(instance, 
+                                 valset, 
                                  YANGCLI_MOD, 
                                  YANGCLI_DOCROOT);
         if (docroot != NULL) {
             if (docroot->res != NO_ERR) {
                 res = docroot->res;
             } else {
-                val_remove_child(docroot);
+                val_remove_child(instance, docroot);
             }
         }
     }
 
     if (res == NO_ERR && docroot == NULL) {
-        dummydoc = xml_val_new_struct(NCX_EL_DATA, xmlns_nc_id());
+        dummydoc = xml_val_new_struct(instance, NCX_EL_DATA, xmlns_nc_id(instance));
         if (dummydoc == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
@@ -348,7 +356,8 @@ status_t
 
     if (res == NO_ERR) {
         /* get the optional maxloops parameter */
-        maxloops = val_find_child(valset, 
+        maxloops = val_find_child(instance, 
+                                  valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_MAXLOOPS);
         if (maxloops != NULL) {
@@ -362,14 +371,16 @@ status_t
 
     if (res == NO_ERR) {
         /* got all the parameters, and setup the XPath control block */
-        pcb = xpath_new_pcb_ex(VAL_STR(expr), 
-                               xpath_getvar_fn,
+        pcb = xpath_new_pcb_ex(instance, 
+                               VAL_STR(expr), 
+                               (xpath_getvar_fn_t)xpath_getvar_fn,
                                server_cb->runstack_context);
         if (pcb == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
             /* save these parameter and start a new while context block */
-            res = runstack_handle_while(server_cb->runstack_context,
+            res = runstack_handle_while(instance,
+                                        server_cb->runstack_context,
                                         maxloopsval,
                                         pcb,  /* hand off memory here */
                                         docroot);  /* hand off memory here */
@@ -383,13 +394,13 @@ status_t
 
     /* cleanup and exit */
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
     if (pcb) {
-        xpath_free_pcb(pcb);
+        xpath_free_pcb(instance, pcb);
     }
     if (docroot) {
-        val_free_value(docroot);
+        val_free_value(instance, docroot);
     }
     return res;
 
@@ -413,12 +424,13 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_if (server_cb_t *server_cb,
+    do_if (ncx_instance_t *instance,
+           server_cb_t *server_cb,
            obj_template_t *rpc,
            const xmlChar *line,
            uint32  len)
 {
-    return do_if_elif(server_cb, rpc, line, len, TRUE);
+    return do_if_elif(instance, server_cb, rpc, line, len, TRUE);
 
 }  /* do_if */
 
@@ -440,12 +452,13 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_elif (server_cb_t *server_cb,
+    do_elif (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len)
 {
-    return do_if_elif(server_cb, rpc, line, len, FALSE);
+    return do_if_elif(instance, server_cb, rpc, line, len, FALSE);
 
 }  /* do_elif */
 
@@ -468,7 +481,8 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_else (server_cb_t *server_cb,
+    do_else (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len)
@@ -477,17 +491,17 @@ status_t
     status_t            res;
 
     res = NO_ERR;
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset == NULL) {
         if (res != ERR_NCX_SKIPPED) {
             return res;
         }
     } else {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return ERR_NCX_INVALID_VALUE;
     }
 
-    res = runstack_handle_else(server_cb->runstack_context);
+    res = runstack_handle_else(instance, server_cb->runstack_context);
 
     return res;
 
@@ -511,7 +525,8 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_end (server_cb_t *server_cb,
+    do_end (ncx_instance_t *instance,
+            server_cb_t *server_cb,
             obj_template_t *rpc,
             const xmlChar *line,
             uint32  len)
@@ -520,17 +535,17 @@ status_t
     status_t            res;
 
     res = NO_ERR;
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset == NULL) {
         if (res != ERR_NCX_SKIPPED) {
             return res;
         }
     } else {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return ERR_NCX_INVALID_VALUE;
     }
 
-    res = runstack_handle_end(server_cb->runstack_context);
+    res = runstack_handle_end(instance, server_cb->runstack_context);
 
     return res;
 

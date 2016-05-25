@@ -123,6 +123,18 @@ extern "C" {
 
 
 /********************************************************************
+* FUNCTION ncx_alloc
+* 
+* Allocate a NCX instance structure.
+*
+* RETURNS:
+*   The allocated and initialized structure.
+*********************************************************************/
+extern struct ncx_instance_t_ *
+    ncx_alloc( void /* ATTN: allocator */ );
+
+
+/********************************************************************
 * FUNCTION ncx_init
 * 
 * Initialize the NCX module
@@ -147,12 +159,31 @@ extern "C" {
 *   status of the initialization procedure
 *********************************************************************/
 extern status_t 
-    ncx_init (boolean savestr,
+    ncx_init (struct ncx_instance_t_ *instance,
+	      boolean savestr,
 	      log_debug_t dlevel,
 	      boolean logtstamps,
 	      const char *startmsg,
 	      int argc,
 	      char *argv[]);
+
+/********************************************************************
+* FUNCTION ncx_custom_init
+* 
+* Initialize the NCX module with custom inits
+*
+* INPUTS:
+*   yang_model == Yang Model associated with this NCX Module
+*   Logging_Routine == Call back to routine to call with trace/logging events
+*
+* RETURNS:
+*   status of the initialization procedure
+*********************************************************************/
+extern status_t 
+    ncx_custom_init (struct ncx_instance_t_ *instance,
+	      void* yang_model,
+        void *logging_context,
+	      Logging_Routine trace_routine);
 
 
 /********************************************************************
@@ -161,7 +192,7 @@ extern status_t
 *  cleanup NCX module
 *********************************************************************/
 extern void 
-    ncx_cleanup (void);
+    ncx_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -173,7 +204,7 @@ extern void
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern ncx_module_t * 
-    ncx_new_module (void);
+    ncx_new_module (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -190,7 +221,8 @@ extern ncx_module_t *
 *  module pointer if found or NULL if not
 *********************************************************************/
 extern ncx_module_t *
-    ncx_find_module (const xmlChar *modname,
+    ncx_find_module (struct ncx_instance_t_ *instance,
+		     const xmlChar *modname,
 		     const xmlChar *revision);
 
 
@@ -209,7 +241,8 @@ extern ncx_module_t *
 *  module pointer if found or NULL if not
 *********************************************************************/
 extern ncx_module_t *
-    ncx_find_module_que (dlq_hdr_t *modQ,
+    ncx_find_module_que (struct ncx_instance_t_ *instance,
+                         dlq_hdr_t *modQ,
                          const xmlChar *modname,
                          const xmlChar *revision);
 
@@ -228,7 +261,8 @@ extern ncx_module_t *
 *  module pointer if found or NULL if not
 *********************************************************************/
 extern ncx_module_t *
-    ncx_find_module_que_nsid (dlq_hdr_t *modQ,
+    ncx_find_module_que_nsid (struct ncx_instance_t_ *instance,
+                              dlq_hdr_t *modQ,
                               xmlns_id_t nsid);
 
 
@@ -249,7 +283,7 @@ extern ncx_module_t *
 *    mod == ncx_module_t data structure to free
 *********************************************************************/
 extern void 
-    ncx_free_module (ncx_module_t *mod);
+    ncx_free_module (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -262,7 +296,7 @@ extern void
 *    FALSE if all modules present have a status of NO_ERR
 *********************************************************************/
 extern boolean
-    ncx_any_mod_errors (void);
+    ncx_any_mod_errors (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -276,7 +310,7 @@ extern boolean
 *    FALSE if all modules present have a status of NO_ERR
 *********************************************************************/
 extern boolean
-    ncx_any_dependency_errors (const ncx_module_t *mod);
+    ncx_any_dependency_errors (struct ncx_instance_t_ *instance, const ncx_module_t *mod);
 
 
 /********************************************************************
@@ -293,7 +327,8 @@ extern boolean
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern typ_template_t *
-    ncx_find_type (ncx_module_t *mod,
+    ncx_find_type (struct ncx_instance_t_ *instance,
+                   ncx_module_t *mod,
                    const xmlChar *typname,
                    boolean useall);
 
@@ -311,7 +346,8 @@ extern typ_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern typ_template_t *
-    ncx_find_type_que (const dlq_hdr_t *typeQ,
+    ncx_find_type_que (struct ncx_instance_t_ *instance,
+		       const dlq_hdr_t *typeQ,
 		       const xmlChar *typname);
 
 
@@ -329,7 +365,8 @@ extern typ_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern grp_template_t *
-    ncx_find_grouping (ncx_module_t *mod,
+    ncx_find_grouping (struct ncx_instance_t_ *instance,
+                       ncx_module_t *mod,
                        const xmlChar *grpname,
                        boolean useall);
 
@@ -347,7 +384,8 @@ extern grp_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern grp_template_t *
-    ncx_find_grouping_que (const dlq_hdr_t *groupingQ,
+    ncx_find_grouping_que (struct ncx_instance_t_ *instance,
+			   const dlq_hdr_t *groupingQ,
 			   const xmlChar *grpname);
 
 
@@ -363,7 +401,8 @@ extern grp_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t * 
-    ncx_find_rpc (const ncx_module_t *mod,
+    ncx_find_rpc (struct ncx_instance_t_ *instance,
+		  const ncx_module_t *mod,
 		  const xmlChar *rpcname);
 
 
@@ -384,7 +423,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t * 
-    ncx_match_rpc (const ncx_module_t *mod,
+    ncx_match_rpc (struct ncx_instance_t_ *instance,
+		   const ncx_module_t *mod,
 		   const xmlChar *rpcname,
                    uint32 *retcount);
 
@@ -407,7 +447,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t * 
-    ncx_match_any_rpc (const xmlChar *module,
+    ncx_match_any_rpc (struct ncx_instance_t_ *instance,
+		       const xmlChar *module,
 		       const xmlChar *rpcname,
                        uint32 *retcount);
 
@@ -429,7 +470,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t *
-    ncx_match_any_rpc_mod (ncx_module_t *mod,
+    ncx_match_any_rpc_mod (struct ncx_instance_t_ *instance,
+                           ncx_module_t *mod,
                            const xmlChar *rpcname,
                            uint32 *retcount);
 
@@ -450,7 +492,8 @@ extern obj_template_t *
 *               FALSE to skip this step
 *********************************************************************/
 extern void
-    ncx_match_rpc_error (ncx_module_t *mod,
+    ncx_match_rpc_error (struct ncx_instance_t_ *instance,
+                         ncx_module_t *mod,
                          const xmlChar *modname,
                          const xmlChar *rpcname,
                          boolean match,
@@ -470,7 +513,7 @@ extern void
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t *
-    ncx_find_any_object (const xmlChar *objname);
+    ncx_find_any_object (struct ncx_instance_t_ *instance, const xmlChar *objname);
 
 
 /********************************************************************
@@ -493,7 +536,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t *
-    ncx_match_any_object (const xmlChar *objname,
+    ncx_match_any_object (struct ncx_instance_t_ *instance,
+                          const xmlChar *objname,
                           ncx_name_match_t name_match,
                           boolean alt_names,
                           status_t *retres);
@@ -513,7 +557,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t *
-    ncx_find_any_object_que (dlq_hdr_t *modQ,
+    ncx_find_any_object_que (struct ncx_instance_t_ *instance,
+                             dlq_hdr_t *modQ,
                              const xmlChar *objname);
 
 
@@ -529,7 +574,8 @@ extern obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 extern obj_template_t *
-    ncx_find_object (ncx_module_t *mod,
+    ncx_find_object (struct ncx_instance_t_ *instance,
+		     ncx_module_t *mod,
 		     const xmlChar *objname);
 
 
@@ -548,7 +594,8 @@ extern obj_template_t *
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_add_namespace_to_registry (ncx_module_t *mod,
+    ncx_add_namespace_to_registry (struct ncx_instance_t_ *instance,
+                                   ncx_module_t *mod,
                                    boolean tempmod);
 
 
@@ -567,7 +614,7 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_add_to_registry (ncx_module_t *mod);
+    ncx_add_to_registry (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -584,7 +631,7 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_add_to_modQ (ncx_module_t *mod);
+    ncx_add_to_modQ (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -601,7 +648,8 @@ extern status_t
 *    TRUE if found, FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_is_duplicate (ncx_module_t *mod,
+    ncx_is_duplicate (struct ncx_instance_t_ *instance,
+		      ncx_module_t *mod,
 		      const xmlChar *defname);
 
 
@@ -614,7 +662,7 @@ extern boolean
 *   pointer to the first entry or NULL if empty Q
 *********************************************************************/
 extern ncx_module_t *
-    ncx_get_first_module (void);
+    ncx_get_first_module (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -629,7 +677,7 @@ extern ncx_module_t *
 *   pointer to the first entry or NULL if empty Q
 *********************************************************************/
 extern ncx_module_t *
-    ncx_get_next_module (const ncx_module_t *mod);
+    ncx_get_next_module (struct ncx_instance_t_ *instance, const ncx_module_t *mod);
 
 
 /********************************************************************
@@ -641,7 +689,7 @@ extern ncx_module_t *
 *   pointer to the first entry or NULL if empty Q
 *********************************************************************/
 extern ncx_module_t *
-    ncx_get_first_session_module (void);
+    ncx_get_first_session_module (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -653,7 +701,7 @@ extern ncx_module_t *
 *   pointer to the first entry or NULL if empty Q
 *********************************************************************/
 extern ncx_module_t *
-    ncx_get_next_session_module (const ncx_module_t *mod);
+    ncx_get_next_session_module (struct ncx_instance_t_ *instance, const ncx_module_t *mod);
 
 
 /********************************************************************
@@ -745,7 +793,7 @@ extern const xmlChar *
 *   main module NULL if error
 *********************************************************************/
 extern ncx_module_t *
-    ncx_get_mainmod (ncx_module_t *mod);
+    ncx_get_mainmod (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -761,7 +809,7 @@ extern ncx_module_t *
 *   pointer to the first object or NULL if empty Q
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_first_object (ncx_module_t *mod);
+    ncx_get_first_object (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -778,7 +826,8 @@ extern obj_template_t *
 *   pointer to the next object or NULL if none
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_next_object (ncx_module_t *mod,
+    ncx_get_next_object (struct ncx_instance_t_ *instance,
+			 ncx_module_t *mod,
 			 obj_template_t *curobj);
 
 
@@ -795,7 +844,7 @@ extern obj_template_t *
 *   pointer to the first object or NULL if empty Q
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_first_data_object (ncx_module_t *mod);
+    ncx_get_first_data_object (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -811,7 +860,8 @@ extern obj_template_t *
 *   pointer to the next object or NULL if none
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_next_data_object (ncx_module_t *mod,
+    ncx_get_next_data_object (struct ncx_instance_t_ *instance,
+			      ncx_module_t *mod,
 			      obj_template_t *curobj);
 
 
@@ -824,7 +874,7 @@ extern obj_template_t *
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern ncx_import_t * 
-    ncx_new_import (void);
+    ncx_new_import (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -839,7 +889,7 @@ extern ncx_import_t *
 *    import == ncx_import_t data structure to free
 *********************************************************************/
 extern void 
-    ncx_free_import (ncx_import_t *import);
+    ncx_free_import (struct ncx_instance_t_ *instance, ncx_import_t *import);
 
 
 /********************************************************************
@@ -855,7 +905,8 @@ extern void
 *   pointer to the node if found, NULL if not found
 *********************************************************************/
 extern ncx_import_t * 
-    ncx_find_import (const ncx_module_t *mod,
+    ncx_find_import (struct ncx_instance_t_ *instance,
+		     const ncx_module_t *mod,
 		     const xmlChar *module);
 
 
@@ -872,7 +923,8 @@ extern ncx_import_t *
 *   pointer to the node if found, NULL if not found
 *********************************************************************/
 extern ncx_import_t * 
-    ncx_find_import_que (const dlq_hdr_t *importQ,
+    ncx_find_import_que (struct ncx_instance_t_ *instance,
+                         const dlq_hdr_t *importQ,
                          const xmlChar *module);
 
 
@@ -890,7 +942,8 @@ extern ncx_import_t *
 *   pointer to the node if found, NULL if not found
 *********************************************************************/
 extern ncx_import_t * 
-    ncx_find_import_test (const ncx_module_t *mod,
+    ncx_find_import_test (struct ncx_instance_t_ *instance,
+			  const ncx_module_t *mod,
 			  const xmlChar *module);
 
 
@@ -907,7 +960,8 @@ extern ncx_import_t *
 *   pointer to the node if found, NULL if not found
 *********************************************************************/
 extern ncx_import_t * 
-    ncx_find_pre_import (const ncx_module_t *mod,
+    ncx_find_pre_import (struct ncx_instance_t_ *instance,
+			 const ncx_module_t *mod,
 			 const xmlChar *prefix);
 
 
@@ -924,7 +978,8 @@ extern ncx_import_t *
 *   pointer to the node if found, NULL if not found
 *********************************************************************/
 extern ncx_import_t * 
-    ncx_find_pre_import_que (const dlq_hdr_t *importQ,
+    ncx_find_pre_import_que (struct ncx_instance_t_ *instance,
+                             const dlq_hdr_t *importQ,
                              const xmlChar *prefix);
 
 
@@ -942,7 +997,8 @@ extern ncx_import_t *
 *   pointer to the node if found, NULL if not found
 *********************************************************************/
 extern ncx_import_t * 
-    ncx_find_pre_import_test (const ncx_module_t *mod,
+    ncx_find_pre_import_test (struct ncx_instance_t_ *instance,
+			      const ncx_module_t *mod,
 			      const xmlChar *prefix);
 
 
@@ -973,7 +1029,8 @@ extern ncx_import_t *
 *    pointer to the located definition or NULL if not found
 *********************************************************************/
 extern void *
-    ncx_locate_modqual_import (yang_pcb_t *pcb,
+    ncx_locate_modqual_import (struct ncx_instance_t_ *instance,
+                               yang_pcb_t *pcb,
                                ncx_import_t *imp,
 			       const xmlChar *defname,
 			       ncx_node_t *deftyp);
@@ -988,7 +1045,7 @@ extern void *
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern ncx_include_t * 
-    ncx_new_include (void);
+    ncx_new_include (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1003,7 +1060,7 @@ extern ncx_include_t *
 *    inc == ncx_include_t data structure to free
 *********************************************************************/
 extern void 
-    ncx_free_include (ncx_include_t *inc);
+    ncx_free_include (struct ncx_instance_t_ *instance, ncx_include_t *inc);
 
 
 /********************************************************************
@@ -1019,7 +1076,8 @@ extern void
 *   pointer to the node if found, NULL if not found
 *********************************************************************/
 extern ncx_include_t * 
-    ncx_find_include (const ncx_module_t *mod,
+    ncx_find_include (struct ncx_instance_t_ *instance,
+		      const ncx_module_t *mod,
 		      const xmlChar *submodule);
 
 
@@ -1035,7 +1093,7 @@ extern ncx_include_t *
 *   NULL if malloc error
 *********************************************************************/
 extern ncx_binary_t *
-    ncx_new_binary (void);
+    ncx_new_binary (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1059,7 +1117,7 @@ extern void
 *    binary == ncx_binary_t struct to clean
 *********************************************************************/
 extern void
-    ncx_clean_binary (ncx_binary_t *binary);
+    ncx_clean_binary (struct ncx_instance_t_ *instance, ncx_binary_t *binary);
 
 
 /********************************************************************
@@ -1072,7 +1130,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_free_binary (ncx_binary_t *binary);
+    ncx_free_binary (struct ncx_instance_t_ *instance, ncx_binary_t *binary);
 
 
 /********************************************************************
@@ -1087,7 +1145,7 @@ extern void
 *    or NULL if malloc error
 *********************************************************************/
 extern ncx_identity_t * 
-    ncx_new_identity (void);
+    ncx_new_identity (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1100,7 +1158,7 @@ extern ncx_identity_t *
 *
 *********************************************************************/
 extern void 
-    ncx_free_identity (ncx_identity_t *identity);
+    ncx_free_identity (struct ncx_instance_t_ *instance, ncx_identity_t *identity);
 
 
 /********************************************************************
@@ -1119,7 +1177,8 @@ extern void
 *    pointer to found feature or NULL if not found
 *********************************************************************/
 extern ncx_identity_t *
-    ncx_find_identity (ncx_module_t *mod,
+    ncx_find_identity (struct ncx_instance_t_ *instance,
+                       ncx_module_t *mod,
                        const xmlChar *name,
                        boolean useall);
 
@@ -1136,7 +1195,8 @@ extern ncx_identity_t *
 *    pointer to found identity or NULL if not found
 *********************************************************************/
 extern ncx_identity_t *
-    ncx_find_identity_que (dlq_hdr_t *identityQ,
+    ncx_find_identity_que (struct ncx_instance_t_ *instance,
+			   dlq_hdr_t *identityQ,
 			   const xmlChar *name);
 
 
@@ -1152,7 +1212,7 @@ extern ncx_identity_t *
 *    or NULL if none available
 *********************************************************************/
 extern ncx_filptr_t *
-    ncx_new_filptr (void);
+    ncx_new_filptr (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1166,7 +1226,7 @@ extern ncx_filptr_t *
 *    none
 *********************************************************************/
 extern void 
-    ncx_free_filptr (ncx_filptr_t *filptr);
+    ncx_free_filptr (struct ncx_instance_t_ *instance, ncx_filptr_t *filptr);
 
 
 /********************************************************************
@@ -1178,7 +1238,7 @@ extern void
 *    malloced revision history entry or NULL if malloc error
 *********************************************************************/
 extern ncx_revhist_t * 
-    ncx_new_revhist (void);
+    ncx_new_revhist (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1190,7 +1250,7 @@ extern ncx_revhist_t *
 *    revhist == ncx_revhist_t data structure to free
 *********************************************************************/
 extern void 
-    ncx_free_revhist (ncx_revhist_t *revhist);
+    ncx_free_revhist (struct ncx_instance_t_ *instance, ncx_revhist_t *revhist);
 
 
 /********************************************************************
@@ -1206,7 +1266,8 @@ extern void
 *   pointer to the node if found, NULL if not found
 *********************************************************************/
 extern ncx_revhist_t * 
-    ncx_find_revhist (const ncx_module_t *mod,
+    ncx_find_revhist (struct ncx_instance_t_ *instance,
+		      const ncx_module_t *mod,
 		      const xmlChar *ver);
 
 
@@ -1231,7 +1292,7 @@ extern void
 *    enu == ncx_enum_t struct to clean
 *********************************************************************/
 extern void
-    ncx_clean_enum (ncx_enum_t *enu);
+    ncx_clean_enum (struct ncx_instance_t_ *instance, ncx_enum_t *enu);
 
 
 /********************************************************************
@@ -1250,7 +1311,8 @@ extern void
 
 *********************************************************************/
 extern int32
-    ncx_compare_enums (const ncx_enum_t *enu1,
+    ncx_compare_enums (struct ncx_instance_t_ *instance,
+		       const ncx_enum_t *enu1,
 		       const ncx_enum_t *enu2);
 
 
@@ -1273,7 +1335,8 @@ extern int32
 *    status
 *********************************************************************/
 extern status_t
-    ncx_set_enum (const xmlChar *enumval,
+    ncx_set_enum (struct ncx_instance_t_ *instance,
+		  const xmlChar *enumval,
 		  ncx_enum_t *retenu);
 
 
@@ -1298,7 +1361,7 @@ extern void
 *    bit == ncx_bit_t struct to clean
 *********************************************************************/
 extern void
-    ncx_clean_bit (ncx_bit_t *bit);
+    ncx_clean_bit (struct ncx_instance_t_ *instance, ncx_bit_t *bit);
 
 
 /********************************************************************
@@ -1330,7 +1393,7 @@ extern int32
 *   malloced struct or NULL if memory error
 *********************************************************************/
 extern ncx_typname_t *
-    ncx_new_typname (void);
+    ncx_new_typname (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1343,7 +1406,7 @@ extern ncx_typname_t *
 *
 *********************************************************************/
 extern void
-    ncx_free_typname (ncx_typname_t *typnam);
+    ncx_free_typname (struct ncx_instance_t_ *instance, ncx_typname_t *typnam);
 
 
 /********************************************************************
@@ -1359,7 +1422,8 @@ extern void
 *   name assigned to this type template
 *********************************************************************/
 extern const xmlChar *
-    ncx_find_typname (const typ_template_t *typ,
+    ncx_find_typname (struct ncx_instance_t_ *instance,
+		      const typ_template_t *typ,
 		      const dlq_hdr_t *que);
 
 
@@ -1377,7 +1441,8 @@ extern const xmlChar *
 *   pointer to the stored typstatus
 *********************************************************************/
 extern const typ_template_t *
-    ncx_find_typname_type (const dlq_hdr_t *que,
+    ncx_find_typname_type (struct ncx_instance_t_ *instance,
+			   const dlq_hdr_t *que,
 			   const xmlChar *typname);
 
 
@@ -1391,7 +1456,7 @@ extern const typ_template_t *
 *
 *********************************************************************/
 extern void
-    ncx_clean_typnameQ (dlq_hdr_t *que);
+    ncx_clean_typnameQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -1403,7 +1468,7 @@ extern void
 *   pointer to generic anyxml object template
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_gen_anyxml (void);
+    ncx_get_gen_anyxml (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1415,7 +1480,7 @@ extern obj_template_t *
 *   pointer to generic container object template
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_gen_container (void);
+    ncx_get_gen_container (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1427,7 +1492,7 @@ extern obj_template_t *
 *   pointer to generic string object template
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_gen_string (void);
+    ncx_get_gen_string (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1439,7 +1504,7 @@ extern obj_template_t *
 *   pointer to generic empty object template
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_gen_empty (void);
+    ncx_get_gen_empty (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1451,7 +1516,7 @@ extern obj_template_t *
 *   pointer to generic root container object template
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_gen_root (void);
+    ncx_get_gen_root (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1463,7 +1528,7 @@ extern obj_template_t *
 *   pointer to generic binary object template
 *********************************************************************/
 extern obj_template_t *
-    ncx_get_gen_binary (void);
+    ncx_get_gen_binary (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1479,7 +1544,7 @@ extern obj_template_t *
 *  const pointer to the string value
 *********************************************************************/
 extern const xmlChar *
-    ncx_get_layer (ncx_layer_t  layer);
+    ncx_get_layer (struct ncx_instance_t_ *instance, ncx_layer_t  layer);
 
 
 /********************************************************************
@@ -1499,7 +1564,8 @@ extern const xmlChar *
 *    current string pointer after operation
 *********************************************************************/
 extern const xmlChar *
-    ncx_get_name_segment (const xmlChar *str,
+    ncx_get_name_segment (struct ncx_instance_t_ *instance,
+			  const xmlChar *str,
 			  xmlChar  *buff,
 			  uint32 buffsize);
 
@@ -1516,7 +1582,7 @@ extern const xmlChar *
 *   enum value
 *********************************************************************/
 extern ncx_cvttyp_t
-    ncx_get_cvttyp_enum (const char *str);
+    ncx_get_cvttyp_enum (struct ncx_instance_t_ *instance, const char *str);
 
 
 /********************************************************************
@@ -1531,7 +1597,7 @@ extern ncx_cvttyp_t
 *   enum value
 *********************************************************************/
 extern ncx_status_t
-    ncx_get_status_enum (const xmlChar *str);
+    ncx_get_status_enum (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -1546,7 +1612,7 @@ extern ncx_status_t
 *   string name of the enum value 
 *********************************************************************/
 extern const xmlChar *
-    ncx_get_status_string (ncx_status_t status);
+    ncx_get_status_string (struct ncx_instance_t_ *instance, ncx_status_t status);
 
 
 /********************************************************************
@@ -1562,7 +1628,8 @@ extern const xmlChar *
 *   status of the operation
 *********************************************************************/
 extern status_t
-    ncx_check_yang_status (ncx_status_t mystatus,
+    ncx_check_yang_status (struct ncx_instance_t_ *instance,
+			   ncx_status_t mystatus,
 			   ncx_status_t depstatus);
 
 
@@ -1576,7 +1643,7 @@ extern status_t
 *    FALSE == descriptive strings should not be saved
 *********************************************************************/
 extern boolean
-    ncx_save_descr (void);
+    ncx_save_descr (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1593,7 +1660,8 @@ extern boolean
 *   none
 *********************************************************************/
 extern void
-    ncx_print_errormsg (tk_chain_t *tkc,
+    ncx_print_errormsg (struct ncx_instance_t_ *instance,
+			tk_chain_t *tkc,
 			ncx_module_t  *mod,
 			status_t     res);
 
@@ -1615,7 +1683,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    ncx_print_errormsg_ex (tk_chain_t *tkc,
+    ncx_print_errormsg_ex (struct ncx_instance_t_ *instance,
+			   tk_chain_t *tkc,
 			   ncx_module_t  *mod,
 			   status_t     res,
 			   const char *filename,
@@ -1635,7 +1704,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_conf_exp_err (tk_chain_t  *tkc,
+    ncx_conf_exp_err (struct ncx_instance_t_ *instance,
+		      tk_chain_t  *tkc,
 		      status_t result,
 		      const char *expstr);
 
@@ -1653,7 +1723,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_mod_exp_err (tk_chain_t  *tkc,
+    ncx_mod_exp_err (struct ncx_instance_t_ *instance,
+		     tk_chain_t  *tkc,
 		     ncx_module_t *mod,
 		     status_t result,
 		     const char *expstr);
@@ -1673,7 +1744,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_mod_missing_err (tk_chain_t  *tkc,
+    ncx_mod_missing_err (struct ncx_instance_t_ *instance,
+                         tk_chain_t  *tkc,
                          ncx_module_t *mod,
                          const char *stmtstr,
                          const char *expstr);
@@ -1690,7 +1762,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_free_node (ncx_node_t nodetyp,
+    ncx_free_node (struct ncx_instance_t_ *instance,
+		   ncx_node_t nodetyp,
 		   void *node);
 
 
@@ -1706,7 +1779,7 @@ extern void
 *   enum value
 *********************************************************************/
 extern ncx_data_class_t 
-    ncx_get_data_class_enum (const xmlChar *str);
+    ncx_get_data_class_enum (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -1721,7 +1794,7 @@ extern ncx_data_class_t
 *   striong value for the enum
 *********************************************************************/
 extern const xmlChar *
-    ncx_get_data_class_str (ncx_data_class_t dataclass);
+    ncx_get_data_class_str (struct ncx_instance_t_ *instance, ncx_data_class_t dataclass);
 
 
 /********************************************************************
@@ -1751,7 +1824,7 @@ extern const xmlChar *
 *   enum value
 *********************************************************************/
 extern ncx_access_t
-    ncx_get_access_enum (const xmlChar *str);
+    ncx_get_access_enum (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -1765,7 +1838,7 @@ extern ncx_access_t
 *     tclass enum
 *********************************************************************/
 extern ncx_tclass_t
-    ncx_get_tclass (ncx_btype_t btyp);
+    ncx_get_tclass (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -1824,7 +1897,7 @@ extern boolean
 *   TRUE if a valid name string, FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_valid_name2 (const xmlChar *str);
+    ncx_valid_name2 (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -1862,7 +1935,7 @@ extern status_t
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_is_true (const xmlChar *str);
+    ncx_is_true (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -1878,7 +1951,7 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_is_false (const xmlChar *str);
+    ncx_is_false (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -1899,7 +1972,8 @@ extern boolean
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_consume_tstring (tk_chain_t *tkc,
+    ncx_consume_tstring (struct ncx_instance_t_ *instance,
+			 tk_chain_t *tkc,
 			 ncx_module_t  *mod,
 			 const xmlChar *name,
 			 ncx_opt_t opt);
@@ -1933,7 +2007,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_consume_name (tk_chain_t *tkc,
+    ncx_consume_name (struct ncx_instance_t_ *instance,
+		      tk_chain_t *tkc,
 		      ncx_module_t *mod,
 		      const xmlChar *name,
 		      xmlChar **namebuff,
@@ -1960,7 +2035,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_consume_token (tk_chain_t *tkc,
+    ncx_consume_token (struct ncx_instance_t_ *instance,
+		       tk_chain_t *tkc,
 		       ncx_module_t *mod,
 		       tk_type_t  ttyp);
 
@@ -1974,7 +2050,7 @@ extern status_t
 *    pointer to malloced ncx_errinfo_t, or NULL if memory error
 *********************************************************************/
 extern ncx_errinfo_t *
-    ncx_new_errinfo (void);
+    ncx_new_errinfo (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1999,7 +2075,7 @@ extern void
 *    err == ncx_errinfo_t data structure to clean
 *********************************************************************/
 extern void 
-    ncx_clean_errinfo (ncx_errinfo_t *err);
+    ncx_clean_errinfo (struct ncx_instance_t_ *instance, ncx_errinfo_t *err);
 
 
 /********************************************************************
@@ -2012,7 +2088,7 @@ extern void
 *    err == ncx_errinfo_t data structure to free
 *********************************************************************/
 extern void 
-    ncx_free_errinfo (ncx_errinfo_t *err);
+    ncx_free_errinfo (struct ncx_instance_t_ *instance, ncx_errinfo_t *err);
 
 
 /********************************************************************
@@ -2049,7 +2125,8 @@ extern boolean
 *   status
 *********************************************************************/
 extern status_t
-    ncx_copy_errinfo (const ncx_errinfo_t *src,
+    ncx_copy_errinfo (struct ncx_instance_t_ *instance,
+		      const ncx_errinfo_t *src,
 		      ncx_errinfo_t *dest);
 
 
@@ -2082,7 +2159,8 @@ extern status_t
 *   malloced buffer containing possibly expanded full filespec
 *********************************************************************/
 extern xmlChar *
-    ncx_get_source_ex (const xmlChar *fspec,
+    ncx_get_source_ex (struct ncx_instance_t_ *instance,
+                       const xmlChar *fspec,
                        boolean expand_cwd,
                        status_t *res);
 
@@ -2115,7 +2193,8 @@ extern xmlChar *
 *   malloced buffer containing possibly expanded full filespec
 *********************************************************************/
 extern xmlChar *
-    ncx_get_source (const xmlChar *fspec,
+    ncx_get_source (struct ncx_instance_t_ *instance,
+                    const xmlChar *fspec,
                     status_t *res);
 
 
@@ -2129,7 +2208,7 @@ extern xmlChar *
 *    que == Q of ncx_module_t to use
 *********************************************************************/
 extern void
-    ncx_set_cur_modQ (dlq_hdr_t *que);
+    ncx_set_cur_modQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -2139,7 +2218,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_reset_modQ (void);
+    ncx_reset_modQ (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2158,7 +2237,7 @@ extern void
 *    que == Q of ncx_module_t to use
 *********************************************************************/
 extern void
-    ncx_set_session_modQ (dlq_hdr_t *que);
+    ncx_set_session_modQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -2174,7 +2253,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_clear_session_modQ (void);
+    ncx_clear_session_modQ (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2187,7 +2266,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_set_load_callback (ncx_load_cbfn_t cbfn);
+    ncx_set_load_callback (struct ncx_instance_t_ *instance, ncx_load_cbfn_t cbfn);
 
 
 /********************************************************************
@@ -2205,7 +2284,8 @@ extern void
 *   FALSE if prefix1 and prefix2 reference the same modules
 *********************************************************************/
 extern boolean
-    ncx_prefix_different (const xmlChar *prefix1,
+    ncx_prefix_different (struct ncx_instance_t_ *instance,
+			  const xmlChar *prefix1,
 			  const xmlChar *prefix2,
 			  const xmlChar *modprefix);
 
@@ -2223,7 +2303,7 @@ extern boolean
 *   NCX_BAD_DATA_NONE if an error
 *********************************************************************/
 extern ncx_bad_data_t
-    ncx_get_baddata_enum (const xmlChar *valstr);
+    ncx_get_baddata_enum (struct ncx_instance_t_ *instance, const xmlChar *valstr);
 
 
 /********************************************************************
@@ -2239,7 +2319,7 @@ extern ncx_bad_data_t
 *   NULL if an error
 *********************************************************************/
 extern const xmlChar *
-    ncx_get_baddata_string (ncx_bad_data_t baddata);
+    ncx_get_baddata_string (struct ncx_instance_t_ *instance, ncx_bad_data_t baddata);
 
 
 
@@ -2256,7 +2336,7 @@ extern const xmlChar *
 *   NULL if an error
 *********************************************************************/
 extern const xmlChar *
-    ncx_get_withdefaults_string (ncx_withdefaults_t withdef);
+    ncx_get_withdefaults_string (struct ncx_instance_t_ *instance, ncx_withdefaults_t withdef);
 
 
 /********************************************************************
@@ -2272,7 +2352,7 @@ extern const xmlChar *
 *   NCX_WITHDEF_NONE if invalid value
 *********************************************************************/
 extern ncx_withdefaults_t
-    ncx_get_withdefaults_enum (const xmlChar *withdefstr);
+    ncx_get_withdefaults_enum (struct ncx_instance_t_ *instance, const xmlChar *withdefstr);
 
 
 /********************************************************************
@@ -2318,7 +2398,7 @@ extern const xmlChar *
 *   NCX_DISPLAY_MODE_NONE if invalid value
 *********************************************************************/
 extern ncx_display_mode_t
-    ncx_get_display_mode_enum (const xmlChar *dmstr);
+    ncx_get_display_mode_enum (struct ncx_instance_t_ *instance, const xmlChar *dmstr);
 
 
 /********************************************************************
@@ -2347,7 +2427,7 @@ extern const xmlChar *
 *
 *********************************************************************/
 extern void
-    ncx_set_warn_idlen (uint32 warnlen);
+    ncx_set_warn_idlen (struct ncx_instance_t_ *instance, uint32 warnlen);
 
 
 /********************************************************************
@@ -2359,7 +2439,7 @@ extern void
 *   warning length to use
 *********************************************************************/
 extern uint32
-    ncx_get_warn_idlen (void);
+    ncx_get_warn_idlen (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2372,7 +2452,7 @@ extern uint32
 *
 *********************************************************************/
 extern void
-    ncx_set_warn_linelen (uint32 warnlen);
+    ncx_set_warn_linelen (struct ncx_instance_t_ *instance, uint32 warnlen);
 
 
 /********************************************************************
@@ -2385,7 +2465,7 @@ extern void
 *
 *********************************************************************/
 extern uint32
-    ncx_get_warn_linelen (void);
+    ncx_get_warn_linelen (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2403,7 +2483,8 @@ extern uint32
 *    may generate log_warn ouput
 *********************************************************************/
 extern void
-    ncx_check_warn_idlen (tk_chain_t *tkc,
+    ncx_check_warn_idlen (struct ncx_instance_t_ *instance,
+                          tk_chain_t *tkc,
                           ncx_module_t *mod,
                           const xmlChar *id);
 
@@ -2423,7 +2504,8 @@ extern void
 *    may generate log_warn ouput
 *********************************************************************/
 extern void
-    ncx_check_warn_linelen (tk_chain_t *tkc,
+    ncx_check_warn_linelen (struct ncx_instance_t_ *instance,
+                            tk_chain_t *tkc,
                             ncx_module_t *mod,
                             const xmlChar *line);
 
@@ -2440,7 +2522,7 @@ extern void
 *   status (duplicates are silently dropped)
 *********************************************************************/
 extern status_t
-    ncx_turn_off_warning (status_t res);
+    ncx_turn_off_warning (struct ncx_instance_t_ *instance, status_t res);
 
 
 /********************************************************************
@@ -2455,7 +2537,7 @@ extern status_t
 *   status (duplicates are silently dropped)
 *********************************************************************/
 extern status_t
-    ncx_turn_on_warning (status_t res);
+    ncx_turn_on_warning (struct ncx_instance_t_ *instance, status_t res);
 
 
 /********************************************************************
@@ -2471,7 +2553,7 @@ extern status_t
 *   FALSE if warning is suppressed
 *********************************************************************/
 extern boolean
-    ncx_warning_enabled (status_t res);
+    ncx_warning_enabled (struct ncx_instance_t_ *instance, status_t res);
 
 
 /********************************************************************
@@ -2487,7 +2569,8 @@ extern boolean
 *   status
 *********************************************************************/
 extern status_t
-    ncx_get_version (xmlChar *buffer,
+    ncx_get_version (struct ncx_instance_t_ *instance,
+                     xmlChar *buffer,
                      uint32 buffsize);
 
 /********************************************************************
@@ -2506,7 +2589,8 @@ extern status_t
 *   or NULL if malloc error
 *********************************************************************/
 extern ncx_save_deviations_t *
-    ncx_new_save_deviations (const xmlChar *devmodule,
+    ncx_new_save_deviations (struct ncx_instance_t_ *instance,
+                             const xmlChar *devmodule,
                              const xmlChar *devrevision,
                              const xmlChar *devnamespace,
                              const xmlChar *devprefix);
@@ -2521,7 +2605,7 @@ extern ncx_save_deviations_t *
 *    savedev == struct to clean and delete
 *********************************************************************/
 extern void
-    ncx_free_save_deviations (ncx_save_deviations_t *savedev);
+    ncx_free_save_deviations (struct ncx_instance_t_ *instance, ncx_save_deviations_t *savedev);
 
 
 /********************************************************************
@@ -2533,7 +2617,7 @@ extern void
 *    savedevQ == Q of ncx_save_deviations_t to clean
 *********************************************************************/
 extern void
-    ncx_clean_save_deviationsQ (dlq_hdr_t *savedevQ);
+    ncx_clean_save_deviationsQ (struct ncx_instance_t_ *instance, dlq_hdr_t *savedevQ);
 
 
 /********************************************************************
@@ -2569,7 +2653,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_set_temp_modQ (dlq_hdr_t *modQ);
+    ncx_set_temp_modQ (struct ncx_instance_t_ *instance, dlq_hdr_t *modQ);
 
 
 /********************************************************************
@@ -2581,7 +2665,7 @@ extern void
 *   pointer to the temp modQ, if set
 *********************************************************************/
 extern dlq_hdr_t *
-    ncx_get_temp_modQ (void);
+    ncx_get_temp_modQ (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2591,7 +2675,7 @@ extern dlq_hdr_t *
 *
 *********************************************************************/
 extern void
-    ncx_clear_temp_modQ (void);
+    ncx_clear_temp_modQ (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2603,7 +2687,7 @@ extern void
 *  the current dispay mode enumeration
 *********************************************************************/
 extern ncx_display_mode_t
-    ncx_get_display_mode (void);
+    ncx_get_display_mode (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2635,7 +2719,7 @@ extern const xmlChar *
 *   count of modules that have this name (exact match)
 *********************************************************************/
 extern uint32
-    ncx_mod_revision_count (const xmlChar *modname);
+    ncx_mod_revision_count (struct ncx_instance_t_ *instance, const xmlChar *modname);
 
 
 /********************************************************************
@@ -2652,7 +2736,8 @@ extern uint32
 *   count of modules that have this name (exact match)
 *********************************************************************/
 extern uint32
-    ncx_mod_revision_count_que (dlq_hdr_t *modQ,
+    ncx_mod_revision_count_que (struct ncx_instance_t_ *instance,
+                                dlq_hdr_t *modQ,
                                 const xmlChar *modname);
 
 
@@ -2731,7 +2816,8 @@ extern uint32
 *   -1, 0 or 1
 *********************************************************************/
 extern int32
-    ncx_compare_base_uris (const xmlChar *str1,
+    ncx_compare_base_uris (struct ncx_instance_t_ *instance,
+                           const xmlChar *str1,
                            const xmlChar *str2);
 
 
@@ -2745,7 +2831,7 @@ extern int32
 *   FALSE if XML messages should use default namespace (no prefix)
 *********************************************************************/
 extern boolean
-    ncx_get_useprefix (void);
+    ncx_get_useprefix (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2759,7 +2845,7 @@ extern boolean
 *      FALSE if XML messages should use default namespace (no prefix)
 *********************************************************************/
 extern void
-    ncx_set_useprefix (boolean val);
+    ncx_set_useprefix (struct ncx_instance_t_ *instance, boolean val);
 
 
 /********************************************************************
@@ -2772,7 +2858,7 @@ extern void
 *   FALSE if system ordered objects should not be sorted
 *********************************************************************/
 extern boolean
-    ncx_get_system_sorted (void);
+    ncx_get_system_sorted (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2786,7 +2872,7 @@ extern boolean
 *     FALSE if system ordered objects should not be sorted
 *********************************************************************/
 extern void
-    ncx_set_system_sorted (boolean val);
+    ncx_set_system_sorted (struct ncx_instance_t_ *instance, boolean val);
 
 
 /********************************************************************
@@ -2813,7 +2899,7 @@ extern void
 *   FALSE if ncxmod should not search for modules in subdirs of the CWD
 *********************************************************************/
 extern boolean
-    ncx_get_cwd_subdirs (void);
+    ncx_get_cwd_subdirs (struct ncx_instance_t_ *instance);
 
 /********************************************************************
 * FUNCTION ncx_protocol_enabled
@@ -2825,7 +2911,7 @@ extern boolean
 *   FALSE if protocol not enabled or error
 *********************************************************************/
 extern boolean
-    ncx_protocol_enabled (ncx_protocol_t proto);
+    ncx_protocol_enabled (struct ncx_instance_t_ *instance, ncx_protocol_t proto);
 
 
 /********************************************************************
@@ -2837,7 +2923,7 @@ extern boolean
 *   proto == protocol version to enable
 *********************************************************************/
 extern void
-    ncx_set_protocol_enabled (ncx_protocol_t proto);
+    ncx_set_protocol_enabled (struct ncx_instance_t_ *instance, ncx_protocol_t proto);
 
 
 /********************************************************************
@@ -2847,7 +2933,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_set_use_deadmodQ (void);
+    ncx_set_use_deadmodQ (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2857,7 +2943,7 @@ extern void
 * 
 *********************************************************************/
 extern void
-    ncx_delete_all_obsolete_objects (void);
+    ncx_delete_all_obsolete_objects (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -2869,7 +2955,7 @@ extern void
 *    mod == module to check
 *********************************************************************/
 extern void
-    ncx_delete_mod_obsolete_objects (ncx_module_t *mod);
+    ncx_delete_mod_obsolete_objects (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -2884,7 +2970,7 @@ extern void
 *   enum value
 *********************************************************************/
 extern ncx_name_match_t
-    ncx_get_name_match_enum (const xmlChar *str);
+    ncx_get_name_match_enum (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -2899,7 +2985,7 @@ extern ncx_name_match_t
 *   string value
 *********************************************************************/
 extern const xmlChar *
-    ncx_get_name_match_string (ncx_name_match_t match);
+    ncx_get_name_match_string (struct ncx_instance_t_ *instance, ncx_name_match_t match);
 
 
 /********************************************************************
@@ -2912,7 +2998,7 @@ extern const xmlChar *
 *   count == number of chars to write
 *********************************************************************/
 extern void
-    ncx_write_tracefile (const char *buff, uint32 count);
+    ncx_write_tracefile (struct ncx_instance_t_ *instance, const char *buff, uint32 count);
 
 
 /********************************************************************
@@ -2925,7 +3011,7 @@ extern void
 *   allowed == value to set T: to allow; F: to disallow
 *********************************************************************/
 extern void
-    ncx_set_top_mandatory_allowed (boolean allowed);
+    ncx_set_top_mandatory_allowed (struct ncx_instance_t_ *instance, boolean allowed);
 
 
 /********************************************************************
@@ -2937,7 +3023,7 @@ extern void
 *   T: allowed; F: disallowed
 *********************************************************************/
 extern boolean
-    ncx_get_top_mandatory_allowed (void);
+    ncx_get_top_mandatory_allowed (struct ncx_instance_t_ *instance);
 
 
 #ifdef __cplusplus

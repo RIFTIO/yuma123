@@ -1,16 +1,16 @@
 /*
  * Copyright (c) 2008 - 2012, Andy Bierman, All Rights Reserved.
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
- * under the License.    
+ * under the License.
  */
 /*  FILE: obj.c
 
-                
+
 *********************************************************************
 *                                                                   *
 *                  C H A N G E   H I S T O R Y                      *
@@ -21,6 +21,7 @@ date         init     comment
 ----------------------------------------------------------------------
 09dec07      abb      begun
 21jul08      abb      start obj-based rewrite
+02Sep14      rajv     Support for unique tag ids
 
 *********************************************************************
 *                                                                   *
@@ -67,17 +68,18 @@ date         init     comment
 *                         V A R I A B L E S                         *
 *                                                                   *
 *********************************************************************/
-static obj_case_t * new_case (boolean isreal); 
-static void free_case (obj_case_t *cas);
-static obj_template_t* find_template( dlq_hdr_t*que, const xmlChar *modname, 
+static obj_case_t * new_case (struct ncx_instance_t_ *instance, boolean isreal);
+static void free_case (struct ncx_instance_t_ *instance, obj_case_t *cas);
+static obj_template_t* find_template(struct ncx_instance_t_ *instance,  dlq_hdr_t*que, const xmlChar *modname,
                                       const xmlChar *objname, boolean lookdeep,
-                                      boolean partialmatch, boolean usecase, 
-                                      boolean altnames, boolean dataonly, 
-                                      uint32 *matchcount );
+                                      boolean partialmatch, boolean usecase,
+                                      boolean altnames, boolean dataonly,
+                                      uint32 *matchcount,
+                                      xpath_pcb_t* pcb);
 
 /********************************************************************
 * FUNCTION find_type_in_grpchain
-* 
+*
 * Search for a defined typedef in the typeQ of each grouping
 * in the chain
 *
@@ -88,20 +90,21 @@ static obj_template_t* find_template( dlq_hdr_t*que, const xmlChar *modname,
 *   pointer to found type template, NULL if not found
 *********************************************************************/
 static typ_template_t *
-    find_type_in_grpchain (grp_template_t *grp,
+    find_type_in_grpchain (ncx_instance_t *instance,
+                           grp_template_t *grp,
                            const xmlChar *typname)
 {
     typ_template_t  *typ;
     grp_template_t  *testgrp;
 
-    typ = ncx_find_type_que(&grp->typedefQ, typname);
+    typ = ncx_find_type_que(instance, &grp->typedefQ, typname);
     if (typ) {
         return typ;
     }
 
     testgrp = grp->parentgrp;
     while (testgrp) {
-        typ = ncx_find_type_que(&testgrp->typedefQ, typname);
+        typ = ncx_find_type_que(instance, &testgrp->typedefQ, typname);
         if (typ) {
             return typ;
         }
@@ -115,27 +118,27 @@ static typ_template_t *
 
 /********************************************************************
 * FUNCTION init_template
-* 
+*
 * Initialize the fields in an obj_template_t
 *
 * INPUTS:
 *   obj == template to init
 *********************************************************************/
-static void init_template (obj_template_t *obj)
+static void init_template (ncx_instance_t *instance, obj_template_t *obj)
 {
     (void)memset(obj, 0x0, sizeof(obj_template_t));
-    dlq_createSQue(&obj->metadataQ);
-    dlq_createSQue(&obj->appinfoQ);
-    dlq_createSQue(&obj->iffeatureQ);
-    dlq_createSQue(&obj->inherited_iffeatureQ);
-    dlq_createSQue(&obj->inherited_whenQ);
+    dlq_createSQue(instance, &obj->metadataQ);
+    dlq_createSQue(instance, &obj->appinfoQ);
+    dlq_createSQue(instance, &obj->iffeatureQ);
+    dlq_createSQue(instance, &obj->inherited_iffeatureQ);
+    dlq_createSQue(instance, &obj->inherited_whenQ);
 
 }  /* init_template */
 
 
 /********************************************************************
 * FUNCTION new_blank_template
-* 
+*
 * Malloc and initialize the fields in a an obj_template_t
 * Do not malloc or initialize any of the def union pointers
 *
@@ -144,16 +147,16 @@ static void init_template (obj_template_t *obj)
 *   pointer to the malloced and partially initialized struct;
 *   NULL if an error
 *********************************************************************/
-static obj_template_t * 
-    new_blank_template (void)
+static obj_template_t *
+    new_blank_template (ncx_instance_t *instance)
 {
     obj_template_t  *obj;
 
-    obj = m__getObj(obj_template_t);
+    obj = m__getObj(instance, obj_template_t);
     if (!obj) {
         return NULL;
     }
-    init_template(obj);
+    init_template(instance, obj);
     return obj;
 
 }  /* new_blank_template */
@@ -165,35 +168,35 @@ static obj_template_t *
  * \param mustQ Q of ncx_errinfo_t to delete
  *
  *********************************************************************/
-static void clean_mustQ (dlq_hdr_t *mustQ)
+static void clean_mustQ (ncx_instance_t *instance, dlq_hdr_t *mustQ)
 {
     if ( !mustQ ) {
         return;
     }
 
-    while (!dlq_empty(mustQ)) {
-        xpath_pcb_t *must = (xpath_pcb_t *)dlq_deque(mustQ);
-        xpath_free_pcb(must);
+    while (!dlq_empty(instance, mustQ)) {
+        xpath_pcb_t *must = (xpath_pcb_t *)dlq_deque(instance, mustQ);
+        xpath_free_pcb(instance, must);
     }
 }  /* clean_mustQ */
 
 
 /********************************************************************
 * FUNCTION clean_metadataQ
-* 
+*
 * Clean a Q of obj_metadata_t
 *
 * INPUTS:
 *   metadataQ == Q of obj_metadata_t to delete
 *
 *********************************************************************/
-static void clean_metadataQ (dlq_hdr_t *metadataQ)
+static void clean_metadataQ (ncx_instance_t *instance, dlq_hdr_t *metadataQ)
 {
     obj_metadata_t *meta;
 
-    while (!dlq_empty(metadataQ)) {
-        meta = (obj_metadata_t *)dlq_deque(metadataQ);
-        obj_free_metadata(meta);
+    while (!dlq_empty(instance, metadataQ)) {
+        meta = (obj_metadata_t *)dlq_deque(instance, metadataQ);
+        obj_free_metadata(instance, meta);
     }
 
 }  /* clean_metadataQ */
@@ -201,14 +204,14 @@ static void clean_metadataQ (dlq_hdr_t *metadataQ)
 
 /********************************************************************
 * FUNCTION clone_datadefQ
-* 
+*
 * Clone a Q of obj_template_t
 *
 * INPUTS:
 *    mod == module owner of the cloned data
 *    newQ == Q of obj_template_t getting new contents
 *    srcQ == Q of obj_template_t with starting contents
-*    mobjQ == Q of OBJ_TYP_REFINE obj_template_t to 
+*    mobjQ == Q of OBJ_TYP_REFINE obj_template_t to
 *            merge into the clone, as refinements
 *            (May be NULL)
 *   parent == parent object containing the srcQ (may be NULL)
@@ -217,7 +220,8 @@ static void clean_metadataQ (dlq_hdr_t *metadataQ)
 *   status
 *********************************************************************/
 static status_t
-    clone_datadefQ (ncx_module_t *mod,
+    clone_datadefQ (ncx_instance_t *instance,
+                    ncx_module_t *mod,
                     dlq_hdr_t *newQ,
                     dlq_hdr_t *srcQ,
                     dlq_hdr_t *mobjQ,
@@ -228,33 +232,36 @@ static status_t
 
     res = NO_ERR;
 
-    for (srcobj = (obj_template_t *)dlq_firstEntry(srcQ);
+    for (srcobj = (obj_template_t *)dlq_firstEntry(instance, srcQ);
          srcobj != NULL;
-         srcobj = (obj_template_t *)dlq_nextEntry(srcobj)) {
+         srcobj = (obj_template_t *)dlq_nextEntry(instance, srcobj)) {
 
-        if (!obj_has_name(srcobj)) {
+        if (!obj_has_name(instance, srcobj)) {
             continue;
         }
 
-        newobj = obj_clone_template(mod, srcobj, mobjQ);
+        newobj = obj_clone_template(instance, mod, srcobj, mobjQ);
         if (!newobj) {
-            log_error("\nError: clone of object %s failed",
-                      obj_get_name(srcobj));
+            log_error(instance,
+                      "\nError: clone of object %s failed",
+                      obj_get_name(instance, srcobj));
             return ERR_INTERNAL_MEM;
         } else {
-            testobj = obj_find_template(newQ, 
-                                        obj_get_mod_name(newobj),
-                                        obj_get_name(newobj));
+            testobj = obj_find_template(instance,
+                                        newQ,
+                                        obj_get_mod_name(instance, newobj),
+                                        obj_get_name(instance, newobj));
             if (testobj) {
-                log_error("\nError: Object %s on line %u "
+                log_error(instance,
+                          "\nError: Object %s on line %u "
                           "already defined at line %u",
-                          obj_get_name(newobj),
+                          obj_get_name(instance, newobj),
                           (unsigned int)srcobj->tkerr.linenum,
                           (unsigned int)testobj->tkerr.linenum);
-                obj_free_template(newobj);
+                obj_free_template(instance, newobj);
             } else {
                 newobj->parent = parent;
-                dlq_enque(newobj, newQ);
+                dlq_enque(instance, newobj, newQ);
             }
         }
     }
@@ -266,7 +273,7 @@ static status_t
 
 /********************************************************************
 * FUNCTION clone_appinfoQ
-* 
+*
 * Copy the contents of the src appinfoQ to the new appinfoQ
 * Also add in any merge appinfo that are present
 *
@@ -280,36 +287,37 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    clone_appinfoQ (dlq_hdr_t *newQ,
+    clone_appinfoQ (ncx_instance_t *instance,
+                    dlq_hdr_t *newQ,
                     dlq_hdr_t *srcQ,
                     dlq_hdr_t *merQ)
 {
     ncx_appinfo_t  *newapp, *srcapp;
 
-    for (srcapp = (ncx_appinfo_t *)dlq_firstEntry(srcQ);
+    for (srcapp = (ncx_appinfo_t *)dlq_firstEntry(instance, srcQ);
          srcapp != NULL;
-         srcapp = (ncx_appinfo_t *)dlq_nextEntry(srcapp)) {
+         srcapp = (ncx_appinfo_t *)dlq_nextEntry(instance, srcapp)) {
 
-        newapp = ncx_clone_appinfo(srcapp);
+        newapp = ncx_clone_appinfo(instance, srcapp);
         if (!newapp) {
-            log_error("\nError: clone of appinfo failed");
+            log_error(instance, "\nError: clone of appinfo failed");
             return ERR_INTERNAL_MEM;
         } else {
-            dlq_enque(newapp, newQ);
+            dlq_enque(instance, newapp, newQ);
         }
     }
 
     if (merQ) {
-        for (srcapp = (ncx_appinfo_t *)dlq_firstEntry(merQ);
+        for (srcapp = (ncx_appinfo_t *)dlq_firstEntry(instance, merQ);
              srcapp != NULL;
-             srcapp = (ncx_appinfo_t *)dlq_nextEntry(srcapp)) {
+             srcapp = (ncx_appinfo_t *)dlq_nextEntry(instance, srcapp)) {
 
-            newapp = ncx_clone_appinfo(srcapp);
+            newapp = ncx_clone_appinfo(instance, srcapp);
             if (!newapp) {
-                log_error("\nError: clone of appinfo failed");
+                log_error(instance, "\nError: clone of appinfo failed");
                 return ERR_INTERNAL_MEM;
             } else {
-                dlq_enque(newapp, newQ);
+                dlq_enque(instance, newapp, newQ);
             }
         }
     }
@@ -321,7 +329,7 @@ static status_t
 
 /********************************************************************
 * FUNCTION clone_iffeatureQ
-* 
+*
 * Copy the contents of the src iffeatureQ to the new iffeatureQ
 * Also add in any merge if-features that are present
 *
@@ -335,36 +343,37 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    clone_iffeatureQ (dlq_hdr_t *newQ,
+    clone_iffeatureQ (ncx_instance_t *instance,
+                      dlq_hdr_t *newQ,
                       dlq_hdr_t *srcQ,
                       dlq_hdr_t *merQ)
 {
     ncx_iffeature_t *newif, *srcif;
 
-    for (srcif = (ncx_iffeature_t *)dlq_firstEntry(srcQ);
+    for (srcif = (ncx_iffeature_t *)dlq_firstEntry(instance, srcQ);
          srcif != NULL;
-         srcif = (ncx_iffeature_t *)dlq_nextEntry(srcif)) {
+         srcif = (ncx_iffeature_t *)dlq_nextEntry(instance, srcif)) {
 
-        newif = ncx_clone_iffeature(srcif);
+        newif = ncx_clone_iffeature(instance, srcif);
         if (!newif) {
-            log_error("\nError: clone of iffeature failed");
+            log_error(instance, "\nError: clone of iffeature failed");
             return ERR_INTERNAL_MEM;
         } else {
-            dlq_enque(newif, newQ);
+            dlq_enque(instance, newif, newQ);
         }
     }
 
     if (merQ) {
-        for (srcif = (ncx_iffeature_t *)dlq_firstEntry(merQ);
+        for (srcif = (ncx_iffeature_t *)dlq_firstEntry(instance, merQ);
              srcif != NULL;
-             srcif = (ncx_iffeature_t *)dlq_nextEntry(srcif)) {
+             srcif = (ncx_iffeature_t *)dlq_nextEntry(instance, srcif)) {
 
-            newif = ncx_clone_iffeature(srcif);
+            newif = ncx_clone_iffeature(instance, srcif);
             if (!newif) {
-                log_error("\nError: clone of iffeature failed");
+                log_error(instance, "\nError: clone of iffeature failed");
                 return ERR_INTERNAL_MEM;
             } else {
-                dlq_enque(newif, newQ);
+                dlq_enque(instance, newif, newQ);
             }
         }
     }
@@ -376,7 +385,7 @@ static status_t
 
 /********************************************************************
 * FUNCTION clone_case
-* 
+*
 * Clone a case struct
 *
 * INPUTS:
@@ -394,7 +403,8 @@ static status_t
 *   NULL if  malloc error or internal error
 *********************************************************************/
 static obj_case_t *
-    clone_case (ncx_module_t *mod,
+    clone_case (ncx_instance_t *instance,
+                ncx_module_t *mod,
                 obj_case_t *cas,
                 obj_refine_t *mcas,
                 obj_template_t *obj,
@@ -405,7 +415,7 @@ static obj_case_t *
 
     res = NO_ERR;
 
-    newcas = new_case(TRUE);  /*** need a real datadefQ ***/
+    newcas = new_case(instance, TRUE);  /*** need a real datadefQ ***/
     if (!newcas) {
         return NULL;
     }
@@ -416,40 +426,41 @@ static obj_case_t *
     newcas->status = cas->status;
 
     if (mcas && mcas->descr) {
-        newcas->descr = xml_strdup(mcas->descr);
+        newcas->descr = xml_strdup(instance, mcas->descr);
         if (!newcas->descr) {
-            free_case(newcas);
+            free_case(instance, newcas);
             return NULL;
         }
     } else if (cas->descr) {
-        newcas->descr = xml_strdup(cas->descr);
+        newcas->descr = xml_strdup(instance, cas->descr);
         if (!newcas->descr) {
-            free_case(newcas);
+            free_case(instance, newcas);
             return NULL;
         }
     }
 
     if (mcas && mcas->ref) {
-        newcas->ref = xml_strdup(mcas->ref);
+        newcas->ref = xml_strdup(instance, mcas->ref);
         if (!newcas->ref) {
-            free_case(newcas);
+            free_case(instance, newcas);
             return NULL;
         }
     } else if (cas->ref) {
-        newcas->ref = xml_strdup(cas->ref);
+        newcas->ref = xml_strdup(instance, cas->ref);
         if (!newcas->ref) {
-            free_case(newcas);
+            free_case(instance, newcas);
             return NULL;
         }
     }
 
-    res = clone_datadefQ(mod, 
-                         newcas->datadefQ, 
+    res = clone_datadefQ(instance,
+                         mod,
+                         newcas->datadefQ,
                          cas->datadefQ,
-                         mobjQ, 
+                         mobjQ,
                          obj);
     if (res != NO_ERR) {
-        free_case(newcas);
+        free_case(instance, newcas);
         return NULL;
     }
 
@@ -460,7 +471,7 @@ static obj_case_t *
 
 /********************************************************************
 * FUNCTION clone_mustQ
-* 
+*
 * Clone a Q of must clauses (ncx_errinfo_t structs)
 *
 * INPUTS:
@@ -472,35 +483,36 @@ static obj_case_t *
 *   status
 *********************************************************************/
 static status_t
-    clone_mustQ (dlq_hdr_t *newQ,
+    clone_mustQ (ncx_instance_t *instance,
+                 dlq_hdr_t *newQ,
                  dlq_hdr_t *srcQ,
                  dlq_hdr_t *mergeQ)
 {
 
     xpath_pcb_t *srcmust, *newmust;
 
-    for (srcmust = (xpath_pcb_t *)dlq_firstEntry(srcQ);
+    for (srcmust = (xpath_pcb_t *)dlq_firstEntry(instance, srcQ);
          srcmust != NULL;
-         srcmust = (xpath_pcb_t *)dlq_nextEntry(srcmust)) {
+         srcmust = (xpath_pcb_t *)dlq_nextEntry(instance, srcmust)) {
 
-        newmust = xpath_clone_pcb(srcmust);
+        newmust = xpath_clone_pcb(instance, srcmust);
         if (!newmust) {
             return ERR_INTERNAL_MEM;
         } else {
-            dlq_enque(newmust, newQ);
+            dlq_enque(instance, newmust, newQ);
         }
     }
 
     if (mergeQ) {
-        for (srcmust = (xpath_pcb_t *)dlq_firstEntry(mergeQ);
+        for (srcmust = (xpath_pcb_t *)dlq_firstEntry(instance, mergeQ);
              srcmust != NULL;
-             srcmust = (xpath_pcb_t *)dlq_nextEntry(srcmust)) {
+             srcmust = (xpath_pcb_t *)dlq_nextEntry(instance, srcmust)) {
 
-            newmust = xpath_clone_pcb(srcmust);
+            newmust = xpath_clone_pcb(instance, srcmust);
             if (!newmust) {
                 return ERR_INTERNAL_MEM;
             } else {
-                dlq_enque(newmust, newQ);
+                dlq_enque(instance, newmust, newQ);
             }
         }
     }
@@ -516,43 +528,43 @@ static status_t
 * \param isreal TRUE for a real object, FALSE for a cloned object
 * \return pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_container_t * 
-    new_container (boolean isreal)
+static obj_container_t *
+    new_container (ncx_instance_t *instance, boolean isreal)
 {
     obj_container_t  *con;
 
-    con = m__getObj(obj_container_t);
+    con = m__getObj(instance, obj_container_t);
     if (!con) {
         return NULL;
     }
     (void)memset(con, 0x0, sizeof(obj_container_t));
 
-    con->datadefQ = dlq_createQue();
+    con->datadefQ = dlq_createQue(instance);
     if (!con->datadefQ) {
-        m__free(con);
+        m__free(instance, con);
         return NULL;
     }
 
     if (isreal) {
-        con->typedefQ = dlq_createQue();
+        con->typedefQ = dlq_createQue(instance);
         if (!con->typedefQ) {
-            dlq_destroyQue(con->datadefQ);
-            m__free(con);
+            dlq_destroyQue(instance, con->datadefQ);
+            m__free(instance, con);
             return NULL;
         }
 
-        con->groupingQ = dlq_createQue();
+        con->groupingQ = dlq_createQue(instance);
         if (!con->groupingQ) {
-            dlq_destroyQue(con->datadefQ);
-            dlq_destroyQue(con->typedefQ);
-            m__free(con);
+            dlq_destroyQue(instance, con->datadefQ);
+            dlq_destroyQue(instance, con->typedefQ);
+            m__free(instance, con);
             return NULL;
         }
 
         con->status = NCX_STATUS_CURRENT;
     }
 
-    dlq_createSQue(&con->mustQ);
+    dlq_createSQue(instance, &con->mustQ);
 
     return con;
 
@@ -561,14 +573,14 @@ static obj_container_t *
 
 /********************************************************************
 * Scrub the memory in a obj_container_t by freeing all
-* the sub-fields and then freeing the entire struct itself 
+* the sub-fields and then freeing the entire struct itself
 * The struct must be removed from any queue it is in before
 * this function is called.
 *
 * \param con obj_container_t data structure to free
 * \param flags flags field from object freeing this container
 *********************************************************************/
-static void free_container ( obj_container_t *con, uint32 flags )
+static void free_container (ncx_instance_t *instance,  obj_container_t *con, uint32 flags )
 {
     if ( !con ) {
         return;
@@ -577,34 +589,34 @@ static void free_container ( obj_container_t *con, uint32 flags )
     boolean notclone = (flags & OBJ_FL_CLONE) ? FALSE : TRUE;
 
     if ( notclone ) {
-        m__free(con->name);
+        m__free(instance, con->name);
     }
 
-    m__free(con->descr);
-    m__free(con->ref);
-    m__free(con->presence);
+    m__free(instance, con->descr);
+    m__free(instance, con->ref);
+    m__free(instance, con->presence);
 
     if (notclone) {
-        typ_clean_typeQ(con->typedefQ);
-        dlq_destroyQue(con->typedefQ);
-        grp_clean_groupingQ(con->groupingQ);
-        dlq_destroyQue(con->groupingQ);
+        typ_clean_typeQ(instance, con->typedefQ);
+        dlq_destroyQue(instance, con->typedefQ);
+        grp_clean_groupingQ(instance, con->groupingQ);
+        dlq_destroyQue(instance, con->groupingQ);
     }
 
     if (!con->datadefclone) {
-        obj_clean_datadefQ(con->datadefQ);
-        dlq_destroyQue(con->datadefQ);
+        obj_clean_datadefQ(instance, con->datadefQ);
+        dlq_destroyQue(instance, con->datadefQ);
     }
 
-    clean_mustQ(&con->mustQ);
+    clean_mustQ(instance, &con->mustQ);
 
-    m__free(con);
+    m__free(instance, con);
 }  /* free_container */
 
 
 /********************************************************************
 * FUNCTION clone_container
-* 
+*
 * Clone a container struct
 *
 * INPUTS:
@@ -622,7 +634,8 @@ static void free_container ( obj_container_t *con, uint32 flags )
 *   NULL if  malloc error or internal error
 *********************************************************************/
 static obj_container_t *
-    clone_container (ncx_module_t *mod,
+    clone_container (ncx_instance_t *instance,
+                     ncx_module_t *mod,
                      obj_template_t  *parent,
                      obj_container_t *con,
                      obj_refine_t *mcon,
@@ -631,7 +644,7 @@ static obj_container_t *
     obj_container_t *newcon;
     status_t         res;
 
-    newcon = new_container(FALSE);
+    newcon = new_container(instance, FALSE);
     if (!newcon) {
         return NULL;
     }
@@ -645,62 +658,64 @@ static obj_container_t *
 
 
     if (mcon && mcon->descr) {
-        newcon->descr = xml_strdup(mcon->descr);
+        newcon->descr = xml_strdup(instance, mcon->descr);
         if (!newcon->descr) {
-            free_container(newcon, OBJ_FL_CLONE);
+            free_container(instance, newcon, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (con->descr) {
-        newcon->descr = xml_strdup(con->descr);
+        newcon->descr = xml_strdup(instance, con->descr);
         if (!newcon->descr) {
-            free_container(newcon, OBJ_FL_CLONE);
+            free_container(instance, newcon, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
     if (mcon && mcon->ref) {
-        newcon->ref = xml_strdup(mcon->ref);
+        newcon->ref = xml_strdup(instance, mcon->ref);
         if (!newcon->ref) {
-            free_container(newcon, OBJ_FL_CLONE);
+            free_container(instance, newcon, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (con->ref) {
-        newcon->ref = xml_strdup(con->ref);
+        newcon->ref = xml_strdup(instance, con->ref);
         if (!newcon->ref) {
-            free_container(newcon, OBJ_FL_CLONE);
+            free_container(instance, newcon, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
     if (mcon && mcon->presence) {
-        newcon->presence = xml_strdup(mcon->presence);
+        newcon->presence = xml_strdup(instance, mcon->presence);
         if (!newcon->presence) {
-            free_container(newcon, OBJ_FL_CLONE);
+            free_container(instance, newcon, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (con->presence) {
-        newcon->presence = xml_strdup(con->presence);
+        newcon->presence = xml_strdup(instance, con->presence);
         if (!newcon->presence) {
-            free_container(newcon, OBJ_FL_CLONE);
+            free_container(instance, newcon, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
-    res = clone_mustQ(&newcon->mustQ, 
+    res = clone_mustQ(instance,
+                      &newcon->mustQ,
                       &con->mustQ,
                       (mcon) ? &mcon->mustQ : NULL);
     if (res != NO_ERR) {
-        free_container(newcon, OBJ_FL_CLONE);
+        free_container(instance, newcon, OBJ_FL_CLONE);
         return NULL;
     }
 
-    res = clone_datadefQ(mod, 
-                         newcon->datadefQ, 
-                         con->datadefQ, 
-                         mobjQ, 
+    res = clone_datadefQ(instance,
+                         mod,
+                         newcon->datadefQ,
+                         con->datadefQ,
+                         mobjQ,
                          parent);
     if (res != NO_ERR) {
-        free_container(newcon, OBJ_FL_CLONE);
+        free_container(instance, newcon, OBJ_FL_CLONE);
         return NULL;
     }
 
@@ -711,7 +726,7 @@ static obj_container_t *
 
 /********************************************************************
 * FUNCTION new_leaf
-* 
+*
 * Malloc and initialize the fields in a an obj_leaf_t
 *
 * INPUTS:
@@ -721,11 +736,11 @@ static obj_container_t *
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_leaf_t * new_leaf (boolean isreal)
+static obj_leaf_t * new_leaf (ncx_instance_t *instance, boolean isreal)
 {
     obj_leaf_t  *leaf;
 
-    leaf = m__getObj(obj_leaf_t);
+    leaf = m__getObj(instance, obj_leaf_t);
     if (!leaf) {
         return NULL;
     }
@@ -733,15 +748,15 @@ static obj_leaf_t * new_leaf (boolean isreal)
     (void)memset(leaf, 0x0, sizeof(obj_leaf_t));
 
     if (isreal) {
-        leaf->typdef = typ_new_typdef();
+        leaf->typdef = typ_new_typdef(instance);
         if (!leaf->typdef) {
-            m__free(leaf);
+            m__free(instance, leaf);
             return NULL;
         }
         leaf->status = NCX_STATUS_CURRENT;
     }
 
-    dlq_createSQue(&leaf->mustQ);
+    dlq_createSQue(instance, &leaf->mustQ);
 
     return leaf;
 
@@ -750,14 +765,14 @@ static obj_leaf_t * new_leaf (boolean isreal)
 
 /********************************************************************
 * Scrub the memory in a obj_leaf_t by freeing all
-* the sub-fields and then freeing the entire struct itself 
+* the sub-fields and then freeing the entire struct itself
 * The struct must be removed from any queue it is in before
 * this function is called.
 *
 * \param leaf obj_leaf_t data structure to free
 * \param flags flags field from object freeing this leaf
 *********************************************************************/
-static void free_leaf (obj_leaf_t *leaf, uint32 flags)
+static void free_leaf (ncx_instance_t *instance, obj_leaf_t *leaf, uint32 flags)
 {
     if ( !leaf ) {
         return;
@@ -765,27 +780,27 @@ static void free_leaf (obj_leaf_t *leaf, uint32 flags)
 
     boolean notclone = (flags & OBJ_FL_CLONE) ? FALSE : TRUE;
 
-    m__free(leaf->defval);
-    m__free(leaf->descr);
-    m__free(leaf->ref);
+    m__free(instance, leaf->defval);
+    m__free(instance, leaf->descr);
+    m__free(instance, leaf->ref);
 
     if (notclone ) {
-        m__free(leaf->name);
-        m__free(leaf->units);
-        
+        m__free(instance, leaf->name);
+        m__free(instance, leaf->units);
+
         if ( leaf->typdef && (leaf->typdef->tclass != NCX_CL_BASE)) {
-            typ_free_typdef(leaf->typdef);
+            typ_free_typdef(instance, leaf->typdef);
         }
     }
 
-    clean_mustQ(&leaf->mustQ);
-    m__free(leaf);
+    clean_mustQ(instance, &leaf->mustQ);
+    m__free(instance, leaf);
 }  /* free_leaf */
 
 
 /********************************************************************
 * FUNCTION clone_leaf
-* 
+*
 * Clone a leaf struct
 *
 * INPUTS:
@@ -800,13 +815,14 @@ static void free_leaf (obj_leaf_t *leaf, uint32 flags)
 *   NULL if  malloc error or internal error
 *********************************************************************/
 static obj_leaf_t *
-    clone_leaf (obj_leaf_t *leaf,
+    clone_leaf (ncx_instance_t *instance,
+                obj_leaf_t *leaf,
                 obj_refine_t *mleaf)
 {
     obj_leaf_t      *newleaf;
     status_t         res;
 
-    newleaf = new_leaf(FALSE);
+    newleaf = new_leaf(instance, FALSE);
     if (!newleaf) {
         return NULL;
     }
@@ -818,52 +834,53 @@ static obj_leaf_t *
     newleaf->status = leaf->status;
 
     if (mleaf && mleaf->def) {
-        newleaf->defval = xml_strdup(mleaf->def);
+        newleaf->defval = xml_strdup(instance, mleaf->def);
         if (!newleaf->defval) {
-            free_leaf(newleaf, OBJ_FL_CLONE);
+            free_leaf(instance, newleaf, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (leaf->defval) {
-        newleaf->defval = xml_strdup(leaf->defval);
+        newleaf->defval = xml_strdup(instance, leaf->defval);
         if (!newleaf->defval) {
-            free_leaf(newleaf, OBJ_FL_CLONE);
+            free_leaf(instance, newleaf, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
     if (mleaf && mleaf->descr) {
-        newleaf->descr = xml_strdup(mleaf->descr);
+        newleaf->descr = xml_strdup(instance, mleaf->descr);
         if (!newleaf->descr) {
-            free_leaf(newleaf, OBJ_FL_CLONE);
+            free_leaf(instance, newleaf, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (leaf->descr) {
-        newleaf->descr = xml_strdup(leaf->descr);
+        newleaf->descr = xml_strdup(instance, leaf->descr);
         if (!newleaf->descr) {
-            free_leaf(newleaf, OBJ_FL_CLONE);
+            free_leaf(instance, newleaf, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
     if (mleaf && mleaf->ref) {
-        newleaf->ref = xml_strdup(mleaf->ref);
+        newleaf->ref = xml_strdup(instance, mleaf->ref);
         if (!newleaf->ref) {
-            free_leaf(newleaf, OBJ_FL_CLONE);
+            free_leaf(instance, newleaf, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (leaf->ref) {
-        newleaf->ref = xml_strdup(leaf->ref);
+        newleaf->ref = xml_strdup(instance, leaf->ref);
         if (!newleaf->ref) {
-            free_leaf(newleaf, OBJ_FL_CLONE);
+            free_leaf(instance, newleaf, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
-    res = clone_mustQ(&newleaf->mustQ, 
+    res = clone_mustQ(instance,
+                      &newleaf->mustQ,
                       &leaf->mustQ,
                       (mleaf) ? &mleaf->mustQ : NULL);
     if (res != NO_ERR) {
-        free_leaf(newleaf, OBJ_FL_CLONE);
+        free_leaf(instance, newleaf, OBJ_FL_CLONE);
         return NULL;
     }
 
@@ -874,7 +891,7 @@ static obj_leaf_t *
 
 /********************************************************************
 * FUNCTION new_leaflist
-* 
+*
 * Malloc and initialize the fields in a an obj_leaflist_t
 *
 * INPUTS:
@@ -884,12 +901,12 @@ static obj_leaf_t *
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_leaflist_t * 
-    new_leaflist (boolean isreal)
+static obj_leaflist_t *
+    new_leaflist (ncx_instance_t *instance, boolean isreal)
 {
     obj_leaflist_t  *leaflist;
 
-    leaflist = m__getObj(obj_leaflist_t);
+    leaflist = m__getObj(instance, obj_leaflist_t);
     if (!leaflist) {
         return NULL;
     }
@@ -897,16 +914,16 @@ static obj_leaflist_t *
     (void)memset(leaflist, 0x0, sizeof(obj_leaflist_t));
 
     if (isreal) {
-        leaflist->typdef = typ_new_typdef();
+        leaflist->typdef = typ_new_typdef(instance);
         if (!leaflist->typdef) {
-            m__free(leaflist);
+            m__free(instance, leaflist);
             return NULL;
         }
         leaflist->status = NCX_STATUS_CURRENT;
         leaflist->ordersys = TRUE;
     }
 
-    dlq_createSQue(&leaflist->mustQ);
+    dlq_createSQue(instance, &leaflist->mustQ);
 
     return leaflist;
 
@@ -915,14 +932,14 @@ static obj_leaflist_t *
 
 /********************************************************************
  * Scrub the memory in a obj_leaflist_t by freeing all
- * the sub-fields and then freeing the entire struct itself 
+ * the sub-fields and then freeing the entire struct itself
  * The struct must be removed from any queue it is in before
  * this function is called.
  *
  * \param leaflist obj_leaflist_t data structure to free
  * \param flags flags field from object freeing this leaf-list
  *********************************************************************/
-static void free_leaflist (obj_leaflist_t *leaflist, uint32 flags)
+static void free_leaflist (ncx_instance_t *instance, obj_leaflist_t *leaflist, uint32 flags)
 {
     if ( !leaflist ) {
         return;
@@ -931,24 +948,24 @@ static void free_leaflist (obj_leaflist_t *leaflist, uint32 flags)
     boolean notclone = (flags & OBJ_FL_CLONE) ? FALSE : TRUE;
 
     if (notclone ) {
-        m__free(leaflist->name);
-        m__free(leaflist->units);
-        typ_free_typdef(leaflist->typdef);
+        m__free(instance, leaflist->name);
+        m__free(instance, leaflist->units);
+        typ_free_typdef(instance, leaflist->typdef);
     }
 
-    m__free(leaflist->descr);
-    m__free(leaflist->ref);
+    m__free(instance, leaflist->descr);
+    m__free(instance, leaflist->ref);
 
-    clean_mustQ(&leaflist->mustQ);
+    clean_mustQ(instance, &leaflist->mustQ);
 
-    m__free(leaflist);
+    m__free(instance, leaflist);
 
 }  /* free_leaflist */
 
 
 /********************************************************************
 * FUNCTION clone_leaflist
-* 
+*
 * Clone a leaf-list struct
 *
 * INPUTS:
@@ -963,13 +980,14 @@ static void free_leaflist (obj_leaflist_t *leaflist, uint32 flags)
 *   NULL if  malloc error or internal error
 *********************************************************************/
 static obj_leaflist_t *
-    clone_leaflist (obj_leaflist_t *leaflist,
+    clone_leaflist (ncx_instance_t *instance,
+                    obj_leaflist_t *leaflist,
                     obj_refine_t *mleaflist)
 {
     obj_leaflist_t      *newleaflist;
     status_t             res;
 
-    newleaflist = new_leaflist(FALSE);
+    newleaflist = new_leaflist(instance, FALSE);
     if (!newleaflist) {
         return NULL;
     }
@@ -982,37 +1000,37 @@ static obj_leaflist_t *
     newleaflist->status = leaflist->status;
 
     if (mleaflist && mleaflist->descr) {
-        newleaflist->descr = xml_strdup(mleaflist->descr);
+        newleaflist->descr = xml_strdup(instance, mleaflist->descr);
         if (!newleaflist->descr) {
-            free_leaflist(newleaflist, OBJ_FL_CLONE);
+            free_leaflist(instance, newleaflist, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (leaflist->descr) {
-        newleaflist->descr = xml_strdup(leaflist->descr);
+        newleaflist->descr = xml_strdup(instance, leaflist->descr);
         if (!newleaflist->descr) {
-            free_leaflist(newleaflist, OBJ_FL_CLONE);
+            free_leaflist(instance, newleaflist, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
     if (mleaflist && mleaflist->ref) {
-        newleaflist->ref = xml_strdup(mleaflist->ref);
+        newleaflist->ref = xml_strdup(instance, mleaflist->ref);
         if (!newleaflist->ref) {
-            free_leaflist(newleaflist, OBJ_FL_CLONE);
+            free_leaflist(instance, newleaflist, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (leaflist->ref) {
-        newleaflist->ref = xml_strdup(leaflist->ref);
+        newleaflist->ref = xml_strdup(instance, leaflist->ref);
         if (!newleaflist->ref) {
-            free_leaflist(newleaflist, OBJ_FL_CLONE);
+            free_leaflist(instance, newleaflist, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
-    res = clone_mustQ(&newleaflist->mustQ, &leaflist->mustQ,
+    res = clone_mustQ(instance, &newleaflist->mustQ, &leaflist->mustQ,
                      (mleaflist) ? &mleaflist->mustQ : NULL);
     if (res != NO_ERR) {
-        free_leaflist(newleaflist, OBJ_FL_CLONE);
+        free_leaflist(instance, newleaflist, OBJ_FL_CLONE);
         return NULL;
     }
 
@@ -1041,15 +1059,15 @@ static obj_leaflist_t *
  *
  * \param keyQ the queue to free.
  ********************************************************************/
-static void free_keyQ( dlq_hdr_t* keyQ )
+static void free_keyQ(ncx_instance_t *instance,  dlq_hdr_t* keyQ )
 {
     if ( !keyQ ) {
         return;
     }
 
-    while (!dlq_empty(keyQ)) {
-        obj_key_t *key = (obj_key_t *)dlq_deque(keyQ);
-        obj_free_key(key);
+    while (!dlq_empty(instance, keyQ)) {
+        obj_key_t *key = (obj_key_t *)dlq_deque(instance, keyQ);
+        obj_free_key(instance, key);
     }
 }
 
@@ -1058,63 +1076,63 @@ static void free_keyQ( dlq_hdr_t* keyQ )
  *
  * \param keyQ the queue to free.
  ********************************************************************/
-static void free_uniqueQ( dlq_hdr_t* uniqueQ )
+static void free_uniqueQ(ncx_instance_t *instance,  dlq_hdr_t* uniqueQ )
 {
     if ( !uniqueQ ) {
         return;
     }
 
-    while (!dlq_empty(uniqueQ)) {
-        obj_unique_t *uni = (obj_unique_t *)dlq_deque(uniqueQ);
-        obj_free_unique(uni);
+    while (!dlq_empty(instance, uniqueQ)) {
+        obj_unique_t *uni = (obj_unique_t *)dlq_deque(instance, uniqueQ);
+        obj_free_unique(instance, uni);
     }
 }
 
 /********************************************************************
  * Scrub the memory in a obj_list_t by freeing all
- * the sub-fields and then freeing the entire struct itself 
+ * the sub-fields and then freeing the entire struct itself
  * The struct must be removed from any queue it is in before
  * this function is called.
  *
  * \param list obj_list_t data structure to free
  * \param flags flags field from object freeing this list
  *********************************************************************/
-static void free_list( obj_list_t *list, uint32 flags) 
-{ 
+static void free_list(ncx_instance_t *instance,  obj_list_t *list, uint32 flags)
+{
     if ( !list ) {
         return;
     }
 
     boolean notclone = (flags & OBJ_FL_CLONE) ? FALSE : TRUE;
 
-    m__free(list->descr);
-    m__free(list->ref);
-    free_keyQ( &list->keyQ );
-    free_uniqueQ( &list->uniqueQ );
+    m__free(instance, list->descr);
+    m__free(instance, list->ref);
+    free_keyQ(instance,  &list->keyQ );
+    free_uniqueQ(instance,  &list->uniqueQ );
 
     if (notclone) {
-        m__free(list->name);
-        m__free(list->keystr);
-        typ_clean_typeQ(list->typedefQ);
-        dlq_destroyQue(list->typedefQ);
+        m__free(instance, list->name);
+        m__free(instance, list->keystr);
+        typ_clean_typeQ(instance, list->typedefQ);
+        dlq_destroyQue(instance, list->typedefQ);
 
-        grp_clean_groupingQ(list->groupingQ);
-        dlq_destroyQue(list->groupingQ);
+        grp_clean_groupingQ(instance, list->groupingQ);
+        dlq_destroyQue(instance, list->groupingQ);
     }
 
     if ( !list->datadefclone ) {
-        obj_clean_datadefQ( list->datadefQ );
-        dlq_destroyQue( list->datadefQ );
+        obj_clean_datadefQ(instance,  list->datadefQ );
+        dlq_destroyQue(instance,  list->datadefQ );
     }
 
-    clean_mustQ(&list->mustQ);
-    m__free(list);
+    clean_mustQ(instance, &list->mustQ);
+    m__free(instance, list);
 }  /* free_list */
 
 
 /********************************************************************
 * FUNCTION new_list
-* 
+*
 * Malloc and initialize the fields in a an obj_list_t
 *
 * INPUTS:
@@ -1124,45 +1142,45 @@ static void free_list( obj_list_t *list, uint32 flags)
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_list_t * 
-    new_list (boolean isreal)
+static obj_list_t *
+    new_list (ncx_instance_t *instance, boolean isreal)
 {
     obj_list_t  *list;
 
-    list = m__getObj(obj_list_t);
+    list = m__getObj(instance, obj_list_t);
     if (!list) {
         return NULL;
     }
     (void)memset(list, 0x0, sizeof(obj_list_t));
 
 
-    dlq_createSQue(&list->keyQ);
-    dlq_createSQue(&list->uniqueQ);
+    dlq_createSQue(instance, &list->keyQ);
+    dlq_createSQue(instance, &list->uniqueQ);
 
     list->status = NCX_STATUS_CURRENT;
     list->ordersys = TRUE;
 
     if (isreal) {
-        list->typedefQ = dlq_createQue();
+        list->typedefQ = dlq_createQue(instance);
         if (!list->typedefQ) {
-            m__free(list);
+            m__free(instance, list);
             return NULL;
         }
 
-        list->groupingQ = dlq_createQue();
+        list->groupingQ = dlq_createQue(instance);
         if (!list->groupingQ) {
-            dlq_destroyQue(list->typedefQ);
-            m__free(list);
+            dlq_destroyQue(instance, list->typedefQ);
+            m__free(instance, list);
             return NULL;
         }
 
     }
 
-    dlq_createSQue(&list->mustQ);
+    dlq_createSQue(instance, &list->mustQ);
 
-    list->datadefQ = dlq_createQue();
+    list->datadefQ = dlq_createQue(instance);
     if (!list->datadefQ) {
-        free_list(list, (isreal) ? 0U : OBJ_FL_CLONE);
+        free_list(instance, list, (isreal) ? 0U : OBJ_FL_CLONE);
         return NULL;
     }
 
@@ -1173,7 +1191,7 @@ static obj_list_t *
 
 /********************************************************************
 * FUNCTION clone_list
-* 
+*
 * Clone a leaf-list struct
 *
 * INPUTS:
@@ -1191,7 +1209,8 @@ static obj_list_t *
 *   NULL if  malloc error or internal error
 *********************************************************************/
 static obj_list_t *
-    clone_list (ncx_module_t *mod,
+    clone_list (ncx_instance_t *instance,
+                ncx_module_t *mod,
                 obj_template_t *newparent,
                 obj_template_t *srclist,
                 obj_refine_t *mlist,
@@ -1200,7 +1219,7 @@ static obj_list_t *
     obj_list_t      *list, *newlist;
     status_t         res;
 
-    newlist = new_list(FALSE);
+    newlist = new_list(instance, FALSE);
     if (!newlist) {
         return NULL;
     }
@@ -1216,38 +1235,39 @@ static obj_list_t *
     newlist->status = list->status;
 
     if (mlist && mlist->descr) {
-        newlist->descr = xml_strdup(mlist->descr);
+        newlist->descr = xml_strdup(instance, mlist->descr);
         if (!newlist->descr) {
-            free_list(newlist, OBJ_FL_CLONE);
+            free_list(instance, newlist, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (list->descr) {
-        newlist->descr = xml_strdup(list->descr);
+        newlist->descr = xml_strdup(instance, list->descr);
         if (!newlist->descr) {
-            free_list(newlist, OBJ_FL_CLONE);
+            free_list(instance, newlist, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
     if (mlist && mlist->ref) {
-        newlist->ref = xml_strdup(mlist->ref);
+        newlist->ref = xml_strdup(instance, mlist->ref);
         if (!newlist->ref) {
-            free_list(newlist, OBJ_FL_CLONE);
+            free_list(instance, newlist, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (list->ref) {
-        newlist->ref = xml_strdup(list->ref);
+        newlist->ref = xml_strdup(instance, list->ref);
         if (!newlist->ref) {
-            free_list(newlist, OBJ_FL_CLONE);
+            free_list(instance, newlist, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
-    res = clone_mustQ(&newlist->mustQ, 
+    res = clone_mustQ(instance,
+                      &newlist->mustQ,
                       &list->mustQ,
                       (mlist) ? &mlist->mustQ : NULL);
     if (res != NO_ERR) {
-        free_list(newlist, OBJ_FL_CLONE);
+        free_list(instance, newlist, OBJ_FL_CLONE);
         return NULL;
     }
 
@@ -1267,13 +1287,14 @@ static obj_list_t *
         newlist->maxset = list->maxset;
     }
 
-    res = clone_datadefQ(mod, 
-                         newlist->datadefQ, 
-                         list->datadefQ, 
-                         mobjQ, 
+    res = clone_datadefQ(instance,
+                         mod,
+                         newlist->datadefQ,
+                         list->datadefQ,
+                         mobjQ,
                          newparent);
     if (res != NO_ERR) {
-        free_list(newlist, OBJ_FL_CLONE);
+        free_list(instance, newlist, OBJ_FL_CLONE);
         return NULL;
     }
 
@@ -1288,7 +1309,7 @@ static obj_list_t *
 
 /********************************************************************
 * FUNCTION new_case
-* 
+*
 * Malloc and initialize the fields in a an obj_case_t
 *
 * INPUTS:
@@ -1298,12 +1319,12 @@ static obj_list_t *
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_case_t * 
-    new_case (boolean isreal)
+static obj_case_t *
+    new_case (ncx_instance_t *instance, boolean isreal)
 {
     obj_case_t  *cas;
 
-    cas = m__getObj(obj_case_t);
+    cas = m__getObj(instance, obj_case_t);
     if (!cas) {
         return NULL;
     }
@@ -1312,9 +1333,9 @@ static obj_case_t *
     cas->status = NCX_STATUS_CURRENT;
 
     if (isreal) {
-        cas->datadefQ = dlq_createQue();
+        cas->datadefQ = dlq_createQue(instance);
         if (!cas->datadefQ) {
-            m__free(cas);
+            m__free(instance, cas);
             return NULL;
         }
     }
@@ -1325,34 +1346,34 @@ static obj_case_t *
 
 
 /********************************************************************
-* Clean and free the fields in a an obj_case_t, then free 
+* Clean and free the fields in a an obj_case_t, then free
 * the case struct
 *
 * \param cas the case struct to free
 *********************************************************************/
-static void free_case (obj_case_t *cas)
+static void free_case (ncx_instance_t *instance, obj_case_t *cas)
 {
     if ( !cas ) {
         return;
     }
 
     if (!cas->nameclone ) {
-        m__free(cas->name);
+        m__free(instance, cas->name);
     }
 
-    m__free(cas->descr);
-    m__free(cas->ref);
+    m__free(instance, cas->descr);
+    m__free(instance, cas->ref);
 
     if (!cas->datadefclone) {
-        obj_clean_datadefQ(cas->datadefQ);
-        dlq_destroyQue(cas->datadefQ);
+        obj_clean_datadefQ(instance, cas->datadefQ);
+        dlq_destroyQue(instance, cas->datadefQ);
     }
-    m__free(cas);
+    m__free(instance, cas);
 }  /* free_case */
 
 /********************************************************************
 * FUNCTION new_choice
-* 
+*
 * Malloc and initialize the fields in a an obj_choice_t
 *
 * INPUTS:
@@ -1362,20 +1383,20 @@ static void free_case (obj_case_t *cas)
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_choice_t * 
-    new_choice (boolean isreal)
+static obj_choice_t *
+    new_choice (ncx_instance_t *instance, boolean isreal)
 {
     obj_choice_t  *ch;
 
-    ch = m__getObj(obj_choice_t);
+    ch = m__getObj(instance, obj_choice_t);
     if (!ch) {
         return NULL;
     }
     (void)memset(ch, 0x0, sizeof(obj_choice_t));
 
-    ch->caseQ = dlq_createQue();
+    ch->caseQ = dlq_createQue(instance);
     if (!ch->caseQ) {
-        m__free(ch);
+        m__free(instance, ch);
         return NULL;
     }
 
@@ -1390,14 +1411,14 @@ static obj_choice_t *
 
 /********************************************************************
  * Scrub the memory in a obj_choice_t by freeing all
- * the sub-fields and then freeing the entire struct itself 
+ * the sub-fields and then freeing the entire struct itself
  * The struct must be removed from any queue it is in before
  * this function is called.
  *
  * \param choic obj_choice_t data structure to free
  * \param flags flags field from object freeing this choice
  *********************************************************************/
-static void free_choice (obj_choice_t *choic, uint32 flags)
+static void free_choice (ncx_instance_t *instance, obj_choice_t *choic, uint32 flags)
 {
     if ( !choic ) {
         return;
@@ -1406,25 +1427,25 @@ static void free_choice (obj_choice_t *choic, uint32 flags)
     boolean notclone = (flags & OBJ_FL_CLONE) ? FALSE : TRUE;
 
     if (notclone) {
-        m__free(choic->name);
+        m__free(instance, choic->name);
     }
 
-    m__free(choic->defval);
-    m__free(choic->descr);
-    m__free(choic->ref);
+    m__free(instance, choic->defval);
+    m__free(instance, choic->descr);
+    m__free(instance, choic->ref);
 
     if ( !choic->caseQclone ) {
-        obj_clean_datadefQ(choic->caseQ);
-        dlq_destroyQue(choic->caseQ);
+        obj_clean_datadefQ(instance, choic->caseQ);
+        dlq_destroyQue(instance, choic->caseQ);
     }
 
-    m__free(choic);
+    m__free(instance, choic);
 }  /* free_choice */
 
 
 /********************************************************************
 * FUNCTION clone_choice
-* 
+*
 * Clone a choice struct
 *
 * INPUTS:
@@ -1442,7 +1463,8 @@ static void free_choice (obj_choice_t *choic, uint32 flags)
 *   NULL if  malloc error or internal error
 *********************************************************************/
 static obj_choice_t *
-    clone_choice (ncx_module_t *mod,
+    clone_choice (ncx_instance_t *instance,
+                  ncx_module_t *mod,
                   obj_choice_t *choic,
                   obj_refine_t *mchoic,
                   obj_template_t *obj,
@@ -1451,7 +1473,7 @@ static obj_choice_t *
     obj_choice_t    *newchoic;
     status_t         res;
 
-    newchoic = new_choice(FALSE);
+    newchoic = new_choice(instance, FALSE);
     if (!newchoic) {
         return NULL;
     }
@@ -1461,54 +1483,55 @@ static obj_choice_t *
     newchoic->status = choic->status;
 
     if (mchoic && mchoic->def) {
-        newchoic->defval = xml_strdup(mchoic->def);
+        newchoic->defval = xml_strdup(instance, mchoic->def);
         if (!newchoic->defval) {
-            free_choice(newchoic, OBJ_FL_CLONE);
+            free_choice(instance, newchoic, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (choic->defval) {
-        newchoic->defval = xml_strdup(choic->defval);
+        newchoic->defval = xml_strdup(instance, choic->defval);
         if (!newchoic->defval) {
-            free_choice(newchoic, OBJ_FL_CLONE);
+            free_choice(instance, newchoic, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
     if (mchoic && mchoic->descr) {
-        newchoic->descr = xml_strdup(mchoic->descr);
+        newchoic->descr = xml_strdup(instance, mchoic->descr);
         if (!newchoic->descr) {
-            free_choice(newchoic, OBJ_FL_CLONE);
+            free_choice(instance, newchoic, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (choic->descr) {
-        newchoic->descr = xml_strdup(choic->descr);
+        newchoic->descr = xml_strdup(instance, choic->descr);
         if (!newchoic->descr) {
-            free_choice(newchoic, OBJ_FL_CLONE);
+            free_choice(instance, newchoic, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
     if (mchoic && mchoic->ref) {
-        newchoic->ref = xml_strdup(mchoic->ref);
+        newchoic->ref = xml_strdup(instance, mchoic->ref);
         if (!newchoic->ref) {
-            free_choice(newchoic, OBJ_FL_CLONE);
+            free_choice(instance, newchoic, OBJ_FL_CLONE);
             return NULL;
         }
     } else if (choic->ref) {
-        newchoic->ref = xml_strdup(choic->ref);
+        newchoic->ref = xml_strdup(instance, choic->ref);
         if (!newchoic->ref) {
-            free_choice(newchoic, OBJ_FL_CLONE);
+            free_choice(instance, newchoic, OBJ_FL_CLONE);
             return NULL;
         }
     }
 
-    res = clone_datadefQ(mod, 
+    res = clone_datadefQ(instance,
+                         mod,
                          newchoic->caseQ,
-                         choic->caseQ, 
-                         mobjQ, 
+                         choic->caseQ,
+                         mobjQ,
                          obj);
     if (res != NO_ERR) {
-        free_choice(newchoic, OBJ_FL_CLONE);
+        free_choice(instance, newchoic, OBJ_FL_CLONE);
         return NULL;
     }
 
@@ -1519,7 +1542,7 @@ static obj_choice_t *
 
 /********************************************************************
 * FUNCTION new_uses
-* 
+*
 * Malloc and initialize the fields in a obj_uses_t
 *
 * INPUTS:
@@ -1529,12 +1552,12 @@ static obj_choice_t *
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_uses_t * 
-    new_uses (boolean isreal)
+static obj_uses_t *
+    new_uses (ncx_instance_t *instance, boolean isreal)
 {
     obj_uses_t  *us;
 
-    us = m__getObj(obj_uses_t);
+    us = m__getObj(instance, obj_uses_t);
     if (!us) {
         return NULL;
     }
@@ -1544,9 +1567,9 @@ static obj_uses_t *
         us->status = NCX_STATUS_CURRENT;   /* default */
     }
 
-    us->datadefQ = dlq_createQue();
+    us->datadefQ = dlq_createQue(instance);
     if (!us->datadefQ) {
-        m__free(us);
+        m__free(instance, us);
         return NULL;
     }
 
@@ -1557,50 +1580,50 @@ static obj_uses_t *
 
 /********************************************************************
  * Scrub the memory in a obj_uses_t by freeing all
- * the sub-fields and then freeing the entire struct itself 
+ * the sub-fields and then freeing the entire struct itself
  * The struct must be removed from any queue it is in before
  * this function is called.
  *
  * \param us the obj_uses_t data structure to free
  *********************************************************************/
-static void free_uses (obj_uses_t *us)
+static void free_uses (ncx_instance_t *instance, obj_uses_t *us)
 {
     if ( !us ) {
         return;
     }
 
-    m__free(us->prefix);
-    m__free(us->name);
-    m__free(us->descr);
-    m__free(us->ref);
+    m__free(instance, us->prefix);
+    m__free(instance, us->name);
+    m__free(instance, us->descr);
+    m__free(instance, us->ref);
 
-    obj_clean_datadefQ(us->datadefQ);
-    dlq_destroyQue(us->datadefQ);
+    obj_clean_datadefQ(instance, us->datadefQ);
+    dlq_destroyQue(instance, us->datadefQ);
 
-    m__free(us);
+    m__free(instance, us);
 }  /* free_uses */
 
 
 /********************************************************************
 * FUNCTION new_refine
-* 
+*
 * Malloc and initialize the fields in a obj_refine_t
 *
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_refine_t * 
-    new_refine (void)
+static obj_refine_t *
+    new_refine (ncx_instance_t *instance)
 {
     obj_refine_t  *refi;
 
-    refi = m__getObj(obj_refine_t);
+    refi = m__getObj(instance, obj_refine_t);
     if (!refi) {
         return NULL;
     }
     (void)memset(refi, 0x0, sizeof(obj_refine_t));
 
-    dlq_createSQue(&refi->mustQ);
+    dlq_createSQue(instance, &refi->mustQ);
 
     return refi;
 
@@ -1609,34 +1632,34 @@ static obj_refine_t *
 
 /********************************************************************
  * Scrub the memory in a obj_refine_t by freeing all
- * the sub-fields and then freeing the entire struct itself 
+ * the sub-fields and then freeing the entire struct itself
  * The struct must be removed from any queue it is in before
  * this function is called.
  *
  * \param refi == obj_refine_t data structure to free
  *********************************************************************/
-static void free_refine (obj_refine_t *refi)
-{    
+static void free_refine (ncx_instance_t *instance, obj_refine_t *refi)
+{
     if ( !refi ) {
         return;
     }
 
-    m__free(refi->target);
-    m__free(refi->descr);
-    m__free(refi->ref);
-    m__free(refi->presence);
-    m__free(refi->def);
+    m__free(instance, refi->target);
+    m__free(instance, refi->descr);
+    m__free(instance, refi->ref);
+    m__free(instance, refi->presence);
+    m__free(instance, refi->def);
 
-    clean_mustQ(&refi->mustQ);
+    clean_mustQ(instance, &refi->mustQ);
 
-    m__free(refi);
+    m__free(instance, refi);
 
 }  /* free_refine */
 
 
 /********************************************************************
 * FUNCTION new_augment
-* 
+*
 * Malloc and initialize the fields in a obj_augment_t
 *
 * INPUTS:
@@ -1646,18 +1669,18 @@ static void free_refine (obj_refine_t *refi)
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_augment_t * 
-    new_augment (boolean isreal)
+static obj_augment_t *
+    new_augment (ncx_instance_t *instance, boolean isreal)
 {
     obj_augment_t  *aug;
 
-    aug = m__getObj(obj_augment_t);
+    aug = m__getObj(instance, obj_augment_t);
     if (!aug) {
         return NULL;
     }
     (void)memset(aug, 0x0, sizeof(obj_augment_t));
 
-    dlq_createSQue(&aug->datadefQ);
+    dlq_createSQue(instance, &aug->datadefQ);
 
     if (isreal) {
         aug->status = NCX_STATUS_CURRENT;
@@ -1670,49 +1693,49 @@ static obj_augment_t *
 
 /********************************************************************
  * Scrub the memory in a obj_augment_t by freeing all
- * the sub-fields and then freeing the entire struct itself 
+ * the sub-fields and then freeing the entire struct itself
  * The struct must be removed from any queue it is in before
  * this function is called.
  *
  * \param aug the obj_augment_t data structure to free
  *********************************************************************/
-static void free_augment (obj_augment_t *aug)
+static void free_augment (ncx_instance_t *instance, obj_augment_t *aug)
 {
     if ( !aug ) {
         return;
     }
 
-    m__free(aug->target);
-    m__free(aug->descr);
-    m__free(aug->ref);
-    obj_clean_datadefQ(&aug->datadefQ);
+    m__free(instance, aug->target);
+    m__free(instance, aug->descr);
+    m__free(instance, aug->ref);
+    obj_clean_datadefQ(instance, &aug->datadefQ);
 
-    m__free(aug);
+    m__free(instance, aug);
 }  /* free_augment */
 
 
 /********************************************************************
 * FUNCTION new_rpc
-* 
+*
 * Malloc and initialize the fields in a an obj_rpc_t
 *
 * RETURNS:
 *    pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_rpc_t * 
-    new_rpc (void)
+static obj_rpc_t *
+    new_rpc (ncx_instance_t *instance)
 {
     obj_rpc_t  *rpc;
 
-    rpc = m__getObj(obj_rpc_t);
+    rpc = m__getObj(instance, obj_rpc_t);
     if (!rpc) {
         return NULL;
     }
     (void)memset(rpc, 0x0, sizeof(obj_rpc_t));
 
-    dlq_createSQue(&rpc->typedefQ);
-    dlq_createSQue(&rpc->groupingQ);
-    dlq_createSQue(&rpc->datadefQ);
+    dlq_createSQue(instance, &rpc->typedefQ);
+    dlq_createSQue(instance, &rpc->groupingQ);
+    dlq_createSQue(instance, &rpc->datadefQ);
     rpc->status = NCX_STATUS_CURRENT;
 
     /* by default: set supported to true for
@@ -1728,32 +1751,32 @@ static obj_rpc_t *
 
 
 /********************************************************************
- * Clean and free the fields in a an obj_rpc_t, then free 
+ * Clean and free the fields in a an obj_rpc_t, then free
  * the RPC struct
  *
  * \param rpc the RPC struct to free
  *********************************************************************/
-static void free_rpc (obj_rpc_t *rpc)
+static void free_rpc (ncx_instance_t *instance, obj_rpc_t *rpc)
 {
     if ( !rpc ) {
         return;
     }
 
-    m__free(rpc->name);
-    m__free(rpc->descr);
-    m__free(rpc->ref);
+    m__free(instance, rpc->name);
+    m__free(instance, rpc->descr);
+    m__free(instance, rpc->ref);
 
-    typ_clean_typeQ(&rpc->typedefQ);
-    grp_clean_groupingQ(&rpc->groupingQ);
-    obj_clean_datadefQ(&rpc->datadefQ);
+    typ_clean_typeQ(instance, &rpc->typedefQ);
+    grp_clean_groupingQ(instance, &rpc->groupingQ);
+    obj_clean_datadefQ(instance, &rpc->datadefQ);
 
-    m__free(rpc);
+    m__free(instance, rpc);
 }  /* free_rpc */
 
 
 /********************************************************************
 * FUNCTION new_rpcio
-* 
+*
 * Malloc and initialize the fields in a an obj_rpcio_t
 * Fields are setup within the new obj_template_t, based
 * on the values in rpcobj
@@ -1761,67 +1784,67 @@ static void free_rpc (obj_rpc_t *rpc)
 * RETURNS:
 *    pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_rpcio_t * 
-    new_rpcio (void)
+static obj_rpcio_t *
+    new_rpcio (ncx_instance_t *instance)
 {
     obj_rpcio_t  *rpcio;
 
-    rpcio = m__getObj(obj_rpcio_t);
+    rpcio = m__getObj(instance, obj_rpcio_t);
     if (!rpcio) {
         return NULL;
     }
     (void)memset(rpcio, 0x0, sizeof(obj_rpcio_t));
 
-    dlq_createSQue(&rpcio->typedefQ);
-    dlq_createSQue(&rpcio->groupingQ);
-    dlq_createSQue(&rpcio->datadefQ);
+    dlq_createSQue(instance, &rpcio->typedefQ);
+    dlq_createSQue(instance, &rpcio->groupingQ);
+    dlq_createSQue(instance, &rpcio->datadefQ);
     return rpcio;
 
 }  /* new_rpcio */
 
 
 /********************************************************************
- * Clean and free the fields in a an obj_rpcio_t, then free 
+ * Clean and free the fields in a an obj_rpcio_t, then free
  * the RPC IO struct
  *
  * \param rpcio the RPC IO struct to free
  *********************************************************************/
-static void free_rpcio (obj_rpcio_t *rpcio)
+static void free_rpcio (ncx_instance_t *instance, obj_rpcio_t *rpcio)
 {
     if ( !rpcio ) {
         return;
     }
 
-    m__free(rpcio->name);
-    typ_clean_typeQ(&rpcio->typedefQ);
-    grp_clean_groupingQ(&rpcio->groupingQ);
-    obj_clean_datadefQ(&rpcio->datadefQ);
-    m__free(rpcio);
+    m__free(instance, rpcio->name);
+    typ_clean_typeQ(instance, &rpcio->typedefQ);
+    grp_clean_groupingQ(instance, &rpcio->groupingQ);
+    obj_clean_datadefQ(instance, &rpcio->datadefQ);
+    m__free(instance, rpcio);
 }  /* free_rpcio */
 
 
 /********************************************************************
 * FUNCTION new_notif
-* 
+*
 * Malloc and initialize the fields in a an obj_notif_t
 *
 * RETURNS:
 *    pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-static obj_notif_t * 
-    new_notif (void)
+static obj_notif_t *
+    new_notif (ncx_instance_t *instance)
 {
     obj_notif_t  *notif;
 
-    notif = m__getObj(obj_notif_t);
+    notif = m__getObj(instance, obj_notif_t);
     if (!notif) {
         return NULL;
     }
     (void)memset(notif, 0x0, sizeof(obj_notif_t));
 
-    dlq_createSQue(&notif->typedefQ);
-    dlq_createSQue(&notif->groupingQ);
-    dlq_createSQue(&notif->datadefQ);
+    dlq_createSQue(instance, &notif->typedefQ);
+    dlq_createSQue(instance, &notif->groupingQ);
+    dlq_createSQue(instance, &notif->datadefQ);
     notif->status = NCX_STATUS_CURRENT;
     return notif;
 
@@ -1829,39 +1852,40 @@ static obj_notif_t *
 
 
 /********************************************************************
- * Clean and free the fields in a an obj_notif_t, then free 
+ * Clean and free the fields in a an obj_notif_t, then free
  * the notification struct
  *
  * \param notif == notification struct to free
  *********************************************************************/
-static void free_notif (obj_notif_t *notif)
+static void free_notif (ncx_instance_t *instance, obj_notif_t *notif)
 {
     if ( !notif ) {
         return;
     }
 
-    m__free(notif->name);
-    m__free(notif->descr);
-    m__free(notif->ref);
-    typ_clean_typeQ(&notif->typedefQ);
-    grp_clean_groupingQ(&notif->groupingQ);
-    obj_clean_datadefQ(&notif->datadefQ);
-    m__free(notif);
+    m__free(instance, notif->name);
+    m__free(instance, notif->descr);
+    m__free(instance, notif->ref);
+    typ_clean_typeQ(instance, &notif->typedefQ);
+    grp_clean_groupingQ(instance, &notif->groupingQ);
+    obj_clean_datadefQ(instance, &notif->datadefQ);
+    m__free(instance, notif);
 }  /* free_notif */
 
 /********************************************************************/
-/** 
+/**
  * utility function to perform full or partial case sensitive /
  * insenstive string comparison.
  *
  * \param objname object name to find
  * \param curname object name being matched
  * \param partialmatch flag idicating if a partial match is allowed.
- * \param usecase TRUE if case-sensitive FALSE if case-insensitive 
+ * \param usecase TRUE if case-sensitive FALSE if case-insensitive
  * \param len_objname the length of the object name.
  * \return true if the names match
  */
-static bool compare_names( const xmlChar *objname,
+static bool compare_names(ncx_instance_t *instance,
+                            const xmlChar *objname,
                            const xmlChar *curname,
                            boolean partialmatch,
                            boolean usecase,
@@ -1871,15 +1895,15 @@ static bool compare_names( const xmlChar *objname,
 
     if (partialmatch) {
         if (usecase) {
-            ret = xml_strncmp(objname, curname, len_objname );
+            ret = xml_strncmp(instance, objname, curname, len_objname );
         } else {
-            ret = xml_strnicmp(objname, curname, len_objname );
+            ret = xml_strnicmp(instance, objname, curname, len_objname );
         }
     } else {
         if (usecase) {
-            ret = xml_strcmp(objname, curname);
+            ret = xml_strcmp(instance, objname, curname);
         } else {
-            ret = xml_stricmp(objname, curname);
+            ret = xml_stricmp(instance, objname, curname);
         }
     }
 
@@ -1887,7 +1911,7 @@ static bool compare_names( const xmlChar *objname,
 } /* compare_names */
 
 /********************************************************************/
-/** 
+/**
  * utility function to search a case object
  *
  * \param obj the parent object
@@ -1895,11 +1919,11 @@ static bool compare_names( const xmlChar *objname,
  *                ( NULL and first match will be done, and the
    *               module ignored (Name instead of QName )
  * \param objname object name to find
- * \param lookdeep TRUE to check objects inside choices/cases and match these 
+ * \param lookdeep TRUE to check objects inside choices/cases and match these
  *                 nodes before matching the choice or case
  * \param partialmatch TRUE if a strncmp (partial match ) is reqquried.
  * \param usecase == TRUE if case-sensitive
- *               FALSE if case-insensitive 
+ *               FALSE if case-insensitive
  * \param altnames == TRUE if altnames allowed
  *                FALSE if normal names only
  * \param dataonly == TRUE to check just data nodes
@@ -1908,7 +1932,8 @@ static bool compare_names( const xmlChar *objname,
  * \param matchcount == address of return parameter match count
  * \return pointer to obj_template_t or NULL if not found in 'que'
  */
-static obj_template_t* search_case( obj_template_t* obj,
+static obj_template_t* search_case(ncx_instance_t *instance,
+         obj_template_t* obj,
         const xmlChar *modname,
         const xmlChar *objname,
         boolean lookdeep,
@@ -1921,9 +1946,9 @@ static obj_template_t* search_case( obj_template_t* obj,
         obj_template_t** partialMatchedObj )
 {
     obj_case_t* cas = obj->def.cas;
-    obj_template_t* chObj  = find_template( cas->datadefQ, modname, objname,
-                              lookdeep, partialmatch, usecase, altnames, 
-                              dataonly, matchcount );
+    obj_template_t* chObj  = find_template(instance,  cas->datadefQ, modname, objname,
+                              lookdeep, partialmatch, usecase, altnames,
+                              dataonly, matchcount, NULL);
     if ( chObj ) {
         if (partialmatch) {
             if ( !(*partialMatchedObj ) ) {
@@ -1943,19 +1968,19 @@ static obj_template_t* search_case( obj_template_t* obj,
 } /* search_case */
 
 /********************************************************************/
-/** 
+/**
  * utility function to search a choice object
- 
+
  * \param obj the parent object
  * \param modname module name that defines the obj_template_t
  *                ( NULL and first match will be done, and the
    *               module ignored (Name instead of QName )
  * \param objname object name to find
- * \param lookdeep TRUE to check objects inside choices/cases and match 
+ * \param lookdeep TRUE to check objects inside choices/cases and match
  *                 these nodes before matching the choice or case
  * \param partialmatch TRUE if a strncmp (partial match ) is reqquried.
  * \param usecase == TRUE if case-sensitive
- *               FALSE if case-insensitive 
+ *               FALSE if case-insensitive
  * \param altnames == TRUE if altnames allowed
  *                FALSE if normal names only
  * \param dataonly == TRUE to check just data nodes
@@ -1964,7 +1989,8 @@ static obj_template_t* search_case( obj_template_t* obj,
  * \param matchcount == address of return parameter match count
  * \return pointer to obj_template_t or NULL if not found in 'que'
  */
-static obj_template_t* search_choice( obj_template_t* obj,
+static obj_template_t* search_choice(ncx_instance_t *instance,
+         obj_template_t* obj,
         const xmlChar *modname,
         const xmlChar *objname,
         boolean lookdeep,
@@ -1976,20 +2002,20 @@ static obj_template_t* search_choice( obj_template_t* obj,
         uint32 *matchcount,
         obj_template_t** partialMatchedObj )
 {
-    obj_template_t* casobj = 
-        (obj_template_t*) dlq_firstEntry(obj->def.choic->caseQ);
+    obj_template_t* casobj =
+        (obj_template_t*) dlq_firstEntry(instance, obj->def.choic->caseQ);
     obj_template_t* chObj;
 
-    for ( ; casobj; casobj = (obj_template_t *)dlq_nextEntry(casobj)) {
-        chObj = search_case( casobj, modname, objname, lookdeep, partialmatch,
-               usecase, altnames, dataonly, nameMatch, matchcount, 
+    for ( ; casobj; casobj = (obj_template_t *)dlq_nextEntry(instance, casobj)) {
+        chObj = search_case(instance,  casobj, modname, objname, lookdeep, partialmatch,
+               usecase, altnames, dataonly, nameMatch, matchcount,
                partialMatchedObj );
         if ( chObj ) {
             if ( partialmatch ) {
                 if ( !(*partialMatchedObj) ) {
                     *partialMatchedObj = chObj;
                 }
-            } 
+            }
             else {
                 return chObj;
             }
@@ -2010,15 +2036,17 @@ static obj_template_t* search_choice( obj_template_t* obj,
  * \param obj the object to check
  * \return true of the object is a CHOICE or CASE.
  */
-static boolean  obj_is_choice_or_case( obj_template_t* obj )
+static boolean  obj_is_choice_or_case(ncx_instance_t *instance, 
+                                      obj_template_t* obj )
 {
-    return ( obj->objtype == OBJ_TYP_CHOICE || obj->objtype == OBJ_TYP_CASE );
+  (void)instance;
+  return ( obj->objtype == OBJ_TYP_CHOICE || obj->objtype == OBJ_TYP_CASE );
 }
 
 /********************************************************************/
-/** 
+/**
  * Utility function for managing partial matches. Increment the count
- * of partial matches and set the partial match object if it is NULL, 
+ * of partial matches and set the partial match object if it is NULL,
  * this ensures that the first partial match is used.
  *
  * \param obj the object being matched
@@ -2026,23 +2054,24 @@ static boolean  obj_is_choice_or_case( obj_template_t* obj )
  * \param partialmatch flag indicating if a partial match is allowed
  * \param lookdeep flag indicating if look deep is set
  * \param matchcount address of return parameter match count
- * \param partialMatchedObj the partial matched object 
+ * \param partialMatchedObj the partial matched object
  * \return a matching object or NULL,
  */
-static obj_template_t* handle_partial_match_found( 
-        obj_template_t* obj, 
-        boolean nameMatch,
-        boolean partialmatch,
-        boolean lookdeep,
-        uint32 *matchcount, 
-        obj_template_t** partialMatchedObj )
+static obj_template_t* handle_partial_match_found(
+    ncx_instance_t *instance, 
+    obj_template_t* obj, 
+    boolean nameMatch, 
+    boolean partialmatch, 
+    boolean lookdeep, 
+    uint32 *matchcount, 
+    obj_template_t** partialMatchedObj )
 {
     if ( nameMatch ) {
         if ( !partialmatch ) {
             return obj;
          }
          else {
-             if ( lookdeep || !obj_is_choice_or_case( obj ) ) {
+             if ( lookdeep || !obj_is_choice_or_case(instance, obj ) ) {
                  ++(*matchcount);
                  if ( !(*partialMatchedObj) ) {
                      *partialMatchedObj = obj;
@@ -2054,7 +2083,7 @@ static obj_template_t* handle_partial_match_found(
 }
 
 /********************************************************************/
-/** 
+/**
  * Find an object with the specified name
  *
  * \param que Q of obj_template_t to search
@@ -2062,11 +2091,11 @@ static obj_template_t* handle_partial_match_found(
  *                ( NULL and first match will be done, and the
    *               module ignored (Name instead of QName )
  * \param objname object name to find
- * \param lookdeep TRUE to check objects inside choices/cases and match 
+ * \param lookdeep TRUE to check objects inside choices/cases and match
  *                 these nodes before matching the choice or case
  * \param partialmatch TRUE if a strncmp (partial match ) is reqquried.
  * \param usecase == TRUE if case-sensitive
- *               FALSE if case-insensitive 
+ *               FALSE if case-insensitive
  * \param altnames == TRUE if altnames allowed
  *                FALSE if normal names only
  * \param dataonly == TRUE to check just data nodes
@@ -2074,7 +2103,8 @@ static obj_template_t* handle_partial_match_found(
  * \param matchcount == address of return parameter match count
  * \return pointer to obj_template_t or NULL if not found in 'que'
  *********************************************************************/
-static obj_template_t* find_template (dlq_hdr_t  *que,
+static obj_template_t* find_template (ncx_instance_t *instance,
+                   dlq_hdr_t  *que,
                    const xmlChar *modname,
                    const xmlChar *objname,
                    boolean lookdeep,
@@ -2082,7 +2112,8 @@ static obj_template_t* find_template (dlq_hdr_t  *que,
                    boolean usecase,
                    boolean altnames,
                    boolean dataonly,
-                   uint32 *matchcount  )
+                   uint32 *matchcount,
+                   xpath_pcb_t* pcb)
 {
     obj_template_t *partialMatchedObj = NULL;
     obj_template_t *matchedObj = NULL;
@@ -2090,42 +2121,42 @@ static obj_template_t* find_template (dlq_hdr_t  *que,
     const xmlChar *curmodulename;   // the name of the current mod being checked
     bool nameMatch;
 
-    uint32 len_objname = ( partialmatch ?  xml_strlen(objname) : 0 );
+    uint32 len_objname = ( partialmatch ?  xml_strlen(instance, objname) : 0 );
     *matchcount = 0;
 
     /* check all the objects in this datadefQ */
-    obj_template_t* obj = (obj_template_t *)dlq_firstEntry(que);
-    for( ; obj; obj = (obj_template_t *)dlq_nextEntry(obj) ) {
+    obj_template_t* obj = (obj_template_t *)dlq_firstEntry(instance, que);
+    for( ; obj; obj = (obj_template_t *)dlq_nextEntry(instance, obj) ) {
         /* skip augment and uses */
-        if (!obj_has_name(obj) || !obj_is_enabled(obj)) {
+        if (!obj_has_name(instance, obj) || !obj_is_enabled(instance, obj)) {
             continue;
         }
 
         /* skip rpc and notifications for dataonly matching */
-        if (dataonly && (obj_is_rpc(obj) || obj_is_notif(obj)) ) { 
+        if (dataonly && (obj_is_rpc(instance, obj) || obj_is_notif(instance, obj)) ) {
             continue;
         }
-        
+
         /* skip objects with no name / altname */
-        curname = (altnames ?  obj_get_altname(obj) : obj_get_name(obj) );
+        curname = (altnames ?  obj_get_altname(instance, obj) : obj_get_name(instance, obj) );
         if ( !curname ) {
             continue;
         }
 
-        curmodulename = obj_get_mod_name(obj);
-        nameMatch = compare_names( objname, curname, partialmatch, usecase, 
+        curmodulename = obj_get_mod_name(instance, obj);
+        nameMatch = compare_names(instance,  objname, curname, partialmatch, usecase,
                                    len_objname );
 
         if (!lookdeep) {
-            /* if lookdeep == FALSE then check the choice name of an 
+            /* if lookdeep == FALSE then check the choice name of an
              * OBJ_TYP_CHOICE or OBJ_TYP_CASE object. */
 
             /* if the module does not match the current module name, skip it */
-            if ( modname && xml_strcmp(modname, curmodulename) ) {
+            if ( modname && xml_strcmp(instance, modname, curmodulename) ) {
                 continue;
             }
 
-            matchedObj = handle_partial_match_found( obj, nameMatch, 
+            matchedObj = handle_partial_match_found(instance, obj, nameMatch,
                     partialmatch, lookdeep, matchcount, &partialMatchedObj );
             if ( matchedObj ) {
                 return matchedObj;
@@ -2134,11 +2165,11 @@ static obj_template_t* find_template (dlq_hdr_t  *que,
 
         switch ( obj->objtype ) {
         case OBJ_TYP_CHOICE:
-            /* since the choice and case layers disappear, need to check if any 
+            /* since the choice and case layers disappear, need to check if any
              * real node names would clash will also check later that all choice
              * nodes within the same sibling set do not clash either */
-            matchedObj = search_choice( obj, modname, objname, lookdeep, 
-                    partialmatch, usecase, altnames, dataonly, nameMatch, 
+            matchedObj = search_choice(instance,  obj, modname, objname, lookdeep,
+                    partialmatch, usecase, altnames, dataonly, nameMatch,
                     matchcount, &partialMatchedObj );
             if ( matchedObj ) {
                 return matchedObj;
@@ -2146,8 +2177,8 @@ static obj_template_t* find_template (dlq_hdr_t  *que,
             break;
 
         case OBJ_TYP_CASE:
-            matchedObj = search_case( obj, modname, objname, lookdeep, 
-                    partialmatch, usecase, altnames, dataonly, nameMatch, 
+            matchedObj = search_case(instance,  obj, modname, objname, lookdeep,
+                    partialmatch, usecase, altnames, dataonly, nameMatch,
                     matchcount, &partialMatchedObj );
             if ( matchedObj ) {
                 return matchedObj;
@@ -2159,10 +2190,15 @@ static obj_template_t* find_template (dlq_hdr_t  *que,
              * and if so, skip any object not from that module
              */
             if (lookdeep) {
-                if (modname && xml_strcmp(modname, curmodulename)) {
-                    continue;
+                if (modname && xml_strcmp(instance, modname, curmodulename)) {
+                    if (pcb) {
+                      xpath_pcb_t* ypcb = (xpath_pcb_t*)pcb;
+                      if (ypcb->source != XP_SRC_LEAFREF &&
+                          !( ypcb->flags & XP_FL_ABSPATH ))
+                        continue;
+                    }
                 }
-                matchedObj = handle_partial_match_found( obj, nameMatch, 
+                matchedObj = handle_partial_match_found(instance, obj, nameMatch,
                      partialmatch, lookdeep, matchcount, &partialMatchedObj );
                 if ( matchedObj ) {
                     return matchedObj;
@@ -2173,7 +2209,7 @@ static obj_template_t* find_template (dlq_hdr_t  *que,
 
     if (partialmatch) {
         return partialMatchedObj;
-    } 
+    }
 
     return NULL;
 }  /* find_template */
@@ -2182,7 +2218,7 @@ static obj_template_t* find_template (dlq_hdr_t  *que,
 /********************************************************************
 * FUNCTION get_config_flag
 *
-* Get the config flag for an obj_template_t 
+* Get the config flag for an obj_template_t
 * Return the explicit value or the inherited value
 * Also return if the config-stmt is really set or not
 *
@@ -2198,10 +2234,11 @@ static obj_template_t* find_template (dlq_hdr_t  *que,
 * RETURNS:
 *   TRUE if config set to TRUE
 *   FALSE if config set to FALSE
-*   
+*
 *********************************************************************/
 static boolean
-    get_config_flag (const obj_template_t *obj,
+    get_config_flag (ncx_instance_t *instance,
+                     const obj_template_t *obj,
                      boolean *setflag)
 {
     switch (obj->objtype) {
@@ -2214,9 +2251,9 @@ static boolean
         if (obj_is_root(obj)) {
             *setflag = TRUE;
             return TRUE;
-        } else if ((obj->parent && 
+        } else if ((obj->parent &&
                     !obj_is_root(obj->parent)) || obj->grp) {
-            *setflag = (obj->flags & OBJ_FL_CONFSET) 
+            *setflag = (obj->flags & OBJ_FL_CONFSET)
                 ? TRUE : FALSE;
         } else {
             *setflag = TRUE;
@@ -2246,7 +2283,7 @@ static boolean
         return TRUE;
     case OBJ_TYP_RPCIO:
         *setflag = FALSE;
-        if (!xml_strcmp(obj->def.rpcio->name, YANG_K_INPUT)) {
+        if (!xml_strcmp(instance, obj->def.rpcio->name, YANG_K_INPUT)) {
             return TRUE;
         } else {
             return FALSE;
@@ -2257,7 +2294,7 @@ static boolean
         return FALSE;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 
@@ -2268,9 +2305,9 @@ static boolean
 
 /********************************************************************
 * FUNCTION get_object_string
-* 
+*
 * Generate the object identifier string
-* 
+*
 * INPUTS:
 *   obj == node to generate the instance ID for
 *   stopobj == ancestor node to treat as root (may be NULL)
@@ -2294,7 +2331,8 @@ static boolean
 *   status
 *********************************************************************/
 static status_t
-    get_object_string (const obj_template_t *obj,
+    get_object_string (ncx_instance_t *instance,
+                       const obj_template_t *obj,
                        const obj_template_t *stopobj,
                        xmlChar  *buff,
                        uint32 bufflen,
@@ -2309,11 +2347,11 @@ static status_t
     boolean addmodname = withmodname || forcexpath;
     boolean topnode = FALSE;
 
-    if (obj->parent && 
-        obj->parent != stopobj && 
+    if (obj->parent &&
+        obj->parent != stopobj &&
         !obj_is_root(obj->parent)) {
-        status_t res = get_object_string(obj->parent, stopobj, buff, bufflen, 
-                                         normalmode, mod, retlen, 
+        status_t res = get_object_string(instance, obj->parent, stopobj, buff, bufflen,
+                                         normalmode, mod, retlen,
                                          withmodname, forcexpath);
         if (res != NO_ERR) {
             return res;
@@ -2322,7 +2360,7 @@ static status_t
         topnode = TRUE;
     }
 
-    if (!obj_has_name(obj)) {
+    if (!obj_has_name(instance, obj)) {
         /* should not enounter a uses or augment!! */
         return NO_ERR;
     }
@@ -2336,24 +2374,27 @@ static status_t
     uint32 modnamelen = 0;
 
     if (forcexpath) {
-        modname = xmlns_get_ns_prefix(obj_get_nsid(obj));
+        modname = xmlns_get_ns_prefix(instance, obj_get_nsid(instance, obj));
         if (!modname) {
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
-        modnamelen = xml_strlen(modname);
+        modnamelen = xml_strlen(instance, modname);
     } else {
-        modname = obj_get_mod_name(obj);
-        modnamelen = xml_strlen(modname);
+        modname = obj_get_mod_name(instance, obj);
+        modnamelen = xml_strlen(instance, modname);
     }
 
     if (!addmodname && mod != NULL &&
-        (xml_strcmp(modname, ncx_get_modname(mod)))) {
+        (xml_strcmp(instance, modname, ncx_get_modname(mod)))) {
         addmodname = TRUE;
+    } else {
+      //modseplen = 0;
+      modnamelen = 0;
     }
 
     /* get the name and check the added length */
-    const xmlChar *name = obj_get_name(obj);
-    uint32 namelen = xml_strlen(name), seplen = 1;
+    const xmlChar *name = obj_get_name(instance, obj);
+    uint32 namelen = xml_strlen(instance, name), seplen = 1;
 
     if (topnode && stopobj) {
         seplen = 0;
@@ -2365,7 +2406,7 @@ static status_t
     }
 
     /* copy the name string recusively, letting the stack
-     * keep track of the next child node to write 
+     * keep track of the next child node to write
      */
     if (buff) {
         /* node separator char */
@@ -2378,12 +2419,12 @@ static status_t
         }
 
         if (addmodname) {
-            xml_strcpy(&buff[*retlen + seplen], modname);
-            buff[*retlen + modnamelen + seplen] = 
+            xml_strcpy(instance, &buff[*retlen + seplen], modname);
+            buff[*retlen + modnamelen + seplen] =
                 (forcexpath || withmodname) ? ':' : '_';
-            xml_strcpy(&buff[*retlen + modnamelen + seplen + 1], name);
+            xml_strcpy(instance, &buff[*retlen + modnamelen + seplen + 1], name);
         } else {
-            xml_strcpy(&buff[*retlen + seplen], name);
+            xml_strcpy(instance, &buff[*retlen + seplen], name);
         }
     }
     if (addmodname) {
@@ -2398,13 +2439,13 @@ static status_t
 
 /********************************************************************
  * FUNCTION find_next_child
- * 
+ *
  * Check the instance qualifiers and see if the specified node
  * is a valid (subsequent) child node.
  *
  * Example:
- *  
- *  container foo { 
+ *
+ *  container foo {
  *    leaf a { type int32; }
  *    leaf b { type int32; }
  *    leaf-list c { type int32; }
@@ -2422,7 +2463,8 @@ static status_t
  *   pointer to child that matched or NULL if no valid next child
  *********************************************************************/
 static obj_template_t *
-    find_next_child (obj_template_t *chobj,
+    find_next_child (ncx_instance_t *instance,
+                     obj_template_t *chobj,
                      const xml_node_t *chnode)
 {
 
@@ -2432,7 +2474,7 @@ static obj_template_t *
     chnext = chobj;
 
     for (;;) {
-        switch (obj_get_iqualval(chnext)) {
+        switch (obj_get_iqualval(instance, chnext)) {
         case NCX_IQUAL_ONE:
         case NCX_IQUAL_1MORE:
             /* the current child is mandatory; this is an error */
@@ -2441,26 +2483,28 @@ static obj_template_t *
         case NCX_IQUAL_OPT:
         case NCX_IQUAL_ZMORE:
             /* the current child is optional; keep trying
-             * try to get the next child in the complex type 
+             * try to get the next child in the complex type
              */
-            chnext = obj_next_child(chnext);
+            chnext = obj_next_child(instance, chnext);
             if (!chnext) {
                 return NULL;
             } else {
-                if ( obj_is_choice_or_case( chnext ) ) {
-                    foundobj = obj_find_child(chnext,
-                                              xmlns_get_module(chnode->nsid),
+                if ( obj_is_choice_or_case(instance,  chnext ) ) {
+                    foundobj = obj_find_child(instance,
+                                              chnext,
+                                              xmlns_get_module(instance, chnode->nsid),
                                               chnode->elname);
-                    if (foundobj && obj_is_choice_or_case( foundobj ) ) {
+                    if (foundobj && obj_is_choice_or_case(instance,  foundobj ) ) {
                         foundobj = NULL;
                     }
                     if (foundobj) {
                         return chnext;  /* not the nested foundobj! */
                     }
                 } else {
-                    res = xml_node_match(chnode,
-                                         obj_get_nsid(chnext), 
-                                         obj_get_name(chnext), 
+                    res = xml_node_match(instance,
+                                         chnode,
+                                         obj_get_nsid(instance, chnext),
+                                         obj_get_name(instance, chnext),
                                          XML_NT_NONE);
                     if (res == NO_ERR) {
                         return chnext;
@@ -2469,7 +2513,7 @@ static obj_template_t *
             }
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return NULL;
         }
     }
@@ -2480,15 +2524,15 @@ static obj_template_t *
 
 /********************************************************************
 * FUNCTION process_one_walker_child
-* 
-* Process one child object node 
+*
+* Process one child object node
 *
 * INPUTS:
 *    walkerfn == callback function to use
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    obj == object to process
-*    modname == module name; 
+*    modname == module name;
 *                the first match in this module namespace
 *                will be returned
 *            == NULL:
@@ -2507,7 +2551,8 @@ static obj_template_t *
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 static boolean
-    process_one_walker_child (obj_walker_fn_t walkerfn,
+    process_one_walker_child (ncx_instance_t *instance,
+                              obj_walker_fn_t walkerfn,
                               void *cookie1,
                               void *cookie2,
                               obj_template_t  *obj,
@@ -2516,46 +2561,47 @@ static boolean
                               boolean configonly,
                               boolean textmode,
                               boolean *fncalled)
-                              
+
 {
     boolean         fnresult;
 
     *fncalled = FALSE;
-    if (!obj_has_name(obj)) {
+    if (!obj_has_name(instance, obj)) {
         return TRUE;
     }
 
-    if (configonly && !childname && 
-        !obj_is_config(obj)) {
+    if (configonly && !childname &&
+        !obj_is_config(instance, obj)) {
         return TRUE;
     }
 
     fnresult = TRUE;
     if (textmode) {
-        if (obj_is_leafy(obj)) {
-            fnresult = (*walkerfn)(obj, cookie1, cookie2);
+        if (obj_is_leafy(instance, obj)) {
+            fnresult = (*walkerfn)(instance, obj, cookie1, cookie2);
             *fncalled = TRUE;
         }
     } else if (modname && childname) {
-        if (!xml_strcmp(modname, 
-                        obj_get_mod_name(obj)) &&
-            !xml_strcmp(childname, obj_get_name(obj))) {
+        if (!xml_strcmp(instance,
+                        modname,
+                        obj_get_mod_name(instance, obj)) &&
+            !xml_strcmp(instance, childname, obj_get_name(instance, obj))) {
 
-            fnresult = (*walkerfn)(obj, cookie1, cookie2);
+            fnresult = (*walkerfn)(instance, obj, cookie1, cookie2);
             *fncalled = TRUE;
         }
     } else if (modname) {
-        if (!xml_strcmp(modname, obj_get_mod_name(obj))) {
-            fnresult = (*walkerfn)(obj, cookie1, cookie2);
+        if (!xml_strcmp(instance, modname, obj_get_mod_name(instance, obj))) {
+            fnresult = (*walkerfn)(instance, obj, cookie1, cookie2);
             *fncalled = TRUE;
         }
     } else if (childname) {
-        if (!xml_strcmp(childname, obj_get_name(obj))) {
-            fnresult = (*walkerfn)(obj, cookie1, cookie2);
+        if (!xml_strcmp(instance, childname, obj_get_name(instance, obj))) {
+            fnresult = (*walkerfn)(instance, obj, cookie1, cookie2);
             *fncalled = TRUE;
         }
     } else {
-        fnresult = (*walkerfn)(obj, cookie1, cookie2);
+        fnresult = (*walkerfn)(instance, obj, cookie1, cookie2);
         *fncalled = TRUE;
     }
 
@@ -2566,11 +2612,11 @@ static boolean
 
 /********************************************************************
 * FUNCTION test_one_child
-* 
-* The the specified node
-* The walker fn will be called for each match.  
 *
-* If the walker function returns TRUE, then the 
+* The the specified node
+* The walker fn will be called for each match.
+*
+* If the walker function returns TRUE, then the
 * walk will continue; If FALSE it will terminate right away
 *
 * This function skips choice and case nodes and
@@ -2582,7 +2628,7 @@ static boolean
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    obj == node to check
-*    modname == module name; 
+*    modname == module name;
 *                only matches in this module namespace
 *                will be returned
 *            == NULL:
@@ -2601,7 +2647,8 @@ static boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 static boolean
-    test_one_child (ncx_module_t *exprmod,
+    test_one_child (ncx_instance_t *instance,
+                    ncx_module_t *exprmod,
                     obj_walker_fn_t walkerfn,
                     void *cookie1,
                     void *cookie2,
@@ -2613,8 +2660,9 @@ static boolean
 {
     boolean               fnresult, fncalled;
 
-    if ( obj_is_choice_or_case( obj ) ) {
-        fnresult = obj_find_all_children(exprmod,
+    if ( obj_is_choice_or_case(instance,  obj ) ) {
+        fnresult = obj_find_all_children(instance,
+                                         exprmod,
                                          walkerfn,
                                          cookie1,
                                          cookie2,
@@ -2625,11 +2673,12 @@ static boolean
                                          textmode,
                                          FALSE);
     } else {
-        fnresult = process_one_walker_child(walkerfn,
+        fnresult = process_one_walker_child(instance,
+                                            walkerfn,
                                             cookie1,
                                             cookie2,
                                             obj,
-                                            modname, 
+                                            modname,
                                             name,
                                             configonly,
                                             textmode,
@@ -2647,11 +2696,11 @@ static boolean
 
 /********************************************************************
 * FUNCTION test_one_ancestor
-* 
-* The the specified node
-* The walker fn will be called for each match.  
 *
-* If the walker function returns TRUE, then the 
+* The the specified node
+* The walker fn will be called for each match.
+*
+* If the walker function returns TRUE, then the
 * walk will continue; If FALSE it will terminate right away
 *
 * This function skips choice and case nodes and
@@ -2663,7 +2712,7 @@ static boolean
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    obj == node to check
-*    modname == module name; 
+*    modname == module name;
 *                only matches in this module namespace
 *                will be returned
 *            == NULL:
@@ -2687,7 +2736,8 @@ static boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 static boolean
-    test_one_ancestor (ncx_module_t *exprmod,
+    test_one_ancestor (ncx_instance_t *instance,
+                       ncx_module_t *exprmod,
                        obj_walker_fn_t walkerfn,
                        void *cookie1,
                        void *cookie2,
@@ -2701,8 +2751,9 @@ static boolean
 {
     boolean               fnresult;
 
-    if ( obj_is_choice_or_case( obj ) ) {
-        fnresult = obj_find_all_ancestors(exprmod,
+    if ( obj_is_choice_or_case(instance,  obj ) ) {
+        fnresult = obj_find_all_ancestors(instance,
+                                          exprmod,
                                           walkerfn,
                                           cookie1,
                                           cookie2,
@@ -2715,11 +2766,12 @@ static boolean
                                           orself,
                                           fncalled);
     } else {
-        fnresult = process_one_walker_child(walkerfn,
+        fnresult = process_one_walker_child(instance,
+                                            walkerfn,
                                             cookie1,
                                             cookie2,
                                             obj,
-                                            modname, 
+                                            modname,
                                             name,
                                             configonly,
                                             textmode,
@@ -2737,11 +2789,11 @@ static boolean
 
 /********************************************************************
 * FUNCTION test_one_descendant
-* 
-* The the specified node
-* The walker fn will be called for each match.  
 *
-* If the walker function returns TRUE, then the 
+* The the specified node
+* The walker fn will be called for each match.
+*
+* If the walker function returns TRUE, then the
 * walk will continue; If FALSE it will terminate right away
 *
 * This function skips choice and case nodes and
@@ -2753,7 +2805,7 @@ static boolean
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    startobj == node to check
-*    modname == module name; 
+*    modname == module name;
 *                only matches in this module namespace
 *                will be returned
 *            == NULL:
@@ -2777,7 +2829,8 @@ static boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 static boolean
-    test_one_descendant (ncx_module_t *exprmod,
+    test_one_descendant (ncx_instance_t *instance,
+                         ncx_module_t *exprmod,
                          obj_walker_fn_t walkerfn,
                          void *cookie1,
                          void *cookie2,
@@ -2794,11 +2847,12 @@ static boolean
     boolean         fnresult;
 
     if (orself) {
-        fnresult = process_one_walker_child(walkerfn,
+        fnresult = process_one_walker_child(instance,
+                                            walkerfn,
                                             cookie1,
                                             cookie2,
                                             startobj,
-                                            modname, 
+                                            modname,
                                             name,
                                             configonly,
                                             textmode,
@@ -2808,17 +2862,18 @@ static boolean
         }
     }
 
-    datadefQ = obj_get_datadefQ(startobj);
+    datadefQ = obj_get_datadefQ(instance, startobj);
     if (!datadefQ) {
         return TRUE;
     }
 
-    for (obj = (obj_template_t *)dlq_firstEntry(datadefQ);
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, datadefQ);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-        if ( obj_is_choice_or_case( obj ) ) {
-            fnresult = obj_find_all_descendants(exprmod,
+        if ( obj_is_choice_or_case(instance,  obj ) ) {
+            fnresult = obj_find_all_descendants(instance,
+                                                exprmod,
                                                 walkerfn,
                                                 cookie1,
                                                 cookie2,
@@ -2831,17 +2886,19 @@ static boolean
                                                 orself,
                                                 fncalled);
         } else {
-            fnresult = process_one_walker_child(walkerfn,
+            fnresult = process_one_walker_child(instance,
+                                                walkerfn,
                                                 cookie1,
                                                 cookie2,
                                                 obj,
-                                                modname, 
+                                                modname,
                                                 name,
                                                 configonly,
                                                 textmode,
                                                 fncalled);
             if (fnresult && !*fncalled) {
-                fnresult = obj_find_all_descendants(exprmod,
+                fnresult = obj_find_all_descendants(instance,
+                                                    exprmod,
                                                     walkerfn,
                                                     cookie1,
                                                     cookie2,
@@ -2867,11 +2924,11 @@ static boolean
 
 /********************************************************************
 * FUNCTION test_one_pfnode
-* 
-* The the specified node
-* The walker fn will be called for each match.  
 *
-* If the walker function returns TRUE, then the 
+* The the specified node
+* The walker fn will be called for each match.
+*
+* If the walker function returns TRUE, then the
 * walk will continue; If FALSE it will terminate right away
 *
 * This function skips choice and case nodes and
@@ -2883,7 +2940,7 @@ static boolean
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    obj == node to check
-*    modname == module name; 
+*    modname == module name;
 *                only matches in this module namespace
 *                will be returned
 *            == NULL:
@@ -2912,7 +2969,8 @@ static boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 static boolean
-    test_one_pfnode (ncx_module_t *exprmod,
+    test_one_pfnode (ncx_instance_t *instance,
+                     ncx_module_t *exprmod,
                      obj_walker_fn_t walkerfn,
                      void *cookie1,
                      void *cookie2,
@@ -2937,40 +2995,41 @@ static boolean
         obj->objtype == OBJ_TYP_LEAF_LIST) {
         ;
     } else if (forward) {
-        obj = (obj_template_t *)dlq_nextEntry(obj);
+        obj = (obj_template_t *)dlq_nextEntry(instance, obj);
     } else {
-        obj = (obj_template_t *)dlq_prevEntry(obj);
+        obj = (obj_template_t *)dlq_prevEntry(instance, obj);
     }
 
     while (obj) {
         needcont = FALSE;
 
-        if (!obj_has_name(obj)) {
+        if (!obj_has_name(instance, obj)) {
             needcont = TRUE;
         }
 
-        if (configonly && !name && !obj_is_config(obj)) {
+        if (configonly && !name && !obj_is_config(instance, obj)) {
             needcont = TRUE;
         }
 
         if (needcont) {
             /* get the next node to process */
             if (forward) {
-                obj = (obj_template_t *)dlq_nextEntry(obj);
+                obj = (obj_template_t *)dlq_nextEntry(instance, obj);
             } else {
-                obj = (obj_template_t *)dlq_prevEntry(obj);
+                obj = (obj_template_t *)dlq_prevEntry(instance, obj);
             }
             continue;
         }
 
-        if ( obj_is_choice_or_case( obj ) ) {
-            for (child = (forward) ? obj_first_child(obj) :
-                     obj_last_child(obj);
+        if ( obj_is_choice_or_case(instance,  obj ) ) {
+            for (child = (forward) ? obj_first_child(instance, obj) :
+                     obj_last_child(instance, obj);
                  child != NULL;
-                 child = (forward) ? obj_next_child(child) :
-                     obj_previous_child(child)) {
+                 child = (forward) ? obj_next_child(instance, child) :
+                     obj_previous_child(instance, child)) {
 
-                fnresult = obj_find_all_pfaxis(exprmod,
+                fnresult = obj_find_all_pfaxis(instance,
+                                               exprmod,
                                                walkerfn,
                                                cookie1,
                                                cookie2,
@@ -2988,7 +3047,8 @@ static boolean
                 }
             }
         } else {
-            fnresult = process_one_walker_child(walkerfn,
+            fnresult = process_one_walker_child(instance,
+                                                walkerfn,
                                                 cookie1,
                                                 cookie2,
                                                 obj,
@@ -3002,28 +3062,29 @@ static boolean
             }
 
             if (!*fncalled && dblslash) {
-                /* if /foo did not get added, than 
+                /* if /foo did not get added, than
                  * try /foo/bar, /foo/baz, etc.
                  * check all the child nodes even if
                  * one of them matches, because all
                  * matches are needed with the '//' operator
                  */
                 for (child = (forward) ?
-                         obj_first_child(obj) :
-                         obj_last_child(obj);
+                         obj_first_child(instance, obj) :
+                         obj_last_child(instance, obj);
                      child != NULL;
                      child = (forward) ?
-                         obj_next_child(child) :
-                         obj_previous_child(child)) {
+                         obj_next_child(instance, child) :
+                         obj_previous_child(instance, child)) {
 
-                    fnresult = 
-                        obj_find_all_pfaxis(exprmod,
-                                            walkerfn, 
-                                            cookie1, 
+                    fnresult =
+                        obj_find_all_pfaxis(instance,
+                                            exprmod,
+                                            walkerfn,
+                                            cookie1,
                                             cookie2,
-                                            child, 
-                                            modname, 
-                                            name, 
+                                            child,
+                                            modname,
+                                            name,
                                             configonly,
                                             dblslash,
                                             textmode,
@@ -3039,9 +3100,9 @@ static boolean
 
         /* get the next node to process */
         if (forward) {
-            obj = (obj_template_t *)dlq_nextEntry(obj);
+            obj = (obj_template_t *)dlq_nextEntry(instance, obj);
         } else {
-            obj = (obj_template_t *)dlq_prevEntry(obj);
+            obj = (obj_template_t *)dlq_prevEntry(instance, obj);
         }
 
     }
@@ -3059,19 +3120,20 @@ static boolean
  * is hard-wired to FALSE
  *
  * \param mod ncx_module to check
- * \param modname module name for the object (needed for augments) 
+ * \param modname module name for the object (needed for augments)
  *                (may be NULL to match any 'objname' instance)
  * \param objname name of the object name to find
- * \param match TRUE to partial-length match node names 
+ * \param match TRUE to partial-length match node names
  *              FALSE to find exact-length match only
  * \param altnames TRUE if alt-name should be checked
  * \param usecase TRUE if case-sensitive, FALSE if allow case-insensitive match
- * \param onematch TRUE if only 1 match allowed FALSE if first match of 
+ * \param onematch TRUE if only 1 match allowed FALSE if first match of
  *                 N allowed
  * \param dataonly TRUE to check just data nodes FALSE to check all nodes
  * \return pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* find_template_top_in_submodules_includes( 
+static obj_template_t* find_template_top_in_submodules_includes(ncx_instance_t *instance,
+
         ncx_module_t *mod,
         const xmlChar *modname,
         const xmlChar *objname,
@@ -3079,23 +3141,23 @@ static obj_template_t* find_template_top_in_submodules_includes(
         boolean altnames,
         boolean usecase,
         boolean dataonly,
-        uint32 *matchcount ) 
+        uint32 *matchcount )
 {
     obj_template_t *obj;
-    
+
     /* Q of all includes this [sub]module has seen */
     dlq_hdr_t *que = ncx_get_allincQ(mod);
     ncx_include_t  *inc;
     yang_node_t    *node;
 
     /* check all the submodules, visible to this module or submodule */
-    for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+    for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
          inc;
-         inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+         inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
         /* get the real submodule struct */
         if ( !inc->submod ) {
-            node = yang_find_node(que, inc->submodule, inc->revision);
+            node = yang_find_node(instance, que, inc->submodule, inc->revision);
 
             if( !node || !node->submod ) {
                 /* include not found, skip this one */
@@ -3105,8 +3167,8 @@ static obj_template_t* find_template_top_in_submodules_includes(
         }
 
         /* check the type Q in this submodule */
-        obj = find_template( &inc->submod->datadefQ, modname, objname, FALSE,
-                             match, usecase, altnames, dataonly, matchcount );
+        obj = find_template(instance,  &inc->submod->datadefQ, modname, objname, FALSE,
+                             match, usecase, altnames, dataonly, matchcount, NULL);
         if (obj) {
             return obj;
         }
@@ -3147,17 +3209,18 @@ static obj_template_t* rationalise_multiple_matches( obj_template_t* obj,
  * is hard-wired to FALSE
  *
  * \param mod ncx_module to check
- * \param modname module name for the object (needed for augments) 
+ * \param modname module name for the object (needed for augments)
  *                (may be NULL to match any 'objname' instance)
  * \param objname name of the object name to find
- * \param match TRUE to partial-length match node names 
+ * \param match TRUE to partial-length match node names
  *              FALSE to find exact-length match only
  * \param altnames TRUE if alt-name should be checked
  * \param usecase TRUE if case-sensitive, FALSE if allow case-insensitive match
  * \param dataonly TRUE to check just data nodes FALSE to check all nodes
  * \return pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* find_template_top_in_paraent_module( 
+static obj_template_t* find_template_top_in_paraent_module(ncx_instance_t *instance,
+
         ncx_module_t *mod,
         const xmlChar *modname,
         const xmlChar *objname,
@@ -3165,14 +3228,14 @@ static obj_template_t* find_template_top_in_paraent_module(
         boolean altnames,
         boolean usecase,
         boolean dataonly,
-        uint32 *matchcount ) 
+        uint32 *matchcount )
 {
     if ( !mod->ismod ) {
         ncx_module_t  *mainmod = ncx_get_parent_mod(mod);
         if ( mainmod ) {
             /* check the [sub]module datadefQ */
-            return find_template( &mainmod->datadefQ, modname, objname, FALSE, 
-                  match, usecase, altnames, dataonly, matchcount );
+            return find_template(instance,  &mainmod->datadefQ, modname, objname, FALSE,
+                  match, usecase, altnames, dataonly, matchcount, NULL);
         }
     }
     return NULL;
@@ -3189,20 +3252,21 @@ static obj_template_t* find_template_top_in_paraent_module(
  * is hard-wired to FALSE
  *
  * \param mod ncx_module to check
- * \param modname module name for the object (needed for augments) 
+ * \param modname module name for the object (needed for augments)
  *                (may be NULL to match any 'objname' instance)
  * \param objname name of the object name to find
- * \param match TRUE to partial-length match node names 
+ * \param match TRUE to partial-length match node names
  *              FALSE to find exact-length match only
  * \param altnames TRUE if alt-name should be checked
  * \param usecase TRUE if case-sensitive, FALSE if allow case-insensitive match
- * \param onematch TRUE if only 1 match allowed FALSE if first match of 
+ * \param onematch TRUE if only 1 match allowed FALSE if first match of
  *                 N allowed
  * \param dataonly TRUE to check just data nodes FALSE to check all nodes
  * \param retres output return status
  * \return pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* find_template_top( ncx_module_t *mod,
+static obj_template_t* find_template_top(ncx_instance_t *instance,
+                                           ncx_module_t *mod,
                                           const xmlChar *modname,
                                           const xmlChar *objname,
                                           boolean match,
@@ -3218,28 +3282,28 @@ static obj_template_t* find_template_top( ncx_module_t *mod,
     *retres = NO_ERR;
 
     /* check the [sub]module datadefQ */
-    obj = find_template( &mod->datadefQ, modname, objname, FALSE, 
-                         match, usecase, altnames, dataonly, &matchcount );
-    if ( obj ) { 
-        return rationalise_multiple_matches( obj, match, onematch, matchcount, 
+    obj = find_template(instance,  &mod->datadefQ, modname, objname, FALSE,
+                         match, usecase, altnames, dataonly, &matchcount, NULL);
+    if ( obj ) {
+        return rationalise_multiple_matches( obj, match, onematch, matchcount,
               retres );
     }
 
     /* Check Submodule Includes */
-    obj = find_template_top_in_submodules_includes( mod, modname, objname, 
+    obj = find_template_top_in_submodules_includes(instance,  mod, modname, objname,
           match, altnames, usecase, dataonly, &matchcount );
-    if ( obj ) { 
-        return rationalise_multiple_matches( obj, match, onematch, matchcount, 
+    if ( obj ) {
+        return rationalise_multiple_matches( obj, match, onematch, matchcount,
               retres );
     }
 
     /* if this is a submodule, then still need to check
      * the datadefQ of the main module
      */
-    obj = find_template_top_in_paraent_module(  mod, modname, objname, match,
+    obj = find_template_top_in_paraent_module(instance,   mod, modname, objname, match,
             altnames, usecase, dataonly, &matchcount );
-    if ( obj ) { 
-        return rationalise_multiple_matches( obj, match, onematch, matchcount, 
+    if ( obj ) {
+        return rationalise_multiple_matches( obj, match, onematch, matchcount,
                                              retres );
     }
 
@@ -3250,7 +3314,7 @@ static obj_template_t* find_template_top( ncx_module_t *mod,
 
 /********************************************************************
 * FUNCTION count_keys
-* 
+*
 * Count the keys; walker function
 *
 * INPUTS:
@@ -3261,13 +3325,15 @@ static obj_template_t* find_template_top( ncx_module_t *mod,
 *   TRUE to keep walking
 *********************************************************************/
 static boolean
-    count_keys (obj_template_t *obj,
+    count_keys (ncx_instance_t *instance,
+                obj_template_t *obj,
                 void *cookie1,
                 void *cookie2)
 {
     uint32 *count = (uint32 *)cookie1;
     (void)obj;
     (void)cookie2;
+    (void)instance;
     (*count)++;
     return TRUE;
 } /* count_keys */
@@ -3284,13 +3350,14 @@ static boolean
  * \param retres the return status
  * \return *  pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* try_exact_match ( ncx_module_t *mod,
+static obj_template_t* try_exact_match ( ncx_instance_t *instance,
+                                         ncx_module_t *mod,
                                          const xmlChar *modname,
                                          const xmlChar *objname,
                                          boolean dataonly,
                                          status_t *retres )
 {
-    return find_template_top( mod, modname, objname, 
+    return find_template_top(instance,  mod, modname, objname,
                               FALSE,    /* match */
                               FALSE,    /* altnames */
                               TRUE,     /* usecase */
@@ -3310,13 +3377,15 @@ static obj_template_t* try_exact_match ( ncx_module_t *mod,
  * \param retres the return status
  * \return *  pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* try_case_insensitive_exact_length ( ncx_module_t *mod,
+static obj_template_t* try_case_insensitive_exact_length (
+      ncx_instance_t *instance,
+      ncx_module_t *mod,
       const xmlChar *modname,
       const xmlChar *objname,
       boolean dataonly,
       status_t *retres )
 {
-    return find_template_top( mod, modname, objname, 
+    return find_template_top(instance,  mod, modname, objname,
                               FALSE,    /* match */
                               FALSE,    /* altnames */
                               FALSE,     /* usecase */
@@ -3338,14 +3407,16 @@ static obj_template_t* try_case_insensitive_exact_length ( ncx_module_t *mod,
  * \param retres the return status
  * \return *  pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* try_case_sensitive_partial_match ( ncx_module_t *mod, 
+static obj_template_t* try_case_sensitive_partial_match (
+      ncx_instance_t *instance,
+      ncx_module_t *mod,
       const xmlChar *modname,
       const xmlChar *objname,
       boolean dataonly,
       boolean onematch,
       status_t *retres )
 {
-    return find_template_top( mod, modname, objname, 
+    return find_template_top(instance,  mod, modname, objname,
                               TRUE,     /* match */
                               FALSE,    /* altnames */
                               TRUE,     /* usecase */
@@ -3366,14 +3437,15 @@ static obj_template_t* try_case_sensitive_partial_match ( ncx_module_t *mod,
  * \param retres the return status
  * \return *  pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* try_case_insensitive_partial_match( ncx_module_t *mod,
+static obj_template_t* try_case_insensitive_partial_match(ncx_instance_t *instance,
+       ncx_module_t *mod,
       const xmlChar *modname,
       const xmlChar *objname,
       boolean dataonly,
       boolean onematch,
       status_t *retres )
 {
-    return find_template_top( mod, modname, objname, 
+    return find_template_top(instance,  mod, modname, objname,
                               TRUE,     /* match */
                               FALSE,    /* altnames */
                               FALSE,     /* usecase */
@@ -3392,13 +3464,14 @@ static obj_template_t* try_case_insensitive_partial_match( ncx_module_t *mod,
  * \param retres the return status
  * \return *  pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* try_exact_match_alt_name ( ncx_module_t *mod,
+static obj_template_t* try_exact_match_alt_name (ncx_instance_t *instance,
+       ncx_module_t *mod,
       const xmlChar *modname,
       const xmlChar *objname,
       boolean dataonly,
       status_t *retres )
 {
-    return find_template_top( mod, modname, objname, 
+    return find_template_top(instance,  mod, modname, objname,
                               FALSE,     /* match */
                               TRUE,      /* altnames */
                               TRUE,      /* usecase */
@@ -3418,13 +3491,14 @@ static obj_template_t* try_exact_match_alt_name ( ncx_module_t *mod,
  * \param retres the return status
  * \return *  pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* try_case_insensitive_exact_alt_name ( ncx_module_t *mod,
+static obj_template_t* try_case_insensitive_exact_alt_name (ncx_instance_t *instance,
+       ncx_module_t *mod,
       const xmlChar *modname,
       const xmlChar *objname,
       boolean dataonly,
       status_t *retres )
 {
-    return find_template_top( mod, modname, objname, 
+    return find_template_top(instance,  mod, modname, objname,
                               FALSE,     /* match */
                               TRUE,      /* altnames */
                               FALSE,      /* usecase */
@@ -3446,14 +3520,15 @@ static obj_template_t* try_case_insensitive_exact_alt_name ( ncx_module_t *mod,
  * \param retres the return status
  * \return *  pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* try_case_sensitive_partial_alt_name ( ncx_module_t *mod,
+static obj_template_t* try_case_sensitive_partial_alt_name (ncx_instance_t *instance,
+       ncx_module_t *mod,
       const xmlChar *modname,
       const xmlChar *objname,
       boolean dataonly,
       boolean onematch,
       status_t *retres )
 {
-    return find_template_top( mod, modname, objname, 
+    return find_template_top(instance,  mod, modname, objname,
                               TRUE,      /* match */
                               TRUE,      /* altnames */
                               TRUE,      /* usecase */
@@ -3474,14 +3549,15 @@ static obj_template_t* try_case_sensitive_partial_alt_name ( ncx_module_t *mod,
  * \param retres the return status
  * \return *  pointer to struct if present, NULL otherwise
  *********************************************************************/
-static obj_template_t* try_case_insensitive_partial_alt_name( ncx_module_t *mod,
+static obj_template_t* try_case_insensitive_partial_alt_name(ncx_instance_t *instance,
+       ncx_module_t *mod,
       const xmlChar *modname,
       const xmlChar *objname,
       boolean dataonly,
       boolean onematch,
       status_t *retres )
 {
-    return find_template_top( mod, modname, objname, 
+    return find_template_top(instance,  mod, modname, objname,
                               TRUE,      /* match */
                               TRUE,      /* altnames */
                               FALSE,     /* usecase */
@@ -3496,7 +3572,8 @@ static obj_template_t* try_case_insensitive_partial_alt_name( ncx_module_t *mod,
  * \param chkParam the name of the parameter to check for
  * \return TRUE if there are any input children
  *********************************************************************/
-static boolean obj_rpc_has_input_or_output( obj_template_t *obj, 
+static boolean obj_rpc_has_input_or_output(ncx_instance_t *instance,
+                                             obj_template_t *obj,
                                             const xmlChar* chkParam )
 {
     assert(obj && "obj is NULL" );
@@ -3504,10 +3581,10 @@ static boolean obj_rpc_has_input_or_output( obj_template_t *obj,
         return FALSE;
     }
 
-    obj_template_t* childobj = obj_find_child( obj, obj_get_mod_name(obj),
+    obj_template_t* childobj = obj_find_child(instance,  obj, obj_get_mod_name(instance, obj),
                                                chkParam );
     if (childobj) {
-        return obj_has_children(childobj);
+        return obj_has_children(instance, childobj);
     } else {
         return FALSE;
     }
@@ -3522,20 +3599,21 @@ static boolean obj_rpc_has_input_or_output( obj_template_t *obj,
  * \param force_modQ the Q of ncx_module_t to check
  * \return pointer to the ncx_module or NULL.
  *********************************************************************/
-static ncx_module_t* find_module_from_nsid( const xml_node_t* node,
+static ncx_module_t* find_module_from_nsid(ncx_instance_t *instance,
+                                             const xml_node_t* node,
                                             dlq_hdr_t *force_modQ )
 {
     ncx_module_t* foundmod = NULL;
 
     if (node->nsid) {
-        if (node->nsid == xmlns_nc_id() || !force_modQ ) {
-            foundmod = xmlns_get_modptr(node->nsid);
+        if (node->nsid == xmlns_nc_id(instance) || !force_modQ ) {
+            foundmod = xmlns_get_modptr(instance, node->nsid);
         } else if (force_modQ) {
             /* try a session module Q */
-            foundmod = ncx_find_module_que_nsid( force_modQ, node->nsid);
+            foundmod = ncx_find_module_que_nsid(instance,  force_modQ, node->nsid);
             if ( !foundmod ) {
                 /* try a client-loaded module */
-                foundmod = xmlns_get_modptr(node->nsid);
+                foundmod = xmlns_get_modptr(instance, node->nsid);
             }
         }
     }
@@ -3550,10 +3628,11 @@ static ncx_module_t* find_module_from_nsid( const xml_node_t* node,
  * \param force_modQ the Q of ncx_module_t to check
  * \return pointer to the modulename
  *********************************************************************/
-static const xmlChar* get_module_name_from_nsid( const xml_node_t* node,
+static const xmlChar* get_module_name_from_nsid(ncx_instance_t *instance,
+                                                  const xml_node_t* node,
                                                  dlq_hdr_t *force_modQ )
 {
-    ncx_module_t *foundmod = find_module_from_nsid( node, force_modQ );
+    ncx_module_t *foundmod = find_module_from_nsid(instance,  node, force_modQ );
     return ( foundmod ? ncx_get_modname(foundmod) : NULL );
 }
 
@@ -3565,15 +3644,16 @@ static const xmlChar* get_module_name_from_nsid( const xml_node_t* node,
  *
  * \param obj the parent objext template
  * \param foundobj the child node
- * 
+ *
  *********************************************************************/
-static obj_template_t* validated_child_object( obj_template_t* obj, 
+static obj_template_t* validated_child_object(ncx_instance_t *instance,
+                                              obj_template_t* obj,
                                               obj_template_t* foundobj )
 {
     if ( foundobj )
     {
-        if ( !obj_is_data_db(foundobj) || obj_is_abstract(foundobj) ||
-                obj_is_cli(foundobj) || obj_is_choice_or_case( obj ) ) {
+        if ( !obj_is_data_db(instance, foundobj) || obj_is_abstract(instance, foundobj) ||
+                obj_is_cli(instance, foundobj) || obj_is_choice_or_case(instance,  obj ) ) {
                 return NULL;
         }
     }
@@ -3587,13 +3667,13 @@ static obj_template_t* validated_child_object( obj_template_t* obj,
  * \param obj the parent objext template
  * \return True if the NSID of the object is the NCNID and the
  * object's name is NCX_EL_NOTIFICATION
- * 
+ *
  * @TODO: How does this test differ from calling obj_is_notif
  *********************************************************************/
-static bool obj_is_notification_parent( obj_template_t* obj )
+static bool obj_is_notification_parent(ncx_instance_t *instance,  obj_template_t* obj )
 {
-    return ( obj_get_nsid(obj) == xmlns_ncn_id() &&
-            !xml_strcmp( obj_get_name( obj ), NCX_EL_NOTIFICATION ) );
+    return ( obj_get_nsid(instance, obj) == xmlns_ncn_id(instance) &&
+            !xml_strcmp(instance,  obj_get_name(instance,  obj ), NCX_EL_NOTIFICATION ) );
 }
 
 /********************************************************************
@@ -3604,64 +3684,66 @@ static bool obj_is_notification_parent( obj_template_t* obj )
  * \param force_modQ the Q of ncx_module_t to check
  * \return the found object or NULL;
  *********************************************************************/
-static obj_template_t* get_child_node_from_root( obj_template_t* obj, 
-                                                 const xml_node_t* curnode, 
+static obj_template_t* get_child_node_from_root(ncx_instance_t *instance,
+                                                  obj_template_t* obj,
+                                                 const xml_node_t* curnode,
                                                  dlq_hdr_t *force_modQ )
 {
-    ncx_module_t *foundmod = find_module_from_nsid( curnode, force_modQ );;
-    const xmlChar *foundmodname = ( foundmod ? ncx_get_modname(foundmod) 
+    ncx_module_t *foundmod = find_module_from_nsid(instance,  curnode, force_modQ );;
+    const xmlChar *foundmodname = ( foundmod ? ncx_get_modname(foundmod)
                                              : NULL );
 
     obj_template_t* foundobj = NULL;
     /* the child node can be any top-level object in the configuration */
     if (foundmodname) {
         /* get the name from 1 module */
-        foundobj =  ncx_find_object( foundmod, curnode->elname );
+        foundobj =  ncx_find_object(instance,  foundmod, curnode->elname );
     } else if (force_modQ) {
         /* check this Q of modules for a top-level match */
-        foundobj = ncx_find_any_object_que(force_modQ, curnode->elname);
+        foundobj = ncx_find_any_object_que(instance, force_modQ, curnode->elname);
         if ( !foundobj && curnode->nsid == 0) {
-            foundobj = ncx_find_any_object(curnode->elname);
-        }                
+            foundobj = ncx_find_any_object(instance, curnode->elname);
+        }
     } else {
         /* NSID not set, get the name from any module */
-        foundobj = ncx_find_any_object(curnode->elname);
+        foundobj = ncx_find_any_object(instance, curnode->elname);
    }
 
-    return validated_child_object( obj, foundobj );
+    return validated_child_object(instance, obj, foundobj );
 }
 
 /********************************************************************
  * Get the child node for the supplied notification node.
  *
- * hack: special case handling of the <notification> element the child 
- * node can be <eventTime> or any top-level OBJ_TYP_NOTIF node 
+ * hack: special case handling of the <notification> element the child
+ * node can be <eventTime> or any top-level OBJ_TYP_NOTIF node
  *
  * \param obj the parent object template
  * \param curnode the current XML start or empty node to check
- * \param force_modQ the Q of ncx_module_t to check, if set to NULL and the 
- *                   xmlns registry of module pointers will be used instead 
+ * \param force_modQ the Q of ncx_module_t to check, if set to NULL and the
+ *                   xmlns registry of module pointers will be used instead
  * \return the found object or NULL;
  *********************************************************************/
-static obj_template_t* get_child_node_for_notif( obj_template_t* obj, 
-                                                 const xml_node_t* curnode, 
+static obj_template_t* get_child_node_for_notif(ncx_instance_t *instance,
+                                                  obj_template_t* obj,
+                                                 const xml_node_t* curnode,
                                                  dlq_hdr_t *force_modQ )
 {
-    ncx_module_t *foundmod = find_module_from_nsid( curnode, force_modQ );;
-    const xmlChar *foundmodname = ( foundmod ? ncx_get_modname(foundmod) 
+    ncx_module_t *foundmod = find_module_from_nsid(instance,  curnode, force_modQ );;
+    const xmlChar *foundmodname = ( foundmod ? ncx_get_modname(foundmod)
                                              : NULL );
 
     obj_template_t* foundobj = NULL;
     if (foundmodname) {
         /* try a child of <notification> */
-        foundobj = obj_find_child(obj, foundmodname, curnode->elname);
+        foundobj = obj_find_child(instance, obj, foundmodname, curnode->elname);
 
         if (!foundobj) {
             /* try to find an <eventType> */
-            foundobj =  ncx_find_object( foundmod, curnode->elname);
+            foundobj =  ncx_find_object(instance,  foundmod, curnode->elname);
 
              // check the foundobj is a notification type
-            if ( foundobj && !obj_is_notif(foundobj) ) {
+            if ( foundobj && !obj_is_notif(instance, foundobj) ) {
                 /* object is the wrong type */
                 foundobj = NULL;
             }
@@ -3669,21 +3751,21 @@ static obj_template_t* get_child_node_for_notif( obj_template_t* obj,
     } else {
         /* no namespace ID used try to find any eventType object */
         if (force_modQ) {
-            foundobj = ncx_find_any_object_que(force_modQ, curnode->elname);
+            foundobj = ncx_find_any_object_que(instance, force_modQ, curnode->elname);
         } else {
-            foundobj = ncx_find_any_object(curnode->elname);
+            foundobj = ncx_find_any_object(instance, curnode->elname);
         }
 
         if (foundobj) {
              // check the foundobj is a notification type
-            if ( obj_is_notif( foundobj ) ) {
+            if ( obj_is_notif(instance,  foundobj ) ) {
                 foundobj = NULL;
             }
         } else {
             /* try a child of obj (eventTime), no need to check type,
              * since any child is a direct descendent of the
              * notification object */
-            foundobj = obj_find_child(obj, NULL, curnode->elname );
+            foundobj = obj_find_child(instance, obj, NULL, curnode->elname );
         }
     }
 
@@ -3700,8 +3782,9 @@ static obj_template_t* get_child_node_for_notif( obj_template_t* obj,
  * \param topdone flag indicating if rettop was set
  * \return the found object or NULL;
  *********************************************************************/
-static obj_template_t* get_xml_ordered_child_node( const xml_node_t* curnode, 
-                                                   obj_template_t* chobj, 
+static obj_template_t* get_xml_ordered_child_node(ncx_instance_t *instance,
+                                                    const xml_node_t* curnode,
+                                                   obj_template_t* chobj,
                                                    dlq_hdr_t *force_modQ,
                                                    obj_template_t **rettop,
                                                    boolean* topdone )
@@ -3711,30 +3794,31 @@ static obj_template_t* get_xml_ordered_child_node( const xml_node_t* curnode,
         return NULL;
     }
 
-    const xmlChar *foundmodname = get_module_name_from_nsid( curnode, 
+    const xmlChar *foundmodname = get_module_name_from_nsid(instance,
+                                                              curnode,
                                                              force_modQ );
     obj_template_t* foundobj = NULL;
 
-    if ( obj_is_choice_or_case( chobj ) ) {
-        /* these nodes are not really in the XML so check all the child nodes 
-         * of the cases. When found, need to remember the current child node 
-         * at the choice or case level, so when the lower level child pointer 
+    if ( obj_is_choice_or_case(instance,  chobj ) ) {
+        /* these nodes are not really in the XML so check all the child nodes
+         * of the cases. When found, need to remember the current child node
+         * at the choice or case level, so when the lower level child pointer
          * runs out, the search can continue at the next sibling of 'rettop' */
-        foundobj = obj_find_child(chobj, foundmodname, curnode->elname);
+        foundobj = obj_find_child(instance, chobj, foundmodname, curnode->elname);
         if (foundobj) {
             /* make sure this matched a real node instead */
-            if ( obj_is_choice_or_case( foundobj ) ) {
+            if ( obj_is_choice_or_case(instance,  foundobj ) ) {
                 foundobj = NULL;
              } else {
                  *rettop = chobj;
                  *topdone = TRUE;
              }
-        }                   
+        }
    }
    else {
        /* the YANG node and XML node line up, ergo compare them directly */
-       if ( NO_ERR == xml_node_match( curnode, obj_get_nsid(chobj), 
-               obj_get_name(chobj), XML_NT_NONE ) ) {
+       if ( NO_ERR == xml_node_match(instance,  curnode, obj_get_nsid(instance, chobj),
+               obj_get_name(instance, chobj), XML_NT_NONE ) ) {
            foundobj = chobj;
         } else {
             foundobj = NULL;
@@ -3742,15 +3826,15 @@ static obj_template_t* get_xml_ordered_child_node( const xml_node_t* curnode,
     }
 
      if (!foundobj) {
-        /* check if there are other child nodes that could match, due to 
+        /* check if there are other child nodes that could match, due to
          * instance qualifiers */
-        obj_template_t *nextchobj = find_next_child(chobj, curnode);
+        obj_template_t *nextchobj = find_next_child(instance, chobj, curnode);
         if (nextchobj) {
             foundobj = nextchobj;
         } else if (*rettop) {
             // @TODO: Why is rettop being used as an input parameter here? it is
             // only set of we have found an object by obj_get_child_node!
-            nextchobj = find_next_child(*rettop, curnode);
+            nextchobj = find_next_child(instance, *rettop, curnode);
             if (nextchobj) {
                 foundobj = nextchobj;
             }
@@ -3768,24 +3852,26 @@ static obj_template_t* get_xml_ordered_child_node( const xml_node_t* curnode,
  * \param force_modQ the Q of ncx_module_t to check
  * \return the found object or NULL;
  *********************************************************************/
-static obj_template_t* get_first_matching_child_node( obj_template_t* obj,
-                                                const xml_node_t* curnode, 
+static obj_template_t* get_first_matching_child_node(ncx_instance_t *instance,
+                                                 obj_template_t* obj,
+                                                const xml_node_t* curnode,
                                                 dlq_hdr_t *force_modQ )
 {
-    const xmlChar *foundmodname = get_module_name_from_nsid( curnode,
+    const xmlChar *foundmodname = get_module_name_from_nsid(instance,
+                                                              curnode,
                                                              force_modQ );
-    obj_template_t* foundobj = obj_find_child( obj, foundmodname, 
+    obj_template_t* foundobj = obj_find_child(instance,  obj, foundmodname,
                                                curnode->elname );
 
-    return (foundobj && obj_is_choice_or_case( foundobj ) ) ? NULL
-                                                            : foundobj; 
+    return (foundobj && obj_is_choice_or_case(instance,  foundobj ) ) ? NULL
+                                                            : foundobj;
 }
 
 /********************************************************************
- * Search for a child of the current XML node. 
+ * Search for a child of the current XML node.
  *
  * \param obj the parent object template
- * \param chobj the current child node 
+ * \param chobj the current child node
  * \param xmlorder TRUE if should follow strict XML element order,
  * \param curnode the current XML start or empty node to check
  * \param force_modQ the Q of ncx_module_t to check
@@ -3793,7 +3879,8 @@ static obj_template_t* get_first_matching_child_node( obj_template_t* obj,
  * \param topdone flag indicating if rettop was set
  * \return the found object or NULL;
  *********************************************************************/
-static obj_template_t* search_for_child_node( obj_template_t *obj,
+static obj_template_t* search_for_child_node(ncx_instance_t *instance,
+                                               obj_template_t *obj,
                                               obj_template_t *chobj,
                                               const xml_node_t *curnode,
                                               boolean xmlorder,
@@ -3802,14 +3889,14 @@ static obj_template_t* search_for_child_node( obj_template_t *obj,
                                               boolean *topdone )
 {
     if (obj_is_root(obj)) {
-        return get_child_node_from_root( obj, curnode, force_modQ );
-    } else if ( obj_is_notification_parent( obj ) ) {
-        return get_child_node_for_notif( obj, curnode, force_modQ );
+        return get_child_node_from_root(instance,  obj, curnode, force_modQ );
+    } else if ( obj_is_notification_parent(instance,  obj ) ) {
+        return get_child_node_for_notif(instance,  obj, curnode, force_modQ );
     } else if (xmlorder) {
-        return get_xml_ordered_child_node( curnode, chobj, force_modQ, 
+        return get_xml_ordered_child_node(instance,  curnode, chobj, force_modQ,
                 rettop, topdone );
     } else {
-        return get_first_matching_child_node( obj, curnode, force_modQ );
+        return get_first_matching_child_node(instance,  obj, curnode, force_modQ );
     }
 }
 
@@ -3819,12 +3906,12 @@ static obj_template_t* search_for_child_node( obj_template_t *obj,
  *
  * \param ptrQ the Q of obj_iffeature_ptr_t to clean
  *********************************************************************/
-static void clean_inherited_iffeatureQ( dlq_hdr_t *ptrQ )
+static void clean_inherited_iffeatureQ(ncx_instance_t *instance,  dlq_hdr_t *ptrQ )
 {
     obj_iffeature_ptr_t *iffptr;
-    while (!dlq_empty(ptrQ)) {
-        iffptr = (obj_iffeature_ptr_t *)dlq_deque(ptrQ);
-        obj_free_iffeature_ptr(iffptr);
+    while (!dlq_empty(instance, ptrQ)) {
+        iffptr = (obj_iffeature_ptr_t *)dlq_deque(instance, ptrQ);
+        obj_free_iffeature_ptr(instance, iffptr);
     }
 }
 
@@ -3833,16 +3920,16 @@ static void clean_inherited_iffeatureQ( dlq_hdr_t *ptrQ )
  *
  * \param ptrQ the Q of obj_xpath_ptr_t to clean
  *********************************************************************/
-static void clean_inherited_whenQ( dlq_hdr_t *ptrQ )
+static void clean_inherited_whenQ(ncx_instance_t *instance,  dlq_hdr_t *ptrQ )
 {
     obj_xpath_ptr_t *xptr;
-    while (!dlq_empty(ptrQ)) {
-        xptr = (obj_xpath_ptr_t *)dlq_deque(ptrQ);
-        obj_free_xpath_ptr(xptr);
+    while (!dlq_empty(instance, ptrQ)) {
+        xptr = (obj_xpath_ptr_t *)dlq_deque(instance, ptrQ);
+        obj_free_xpath_ptr(instance, xptr);
     }
 }
 
-    
+
 /**************** E X T E R N A L    F U N C T I O N S    **********/
 
 /********************************************************************
@@ -3851,81 +3938,82 @@ static void clean_inherited_whenQ( dlq_hdr_t *ptrQ )
 * \param objtype the specific object type to create
 * \return pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-obj_template_t* obj_new_template( obj_type_t objtype )
+obj_template_t* obj_new_template(ncx_instance_t *instance,  obj_type_t objtype, uint32 objtag)
 {
     obj_template_t  *obj;
 
     if ( objtype == OBJ_TYP_NONE || objtype > OBJ_TYP_NOTIF )
     {
-        SET_ERROR( ERR_INTERNAL_VAL );
+        SET_ERROR(instance,  ERR_INTERNAL_VAL );
         return NULL;
     }
 
-    obj = m__getObj(obj_template_t);
+    obj = m__getObj(instance, obj_template_t);
     if (!obj) {
         return NULL;
     }
-    init_template(obj);
+    init_template(instance, obj);
     obj->objtype = objtype;
-    
+    obj->objtag = objtag;
+
     switch (objtype) {
     case OBJ_TYP_CONTAINER:
-        obj->def.container = new_container(TRUE);
+        obj->def.container = new_container(instance, TRUE);
         break;
 
     case OBJ_TYP_LEAF:
     case OBJ_TYP_ANYXML:
-        obj->def.leaf = new_leaf(TRUE);
+        obj->def.leaf = new_leaf(instance, TRUE);
         break;
 
     case OBJ_TYP_LEAF_LIST:
-        obj->def.leaflist = new_leaflist(TRUE);
+        obj->def.leaflist = new_leaflist(instance, TRUE);
         break;
 
     case OBJ_TYP_LIST:
-        obj->def.list = new_list(TRUE);
+        obj->def.list = new_list(instance, TRUE);
         break;
 
     case OBJ_TYP_CHOICE:
-        obj->def.choic = new_choice(TRUE);
+        obj->def.choic = new_choice(instance, TRUE);
         break;
 
     case OBJ_TYP_CASE:
-        obj->def.cas = new_case(TRUE);
+        obj->def.cas = new_case(instance, TRUE);
         break;
 
     case OBJ_TYP_USES:
-        obj->def.uses = new_uses(TRUE);
+        obj->def.uses = new_uses(instance, TRUE);
         break;
 
     case OBJ_TYP_REFINE:
-        obj->def.refine = new_refine();
+        obj->def.refine = new_refine(instance);
         break;
 
     case OBJ_TYP_AUGMENT:
-        obj->def.augment = new_augment(TRUE);
+        obj->def.augment = new_augment(instance, TRUE);
         break;
 
     case OBJ_TYP_RPC:
-        obj->def.rpc = new_rpc();
+        obj->def.rpc = new_rpc(instance);
         break;
 
     case OBJ_TYP_RPCIO:
-        obj->def.rpcio = new_rpcio();
+        obj->def.rpcio = new_rpcio(instance);
         break;
 
     case OBJ_TYP_NOTIF:
-        obj->def.notif = new_notif();
+        obj->def.notif = new_notif(instance);
         break;
 
     default:
         break;
     }
 
-    // any member of the union def can be used to check that the object was 
+    // any member of the union def can be used to check that the object was
     // allocated correctly
     if ( !obj->def.container ) {
-        m__free( obj );
+        m__free(instance,  obj );
         obj = NULL;
     }
 
@@ -3935,81 +4023,81 @@ obj_template_t* obj_new_template( obj_type_t objtype )
 
 /********************************************************************
  * Scrub the memory in a obj_template_t by freeing all
- * the sub-fields and then freeing the entire struct itself 
+ * the sub-fields and then freeing the entire struct itself
  * The struct must be removed from any queue it is in before
  * this function is called.
  *
  * \param obj obj_template_t data structure to free
  *********************************************************************/
-void obj_free_template( obj_template_t *obj )
+void obj_free_template(ncx_instance_t *instance,  obj_template_t *obj )
 {
     if (!obj) {
         return;
     }
 
 #ifdef OBJ_MEM_DEBUG
-    if (obj_is_cloned(obj)) {
-        log_debug4("\nobj_free: %p (cloned)", obj);
+    if (obj_is_cloned(instance, obj)) {
+        log_debug4(instance, "\nobj_free: %p (cloned)", obj);
     } else {
-        log_debug4("\nobj_free: %p (%s)", obj, obj_get_name(obj));
+        log_debug4(instance, "\nobj_free: %p (%s)", obj, obj_get_name(instance, obj));
     }
 #endif
 
-    clean_metadataQ(&obj->metadataQ);
-    ncx_clean_appinfoQ(&obj->appinfoQ);
-    ncx_clean_iffeatureQ(&obj->iffeatureQ);
-    clean_inherited_iffeatureQ(&obj->inherited_iffeatureQ);
-    clean_inherited_whenQ(&obj->inherited_whenQ);
-    xpath_free_pcb(obj->when);
+    clean_metadataQ(instance, &obj->metadataQ);
+    ncx_clean_appinfoQ(instance, &obj->appinfoQ);
+    ncx_clean_iffeatureQ(instance, &obj->iffeatureQ);
+    clean_inherited_iffeatureQ(instance, &obj->inherited_iffeatureQ);
+    clean_inherited_whenQ(instance, &obj->inherited_whenQ);
+    xpath_free_pcb(instance, obj->when);
 
     switch (obj->objtype) {
     case OBJ_TYP_CONTAINER:
-        free_container(obj->def.container, obj->flags);
+        free_container(instance, obj->def.container, obj->flags);
         break;
 
     case OBJ_TYP_LEAF:
     case OBJ_TYP_ANYXML:
-        free_leaf(obj->def.leaf, obj->flags);
+        free_leaf(instance, obj->def.leaf, obj->flags);
         break;
 
     case OBJ_TYP_LEAF_LIST:
-        free_leaflist(obj->def.leaflist, obj->flags);
+        free_leaflist(instance, obj->def.leaflist, obj->flags);
         break;
 
     case OBJ_TYP_LIST:
-        free_list(obj->def.list, obj->flags);
+        free_list(instance, obj->def.list, obj->flags);
         break;
 
     case OBJ_TYP_CHOICE:
-        free_choice(obj->def.choic, obj->flags);
+        free_choice(instance, obj->def.choic, obj->flags);
         break;
 
     case OBJ_TYP_CASE:
-        free_case(obj->def.cas);
+        free_case(instance, obj->def.cas);
         break;
 
     case OBJ_TYP_USES:
-        free_uses(obj->def.uses);
+        free_uses(instance, obj->def.uses);
         break;
 
     case OBJ_TYP_REFINE:
-        free_refine(obj->def.refine);
+        free_refine(instance, obj->def.refine);
         break;
 
     case OBJ_TYP_AUGMENT:
-        free_augment(obj->def.augment);
+        free_augment(instance, obj->def.augment);
         break;
 
     case OBJ_TYP_RPC:
-        free_rpc(obj->def.rpc);
+        free_rpc(instance, obj->def.rpc);
         break;
 
     case OBJ_TYP_RPCIO:
-        free_rpcio(obj->def.rpcio);
+        free_rpcio(instance, obj->def.rpcio);
         break;
 
     case OBJ_TYP_NOTIF:
-        free_notif(obj->def.notif);
+        free_notif(instance, obj->def.notif);
         break;
 
     case OBJ_TYP_NONE:
@@ -4017,17 +4105,17 @@ void obj_free_template( obj_template_t *obj )
         break;
 
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    m__free(obj);
+    m__free(instance, obj);
 
 }  /* obj_free_template */
 
 
 /********************************************************************
 * FUNCTION obj_find_template
-* 
+*
 * Find an object with the specified name
 *
 * INPUTS:
@@ -4040,7 +4128,8 @@ void obj_free_template( obj_template_t *obj )
 * RETURNS:
 *    pointer to obj_template_t or NULL if not found in 'que'
 *********************************************************************/
-obj_template_t * obj_find_template ( dlq_hdr_t  *que,
+obj_template_t * obj_find_template (ncx_instance_t *instance,
+                                      dlq_hdr_t  *que,
                                      const xmlChar *modname,
                                      const xmlChar *objname )
 {
@@ -4048,19 +4137,19 @@ obj_template_t * obj_find_template ( dlq_hdr_t  *que,
     assert( objname && "objname is NULL" );
 
     uint32 matchcount=0;
-    return find_template( que, modname, objname, 
+    return find_template(instance,  que, modname, objname,
                           FALSE, /* lookdeep */
                           FALSE, /* match */
                           TRUE,  /* usecase */
                           FALSE, /* altnames */
                           FALSE, /* dataonly */
-                          &matchcount );
+                          &matchcount, NULL);
 }  /* obj_find_template */
 
 
 /********************************************************************
 * FUNCTION obj_find_template_con
-* 
+*
 * Find an object with the specified name
 * Return a const pointer; used by yangdump
 *
@@ -4075,7 +4164,8 @@ obj_template_t * obj_find_template ( dlq_hdr_t  *que,
 *    pointer to obj_template_t or NULL if not found in 'que'
 *********************************************************************/
 const obj_template_t *
-    obj_find_template_con (dlq_hdr_t  *que,
+    obj_find_template_con (ncx_instance_t *instance,
+                           dlq_hdr_t  *que,
                            const xmlChar *modname,
                            const xmlChar *objname)
 {
@@ -4083,18 +4173,19 @@ const obj_template_t *
     assert( objname && "objname is NULL" );
 
     uint32 matchcount=0;
-    return find_template( que, modname, objname, 
+    return find_template(instance,  que, modname, objname,
                           FALSE, /* lookdeep */
                           FALSE, /* match */
                           TRUE,  /* usecase */
                           FALSE, /* altnames */
                           FALSE, /* dataonly */
-                          &matchcount );
+                          &matchcount,
+                          NULL);
 }  /* obj_find_template_con */
 
 /********************************************************************
 * FUNCTION obj_find_template_test
-* 
+*
 * Find an object with the specified name
 *
 * INPUTS:
@@ -4108,7 +4199,8 @@ const obj_template_t *
 *    pointer to obj_template_t or NULL if not found in 'que'
 *********************************************************************/
 obj_template_t *
-    obj_find_template_test (dlq_hdr_t  *que,
+    obj_find_template_test (ncx_instance_t *instance,
+                            dlq_hdr_t  *que,
                             const xmlChar *modname,
                             const xmlChar *objname)
 {
@@ -4116,13 +4208,14 @@ obj_template_t *
     assert( objname && "objname is NULL" );
 
     uint32 matchcount=0;
-    return find_template( que, modname, objname,
+    return find_template(instance,  que, modname, objname,
                           TRUE, /* lookdeep */
                           FALSE, /* match */
                           TRUE,  /* usecase */
                           FALSE, /* altnames */
                           FALSE, /* dataonly */
-                          &matchcount );
+                          &matchcount,
+                          NULL);
 
 }  /* obj_find_template_test */
 
@@ -4146,12 +4239,14 @@ obj_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 obj_template_t *
-    obj_find_template_top (ncx_module_t *mod,
+    obj_find_template_top (ncx_instance_t *instance,
+                           ncx_module_t *mod,
                            const xmlChar *modname,
                            const xmlChar *objname)
 {
     status_t  res;
-    return obj_find_template_top_ex(mod,
+    return obj_find_template_top_ex(instance,
+                                    mod,
                                     modname,
                                     objname,
                                     NCX_MATCH_EXACT,
@@ -4190,7 +4285,8 @@ obj_template_t *
 * RETURNS:
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
-obj_template_t * obj_find_template_top_ex ( ncx_module_t *mod,
+obj_template_t * obj_find_template_top_ex (ncx_instance_t *instance,
+                                             ncx_module_t *mod,
                                             const xmlChar *modname,
                                             const xmlChar *objname,
                                             ncx_name_match_t match_names,
@@ -4207,38 +4303,38 @@ obj_template_t * obj_find_template_top_ex ( ncx_module_t *mod,
     assert( retres && " retres param is NULL" );
 
     /* 1) try an exact match */
-    obj = try_exact_match( mod, modname, objname, dataonly, retres );
+    obj = try_exact_match(instance,  mod, modname, objname, dataonly, retres );
     if (obj) {
         return obj;
     }
 
     /* 2) try an case-insensitive exact-length match */
     if ( match_names >= NCX_MATCH_EXACT_NOCASE ) {
-        obj = try_case_insensitive_exact_length( mod, modname, objname, 
+        obj = try_case_insensitive_exact_length(instance,  mod, modname, objname,
                                                  dataonly, retres );
         if (obj) {
             return obj;
         }
     } else if (!alt_names) { /* NCX_MATCH_EXACT mode */
-        return NULL; 
+        return NULL;
     }
 
     /* 3) try an case-sensitive partial-name match */
     if (match_names >= NCX_MATCH_ONE) {
-        obj = try_case_sensitive_partial_match( mod, modname, objname, 
+        obj = try_case_sensitive_partial_match(instance,  mod, modname, objname,
                 (match_names < NCX_MATCH_FIRST), dataonly, retres);
         if (obj) {
             return obj;
         }
         multmatches = (*retres == ERR_NCX_MULTIPLE_MATCHES );
     } else if (!alt_names) { /* NCX_MATCH_EXACT_NOCASE mode */
-        return NULL; 
-    } 
+        return NULL;
+    }
 
     /* 4) try an case-insensitive partial-name match */
-    if (match_names == NCX_MATCH_ONE_NOCASE || 
+    if (match_names == NCX_MATCH_ONE_NOCASE ||
         match_names == NCX_MATCH_FIRST_NOCASE) {
-        obj = try_case_insensitive_partial_match( mod, modname, objname, 
+        obj = try_case_insensitive_partial_match(instance,  mod, modname, objname,
                 (match_names < NCX_MATCH_FIRST), dataonly, retres );
         if (obj) {
             return obj;
@@ -4252,7 +4348,7 @@ obj_template_t * obj_find_template_top_ex ( ncx_module_t *mod,
     }
 
     /* 5) try an exact match on alt-name */
-    obj = try_exact_match_alt_name( mod, modname, objname, dataonly, retres );
+    obj = try_exact_match_alt_name(instance,  mod, modname, objname, dataonly, retres );
     if (obj) {
         *retres = NO_ERR;  // FIXME: Why is retres being ignored?
         return obj;
@@ -4260,7 +4356,7 @@ obj_template_t * obj_find_template_top_ex ( ncx_module_t *mod,
 
     /* 6) try an case-insensitive exact-length match on alt-name */
     if (match_names >= NCX_MATCH_EXACT_NOCASE) {
-        obj = try_case_insensitive_exact_alt_name( mod, modname, objname, 
+        obj = try_case_insensitive_exact_alt_name(instance,  mod, modname, objname,
                                                    dataonly, retres );
         if (obj) {
             return obj;
@@ -4271,7 +4367,7 @@ obj_template_t * obj_find_template_top_ex ( ncx_module_t *mod,
 
     /* 7) try an case-sensitive partial-name match on alt-name */
     if (match_names >= NCX_MATCH_ONE) {
-        obj = try_case_sensitive_partial_alt_name( mod, modname, objname, 
+        obj = try_case_sensitive_partial_alt_name(instance,  mod, modname, objname,
                 (match_names < NCX_MATCH_FIRST), dataonly, retres );
         if (obj) {
             return obj;
@@ -4282,14 +4378,14 @@ obj_template_t * obj_find_template_top_ex ( ncx_module_t *mod,
     }
 
     /* 8) try an case-insensitive partial-name match on alt-name */
-    if (match_names == NCX_MATCH_ONE_NOCASE || 
+    if (match_names == NCX_MATCH_ONE_NOCASE ||
         match_names == NCX_MATCH_FIRST_NOCASE) {
-        obj = try_case_insensitive_partial_alt_name( mod, modname, objname, 
+        obj = try_case_insensitive_partial_alt_name(instance,  mod, modname, objname,
                 (match_names < NCX_MATCH_FIRST), dataonly, retres );
         if (obj) {
             return obj;
         }
-    } 
+    }
 
     if (multmatches) {
         *retres = ERR_NCX_MULTIPLE_MATCHES;
@@ -4317,7 +4413,8 @@ obj_template_t * obj_find_template_top_ex ( ncx_module_t *mod,
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 obj_template_t *
-    obj_find_template_all (ncx_module_t *mod,
+    obj_find_template_all (ncx_instance_t *instance,
+                           ncx_module_t *mod,
                            const xmlChar *modname,
                            const xmlChar *objname)
 {
@@ -4330,13 +4427,14 @@ obj_template_t *
 
     /* check the main module */
     uint32 matchcount=0;
-    obj = find_template( &mod->datadefQ, modname, objname, 
+    obj = find_template(instance,  &mod->datadefQ, modname, objname,
                          FALSE, /* lookdeep */
                          FALSE,    /* match */
                          TRUE,   /* usecase */
                          FALSE, /* altnames */
                          FALSE, /* dataonly */
-                         &matchcount );
+                         &matchcount,
+                         NULL);
     if (obj) {
         return obj;
     }
@@ -4346,19 +4444,20 @@ obj_template_t *
     /* check all the submodules, but only the ones visible
      * to this module or submodule, YANG only
      */
-    for (node = (yang_node_t *)dlq_firstEntry(que);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, que);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         if (node->submod) {
             /* check the object Q in this submodule */
-            obj = find_template(&node->submod->datadefQ, modname, objname,
+            obj = find_template(instance, &node->submod->datadefQ, modname, objname,
                                 FALSE,  /* lookdeep */
                                 FALSE,     /* match */
                                 TRUE,    /* usecase */
                                 FALSE,  /* altnames */
                                 FALSE, /* dataonly */
-                                &matchcount );
+                                &matchcount,
+                                NULL);
             if (obj) {
                 return obj;
             }
@@ -4384,7 +4483,8 @@ obj_template_t *
  * \param objname the object name to find
  * \return pointer to obj_template_t or NULL if not found
  *********************************************************************/
-obj_template_t * obj_find_child ( obj_template_t *obj,
+obj_template_t * obj_find_child (ncx_instance_t *instance,
+                                   obj_template_t *obj,
                                   const xmlChar *modname,
                                   const xmlChar *objname)
 {
@@ -4392,16 +4492,17 @@ obj_template_t * obj_find_child ( obj_template_t *obj,
     assert( objname && "objname is NULL" );
     dlq_hdr_t  *que;
 
-    que = obj_get_datadefQ(obj);
+    que = obj_get_datadefQ(instance, obj);
     if (que != NULL) {
         uint32 matchcount=0;
-        return find_template( que, modname, objname, 
+        return find_template(instance,  que, modname, objname,
                               TRUE,  /* lookdeep */
                               FALSE,    /* match */
                               TRUE,   /* usecase */
                               FALSE, /* altnames */
                               FALSE, /* dataonly */
-                              &matchcount );
+                              &matchcount,
+                              NULL);
     }
 
     return NULL;
@@ -4409,8 +4510,47 @@ obj_template_t * obj_find_child ( obj_template_t *obj,
 
 
 /********************************************************************
+ * Find a child object with the specified Qname
+ *
+ * !!! This function checks for accessible names only!!!
+ * !!! That means child nodes of choice->case will be
+ * !!! present instead of the choice name or case name
+ *
+ * \param obj the obj_template_t to check
+ * \param modname the module name that defines the obj_template_t
+ *                if it is NULL and first match will be done, and the
+ *                module ignored (Name instead of QName)
+ * \param objname the object name to find
+ * \return pointer to obj_template_t or NULL if not found
+ *********************************************************************/
+obj_template_t * obj_find_child_lr (ncx_instance_t *instance,
+                                    obj_template_t *obj,
+                                    const xmlChar *modname,
+                                    const xmlChar *objname,
+                                    void* pcb)
+{
+    assert( obj && "que is NULL" );
+    assert( objname && "objname is NULL" );
+    dlq_hdr_t  *que;
+
+    que = obj_get_datadefQ(instance, obj);
+    if (que != NULL) {
+        uint32 matchcount=0;
+        return find_template(instance,  que, modname, objname,
+                              TRUE,  /* lookdeep */
+                              FALSE,    /* match */
+                              TRUE,   /* usecase */
+                              FALSE, /* altnames */
+                              FALSE, /* dataonly */
+                              &matchcount,
+                              pcb);
+    }
+
+    return NULL;
+}  /* obj_find_child */
+/********************************************************************
 * FUNCTION obj_find_child_ex
-* 
+*
 * Find a child object with the specified Qname
 * extended match modes
 *
@@ -4439,7 +4579,8 @@ obj_template_t * obj_find_child ( obj_template_t *obj,
 *    pointer to obj_template_t or NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_find_child_ex (obj_template_t  *obj,
+    obj_find_child_ex (ncx_instance_t *instance,
+                       obj_template_t  *obj,
                        const xmlChar *modname,
                        const xmlChar *objname,
                        ncx_name_match_t match_names,
@@ -4458,36 +4599,40 @@ obj_template_t *
         *retres = NO_ERR;
     }
 
-    que = obj_get_datadefQ(obj);
+    que = obj_get_datadefQ(instance, obj);
     if ( !que ) {
         return NULL;
     }
 
     /* 1) try an exact match */
-    obj = find_template(que,
-                        modname, 
-                        objname, 
+    obj = find_template(instance,
+                        que,
+                        modname,
+                        objname,
                         TRUE,     /* loopdeep */
                         FALSE,       /* match */
                         TRUE,      /* usecase */
                         FALSE,   /* alt_names */
                         dataonly,
-                        &matchcount);
+                        &matchcount,
+                        NULL);
     if (obj != NULL) {
         return obj;
     }
 
     /* 2) try an case-insensitive exact-length match */
     if (match_names >= NCX_MATCH_EXACT_NOCASE) {
-        obj = find_template(que,
-                            modname, 
-                            objname, 
+        obj = find_template(instance,
+                            que,
+                            modname,
+                            objname,
                             TRUE,      /* loopdeep */
                             FALSE,        /* match */
                             FALSE,      /* usecase */
                             FALSE,     /* altnames */
                             dataonly,
-                            &matchcount);
+                            &matchcount,
+                            NULL);
         if (obj) {
             return obj;
         }
@@ -4501,15 +4646,17 @@ obj_template_t *
 
     /* 3) try an case-sensitive partial-name match */
     if (match_names >= NCX_MATCH_ONE) {
-        obj = find_template(que,
-                            modname, 
-                            objname, 
+        obj = find_template(instance,
+                            que,
+                            modname,
+                            objname,
                             TRUE,     /* loopdeep */
                             TRUE,        /* match */
                             TRUE,      /* usecase */
                             FALSE,    /* altnames */
                             dataonly,
-                            &matchcount);
+                            &matchcount,
+                            NULL);
         if (obj) {
             if (match_names <= NCX_MATCH_ONE_NOCASE &&
                 matchcount > 1) {
@@ -4531,15 +4678,17 @@ obj_template_t *
     /* 4) try an case-insensitive partial-name match */
     if (match_names == NCX_MATCH_ONE_NOCASE ||
         match_names == NCX_MATCH_FIRST_NOCASE) {
-        obj = find_template(que,
-                            modname, 
-                            objname, 
+        obj = find_template(instance,
+                            que,
+                            modname,
+                            objname,
                             TRUE,     /* loopdeep */
                             TRUE,        /* match */
                             FALSE,     /* usecase */
                             FALSE,    /* altnames */
                             dataonly,
-                            &matchcount);
+                            &matchcount,
+                            NULL);
         if (obj) {
             if (match_names <= NCX_MATCH_ONE_NOCASE &&
                 matchcount > 1) {
@@ -4566,30 +4715,34 @@ obj_template_t *
     }
 
     /* 5) try an exact match on alt-name */
-    obj = find_template(que,
-                        modname, 
-                        objname, 
+    obj = find_template(instance,
+                        que,
+                        modname,
+                        objname,
                         TRUE,      /* loopdeep */
                         FALSE,        /* match */
                         TRUE,       /* usecase */
                         TRUE,      /* altnames */
                         dataonly,
-                        &matchcount);
+                        &matchcount,
+                        NULL);
     if (obj) {
         return obj;
     }
 
     /* 6) try an case-insensitive exact-length match on alt-name */
     if (match_names >= NCX_MATCH_EXACT_NOCASE) {
-        obj = find_template(que,
-                            modname, 
-                            objname, 
+        obj = find_template(instance,
+                            que,
+                            modname,
+                            objname,
                             TRUE,       /* loopdeep */
                             FALSE,         /* match */
                             FALSE,       /* usecase */
                             TRUE,       /* altnames */
                             dataonly,
-                            &matchcount);
+                            &matchcount,
+                            NULL);
         if (obj) {
             if (match_names <= NCX_MATCH_ONE_NOCASE &&
                 matchcount > 1) {
@@ -4610,15 +4763,17 @@ obj_template_t *
 
     /* 7) try an case-sensitive partial-name match on alt-name */
     if (match_names >= NCX_MATCH_ONE) {
-        obj = find_template(que,
-                            modname, 
-                            objname, 
+        obj = find_template(instance,
+                            que,
+                            modname,
+                            objname,
                             TRUE,       /* loopdeep */
                             TRUE,          /* match */
                             TRUE,        /* usecase */
                             TRUE,       /* altnames */
                             dataonly,
-                            &matchcount);
+                            &matchcount,
+                            NULL);
         if (obj) {
             if (match_names <= NCX_MATCH_ONE_NOCASE &&
                 matchcount > 1) {
@@ -4640,15 +4795,17 @@ obj_template_t *
     /* 8) try an case-insensitive partial-name match on alt-name */
     if (match_names == NCX_MATCH_ONE_NOCASE ||
         match_names == NCX_MATCH_FIRST_NOCASE) {
-        obj = find_template(que,
-                            modname, 
-                            objname, 
+        obj = find_template(instance,
+                            que,
+                            modname,
+                            objname,
                             TRUE,       /* loopdeep */
                             TRUE,          /* match */
                             FALSE,       /* usecase */
                             TRUE,       /* altnames */
                             dataonly,
-                            &matchcount);
+                            &matchcount,
+                            NULL);
         if (obj) {
             if (match_names <= NCX_MATCH_ONE_NOCASE &&
                 matchcount > 1) {
@@ -4674,7 +4831,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_find_child_str
-* 
+*
 * Find a child object with the specified Qname
 *
 * INPUTS:
@@ -4689,7 +4846,8 @@ obj_template_t *
 *    pointer to obj_template_t or NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_find_child_str (obj_template_t *obj,
+    obj_find_child_str (ncx_instance_t *instance,
+                        obj_template_t *obj,
                         const xmlChar *modname,
                         const xmlChar *objname,
                         uint32 objnamelen)
@@ -4704,21 +4862,22 @@ obj_template_t *
     if (objnamelen > NCX_MAX_NLEN) {
         return NULL;
     }
-    
-    que = obj_get_datadefQ(obj);
+
+    que = obj_get_datadefQ(instance, obj);
     if (que) {
-        buff = m__getMem(objnamelen+1);
+        buff = m__getMem(instance, objnamelen+1);
         if (buff) {
             uint32 matchcount=0;
-            xml_strncpy(buff, objname, objnamelen);
-            template = find_template( que, modname, buff, 
+            xml_strncpy(instance, buff, objname, objnamelen);
+            template = find_template(instance,  que, modname, buff,
                                       TRUE,   /* lookdeep */
                                       FALSE,     /* match */
                                       TRUE,    /* usecase */
                                       FALSE,  /* altnames */
                                       FALSE,  /* dataonly */
-                                      &matchcount );
-            m__free(buff);
+                                      &matchcount,
+                                      NULL);
+            m__free(instance, buff);
             return template;
         }
     }
@@ -4730,7 +4889,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_match_child_str
-* 
+*
 * Match a child object with the specified Qname
 * Find first command that matches all N chars of objname
 *
@@ -4756,7 +4915,8 @@ obj_template_t *
 *    pointer to obj_template_t or NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_match_child_str (obj_template_t *obj,
+    obj_match_child_str (ncx_instance_t *instance,
+                         obj_template_t *obj,
                          const xmlChar *modname,
                          const xmlChar *objname,
                          uint32 objnamelen,
@@ -4772,22 +4932,24 @@ obj_template_t *
     if (objnamelen > NCX_MAX_NLEN) {
         return NULL;
     }
-    
-    que = obj_get_datadefQ(obj);
+
+    que = obj_get_datadefQ(instance, obj);
     if (que) {
-        buff = m__getMem(objnamelen+1);
+        buff = m__getMem(instance, objnamelen+1);
         if (buff) {
-            xml_strncpy(buff, objname, objnamelen);
-            template = find_template(que, 
-                                     modname, 
-                                     buff, 
+            xml_strncpy(instance, buff, objname, objnamelen);
+            template = find_template(instance,
+                                     que,
+                                     modname,
+                                     buff,
                                      TRUE,   /* lookdeep */
                                      TRUE,      /* match */
                                      TRUE,    /* usecase */
                                      FALSE,  /* altnames */
                                      FALSE,  /* dataonly */
-                                     matchcount);
-            m__free(buff);
+                                     matchcount,
+                                     NULL);
+            m__free(instance, buff);
             return template;
         }
     }
@@ -4799,7 +4961,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_first_child
-* 
+*
 * Get the first child object if the specified object
 * has any children
 *
@@ -4809,28 +4971,28 @@ obj_template_t *
 *    obj == obj_template_t to check
 
 * RETURNS:
-*    pointer to first child obj_template_t or 
-*    NULL if not found 
+*    pointer to first child obj_template_t or
+*    NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_first_child (obj_template_t *obj)
+    obj_first_child (ncx_instance_t *instance, obj_template_t *obj)
 {
     dlq_hdr_t       *que;
     obj_template_t  *chobj;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    que = obj_get_datadefQ(obj);
+    que = obj_get_datadefQ(instance, obj);
     if (que != NULL) {
-        for (chobj = (obj_template_t *)dlq_firstEntry(que);
+        for (chobj = (obj_template_t *)dlq_firstEntry(instance, que);
              chobj != NULL;
-             chobj = (obj_template_t *)dlq_nextEntry(chobj)) {
-            if (obj_has_name(chobj) && obj_is_enabled(chobj)) {
+             chobj = (obj_template_t *)dlq_nextEntry(instance, chobj)) {
+            if (obj_has_name(instance, chobj) && obj_is_enabled(instance, chobj)) {
                 return chobj;
             }
         }
@@ -4843,7 +5005,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_last_child
-* 
+*
 * Get the last child object if the specified object
 * has any children
 *
@@ -4853,28 +5015,28 @@ obj_template_t *
 *    obj == obj_template_t to check
 
 * RETURNS:
-*    pointer to first child obj_template_t or 
-*    NULL if not found 
+*    pointer to first child obj_template_t or
+*    NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_last_child (obj_template_t *obj)
+    obj_last_child (ncx_instance_t *instance, obj_template_t *obj)
 {
     dlq_hdr_t       *que;
     obj_template_t  *chobj;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    que = obj_get_datadefQ(obj);
+    que = obj_get_datadefQ(instance, obj);
     if (que) {
-        for (chobj = (obj_template_t *)dlq_lastEntry(que);
+        for (chobj = (obj_template_t *)dlq_lastEntry(instance, que);
              chobj != NULL;
-             chobj = (obj_template_t *)dlq_prevEntry(chobj)) {
-            if (obj_has_name(chobj) && obj_is_enabled(chobj)) {
+             chobj = (obj_template_t *)dlq_prevEntry(instance, chobj)) {
+            if (obj_has_name(instance, chobj) && obj_is_enabled(instance, chobj)) {
                 return chobj;
             }
         }
@@ -4887,7 +5049,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_next_child
-* 
+*
 * Get the next child object if the specified object
 * has any children
 *
@@ -4897,18 +5059,18 @@ obj_template_t *
 *    obj == obj_template_t to check
 
 * RETURNS:
-*    pointer to next child obj_template_t or 
-*    NULL if not found 
+*    pointer to next child obj_template_t or
+*    NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_next_child (obj_template_t *obj)
+    obj_next_child (ncx_instance_t *instance, obj_template_t *obj)
 {
     obj_template_t  *next;
     boolean          done;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -4916,10 +5078,10 @@ obj_template_t *
     next = obj;
     done = FALSE;
     while (!done) {
-        next = (obj_template_t *)dlq_nextEntry(next);
+        next = (obj_template_t *)dlq_nextEntry(instance, next);
         if (!next) {
             done = TRUE;
-        } else if (obj_has_name(next) && obj_is_enabled(next)) {
+        } else if (obj_has_name(instance, next) && obj_is_enabled(instance, next)) {
             return next;
         }
     }
@@ -4930,7 +5092,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_previous_child
-* 
+*
 * Get the previous child object if the specified object
 * has any children
 *
@@ -4940,18 +5102,18 @@ obj_template_t *
 *    obj == obj_template_t to check
 
 * RETURNS:
-*    pointer to next child obj_template_t or 
-*    NULL if not found 
+*    pointer to next child obj_template_t or
+*    NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_previous_child (obj_template_t *obj)
+    obj_previous_child (ncx_instance_t *instance, obj_template_t *obj)
 {
     obj_template_t  *prev;
     boolean          done;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -4959,10 +5121,10 @@ obj_template_t *
     prev = obj;
     done = FALSE;
     while (!done) {
-        prev = (obj_template_t *)dlq_prevEntry(prev);
+        prev = (obj_template_t *)dlq_prevEntry(instance, prev);
         if (!prev) {
             done = TRUE;
-        } else if (obj_has_name(prev) && obj_is_enabled(prev)) {
+        } else if (obj_has_name(instance, prev) && obj_is_enabled(instance, prev)) {
             return prev;
         }
     }
@@ -4973,7 +5135,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_first_child_deep
-* 
+*
 * Get the first child object if the specified object
 * has any children.  Look past choices and cases to
 * the real nodes within them
@@ -4984,18 +5146,18 @@ obj_template_t *
 *    obj == obj_template_t to check
 
 * RETURNS:
-*    pointer to first child obj_template_t or 
-*    NULL if not found 
+*    pointer to first child obj_template_t or
+*    NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_first_child_deep (obj_template_t *obj)
+    obj_first_child_deep (ncx_instance_t *instance, obj_template_t *obj)
 {
     dlq_hdr_t       *que;
     obj_template_t  *chobj;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5003,15 +5165,15 @@ obj_template_t *
     /* go through the child nodes of this object looking
      * for the first data object; skip over all meta-objects
      */
-    que = obj_get_datadefQ(obj);
+    que = obj_get_datadefQ(instance, obj);
     if (que) {
-        for (chobj = (obj_template_t *)dlq_firstEntry(que);
+        for (chobj = (obj_template_t *)dlq_firstEntry(instance, que);
              chobj != NULL;
-             chobj = (obj_template_t *)dlq_nextEntry(chobj)) {
+             chobj = (obj_template_t *)dlq_nextEntry(instance, chobj)) {
 
-            if (obj_has_name(chobj) && obj_is_enabled(chobj)) {
-                if ( obj_is_choice_or_case( chobj ) ) {
-                    return (obj_first_child_deep(chobj));
+            if (obj_has_name(instance, chobj) && obj_is_enabled(instance, chobj)) {
+                if ( obj_is_choice_or_case(instance,  chobj ) ) {
+                    return (obj_first_child_deep(instance, chobj));
                 } else {
                     return chobj;
                 }
@@ -5026,7 +5188,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_next_child_deep
-* 
+*
 * Get the next child object if the specified object
 * has any children.  Look past choice and case nodes
 * to the real nodes within them
@@ -5037,17 +5199,17 @@ obj_template_t *
 *    obj == obj_template_t to check
 *
 * RETURNS:
-*    pointer to next child obj_template_t or 
-*    NULL if not found 
+*    pointer to next child obj_template_t or
+*    NULL if not found
 *********************************************************************/
 obj_template_t *
-    obj_next_child_deep (obj_template_t *obj)
+    obj_next_child_deep (ncx_instance_t *instance, obj_template_t *obj)
 {
     obj_template_t  *cas, *next, *last, *child;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5060,26 +5222,26 @@ obj_template_t *
         last = next;
 
         /* try next sibling */
-        next = obj_next_child(next);
+        next = obj_next_child(instance, next);
         if (next) {
             switch (next->objtype) {
             case OBJ_TYP_CHOICE:
                 /* dive into each case to find a first object
-                 * this should return the first object in the 
+                 * this should return the first object in the
                  * first case, but it checks the entire choice
                  * to support empty case arms
                  */
-                for (cas = obj_first_child(next);
+                for (cas = obj_first_child(instance, next);
                      cas != NULL;
-                     cas = obj_next_child(next)) {
-                    child = obj_first_child(cas);
+                     cas = obj_next_child(instance, cas)) {
+                    child = obj_first_child(instance, cas);
                     if (child) {
                         return child;
                     }
                 }
                 continue;
             case OBJ_TYP_CASE:
-                child = obj_first_child(next);
+                child = obj_first_child(instance, next);
                 if (child) {
                     return child;
                 }
@@ -5090,29 +5252,29 @@ obj_template_t *
         }
 
         /* was last sibling, try parent if this is a case */
-        if (last->parent && 
+        if (last->parent &&
             (last->parent->objtype==OBJ_TYP_CASE)) {
 
             cas = (obj_template_t *)
-                dlq_nextEntry(last->parent);
+                dlq_nextEntry(instance, last->parent);
             if (!cas) {
                 /* no next case, try next object after choice */
-                return obj_next_child_deep(last->parent->parent);
+                return obj_next_child_deep(instance, last->parent->parent);
             } else {
                 /* keep trying the next case until one with
                  * a child node is found
                  */
                 while (1) {
-                    next = obj_first_child(cas);
+                    next = obj_first_child(instance, cas);
                     if (next) {
                         return next;
                     } else {
                         cas = (obj_template_t *)
-                            dlq_nextEntry(cas);
+                            dlq_nextEntry(instance, cas);
                         if (!cas) {
                             /* no next case, ret. object after choice */
-                            return 
-                                obj_next_child_deep(last->parent->parent);
+                            return
+                                obj_next_child_deep(instance, last->parent->parent);
                         }
                     }
                 }
@@ -5127,12 +5289,12 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_find_all_children
-* 
-* Find all occurances of the specified node(s)
-* within the children of the current node. 
-* The walker fn will be called for each match.  
 *
-* If the walker function returns TRUE, then the 
+* Find all occurances of the specified node(s)
+* within the children of the current node.
+* The walker fn will be called for each match.
+*
+* If the walker function returns TRUE, then the
 * walk will continue; If FALSE it will terminate right away
 *
 * This function skips choice and case nodes and
@@ -5144,7 +5306,7 @@ obj_template_t *
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    startnode == start node to check
-*    modname == module name; 
+*    modname == module name;
 *                only matches in this module namespace
 *                will be returned
 *            == NULL:
@@ -5165,7 +5327,8 @@ obj_template_t *
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    obj_find_all_children (ncx_module_t *exprmod,
+    obj_find_all_children (ncx_instance_t *instance,
+                           ncx_module_t *exprmod,
                            obj_walker_fn_t walkerfn,
                            void *cookie1,
                            void *cookie2,
@@ -5183,7 +5346,7 @@ boolean
 
 #ifdef DEBUG
     if (!exprmod || !walkerfn || !startnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -5195,11 +5358,12 @@ boolean
 
     if (obj_is_root(startnode) && !useroot) {
 
-        for (obj = ncx_get_first_data_object(exprmod);
+        for (obj = ncx_get_first_data_object(instance, exprmod);
              obj != NULL;
-             obj = ncx_get_next_data_object(exprmod, obj)) {
+             obj = ncx_get_next_data_object(instance, exprmod, obj)) {
 
-            fnresult = test_one_child(exprmod,
+            fnresult = test_one_child(instance,
+                                      exprmod,
                                       walkerfn,
                                       cookie1,
                                       cookie2,
@@ -5213,15 +5377,16 @@ boolean
             }
         }
 
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL;
-             mod = ncx_get_next_module(mod)) {
+             mod = ncx_get_next_module(instance, mod)) {
 
-            for (obj = ncx_get_first_data_object(mod);
+            for (obj = ncx_get_first_data_object(instance, mod);
                  obj != NULL;
-                 obj = ncx_get_next_data_object(mod, obj)) {
+                 obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                fnresult = test_one_child(exprmod,
+                fnresult = test_one_child(instance,
+                                          exprmod,
                                           walkerfn,
                                           cookie1,
                                           cookie2,
@@ -5236,15 +5401,16 @@ boolean
             }
         }
 
-        for (mod = ncx_get_first_session_module();
+        for (mod = ncx_get_first_session_module(instance);
              mod != NULL;
-             mod = ncx_get_next_session_module(mod)) {
+             mod = ncx_get_next_session_module(instance, mod)) {
 
-            for (obj = ncx_get_first_data_object(mod);
+            for (obj = ncx_get_first_data_object(instance, mod);
                  obj != NULL;
-                 obj = ncx_get_next_data_object(mod, obj)) {
+                 obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                fnresult = test_one_child(exprmod,
+                fnresult = test_one_child(instance,
+                                          exprmod,
                                           walkerfn,
                                           cookie1,
                                           cookie2,
@@ -5260,16 +5426,17 @@ boolean
         }
     } else {
 
-        datadefQ = obj_get_datadefQ(startnode);
+        datadefQ = obj_get_datadefQ(instance, startnode);
         if (!datadefQ) {
             return TRUE;
         }
 
-        for (obj = (obj_template_t *)dlq_firstEntry(datadefQ);
+        for (obj = (obj_template_t *)dlq_firstEntry(instance, datadefQ);
              obj != NULL;
-             obj = (obj_template_t *)dlq_nextEntry(obj)) {
+             obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-            fnresult = test_one_child(exprmod,
+            fnresult = test_one_child(instance,
+                                      exprmod,
                                       walkerfn,
                                       cookie1,
                                       cookie2,
@@ -5291,12 +5458,12 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_find_all_ancestors
-* 
-* Find all occurances of the specified node(s)
-* within the ancestors of the current node. 
-* The walker fn will be called for each match.  
 *
-* If the walker function returns TRUE, then the 
+* Find all occurances of the specified node(s)
+* within the ancestors of the current node.
+* The walker fn will be called for each match.
+*
+* If the walker function returns TRUE, then the
 * walk will continue; If FALSE it will terminate right away
 *
 * This function skips choice and case nodes and
@@ -5308,7 +5475,7 @@ boolean
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    startnode == start node to check
-*    modname == module name; 
+*    modname == module name;
 *                only matches in this module namespace
 *                will be returned
 *            == NULL:
@@ -5335,7 +5502,8 @@ boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    obj_find_all_ancestors (ncx_module_t *exprmod,
+    obj_find_all_ancestors (ncx_instance_t *instance,
+                            ncx_module_t *exprmod,
                             obj_walker_fn_t walkerfn,
                             void *cookie1,
                             void *cookie2,
@@ -5354,7 +5522,7 @@ boolean
 
 #ifdef DEBUG
     if (!exprmod || !walkerfn || !startnode || !fncalled) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -5374,11 +5542,12 @@ boolean
 
     if (obj && obj_is_root(obj) && !useroot) {
 
-        for (obj = ncx_get_first_data_object(exprmod);
+        for (obj = ncx_get_first_data_object(instance, exprmod);
              obj != NULL;
-             obj = ncx_get_next_data_object(exprmod, obj)) {
+             obj = ncx_get_next_data_object(instance, exprmod, obj)) {
 
-            fnresult = test_one_ancestor(exprmod,
+            fnresult = test_one_ancestor(instance,
+                                         exprmod,
                                          walkerfn,
                                          cookie1,
                                          cookie2,
@@ -5394,15 +5563,16 @@ boolean
             }
         }
 
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL;
-             mod = ncx_get_next_module(mod)) {
+             mod = ncx_get_next_module(instance, mod)) {
 
-            for (obj = ncx_get_first_data_object(mod);
+            for (obj = ncx_get_first_data_object(instance, mod);
                  obj != NULL;
-                 obj = ncx_get_next_data_object(mod, obj)) {
+                 obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                fnresult = test_one_ancestor(exprmod,
+                fnresult = test_one_ancestor(instance,
+                                             exprmod,
                                              walkerfn,
                                              cookie1,
                                              cookie2,
@@ -5419,15 +5589,16 @@ boolean
             }
         }
 
-        for (mod = ncx_get_first_session_module();
+        for (mod = ncx_get_first_session_module(instance);
              mod != NULL;
-             mod = ncx_get_next_session_module(mod)) {
+             mod = ncx_get_next_session_module(instance, mod)) {
 
-            for (obj = ncx_get_first_data_object(mod);
+            for (obj = ncx_get_first_data_object(instance, mod);
                  obj != NULL;
-                 obj = ncx_get_next_data_object(mod, obj)) {
+                 obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                fnresult = test_one_ancestor(exprmod,
+                fnresult = test_one_ancestor(instance,
+                                             exprmod,
                                              walkerfn,
                                              cookie1,
                                              cookie2,
@@ -5445,14 +5616,15 @@ boolean
         }
     } else {
         while (obj) {
-            if ( obj_is_choice_or_case( obj ) ) {
+            if ( obj_is_choice_or_case(instance,  obj ) ) {
                 fnresult = TRUE;
             } else {
-                fnresult = process_one_walker_child(walkerfn,
+                fnresult = process_one_walker_child(instance,
+                                                    walkerfn,
                                                     cookie1,
                                                     cookie2,
                                                     obj,
-                                                    modname, 
+                                                    modname,
                                                     name,
                                                     configonly,
                                                     textmode,
@@ -5472,12 +5644,12 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_find_all_descendants
-* 
-* Find all occurances of the specified node(s)
-* within the descendants of the current node. 
-* The walker fn will be called for each match.  
 *
-* If the walker function returns TRUE, then the 
+* Find all occurances of the specified node(s)
+* within the descendants of the current node.
+* The walker fn will be called for each match.
+*
+* If the walker function returns TRUE, then the
 * walk will continue; If FALSE it will terminate right away
 *
 * This function skips choice and case nodes and
@@ -5489,7 +5661,7 @@ boolean
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    startnode == start node to check
-*    modname == module name; 
+*    modname == module name;
 *                only matches in this module namespace
 *                will be returned
 *            == NULL:
@@ -5516,7 +5688,8 @@ boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    obj_find_all_descendants (ncx_module_t *exprmod,
+    obj_find_all_descendants (ncx_instance_t *instance,
+                              ncx_module_t *exprmod,
                               obj_walker_fn_t walkerfn,
                               void *cookie1,
                               void *cookie2,
@@ -5535,7 +5708,7 @@ boolean
 
 #ifdef DEBUG
     if (!exprmod || !walkerfn || !startnode || !fncalled) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -5549,11 +5722,12 @@ boolean
 
     if (obj_is_root(startnode) && !useroot) {
 
-        for (obj = ncx_get_first_data_object(exprmod);
+        for (obj = ncx_get_first_data_object(instance, exprmod);
              obj != NULL;
-             obj = ncx_get_next_data_object(exprmod, obj)) {
+             obj = ncx_get_next_data_object(instance, exprmod, obj)) {
 
-            fnresult = test_one_descendant(exprmod,
+            fnresult = test_one_descendant(instance,
+                                           exprmod,
                                            walkerfn,
                                            cookie1,
                                            cookie2,
@@ -5569,15 +5743,16 @@ boolean
             }
         }
 
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL;
-             mod = ncx_get_next_module(mod)) {
+             mod = ncx_get_next_module(instance, mod)) {
 
-            for (obj = ncx_get_first_data_object(mod);
+            for (obj = ncx_get_first_data_object(instance, mod);
                  obj != NULL;
-                 obj = ncx_get_next_data_object(mod, obj)) {
+                 obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                fnresult = test_one_descendant(exprmod,
+                fnresult = test_one_descendant(instance,
+                                               exprmod,
                                                walkerfn,
                                                cookie1,
                                                cookie2,
@@ -5594,15 +5769,16 @@ boolean
             }
         }
 
-        for (mod = ncx_get_first_session_module();
+        for (mod = ncx_get_first_session_module(instance);
              mod != NULL;
-             mod = ncx_get_next_session_module(mod)) {
+             mod = ncx_get_next_session_module(instance, mod)) {
 
-            for (obj = ncx_get_first_data_object(mod);
+            for (obj = ncx_get_first_data_object(instance, mod);
                  obj != NULL;
-                 obj = ncx_get_next_data_object(mod, obj)) {
+                 obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                fnresult = test_one_descendant(exprmod,
+                fnresult = test_one_descendant(instance,
+                                               exprmod,
                                                walkerfn,
                                                cookie1,
                                                cookie2,
@@ -5619,7 +5795,8 @@ boolean
             }
         }
     } else {
-        fnresult = test_one_descendant(exprmod,
+        fnresult = test_one_descendant(instance,
+                                       exprmod,
                                        walkerfn,
                                        cookie1,
                                        cookie2,
@@ -5641,13 +5818,13 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_find_all_pfaxis
-* 
+*
 * Find all occurances of the specified preceding
 * or following node(s).  Could also be
-* within the descendants of the current node. 
-* The walker fn will be called for each match.  
+* within the descendants of the current node.
+* The walker fn will be called for each match.
 *
-* If the walker function returns TRUE, then the 
+* If the walker function returns TRUE, then the
 * walk will continue; If FALSE it will terminate right away
 *
 * This function skips choice and case nodes and
@@ -5659,7 +5836,7 @@ boolean
 *    cookie1 == cookie1 value to pass to walker fn
 *    cookie2 == cookie2 value to pass to walker fn
 *    startnode == starting sibling node to check
-*    modname == module name; 
+*    modname == module name;
 *                only matches in this module namespace
 *                will be returned
 *            == NULL:
@@ -5687,7 +5864,8 @@ boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    obj_find_all_pfaxis (ncx_module_t *exprmod,
+    obj_find_all_pfaxis (ncx_instance_t *instance,
+                         ncx_module_t *exprmod,
                          obj_walker_fn_t walkerfn,
                          void *cookie1,
                          void *cookie2,
@@ -5707,7 +5885,7 @@ boolean
 
 #ifdef DEBUG
     if (!exprmod || !walkerfn || !startnode || !fncalled) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -5729,7 +5907,7 @@ boolean
         /* fall through */
     case XP_AX_PRECEDING_SIBLING:
         /* execute the callback for all preceding nodes
-         * that match the filter criteria 
+         * that match the filter criteria
          */
         forward = FALSE;
         break;
@@ -5741,7 +5919,7 @@ boolean
         break;
     case XP_AX_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 
@@ -5751,11 +5929,12 @@ boolean
 
     if (obj_is_root(startnode) && !useroot) {
 
-        for (obj = ncx_get_first_data_object(exprmod);
+        for (obj = ncx_get_first_data_object(instance, exprmod);
              obj != NULL;
-             obj = ncx_get_next_data_object(exprmod, obj)) {
+             obj = ncx_get_next_data_object(instance, exprmod, obj)) {
 
-            fnresult = test_one_pfnode(exprmod,
+            fnresult = test_one_pfnode(instance,
+                                       exprmod,
                                        walkerfn,
                                        cookie1,
                                        cookie2,
@@ -5773,15 +5952,16 @@ boolean
             }
         }
 
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL;
-             mod = ncx_get_next_module(mod)) {
+             mod = ncx_get_next_module(instance, mod)) {
 
-            for (obj = ncx_get_first_data_object(mod);
+            for (obj = ncx_get_first_data_object(instance, mod);
                  obj != NULL;
-                 obj = ncx_get_next_data_object(mod, obj)) {
+                 obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                fnresult = test_one_pfnode(exprmod,
+                fnresult = test_one_pfnode(instance,
+                                           exprmod,
                                            walkerfn,
                                            cookie1,
                                            cookie2,
@@ -5800,15 +5980,16 @@ boolean
             }
         }
 
-        for (mod = ncx_get_first_session_module();
+        for (mod = ncx_get_first_session_module(instance);
              mod != NULL;
-             mod = ncx_get_next_session_module(mod)) {
+             mod = ncx_get_next_session_module(instance, mod)) {
 
-            for (obj = ncx_get_first_data_object(mod);
+            for (obj = ncx_get_first_data_object(instance, mod);
                  obj != NULL;
-                 obj = ncx_get_next_data_object(mod, obj)) {
+                 obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                fnresult = test_one_pfnode(exprmod,
+                fnresult = test_one_pfnode(instance,
+                                           exprmod,
                                            walkerfn,
                                            cookie1,
                                            cookie2,
@@ -5827,7 +6008,8 @@ boolean
             }
         }
     } else {
-        fnresult = test_one_pfnode(exprmod,
+        fnresult = test_one_pfnode(instance,
+                                   exprmod,
                                    walkerfn,
                                    cookie1,
                                    cookie2,
@@ -5852,7 +6034,7 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_find_case
-* 
+*
 * Find a specified case arm by name
 *
 * INPUTS:
@@ -5864,7 +6046,8 @@ boolean
 *    pointer to obj_case_t for requested case, NULL if not found
 *********************************************************************/
 obj_case_t *
-    obj_find_case (obj_choice_t *choic,
+    obj_find_case (ncx_instance_t *instance,
+                   obj_choice_t *choic,
                    const xmlChar *modname,
                    const xmlChar *casname)
 {
@@ -5873,21 +6056,21 @@ obj_case_t *
 
 #ifdef DEBUG
     if (!choic || !casname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (casobj = (obj_template_t *)dlq_firstEntry(choic->caseQ);
+    for (casobj = (obj_template_t *)dlq_firstEntry(instance, choic->caseQ);
          casobj != NULL;
-         casobj = (obj_template_t *)dlq_nextEntry(casobj)) {
+         casobj = (obj_template_t *)dlq_nextEntry(instance, casobj)) {
 
         cas = casobj->def.cas;
-        if (modname && xml_strcmp(obj_get_mod_name(casobj), modname)) {
+        if (modname && xml_strcmp(instance, obj_get_mod_name(instance, casobj), modname)) {
             continue;
         }
 
-        if (!xml_strcmp(casname, cas->name)) {
+        if (!xml_strcmp(instance, casname, cas->name)) {
             return cas;
         }
     }
@@ -5898,7 +6081,7 @@ obj_case_t *
 
 /********************************************************************
 * FUNCTION obj_new_rpcio
-* 
+*
 * Malloc and initialize the fields in a an obj_rpcio_t
 * Fields are setup within the new obj_template_t, based
 * on the values in rpcobj
@@ -5910,26 +6093,28 @@ obj_case_t *
 * RETURNS:
 *    pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-obj_template_t * 
-    obj_new_rpcio (obj_template_t *rpcobj,
+obj_template_t *
+    obj_new_rpcio (ncx_instance_t *instance,
+                   obj_template_t *rpcobj,
                    const xmlChar *name)
 {
     obj_template_t  *rpcio;
 
 #ifdef DEBUG
     if (!rpcobj || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    rpcio = obj_new_template(OBJ_TYP_RPCIO);
+    // ATTN Need to verify this ....
+    rpcio = obj_new_template(instance, OBJ_TYP_RPCIO, rpcobj->objtag);
     if (!rpcio) {
         return NULL;
     }
-    rpcio->def.rpcio->name = xml_strdup(name);
+    rpcio->def.rpcio->name = xml_strdup(instance, name);
     if (!rpcio->def.rpcio->name) {
-        obj_free_template(rpcio);
+        obj_free_template(instance, rpcio);
         return NULL;
     }
     ncx_set_error(&rpcio->tkerr,
@@ -5948,15 +6133,15 @@ obj_template_t *
  *
  * \param datadefQ Q of obj_template_t to clean
  *********************************************************************/
-void obj_clean_datadefQ (dlq_hdr_t *que)
+void obj_clean_datadefQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     if (!que) {
         return;
     }
 
-    while (!dlq_empty(que)) {
-        obj_template_t *obj = (obj_template_t *)dlq_deque(que);
-        obj_free_template(obj);
+    while (!dlq_empty(instance, que)) {
+        obj_template_t *obj = (obj_template_t *)dlq_deque(instance, que);
+        obj_free_template(instance, obj);
     }
 
 }  /* obj_clean_datadefQ */
@@ -5974,7 +6159,8 @@ void obj_clean_datadefQ (dlq_hdr_t *que)
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 typ_template_t *
-    obj_find_type (obj_template_t *obj,
+    obj_find_type (ncx_instance_t *instance,
+                   obj_template_t *obj,
                    const xmlChar *typname)
 {
     dlq_hdr_t      *que;
@@ -5983,7 +6169,7 @@ typ_template_t *
 
 #ifdef DEBUG
     if (!obj || !typname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5993,14 +6179,14 @@ typ_template_t *
      */
     if (obj->grp) {
         que = &obj->grp->typedefQ;
-        typ = ncx_find_type_que(que, typname);
+        typ = ncx_find_type_que(instance, que, typname);
         if (typ) {
             return typ;
         }
 
         testgrp = obj->grp->parentgrp;
         while (testgrp) {
-            typ = ncx_find_type_que(&testgrp->typedefQ, typname);
+            typ = ncx_find_type_que(instance, &testgrp->typedefQ, typname);
             if (typ) {
                 return typ;
             }
@@ -6041,19 +6227,19 @@ typ_template_t *
         break;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
     if (que) {
-        typ = ncx_find_type_que(que, typname);
+        typ = ncx_find_type_que(instance, que, typname);
         if (typ) {
             return typ;
         }
     }
 
     if (obj->parent && !obj_is_root(obj->parent)) {
-        return obj_find_type(obj->parent, typname);
+        return obj_find_type(instance, obj->parent, typname);
     } else {
         return NULL;
     }
@@ -6073,13 +6259,13 @@ typ_template_t *
 *  pointer to first typ_template_t struct if present, NULL otherwise
 *********************************************************************/
 typ_template_t *
-    obj_first_typedef (obj_template_t *obj)
+    obj_first_typedef (ncx_instance_t *instance, obj_template_t *obj)
 {
     dlq_hdr_t      *que;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -6114,12 +6300,12 @@ typ_template_t *
         break;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
     if (que) {
-        return (typ_template_t *)dlq_firstEntry(que);
+        return (typ_template_t *)dlq_firstEntry(instance, que);
     }
     return NULL;
 
@@ -6139,7 +6325,8 @@ typ_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 grp_template_t *
-    obj_find_grouping (obj_template_t *obj,
+    obj_find_grouping (ncx_instance_t *instance,
+                       obj_template_t *obj,
                        const xmlChar *grpname)
 {
     dlq_hdr_t      *que;
@@ -6147,24 +6334,24 @@ grp_template_t *
 
 #ifdef DEBUG
     if (!obj || !grpname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     /* check direct nesting within a grouping chain */
     if (obj->grp) {
-        grp = ncx_find_grouping_que(&obj->grp->groupingQ, grpname);
+        grp = ncx_find_grouping_que(instance, &obj->grp->groupingQ, grpname);
         if (grp) {
             return grp;
         }
 
         testgrp = obj->grp->parentgrp;
         while (testgrp) {
-            if (!xml_strcmp(testgrp->name, grpname)) {
+            if (!xml_strcmp(instance, testgrp->name, grpname)) {
                 return testgrp;
             } else {
-                grp = ncx_find_grouping_que(&testgrp->groupingQ, grpname);
+                grp = ncx_find_grouping_que(instance, &testgrp->groupingQ, grpname);
                 if (grp) {
                     return grp;
                 }
@@ -6204,19 +6391,19 @@ grp_template_t *
         break;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
     if (que) {
-        grp = ncx_find_grouping_que(que, grpname);
+        grp = ncx_find_grouping_que(instance, que, grpname);
         if (grp) {
             return grp;
         }
     }
 
     if (obj->parent && !obj_is_root(obj->parent)) {
-        return obj_find_grouping(obj->parent, grpname);
+        return obj_find_grouping(instance, obj->parent, grpname);
     } else {
         return NULL;
     }
@@ -6236,13 +6423,13 @@ grp_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 grp_template_t *
-    obj_first_grouping (obj_template_t *obj)
+    obj_first_grouping (ncx_instance_t *instance, obj_template_t *obj)
 {
     dlq_hdr_t      *que;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -6277,11 +6464,11 @@ grp_template_t *
         break;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (que) {
-        return (grp_template_t *)dlq_firstEntry(que);
+        return (grp_template_t *)dlq_firstEntry(instance, que);
     }
     return NULL;
 
@@ -6290,8 +6477,8 @@ grp_template_t *
 
 /********************************************************************
 * FUNCTION obj_set_named_type
-* 
-* Resolve type test 
+*
+* Resolve type test
 * Called during phase 2 of module parsing
 *
 * INPUTS:
@@ -6307,8 +6494,9 @@ grp_template_t *
 * RETURNS:
 *   status
 *********************************************************************/
-status_t 
-    obj_set_named_type (tk_chain_t *tkc,
+status_t
+    obj_set_named_type (ncx_instance_t *instance,
+                        tk_chain_t *tkc,
                         ncx_module_t *mod,
                         const xmlChar *typname,
                         typ_def_t *typdef,
@@ -6325,8 +6513,9 @@ status_t
          * would get resolved OK, or fail due to syntax
          * or dependency loop
          */
-        if (typname && !xml_strcmp(typname, typdef->typenamestr)) {
-            log_error("\nError: typedef '%s' cannot use type '%s'",
+        if (typname && !xml_strcmp(instance, typname, typdef->typenamestr)) {
+            log_error(instance,
+                      "\nError: typedef '%s' cannot use type '%s'",
                       typname, typname);
             tkc->curerr = &typdef->tkerr;
             return ERR_NCX_DEF_LOOP;
@@ -6337,24 +6526,28 @@ status_t
         /* find the type within the specified typedef Q */
         if (typdef->typenamestr) {
             if (grp) {
-                testtyp = find_type_in_grpchain(grp, 
+                testtyp = find_type_in_grpchain(instance,
+                                                grp,
                                                 typdef->typenamestr);
             }
 
             if (!testtyp && parent) {
-                testtyp = obj_find_type(parent, 
+                testtyp = obj_find_type(instance,
+                                        parent,
                                         typdef->typenamestr);
             }
 
             if (!testtyp) {
-                testtyp = ncx_find_type(mod, 
+                testtyp = ncx_find_type(instance,
+                                        mod,
                                         typdef->typenamestr,
                                         FALSE);
             }
         }
 
         if (!testtyp) {
-            log_error("\nError: type '%s' not found", 
+            log_error(instance,
+                      "\nError: type '%s' not found",
                       typdef->typenamestr);
             tkc->curerr = &typdef->tkerr;
             return ERR_NCX_UNKNOWN_TYPE;
@@ -6364,7 +6557,7 @@ status_t
             testtyp->used = TRUE;
             if (testtyp->typdef.tclass == NCX_CL_NAMED &&
                      testtyp->typdef.def.named.typ==NULL) {
-                obj_set_named_type (tkc, mod, typname,
+                obj_set_named_type (instance, tkc, mod, typname,
                             &testtyp->typdef,
                             parent,
                             grp);
@@ -6404,7 +6597,8 @@ status_t
 *   NULL if malloc failer error or internal error
 *********************************************************************/
 obj_template_t *
-    obj_clone_template (ncx_module_t *mod,
+    obj_clone_template (ncx_instance_t *instance,
+                        ncx_module_t *mod,
                         obj_template_t *srcobj,
                         dlq_hdr_t *mobjQ)
 {
@@ -6413,45 +6607,47 @@ obj_template_t *
 
 #ifdef DEBUG
     if (!srcobj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (srcobj->objtype == OBJ_TYP_NONE ||
         srcobj->objtype > OBJ_TYP_AUGMENT) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
 #ifdef OBJ_CLONE_DEBUG
     if (LOGDEBUG4) {
-        log_debug4("\nobj_clone: '%s' in mod '%s' on line %u",
-                   obj_get_name(srcobj),
-                   obj_get_mod_name(srcobj),
+        log_debug4(instance,
+                   "\nobj_clone: '%s' in mod '%s' on line %u",
+                   obj_get_name(instance, srcobj),
+                   obj_get_mod_name(instance, srcobj),
                    srcobj->tkerr.linenum);
     }
 #endif
 
-    newobj = new_blank_template();
+    newobj = new_blank_template(instance);
     if (!newobj) {
         return NULL;
     }
 
-    /* set most of the common fields but leave some blank 
+    /* set most of the common fields but leave some blank
      * since the uses or augment calling this fn is going to
      * re-parent the cloned node under a different part of the tree
      * maintain struct definition order!
      */
     mobj = NULL;
     newobj->objtype = srcobj->objtype;
+    newobj->objtag = srcobj->objtag;
     newobj->flags = (srcobj->flags | OBJ_FL_CLONE);
 
     if (mobjQ) {
         /* this code assumes all the refine-stmts have been normalized
          * and there is only one refine-stmt per object at this point  */
-        for (testobj = (obj_template_t *)dlq_firstEntry(mobjQ);
+        for (testobj = (obj_template_t *)dlq_firstEntry(instance, mobjQ);
              testobj != NULL && mobj == NULL;
-             testobj = (obj_template_t *)dlq_nextEntry(testobj)) {
+             testobj = (obj_template_t *)dlq_nextEntry(instance, testobj)) {
 
             if (testobj->objtype != OBJ_TYP_REFINE) {
                 continue;
@@ -6488,29 +6684,29 @@ obj_template_t *
     //newobj->augobj not set
 
     if (srcobj->when) {
-        newobj->when = xpath_clone_pcb(srcobj->when);
+        newobj->when = xpath_clone_pcb(instance, srcobj->when);
         if (newobj->when == NULL) {
-            obj_free_template(newobj);
+            obj_free_template(instance, newobj);
             return NULL;
         }
     }
 
     //newobj->metadataQ not set
 
-    res = clone_appinfoQ(&newobj->appinfoQ, &srcobj->appinfoQ,
+    res = clone_appinfoQ(instance, &newobj->appinfoQ, &srcobj->appinfoQ,
                          (mobj) ? &mobj->appinfoQ : NULL);
     if (res != NO_ERR) {
-        obj_free_template(newobj);
+        obj_free_template(instance, newobj);
         return NULL;
     }
 
-    res = clone_iffeatureQ(&newobj->iffeatureQ, &srcobj->iffeatureQ,
+    res = clone_iffeatureQ(instance, &newobj->iffeatureQ, &srcobj->iffeatureQ,
                            (mobj) ? &mobj->iffeatureQ : NULL);
     if (res != NO_ERR) {
-        obj_free_template(newobj);
+        obj_free_template(instance, newobj);
         return NULL;
     }
-    
+
     //newobj->cbset not set
 
     newobj->mod = mod;
@@ -6525,8 +6721,8 @@ obj_template_t *
     /* set the specific object definition type */
     switch (srcobj->objtype) {
     case OBJ_TYP_CONTAINER:
-        newobj->def.container = 
-            clone_container(mod, newobj, srcobj->def.container,
+        newobj->def.container =
+            clone_container(instance, mod, newobj, srcobj->def.container,
                             (mobj) ? mobj->def.refine : NULL, mobjQ);
         if (!newobj->def.container) {
             res = ERR_INTERNAL_MEM;
@@ -6534,40 +6730,42 @@ obj_template_t *
         break;
     case OBJ_TYP_ANYXML:
     case OBJ_TYP_LEAF:
-        newobj->def.leaf = 
-            clone_leaf(srcobj->def.leaf,
+        newobj->def.leaf =
+            clone_leaf(instance,
+                       srcobj->def.leaf,
                        (mobj) ? mobj->def.refine : NULL);
         if (!newobj->def.leaf) {
             res = ERR_INTERNAL_MEM;
         }
         break;
     case OBJ_TYP_LEAF_LIST:
-        newobj->def.leaflist = 
-            clone_leaflist(srcobj->def.leaflist,
+        newobj->def.leaflist =
+            clone_leaflist(instance,
+                           srcobj->def.leaflist,
                            (mobj) ? mobj->def.refine : NULL);
         if (!newobj->def.leaflist) {
             res = ERR_INTERNAL_MEM;
         }
         break;
     case OBJ_TYP_LIST:
-        newobj->def.list = 
-            clone_list(mod, newobj, srcobj,
+        newobj->def.list =
+            clone_list(instance, mod, newobj, srcobj,
                        (mobj) ? mobj->def.refine : NULL, mobjQ);
         if (!newobj->def.list) {
             res = ERR_INTERNAL_MEM;
         }
         break;
     case OBJ_TYP_CHOICE:
-        newobj->def.choic = 
-            clone_choice(mod, srcobj->def.choic,
+        newobj->def.choic =
+            clone_choice(instance, mod, srcobj->def.choic,
                          (mobj) ? mobj->def.refine : NULL, newobj, mobjQ);
         if (!newobj->def.choic) {
             res = ERR_INTERNAL_MEM;
         }
         break;
     case OBJ_TYP_CASE:
-        newobj->def.cas = 
-            clone_case(mod, srcobj->def.cas,
+        newobj->def.cas =
+            clone_case(instance, mod, srcobj->def.cas,
                        (mobj) ? mobj->def.refine : NULL, newobj, mobjQ);
         if (!newobj->def.cas) {
             res = ERR_INTERNAL_MEM;
@@ -6575,7 +6773,7 @@ obj_template_t *
         break;
     case OBJ_TYP_USES:
         if (mobj) {
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else {
             /* set back pointer to uses! do not clone! */
             newobj->def.uses = srcobj->def.uses;
@@ -6584,7 +6782,7 @@ obj_template_t *
         break;
     case OBJ_TYP_AUGMENT:
         if (mobj) {
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else {
             /* set back pointer to augment! do not clone! */
             newobj->def.augment = srcobj->def.augment;
@@ -6593,11 +6791,11 @@ obj_template_t *
         break;
     case OBJ_TYP_NONE:
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (res != NO_ERR) {
-        obj_free_template(newobj);
+        obj_free_template(instance, newobj);
         return NULL;
     } else {
         return newobj;
@@ -6615,7 +6813,7 @@ obj_template_t *
 * Copy the pointers from the srcobj into the new obj
 *
 * Create an OBJ_TYP_CASE wrapper if needed,
-* for a short-case-stmt data def 
+* for a short-case-stmt data def
 *
 * If the mobj is non-NULL, then the non-NULL revisable
 * fields in the mobj struct will be merged into the new object
@@ -6636,7 +6834,8 @@ obj_template_t *
 *   NULL if malloc failer error or internal error
 *********************************************************************/
 obj_template_t *
-    obj_clone_template_case (ncx_module_t *mod,
+    obj_clone_template_case (ncx_instance_t *instance,
+                             ncx_module_t *mod,
                              obj_template_t *srcobj,
                              dlq_hdr_t *mobjQ)
 {
@@ -6644,21 +6843,21 @@ obj_template_t *
 
 #ifdef DEBUG
     if (!srcobj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (srcobj->objtype == OBJ_TYP_NONE ||
         srcobj->objtype > OBJ_TYP_AUGMENT) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
     if (srcobj->objtype == OBJ_TYP_CASE) {
-        return obj_clone_template(mod, srcobj, mobjQ);
+        return obj_clone_template(instance, mod, srcobj, mobjQ);
     }
 
-    casobj = new_blank_template();
+    casobj = new_blank_template(instance);
     if (!casobj) {
         return NULL;
     }
@@ -6673,26 +6872,26 @@ obj_template_t *
                   srcobj->tkerr.linenum,
                   srcobj->tkerr.linepos);
     casobj->flags = OBJ_FL_CLONE;
-    casobj->def.cas = new_case(TRUE);
+    casobj->def.cas = new_case(instance, TRUE);
     if (!casobj->def.cas) {
-        obj_free_template(casobj);
+        obj_free_template(instance, casobj);
         return NULL;
     }
-    casobj->def.cas->name = xml_strdup(obj_get_name(srcobj));
+    casobj->def.cas->name = xml_strdup(instance, obj_get_name(instance, srcobj));
     if (!casobj->def.cas->name) {
-        obj_free_template(casobj);
+        obj_free_template(instance, casobj);
         return NULL;
     }
-    casobj->def.cas->status = obj_get_status(srcobj);
+    casobj->def.cas->status = obj_get_status(instance, srcobj);
 
-    newobj = obj_clone_template(mod, srcobj, mobjQ);
+    newobj = obj_clone_template(instance, mod, srcobj, mobjQ);
     if (!newobj) {
-        obj_free_template(casobj);
+        obj_free_template(instance, casobj);
         return NULL;
     }
 
     newobj->parent = casobj;
-    dlq_enque(newobj, casobj->def.cas->datadefQ);
+    dlq_enque(instance, newobj, casobj->def.cas->datadefQ);
     return casobj;
 
 }   /* obj_clone_template_case */
@@ -6700,22 +6899,22 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_new_unique
-* 
+*
 * Alloc and Init a obj_unique_t struct
 *
 * RETURNS:
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 obj_unique_t *
-    obj_new_unique (void)
+    obj_new_unique (ncx_instance_t *instance)
 {
     obj_unique_t  *un;
 
-    un = m__getObj(obj_unique_t);
+    un = m__getObj(instance, obj_unique_t);
     if (!un) {
         return NULL;
     }
-    obj_init_unique(un);
+    obj_init_unique(instance, un);
     return un;
 
 }  /* obj_new_unique */
@@ -6723,79 +6922,79 @@ obj_unique_t *
 
 /********************************************************************
 * FUNCTION obj_init_unique
-* 
+*
 * Init a obj_unique_t struct
 *
 * INPUTS:
 *   un == obj_unique_t struct to init
 *********************************************************************/
 void
-    obj_init_unique (obj_unique_t *un)
+    obj_init_unique (ncx_instance_t *instance, obj_unique_t *un)
 {
 #ifdef DEBUG
     if (!un) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
     memset(un, 0, sizeof(obj_unique_t));
-    dlq_createSQue(&un->compQ);
+    dlq_createSQue(instance, &un->compQ);
 
 }  /* obj_init_unique */
 
 
 /********************************************************************
 * FUNCTION obj_free_unique
-* 
+*
 * Free a obj_unique_t struct
 *
 * INPUTS:
 *   un == obj_unique_t struct to free
 *********************************************************************/
 void
-    obj_free_unique (obj_unique_t *un)
+    obj_free_unique (ncx_instance_t *instance, obj_unique_t *un)
 {
 #ifdef DEBUG
     if (!un) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    obj_clean_unique(un);
-    m__free(un);
+    obj_clean_unique(instance, un);
+    m__free(instance, un);
 
 }  /* obj_free_unique */
 
 
 /********************************************************************
 * FUNCTION obj_clean_unique
-* 
+*
 * Clean a obj_unique_t struct
 *
 * INPUTS:
 *   un == obj_unique_t struct to clean
 *********************************************************************/
 void
-    obj_clean_unique (obj_unique_t *un)
+    obj_clean_unique (ncx_instance_t *instance, obj_unique_t *un)
 {
     obj_unique_comp_t *unc;
 
 #ifdef DEBUG
     if (!un) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (un->xpath) {
-        m__free(un->xpath);
+        m__free(instance, un->xpath);
         un->xpath = NULL;
     }
 
-    while (!dlq_empty(&un->compQ)) {
-        unc = (obj_unique_comp_t *)dlq_deque(&un->compQ);
-        obj_free_unique_comp(unc);
+    while (!dlq_empty(instance, &un->compQ)) {
+        unc = (obj_unique_comp_t *)dlq_deque(instance, &un->compQ);
+        obj_free_unique_comp(instance, unc);
     }
 
 }  /* obj_clean_unique */
@@ -6803,18 +7002,18 @@ void
 
 /********************************************************************
 * FUNCTION obj_new_unique_comp
-* 
+*
 * Alloc and Init a obj_unique_comp_t struct
 *
 * RETURNS:
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 obj_unique_comp_t *
-    obj_new_unique_comp (void)
+    obj_new_unique_comp (ncx_instance_t *instance)
 {
     obj_unique_comp_t  *unc;
 
-    unc = m__getObj(obj_unique_comp_t);
+    unc = m__getObj(instance, obj_unique_comp_t);
     if (!unc) {
         return NULL;
     }
@@ -6826,33 +7025,33 @@ obj_unique_comp_t *
 
 /********************************************************************
 * FUNCTION obj_free_unique_comp
-* 
+*
 * Free a obj_unique_comp_t struct
 *
 * INPUTS:
 *   unc == obj_unique_comp_t struct to free
 *********************************************************************/
 void
-    obj_free_unique_comp (obj_unique_comp_t *unc)
+    obj_free_unique_comp (ncx_instance_t *instance, obj_unique_comp_t *unc)
 {
 #ifdef DEBUG
     if (!unc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (unc->xpath) {
-        m__free(unc->xpath);
+        m__free(instance, unc->xpath);
     }
-    m__free(unc);
+    m__free(instance, unc);
 
 }  /* obj_free_unique_comp */
 
 
 /********************************************************************
 * FUNCTION obj_find_unique
-* 
+*
 * Find a specific unique-stmt
 *
 * INPUTS:
@@ -6864,22 +7063,23 @@ void
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 obj_unique_t *
-    obj_find_unique (dlq_hdr_t *que,
+    obj_find_unique (ncx_instance_t *instance,
+                     dlq_hdr_t *que,
                      const xmlChar *xpath)
 {
     obj_unique_t  *un;
 
 #ifdef DEBUG
     if (!que || !xpath) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (un = (obj_unique_t *)dlq_firstEntry(que);
+    for (un = (obj_unique_t *)dlq_firstEntry(instance, que);
          un != NULL;
-         un = (obj_unique_t *)dlq_nextEntry(un)) {
-        if (!xml_strcmp(un->xpath, xpath)) {
+         un = (obj_unique_t *)dlq_nextEntry(instance, un)) {
+        if (!xml_strcmp(instance, un->xpath, xpath)) {
             return un;
         }
     }
@@ -6890,7 +7090,7 @@ obj_unique_t *
 
 /********************************************************************
 * FUNCTION obj_first_unique
-* 
+*
 * Get the first unique-stmt for a list
 *
 * INPUTS:
@@ -6900,12 +7100,12 @@ obj_unique_t *
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 obj_unique_t *
-    obj_first_unique (obj_template_t *listobj)
+    obj_first_unique (ncx_instance_t *instance, obj_template_t *listobj)
 {
 
 #ifdef DEBUG
     if (!listobj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -6915,14 +7115,14 @@ obj_unique_t *
     }
 
     return (obj_unique_t *)
-        dlq_firstEntry(&listobj->def.list->uniqueQ);
+        dlq_firstEntry(instance, &listobj->def.list->uniqueQ);
 
 }  /* obj_first_unique */
 
 
 /********************************************************************
 * FUNCTION obj_next_unique
-* 
+*
 * Get the next unique-stmt for a list
 *
 * INPUTS:
@@ -6932,23 +7132,23 @@ obj_unique_t *
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 obj_unique_t *
-    obj_next_unique (obj_unique_t *un)
+    obj_next_unique (ncx_instance_t *instance, obj_unique_t *un)
 {
 #ifdef DEBUG
     if (!un) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (obj_unique_t *)dlq_nextEntry(un);
+    return (obj_unique_t *)dlq_nextEntry(instance, un);
 
 }  /* obj_next_unique */
 
 
 /********************************************************************
 * FUNCTION obj_first_unique_comp
-* 
+*
 * Get the first identifier in a unique-stmt for a list
 *
 * INPUTS:
@@ -6958,24 +7158,24 @@ obj_unique_t *
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 obj_unique_comp_t *
-    obj_first_unique_comp (obj_unique_t *un)
+    obj_first_unique_comp (ncx_instance_t *instance, obj_unique_t *un)
 {
 
 #ifdef DEBUG
     if (!un) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (obj_unique_comp_t *)dlq_firstEntry(&un->compQ);
+    return (obj_unique_comp_t *)dlq_firstEntry(instance, &un->compQ);
 
 }  /* obj_first_unique_comp */
 
 
 /********************************************************************
 * FUNCTION obj_next_unique_comp
-* 
+*
 * Get the next unique-stmt component for a list
 *
 * INPUTS:
@@ -6985,34 +7185,34 @@ obj_unique_comp_t *
 *   pointer to next entry or NULL if none
 *********************************************************************/
 obj_unique_comp_t *
-    obj_next_unique_comp (obj_unique_comp_t *uncomp)
+    obj_next_unique_comp (ncx_instance_t *instance, obj_unique_comp_t *uncomp)
 {
 #ifdef DEBUG
     if (!uncomp) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (obj_unique_comp_t *)dlq_nextEntry(uncomp);
+    return (obj_unique_comp_t *)dlq_nextEntry(instance, uncomp);
 
 }  /* obj_next_unique_comp */
 
 
 /********************************************************************
 * FUNCTION obj_new_key
-* 
+*
 * Alloc and Init a obj_key_t struct
 *
 * RETURNS:
 *   pointer to malloced struct or NULL if memory error
 *********************************************************************/
 obj_key_t *
-    obj_new_key (void)
+    obj_new_key (ncx_instance_t *instance)
 {
     obj_key_t  *key;
 
-    key = m__getObj(obj_key_t);
+    key = m__getObj(instance, obj_key_t);
     if (!key) {
         return NULL;
     }
@@ -7024,30 +7224,30 @@ obj_key_t *
 
 /********************************************************************
 * FUNCTION obj_free_key
-* 
+*
 * Free a obj_key_t struct
 *
 * INPUTS:
 *   key == obj_key_t struct to free
 *********************************************************************/
 void
-    obj_free_key (obj_key_t *key)
+    obj_free_key (ncx_instance_t *instance, obj_key_t *key)
 {
 #ifdef DEBUG
     if (!key) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    m__free(key);
+    m__free(instance, key);
 
 }  /* obj_free_key */
 
 
 /********************************************************************
 * FUNCTION obj_find_key
-* 
+*
 * Find a specific key component by key leaf identifier name
 * Assumes deep keys are not supported!!!
 *
@@ -7059,22 +7259,23 @@ void
 *   pointer to found key component or NULL if not found
 *********************************************************************/
 obj_key_t *
-    obj_find_key (dlq_hdr_t *que,
+    obj_find_key (ncx_instance_t *instance,
+                  dlq_hdr_t *que,
                   const xmlChar *keycompname)
 {
     obj_key_t  *key;
 
 #ifdef DEBUG
     if (!que || !keycompname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (key = (obj_key_t *)dlq_firstEntry(que);
+    for (key = (obj_key_t *)dlq_firstEntry(instance, que);
          key != NULL;
-         key = (obj_key_t *)dlq_nextEntry(key)) {
-        if (!xml_strcmp(obj_get_name(key->keyobj), keycompname)) {
+         key = (obj_key_t *)dlq_nextEntry(instance, key)) {
+        if (!xml_strcmp(instance, obj_get_name(instance, key->keyobj), keycompname)) {
             return key;
         }
     }
@@ -7085,7 +7286,7 @@ obj_key_t *
 
 /********************************************************************
 * FUNCTION obj_find_key2
-* 
+*
 * Find a specific key component, check for a specific node
 * in case deep keys are supported, and to check for duplicates
 *
@@ -7097,21 +7298,22 @@ obj_key_t *
 *   pointer to found key component or NULL if not found
 *********************************************************************/
 obj_key_t *
-    obj_find_key2 (dlq_hdr_t *que,
+    obj_find_key2 (ncx_instance_t *instance,
+                   dlq_hdr_t *que,
                    obj_template_t *keyobj)
 {
     obj_key_t  *key;
 
 #ifdef DEBUG
     if (!que || !keyobj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (key = (obj_key_t *)dlq_firstEntry(que);
+    for (key = (obj_key_t *)dlq_firstEntry(instance, que);
          key != NULL;
-         key = (obj_key_t *)dlq_nextEntry(key)) {
+         key = (obj_key_t *)dlq_nextEntry(instance, key)) {
         if (keyobj == key->keyobj) {
             return key;
         }
@@ -7123,7 +7325,7 @@ obj_key_t *
 
 /********************************************************************
 * FUNCTION obj_first_key
-* 
+*
 * Get the first key record
 *
 * INPUTS:
@@ -7133,11 +7335,11 @@ obj_key_t *
 *   pointer to first key component or NULL if not found
 *********************************************************************/
 obj_key_t *
-    obj_first_key (obj_template_t *obj)
+    obj_first_key (ncx_instance_t *instance, obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -7145,14 +7347,14 @@ obj_key_t *
         return NULL;
     }
 
-    return (obj_key_t *)dlq_firstEntry(&obj->def.list->keyQ);
+    return (obj_key_t *)dlq_firstEntry(instance, &obj->def.list->keyQ);
 
 }  /* obj_first_key */
 
 
 /********************************************************************
 * FUNCTION obj_first_ckey
-* 
+*
 * Get the first key record: Const version
 *
 * INPUTS:
@@ -7162,11 +7364,11 @@ obj_key_t *
 *   pointer to first key component or NULL if not found
 *********************************************************************/
 const obj_key_t *
-    obj_first_ckey (const obj_template_t *obj)
+    obj_first_ckey (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -7174,14 +7376,14 @@ const obj_key_t *
         return NULL;
     }
 
-    return (const obj_key_t *)dlq_firstEntry(&obj->def.list->keyQ);
+    return (const obj_key_t *)dlq_firstEntry(instance, &obj->def.list->keyQ);
 
 }  /* obj_first_ckey */
 
 
 /********************************************************************
 * FUNCTION obj_next_key
-* 
+*
 * Get the next key record
 *
 * INPUTS:
@@ -7191,23 +7393,23 @@ const obj_key_t *
 *   pointer to next key component or NULL if not found
 *********************************************************************/
 obj_key_t *
-    obj_next_key (obj_key_t *objkey)
+    obj_next_key (ncx_instance_t *instance, obj_key_t *objkey)
 {
 #ifdef DEBUG
     if (!objkey) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (obj_key_t *)dlq_nextEntry(objkey);
+    return (obj_key_t *)dlq_nextEntry(instance, objkey);
 
 }  /* obj_next_key */
 
 
 /********************************************************************
 * FUNCTION obj_next_ckey
-* 
+*
 * Get the next key record: Const version
 *
 * INPUTS:
@@ -7217,23 +7419,23 @@ obj_key_t *
 *   pointer to next key component or NULL if not found
 *********************************************************************/
 const obj_key_t *
-    obj_next_ckey (const obj_key_t *objkey)
+    obj_next_ckey (ncx_instance_t *instance, const obj_key_t *objkey)
 {
 #ifdef DEBUG
     if (!objkey) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (const obj_key_t *)dlq_nextEntry(objkey);
+    return (const obj_key_t *)dlq_nextEntry(instance, objkey);
 
 }  /* obj_next_ckey */
 
 
 /********************************************************************
 * FUNCTION obj_key_count
-* 
+*
 * Get the number of keys for this object
 *
 * INPUTS:
@@ -7243,11 +7445,11 @@ const obj_key_t *
 *   number of keys in the obj_key_t Q
 *********************************************************************/
 uint32
-    obj_key_count (const obj_template_t *obj)
+    obj_key_count (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -7256,14 +7458,14 @@ uint32
         return 0;
     }
 
-    return dlq_count(&obj->def.list->keyQ);
+    return dlq_count(instance, &obj->def.list->keyQ);
 
 }  /* obj_key_count */
 
 
 /********************************************************************
 * FUNCTION obj_key_count_to_root
-* 
+*
 * Check ancestor-or-self nodes until root reached
 * Find all lists; Count the number of keys
 *
@@ -7273,13 +7475,13 @@ uint32
 *   number of keys in ancestor-or-self nodes
 *********************************************************************/
 uint32
-    obj_key_count_to_root (obj_template_t *obj)
+    obj_key_count_to_root (ncx_instance_t *instance, obj_template_t *obj)
 {
     uint32 count = 0;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -7288,16 +7490,16 @@ uint32
         return 0;
     }
 
-    obj_traverse_keys(obj, (void *)&count, NULL, count_keys);
+    obj_traverse_keys(instance, obj, (void *)&count, NULL, count_keys);
 
     return count;
-    
+
 }  /* obj_key_count_to_root */
 
 
 /********************************************************************
 * FUNCTION obj_traverse_keys
-* 
+*
 * Check ancestor-or-self nodes until root reached
 * Find all lists; For each list, starting with the
 * closest to root, invoke the callback function
@@ -7312,7 +7514,8 @@ uint32
 *
 *********************************************************************/
 void
-    obj_traverse_keys (obj_template_t *obj,
+    obj_traverse_keys (ncx_instance_t *instance,
+                       obj_template_t *obj,
                        void *cookie1,
                        void *cookie2,
                        obj_walker_fn_t walkerfn)
@@ -7321,7 +7524,7 @@ void
 
 #ifdef DEBUG
     if (!obj || !walkerfn) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -7331,31 +7534,31 @@ void
     }
 
     if (obj->parent != NULL) {
-        obj_traverse_keys(obj->parent, cookie1, cookie2, walkerfn);
+        obj_traverse_keys(instance, obj->parent, cookie1, cookie2, walkerfn);
     }
 
     if (obj->objtype != OBJ_TYP_LIST) {
         return;
     }
 
-    for (objkey = obj_first_key(obj);
+    for (objkey = obj_first_key(instance, obj);
          objkey != NULL;
-         objkey = obj_next_key(objkey)) {
+         objkey = obj_next_key(instance, objkey)) {
 
         if (objkey->keyobj) {
-            boolean ret = (*walkerfn)(objkey->keyobj, cookie1, cookie2);
+            boolean ret = (*walkerfn)(instance, objkey->keyobj, cookie1, cookie2);
             if (!ret) {
                 return;
             }
         } // else some error; skip this key!!!
     }
-    
+
 }  /* obj_traverse_keys */
 
 
 /********************************************************************
 * FUNCTION obj_any_rpcs
-* 
+*
 * Check if there are any RPC methods in the datadefQ
 *
 * INPUTS:
@@ -7365,20 +7568,20 @@ void
 *   TRUE if any OBJ_TYP_RPC found, FALSE if not
 *********************************************************************/
 boolean
-    obj_any_rpcs (const dlq_hdr_t *datadefQ)
+    obj_any_rpcs (ncx_instance_t *instance, const dlq_hdr_t *datadefQ)
 {
     const obj_template_t  *obj;
 
 #ifdef DEBUG
     if (!datadefQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    for (obj = (const obj_template_t *)dlq_firstEntry(datadefQ);
+    for (obj = (const obj_template_t *)dlq_firstEntry(instance, datadefQ);
          obj != NULL;
-         obj = (const obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (const obj_template_t *)dlq_nextEntry(instance, obj)) {
         if (obj->objtype == OBJ_TYP_RPC) {
             return TRUE;
         }
@@ -7390,7 +7593,7 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_any_notifs
-* 
+*
 * Check if there are any notifications in the datadefQ
 *
 * INPUTS:
@@ -7400,20 +7603,20 @@ boolean
 *   TRUE if any OBJ_TYP_NOTIF found, FALSE if not
 *********************************************************************/
 boolean
-    obj_any_notifs (const dlq_hdr_t *datadefQ)
+    obj_any_notifs (ncx_instance_t *instance, const dlq_hdr_t *datadefQ)
 {
     const obj_template_t  *obj;
 
 #ifdef DEBUG
     if (!datadefQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    for (obj = (const obj_template_t *)dlq_firstEntry(datadefQ);
+    for (obj = (const obj_template_t *)dlq_firstEntry(instance, datadefQ);
          obj != NULL;
-         obj = (const obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (const obj_template_t *)dlq_nextEntry(instance, obj)) {
         if (obj->objtype == OBJ_TYP_NOTIF) {
             return TRUE;
         }
@@ -7425,27 +7628,27 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_new_deviate
-* 
+*
 * Malloc and initialize the fields in a an object deviate statement
 *
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-obj_deviate_t * 
-    obj_new_deviate (void)
+obj_deviate_t *
+    obj_new_deviate (ncx_instance_t *instance)
 {
     obj_deviate_t  *deviate;
 
-    deviate = m__getObj(obj_deviate_t);
+    deviate = m__getObj(instance, obj_deviate_t);
     if (!deviate) {
         return NULL;
     }
 
     memset(deviate, 0x0, sizeof(obj_deviate_t));
 
-    dlq_createSQue(&deviate->mustQ);
-    dlq_createSQue(&deviate->uniqueQ);
-    dlq_createSQue(&deviate->appinfoQ);
+    dlq_createSQue(instance, &deviate->mustQ);
+    dlq_createSQue(instance, &deviate->uniqueQ);
+    dlq_createSQue(instance, &deviate->appinfoQ);
 
     return deviate;
 
@@ -7456,29 +7659,29 @@ obj_deviate_t *
 * Clean and free an object deviate statement
 * \param deviate the pointer to the struct to clean and free
 *********************************************************************/
-void obj_free_deviate (obj_deviate_t *deviate)
+void obj_free_deviate (ncx_instance_t *instance, obj_deviate_t *deviate)
 {
     if (!deviate) {
         return;
     }
 
-    typ_free_typdef(deviate->typdef);
-    m__free(deviate->units);
-    m__free(deviate->defval);
+    typ_free_typdef(instance, deviate->typdef);
+    m__free(instance, deviate->units);
+    m__free(instance, deviate->defval);
 
-    clean_mustQ(&deviate->mustQ);
+    clean_mustQ(instance, &deviate->mustQ);
 
-    free_uniqueQ( &deviate->uniqueQ );
-    ncx_clean_appinfoQ(&deviate->appinfoQ);
+    free_uniqueQ(instance,  &deviate->uniqueQ );
+    ncx_clean_appinfoQ(instance, &deviate->appinfoQ);
 
-    m__free(deviate);
+    m__free(instance, deviate);
 
 } /* obj_free_deviate */
 
 
 /********************************************************************
 * FUNCTION obj_get_deviate_arg
-* 
+*
 * Get the deviate-arg string from its enumeration
 *
 * INPUTS:
@@ -7487,7 +7690,7 @@ void obj_free_deviate (obj_deviate_t *deviate)
 *   const string version of the enum
 *********************************************************************/
 const xmlChar *
-    obj_get_deviate_arg (obj_deviate_arg_t devarg)
+    obj_get_deviate_arg (ncx_instance_t *instance, obj_deviate_arg_t devarg)
 {
     switch (devarg) {
     case OBJ_DARG_NONE:
@@ -7501,7 +7704,7 @@ const xmlChar *
     case OBJ_DARG_NOT_SUPPORTED:
         return YANG_K_NOT_SUPPORTED;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return (const xmlChar *)"--";
     }
 
@@ -7510,26 +7713,26 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_new_deviation
-* 
+*
 * Malloc and initialize the fields in a an object deviation statement
 *
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-obj_deviation_t * 
-    obj_new_deviation (void)
+obj_deviation_t *
+    obj_new_deviation (ncx_instance_t *instance)
 {
     obj_deviation_t  *deviation;
 
-    deviation = m__getObj(obj_deviation_t);
+    deviation = m__getObj(instance, obj_deviation_t);
     if (!deviation) {
         return NULL;
     }
 
     memset(deviation, 0x0, sizeof(obj_deviation_t));
 
-    dlq_createSQue(&deviation->deviateQ);
-    dlq_createSQue(&deviation->appinfoQ);
+    dlq_createSQue(instance, &deviation->deviateQ);
+    dlq_createSQue(instance, &deviation->appinfoQ);
 
     return deviation;
 
@@ -7541,26 +7744,26 @@ obj_deviation_t *
 
 * \param deviation the pointer to the struct to clean and free
 *********************************************************************/
-void obj_free_deviation (obj_deviation_t *deviation)
+void obj_free_deviation (ncx_instance_t *instance, obj_deviation_t *deviation)
 {
     if (!deviation) {
         return;
     }
 
-    m__free(deviation->target);
-    m__free(deviation->targmodname);
-    m__free(deviation->descr);
-    m__free(deviation->ref);
-    m__free(deviation->devmodname);
+    m__free(instance, deviation->target);
+    m__free(instance, deviation->targmodname);
+    m__free(instance, deviation->descr);
+    m__free(instance, deviation->ref);
+    m__free(instance, deviation->devmodname);
 
-    while (!dlq_empty(&deviation->deviateQ)) {
-        obj_deviate_t *deviate = 
-            (obj_deviate_t *) dlq_deque(&deviation->deviateQ);
-        obj_free_deviate(deviate);
+    while (!dlq_empty(instance, &deviation->deviateQ)) {
+        obj_deviate_t *deviate =
+            (obj_deviate_t *) dlq_deque(instance, &deviation->deviateQ);
+        obj_free_deviate(instance, deviate);
     }
 
-    ncx_clean_appinfoQ(&deviation->appinfoQ);
-    m__free(deviation);
+    ncx_clean_appinfoQ(instance, &deviation->appinfoQ);
+    m__free(instance, deviation);
 } /* obj_free_deviation */
 
 
@@ -7569,15 +7772,15 @@ void obj_free_deviation (obj_deviation_t *deviation)
  *
  * \param deviationQ the pointer to Q of the structs to clean and free
  *********************************************************************/
-void obj_clean_deviationQ (dlq_hdr_t *deviationQ)
+void obj_clean_deviationQ (ncx_instance_t *instance, dlq_hdr_t *deviationQ)
 {
     if (!deviationQ) {
         return;
     }
 
-    while (!dlq_empty(deviationQ)) {
-        obj_deviation_t *deviation = (obj_deviation_t *)dlq_deque(deviationQ);
-        obj_free_deviation(deviation);
+    while (!dlq_empty(instance, deviationQ)) {
+        obj_deviation_t *deviation = (obj_deviation_t *)dlq_deque(instance, deviationQ);
+        obj_free_deviation(instance, deviation);
     }
 
 } /* obj_clean_deviationQ */
@@ -7585,44 +7788,44 @@ void obj_clean_deviationQ (dlq_hdr_t *deviationQ)
 
 /********************************************************************
  * Malloc and Generate the object ID for an object node
- * 
+ *
  * \param obj the node to generate the instance ID for
  * \param buff the pointer to address of buffer to use
  * \return status
  *********************************************************************/
-status_t obj_gen_object_id (const obj_template_t *obj, xmlChar  **buff)
+status_t obj_gen_object_id (ncx_instance_t *instance, const obj_template_t *obj, xmlChar  **buff)
 {
     uint32    len;
     status_t  res;
 
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj || !buff) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     *buff = NULL;
 
     /* figure out the length of the object ID */
-    res = get_object_string(obj, NULL, NULL, 0, TRUE, NULL, &len, 
+    res = get_object_string(instance, obj, NULL, NULL, 0, TRUE, NULL, &len,
                             FALSE, FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get a buffer to fit the instance ID string */
-    *buff = (xmlChar *)m__getMem(len+1);
+    *buff = (xmlChar *)m__getMem(instance, len+1);
     if (!*buff) {
         return ERR_INTERNAL_MEM;
     }
 
     /* get the object ID for real this time */
-    res = get_object_string(obj, NULL, *buff, len+1, TRUE, NULL, &len, 
+    res = get_object_string(instance, obj, NULL, *buff, len+1, TRUE, NULL, &len,
                             FALSE, FALSE);
     if (res != NO_ERR) {
-        m__free(*buff);
+        m__free(instance, *buff);
         *buff = NULL;
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
     return NO_ERR;
@@ -7640,38 +7843,38 @@ status_t obj_gen_object_id (const obj_template_t *obj, xmlChar  **buff)
  * \param buff the pointer to address of buffer to use
  * \return status
  *********************************************************************/
-status_t obj_gen_object_id_xpath (const obj_template_t *obj, xmlChar  **buff)
+status_t obj_gen_object_id_xpath (ncx_instance_t *instance, const obj_template_t *obj, xmlChar  **buff)
 {
     uint32    len;
     status_t  res;
 
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj || !buff) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     *buff = NULL;
 
     /* figure out the length of the object ID */
-    res = get_object_string(obj, NULL, NULL, 0, TRUE, NULL, &len, FALSE, TRUE);
+    res = get_object_string(instance, obj, NULL, NULL, 0, TRUE, NULL, &len, FALSE, TRUE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get a buffer to fit the instance ID string */
-    *buff = (xmlChar *)m__getMem(len+1);
+    *buff = (xmlChar *)m__getMem(instance, len+1);
     if (!*buff) {
         return ERR_INTERNAL_MEM;
     }
 
     /* get the object ID for real this time */
-    res = get_object_string(obj, NULL, *buff, len+1, TRUE, NULL, &len, 
+    res = get_object_string(instance, obj, NULL, *buff, len+1, TRUE, NULL, &len,
                             FALSE, TRUE);
     if (res != NO_ERR) {
-        m__free(*buff);
+        m__free(instance, *buff);
         *buff = NULL;
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
     return NO_ERR;
@@ -7687,7 +7890,8 @@ status_t obj_gen_object_id_xpath (const obj_template_t *obj, xmlChar  **buff)
  * \param buff the pointer to address of buffer to use
  * \return status
  *********************************************************************/
-status_t obj_gen_object_id_unique (const obj_template_t *obj, 
+status_t obj_gen_object_id_unique (ncx_instance_t *instance,
+                                   const obj_template_t *obj,
                                    const obj_template_t *stopobj,
                                    xmlChar  **buff)
 {
@@ -7701,25 +7905,25 @@ status_t obj_gen_object_id_unique (const obj_template_t *obj,
     *buff = NULL;
 
     /* figure out the length of the object ID */
-    res = get_object_string(obj, stopobj, NULL, 0, TRUE, NULL, &len, 
+    res = get_object_string(instance, obj, stopobj, NULL, 0, TRUE, NULL, &len,
                             FALSE, TRUE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get a buffer to fit the instance ID string */
-    *buff = (xmlChar *)m__getMem(len+1);
+    *buff = (xmlChar *)m__getMem(instance, len+1);
     if (!*buff) {
         return ERR_INTERNAL_MEM;
     }
 
     /* get the object ID for real this time */
-    res = get_object_string(obj, stopobj, *buff, len+1, TRUE, NULL, &len, 
+    res = get_object_string(instance, obj, stopobj, *buff, len+1, TRUE, NULL, &len,
                             FALSE, TRUE);
     if (res != NO_ERR) {
-        m__free(*buff);
+        m__free(instance, *buff);
         *buff = NULL;
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
     return NO_ERR;
@@ -7729,7 +7933,7 @@ status_t obj_gen_object_id_unique (const obj_template_t *obj,
 
 /********************************************************************
 * FUNCTION obj_gen_object_id_code
-* 
+*
 * Malloc and Generate the object ID for an object node
 * for C code usage
 * generate a unique name for C code; handles augments
@@ -7746,40 +7950,41 @@ status_t obj_gen_object_id_unique (const obj_template_t *obj,
 *   status
 *********************************************************************/
 status_t
-    obj_gen_object_id_code (ncx_module_t *mod,
+    obj_gen_object_id_code (ncx_instance_t *instance,
+                            ncx_module_t *mod,
                             const obj_template_t *obj,
                             xmlChar  **buff)
 {
     uint32    len;
     status_t  res;
 
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!mod || !obj || !buff) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     *buff = NULL;
 
     /* figure out the length of the object ID */
-    res = get_object_string(obj, NULL, NULL, 0, TRUE, mod, &len, FALSE, FALSE);
+    res = get_object_string(instance, obj, NULL, NULL, 0, TRUE, mod, &len, FALSE, FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get a buffer to fit the instance ID string */
-    *buff = (xmlChar *)m__getMem(len+1);
+    *buff = (xmlChar *)m__getMem(instance, len+1);
     if (!*buff) {
         return ERR_INTERNAL_MEM;
     }
 
     /* get the object ID for real this time */
-    res = get_object_string(obj, NULL, *buff, len+1, TRUE, mod, &len, 
+    res = get_object_string(instance, obj, NULL, *buff, len+1, TRUE, mod, &len,
                             FALSE, FALSE);
     if (res != NO_ERR) {
-        m__free(*buff);
+        m__free(instance, *buff);
         *buff = NULL;
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
     return NO_ERR;
@@ -7789,37 +7994,38 @@ status_t
 
 /********************************************************************
 * FUNCTION obj_copy_object_id
-* 
+*
 * Generate the object ID for an object node and copy to the buffer
 * copy an object ID to a buffer
-* 
+*
 * INPUTS:
 *   obj == node to generate the instance ID for
 *   buff == buffer to use
 *   bufflen == size of buff
-*   reallen == address of return length of actual identifier 
+*   reallen == address of return length of actual identifier
 *               (may be NULL)
 *
 * OUTPUTS
 *   buff == filled in with the object ID
 *  if reallen not NULL:
 *     *reallen == length of identifier, even if error occurred
-*  
+*
 * RETURNS:
 *   status
 *********************************************************************/
 status_t
-    obj_copy_object_id (const obj_template_t *obj,
+    obj_copy_object_id (ncx_instance_t *instance,
+                        const obj_template_t *obj,
                         xmlChar  *buff,
                         uint32 bufflen,
                         uint32 *reallen)
 {
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj || !buff) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
-    return get_object_string(obj, NULL, buff, bufflen, TRUE, NULL, reallen, 
+    return get_object_string(instance, obj, NULL, buff, bufflen, TRUE, NULL, reallen,
                              FALSE, FALSE);
 
 }  /* obj_copy_object_id */
@@ -7827,37 +8033,38 @@ status_t
 
 /********************************************************************
 * FUNCTION obj_copy_object_id_mod
-* 
+*
 * Generate the object ID for an object node and copy to the buffer
 * copy an object ID to a buffer; Use modname in object identifier
-* 
+*
 * INPUTS:
 *   obj == node to generate the instance ID for
 *   buff == buffer to use
 *   bufflen == size of buff
-*   reallen == address of return length of actual identifier 
+*   reallen == address of return length of actual identifier
 *               (may be NULL)
 *
 * OUTPUTS
 *   buff == filled in with the object ID
 *  if reallen not NULL:
 *     *reallen == length of identifier, even if error occurred
-*  
+*
 * RETURNS:
 *   status
 *********************************************************************/
 status_t
-    obj_copy_object_id_mod (const obj_template_t *obj,
+    obj_copy_object_id_mod (ncx_instance_t *instance,
+                            const obj_template_t *obj,
                             xmlChar  *buff,
                             uint32 bufflen,
                             uint32 *reallen)
 {
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj || !buff) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
-    return get_object_string(obj, NULL, buff, bufflen, TRUE, NULL, reallen, 
+    return get_object_string(instance, obj, NULL, buff, bufflen, TRUE, NULL, reallen,
                              TRUE, FALSE);
 
 }  /* obj_copy_object_id_mod */
@@ -7865,11 +8072,11 @@ status_t
 
 /********************************************************************
 * FUNCTION obj_gen_aughook_id
-* 
+*
 * Malloc and Generate the augment hook element name for
 * the specified object. This will be a child node of the
 * specified object.
-* 
+*
 * INPUTS:
 *   obj == node to generate the augment hook ID for
 *   buff == pointer to address of buffer to use
@@ -7881,53 +8088,54 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    obj_gen_aughook_id (const obj_template_t *obj,
+    obj_gen_aughook_id (ncx_instance_t *instance,
+                        const obj_template_t *obj,
                         xmlChar  **buff)
 {
     xmlChar  *p;
     uint32    len, extra;
     status_t  res;
 
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj || !buff) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     *buff = NULL;
 
     /* figure out the length of the aughook ID */
-    res = get_object_string(obj, NULL, NULL, 0, FALSE, NULL, &len, 
+    res = get_object_string(instance, obj, NULL, NULL, 0, FALSE, NULL, &len,
                             FALSE, FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get the length for the aughook prefix and suffix */
-    extra = (xml_strlen(NCX_AUGHOOK_START) + xml_strlen(NCX_AUGHOOK_END));
+    extra = (xml_strlen(instance, NCX_AUGHOOK_START) + xml_strlen(instance, NCX_AUGHOOK_END));
 
     /* get a buffer to fit the instance ID string */
-    *buff = (xmlChar *)m__getMem(len+extra+1);
+    *buff = (xmlChar *)m__getMem(instance, len+extra+1);
     if (!*buff) {
         return ERR_INTERNAL_MEM;
     }
 
     /* put prefix in buffer */
     p = *buff;
-    p += xml_strcpy(p, NCX_AUGHOOK_START);
-    
+    p += xml_strcpy(instance, p, NCX_AUGHOOK_START);
+
     /* add the aughook ID to the buffer */
-    res = get_object_string(obj, NULL, p, len+1, FALSE, NULL, &len, 
+    res = get_object_string(instance, obj, NULL, p, len+1, FALSE, NULL, &len,
                             FALSE, FALSE);
     if (res != NO_ERR) {
-        m__free(*buff);
+        m__free(instance, *buff);
         *buff = NULL;
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
     /* add suffix to the buffer */
     p += len;
-    xml_strcpy(p, NCX_AUGHOOK_END);
+    xml_strcpy(instance, p, NCX_AUGHOOK_END);
 
     return NO_ERR;
 
@@ -7936,7 +8144,7 @@ status_t
 
 /********************************************************************
 * FUNCTION obj_get_name
-* 
+*
 * Get the name field for this obj
 *
 * INPUTS:
@@ -7945,12 +8153,12 @@ status_t
 * RETURNS:
 *   pointer to the name field, NULL if some error or unnamed
 *********************************************************************/
-const xmlChar * 
-    obj_get_name (const obj_template_t *obj)
+const xmlChar *
+    obj_get_name (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return (const xmlChar *)"<none>";
     }
 #endif
@@ -7983,7 +8191,7 @@ const xmlChar *
         return obj->def.notif->name;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_EL_NONE;
     }
     /*NOTREACHED*/
@@ -7993,7 +8201,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_set_name
-* 
+*
 * Set the name field for this obj
 *
 * INPUTS:
@@ -8004,7 +8212,8 @@ const xmlChar *
 *   status
 *********************************************************************/
 status_t
-    obj_set_name (obj_template_t *obj,
+    obj_set_name (ncx_instance_t *instance,
+                  obj_template_t *obj,
                   const xmlChar *objname)
 {
     xmlChar  **namevar, *newname;
@@ -8012,7 +8221,7 @@ status_t
 
 #ifdef DEBUG
     if (obj == NULL || objname == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -8056,16 +8265,16 @@ status_t
         break;
     case OBJ_TYP_NONE:
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    newname = xml_strdup(objname);
+    newname = xml_strdup(instance, objname);
     if (newname == NULL) {
         return ERR_INTERNAL_MEM;
     }
 
     if (*namevar != NULL && !*nameclone) {
-        m__free(*namevar);
+        m__free(instance, *namevar);
         *namevar = NULL;
     }
 
@@ -8079,10 +8288,10 @@ status_t
 
 /********************************************************************
 * FUNCTION obj_has_name
-* 
+*
 * Check if the specified object type has a name
 *
-* this function is used throughout the code to 
+* this function is used throughout the code to
 * filter out uses and augment nodes from the
 * real nodes.  Those are the only YANG nodes that
 * do not have a name assigned to them
@@ -8095,11 +8304,11 @@ status_t
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    obj_has_name (const obj_template_t *obj)
+    obj_has_name (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -8123,7 +8332,7 @@ boolean
         return TRUE;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -8133,7 +8342,7 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_has_text_content
-* 
+*
 * Check if the specified object type has a text content
 * for XPath purposes
 *
@@ -8145,11 +8354,11 @@ boolean
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    obj_has_text_content (const obj_template_t *obj)
+    obj_has_text_content (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -8168,7 +8377,7 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_get_status
-* 
+*
 * Get the status field for this obj
 *
 * INPUTS:
@@ -8178,11 +8387,11 @@ boolean
 *   YANG status clause for this object
 *********************************************************************/
 ncx_status_t
-    obj_get_status (const obj_template_t *obj)
+    obj_get_status (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_STATUS_NONE;
     }
 #endif
@@ -8202,7 +8411,7 @@ ncx_status_t
     case OBJ_TYP_CASE:
     case OBJ_TYP_REFINE:
         return (obj->parent) ?
-            obj_get_status(obj->parent) : NCX_STATUS_CURRENT;
+            obj_get_status(instance, obj->parent) : NCX_STATUS_CURRENT;
     case OBJ_TYP_USES:
         return obj->def.uses->status;
     case OBJ_TYP_AUGMENT:
@@ -8211,12 +8420,12 @@ ncx_status_t
         return obj->def.rpc->status;
     case OBJ_TYP_RPCIO:
         return (obj->parent) ?
-            obj_get_status(obj->parent) : NCX_STATUS_CURRENT;
+            obj_get_status(instance, obj->parent) : NCX_STATUS_CURRENT;
     case OBJ_TYP_NOTIF:
         return obj->def.notif->status;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_STATUS_NONE;
     }
     /*NOTREACHED*/
@@ -8226,7 +8435,7 @@ ncx_status_t
 
 /********************************************************************
 * FUNCTION obj_get_description
-* 
+*
 * Get the description field for this obj
 *
 * INPUTS:
@@ -8236,11 +8445,11 @@ ncx_status_t
 *   YANG description string for this object
 *********************************************************************/
 const xmlChar *
-    obj_get_description (const obj_template_t *obj)
+    obj_get_description (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8273,7 +8482,7 @@ const xmlChar *
         return obj->def.notif->descr;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -8283,7 +8492,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_alt_description
-* 
+*
 * Get the alternate description field for this obj
 * Check if any 'info', then 'help' appinfo nodes present
 *
@@ -8294,35 +8503,37 @@ const xmlChar *
 *   YANG description string for this object
 *********************************************************************/
 const xmlChar *
-    obj_get_alt_description (const obj_template_t *obj)
+    obj_get_alt_description (ncx_instance_t *instance, const obj_template_t *obj)
 {
     const ncx_appinfo_t *appinfo;
     const xmlChar *altdescr;
 
-#ifdef DEBUG 
+#ifdef DEBUG
     if (obj == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     altdescr = NULL;
-    appinfo = ncx_find_const_appinfo(&obj->appinfoQ,
+    appinfo = ncx_find_const_appinfo(instance,
+                                     &obj->appinfoQ,
                                      NULL, /* any module */
                                      NCX_EL_INFO);
     if (appinfo != NULL) {
-        altdescr = ncx_get_appinfo_value(appinfo);
+        altdescr = ncx_get_appinfo_value(instance, appinfo);
     }
 
     if (altdescr != NULL) {
         return altdescr;
     }
 
-    appinfo = ncx_find_const_appinfo(&obj->appinfoQ,
+    appinfo = ncx_find_const_appinfo(instance,
+                                     &obj->appinfoQ,
                                      NULL, /* any module */
                                      NCX_EL_HELP);
     if (appinfo != NULL) {
-        altdescr = ncx_get_appinfo_value(appinfo);
+        altdescr = ncx_get_appinfo_value(instance, appinfo);
     }
 
     return altdescr;
@@ -8332,7 +8543,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_description_addr
-* 
+*
 * Get the address of the description field for this obj
 *
 * INPUTS:
@@ -8342,11 +8553,11 @@ const xmlChar *
 *   YANG description string for this object
 *********************************************************************/
 const void *
-    obj_get_description_addr (const obj_template_t *obj)
+    obj_get_description_addr (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8379,7 +8590,7 @@ const void *
         return &obj->def.notif->descr;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -8389,7 +8600,7 @@ const void *
 
 /********************************************************************
 * FUNCTION obj_get_reference
-* 
+*
 * Get the reference field for this obj
 *
 * INPUTS:
@@ -8399,11 +8610,11 @@ const void *
 *   YANG reference string for this object
 *********************************************************************/
 const xmlChar *
-    obj_get_reference (const obj_template_t *obj)
+    obj_get_reference (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8436,7 +8647,7 @@ const xmlChar *
         return obj->def.notif->ref;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -8446,7 +8657,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_reference_addr
-* 
+*
 * Get the reference field for this obj
 *
 * INPUTS:
@@ -8456,11 +8667,11 @@ const xmlChar *
 *   YANG reference string for this object
 *********************************************************************/
 const void *
-    obj_get_reference_addr (const obj_template_t *obj)
+    obj_get_reference_addr (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8493,7 +8704,7 @@ const void *
         return &obj->def.notif->ref;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -8504,7 +8715,7 @@ const void *
 /********************************************************************
 * FUNCTION obj_get_config_flag
 *
-* Get the config flag for an obj_template_t 
+* Get the config flag for an obj_template_t
 * Return the explicit value or the inherited value
 * Also return if the config-stmt is really set or not
 *
@@ -8514,21 +8725,21 @@ const void *
 * RETURNS:
 *   TRUE if config set to TRUE
 *   FALSE if config set to FALSE
-*   
+*
 *********************************************************************/
 boolean
-    obj_get_config_flag (const obj_template_t *obj)
+    obj_get_config_flag (ncx_instance_t *instance, const obj_template_t *obj)
 {
     boolean retval;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    retval = obj_get_config_flag_deep(obj);
+    retval = obj_get_config_flag_deep(instance, obj);
     return retval;
 
 }   /* obj_get_config_flag */
@@ -8537,7 +8748,7 @@ boolean
 /********************************************************************
 * FUNCTION obj_get_config_flag2
 *
-* Get the config flag for an obj_template_t 
+* Get the config flag for an obj_template_t
 * Return the explicit value or the inherited value
 * Also return if the config-stmt is really set or not
 *
@@ -8553,19 +8764,20 @@ boolean
 * RETURNS:
 *   TRUE if config set to TRUE
 *   FALSE if config set to FALSE
-*   
+*
 *********************************************************************/
 boolean
-    obj_get_config_flag2 (const obj_template_t *obj,
+    obj_get_config_flag2 (ncx_instance_t *instance,
+                         const obj_template_t *obj,
                          boolean *setflag)
 {
 #ifdef DEBUG
     if (!obj || !setflag) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
-    return get_config_flag(obj, setflag);
+    return get_config_flag(instance, obj, setflag);
 
 }   /* obj_get_config_flag2 */
 
@@ -8573,7 +8785,7 @@ boolean
 /********************************************************************
 * FUNCTION obj_get_max_access
 *
-* Get the NCX max-access enum for an obj_template_t 
+* Get the NCX max-access enum for an obj_template_t
 * Return the explicit value or the inherited value
 *
 * INPUTS:
@@ -8583,13 +8795,13 @@ boolean
 *   ncx_access_t enumeration
 *********************************************************************/
 ncx_access_t
-    obj_get_max_access (const obj_template_t *obj)
+    obj_get_max_access (ncx_instance_t *instance, const obj_template_t *obj)
 {
     boolean      retval, setflag, done;
 
 #ifdef DEBUG
     if (obj == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_ACCESS_NONE;
     }
 #endif
@@ -8597,7 +8809,7 @@ ncx_access_t
     done = FALSE;
     while (!done) {
         setflag = FALSE;
-        retval = get_config_flag(obj, &setflag);
+        retval = get_config_flag(instance, obj, &setflag);
         if (setflag) {
             done = TRUE;
         } else {
@@ -8619,7 +8831,7 @@ ncx_access_t
 
 /********************************************************************
 * FUNCTION obj_get_appinfoQ
-* 
+*
 * Get the appinfoQ for this obj
 *
 * INPUTS:
@@ -8629,11 +8841,11 @@ ncx_access_t
 *   pointer to the appinfoQ for this object
 *********************************************************************/
 dlq_hdr_t *
-    obj_get_appinfoQ (obj_template_t *obj)
+    obj_get_appinfoQ (ncx_instance_t *instance, obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8645,7 +8857,7 @@ dlq_hdr_t *
 
 /********************************************************************
 * FUNCTION obj_get_mustQ
-* 
+*
 * Get the mustQ for this obj
 *
 * INPUTS:
@@ -8655,11 +8867,11 @@ dlq_hdr_t *
 *   pointer to the mustQ for this object
 *********************************************************************/
 dlq_hdr_t *
-    obj_get_mustQ (const obj_template_t *obj)
+    obj_get_mustQ (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8696,11 +8908,11 @@ dlq_hdr_t *
 *   name string for this object type
 *********************************************************************/
 const xmlChar *
-    obj_get_typestr (const obj_template_t *obj)
+    obj_get_typestr (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_EL_NONE;
     }
 #endif
@@ -8735,7 +8947,7 @@ const xmlChar *
     case OBJ_TYP_NONE:
         return NCX_EL_NONE;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_EL_NONE;
     }
     /*NOTREACHED*/
@@ -8755,11 +8967,11 @@ const xmlChar *
 *    pointer to Q of obj_template, or NULL if none
 *********************************************************************/
 dlq_hdr_t *
-    obj_get_datadefQ (obj_template_t *obj)
+    obj_get_datadefQ (ncx_instance_t *instance, obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8789,7 +9001,7 @@ dlq_hdr_t *
     case OBJ_TYP_NOTIF:
         return &obj->def.notif->datadefQ;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -8809,11 +9021,11 @@ dlq_hdr_t *
 *    pointer to Q of obj_template, or NULL if none
 *********************************************************************/
 const dlq_hdr_t *
-    obj_get_cdatadefQ (const obj_template_t *obj)
+    obj_get_cdatadefQ (ncx_instance_t *instance, const obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8843,7 +9055,7 @@ const dlq_hdr_t *
     case OBJ_TYP_NOTIF:
         return &obj->def.notif->datadefQ;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -8853,7 +9065,7 @@ const dlq_hdr_t *
 
 /********************************************************************
 * FUNCTION obj_get_default
-* 
+*
 * Get the default value for the specified object
 * Only OBJ_TYP_LEAF objtype is supported
 * If the leaf has nodefault, then the type is checked
@@ -8861,16 +9073,16 @@ const dlq_hdr_t *
 *
 * INPUTS:
 *   obj == object to check
-*  
+*
 * RETURNS:
 *   pointer to default value string or NULL if none
 *********************************************************************/
 const xmlChar *
-    obj_get_default (const obj_template_t *obj)
+    obj_get_default (ncx_instance_t *instance, const obj_template_t *obj)
 {
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -8881,39 +9093,40 @@ const xmlChar *
     if (obj->def.leaf->defval) {
         return obj->def.leaf->defval;
     }
-    return typ_get_default(obj->def.leaf->typdef);
+    return typ_get_default(instance, obj->def.leaf->typdef);
 
 }  /* obj_get_default */
 
 
 /********************************************************************
 * FUNCTION obj_get_default_case
-* 
+*
 * Get the default case for the specified OBJ_TYP_CHOICE object
 *
 * INPUTS:
 *   obj == object to check
-*  
+*
 * RETURNS:
 *   pointer to default case object template OBJ_TYP_CASE
 *********************************************************************/
 obj_template_t *
-    obj_get_default_case (obj_template_t *obj)
+    obj_get_default_case (ncx_instance_t *instance, obj_template_t *obj)
 {
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (obj->objtype != OBJ_TYP_CHOICE) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
     if (obj->def.choic->defval) {
-        return obj_find_child(obj, 
-                              obj_get_mod_name(obj),
+        return obj_find_child(instance,
+                              obj,
+                              obj_get_mod_name(instance, obj),
                               obj->def.choic->defval);
     }
     return NULL;
@@ -8923,26 +9136,26 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_get_level
-* 
+*
 * Get the nest level for the specified object
 * Top-level is '1'
 * Does not count groupings as a level
 *
 * INPUTS:
 *   obj == object to check
-*  
+*
 * RETURNS:
 *   level that this object is located, by checking the parent chain
 *********************************************************************/
 uint32
-    obj_get_level (const obj_template_t *obj)
+    obj_get_level (ncx_instance_t *instance, const obj_template_t *obj)
 {
     const obj_template_t  *parent;
     uint32           level;
 
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -8960,27 +9173,27 @@ uint32
 
 /********************************************************************
 * FUNCTION obj_has_typedefs
-* 
+*
 * Check if the object has any nested typedefs in it
 * This will obly be called if the object is defined in a
 * grouping.
 *
 * INPUTS:
 *   obj == object to check
-*  
+*
 * RETURNS:
 *   TRUE if any nested typedefs, FALSE otherwise
 *********************************************************************/
 boolean
-    obj_has_typedefs (const obj_template_t *obj)
+    obj_has_typedefs (ncx_instance_t *instance, const obj_template_t *obj)
 {
     const obj_template_t *chobj;
     const grp_template_t *grp;
     const dlq_hdr_t      *typedefQ, *groupingQ, *datadefQ;
 
-#ifdef DEBUG 
+#ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -9016,22 +9229,22 @@ boolean
     }
 
 
-    if (!dlq_empty(typedefQ)) {
+    if (!dlq_empty(instance, typedefQ)) {
         return TRUE;
     }
-        
-    for (grp = (const grp_template_t *)dlq_firstEntry(groupingQ);
+
+    for (grp = (const grp_template_t *)dlq_firstEntry(instance, groupingQ);
          grp != NULL;
-         grp = (const grp_template_t *)dlq_nextEntry(grp)) {
-        if (grp_has_typedefs(grp)) {
+         grp = (const grp_template_t *)dlq_nextEntry(instance, grp)) {
+        if (grp_has_typedefs(instance, grp)) {
             return TRUE;
         }
     }
 
-    for (chobj = (const obj_template_t *)dlq_firstEntry(datadefQ);
+    for (chobj = (const obj_template_t *)dlq_firstEntry(instance, datadefQ);
          chobj != NULL;
-         chobj = (const obj_template_t *)dlq_nextEntry(chobj)) {
-        if (obj_has_typedefs(chobj)) {
+         chobj = (const obj_template_t *)dlq_nextEntry(instance, chobj)) {
+        if (obj_has_typedefs(instance, chobj)) {
             return TRUE;
         }
     }
@@ -9043,7 +9256,7 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_get_typdef
-* 
+*
 * Get the typdef for the leaf or leaf-list
 *
 * INPUTS:
@@ -9071,7 +9284,7 @@ typ_def_t *
 
 /********************************************************************
 * FUNCTION obj_get_ctypdef
-* 
+*
 * Get the typdef for the leaf or leaf-list : Const version
 *
 * INPUTS:
@@ -9082,8 +9295,9 @@ typ_def_t *
 *    have a typdef
 *********************************************************************/
 const typ_def_t *
-    obj_get_ctypdef (const obj_template_t  *obj)
+    obj_get_ctypdef (ncx_instance_t *instance, const obj_template_t  *obj)
 {
+    (void)instance;
     if (obj->objtype == OBJ_TYP_LEAF ||
         obj->objtype == OBJ_TYP_ANYXML) {
         return obj->def.leaf->typdef;
@@ -9099,7 +9313,7 @@ const typ_def_t *
 
 /********************************************************************
 * FUNCTION obj_get_basetype
-* 
+*
 * Get the NCX base type enum for the object type
 *
 * INPUTS:
@@ -9109,13 +9323,13 @@ const typ_def_t *
 *    base type enumeration
 *********************************************************************/
 ncx_btype_t
-    obj_get_basetype (const obj_template_t  *obj)
+    obj_get_basetype (ncx_instance_t *instance, const obj_template_t  *obj)
 {
     switch (obj->objtype) {
     case OBJ_TYP_LEAF:
-        return typ_get_basetype(obj->def.leaf->typdef);
+        return typ_get_basetype(instance, obj->def.leaf->typdef);
     case OBJ_TYP_LEAF_LIST:
-        return typ_get_basetype(obj->def.leaflist->typdef);
+        return typ_get_basetype(instance, obj->def.leaflist->typdef);
     case OBJ_TYP_CONTAINER:
         return NCX_BT_CONTAINER;
     case OBJ_TYP_LIST:
@@ -9133,7 +9347,7 @@ ncx_btype_t
     case OBJ_TYP_ANYXML:
         return NCX_BT_ANY;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_BT_NONE;
     }
     /*NOTREACHED*/
@@ -9143,7 +9357,7 @@ ncx_btype_t
 
 /********************************************************************
 * FUNCTION obj_get_mod_prefix
-* 
+*
 * Get the module prefix for this object
 *
 * INPUTS:
@@ -9163,7 +9377,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_mod_xmlprefix
-* 
+*
 * Get the module prefix for this object
 *
 * INPUTS:
@@ -9183,7 +9397,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_mod_name
-* 
+*
 * Get the module name for this object
 *
 * INPUTS:
@@ -9193,13 +9407,13 @@ const xmlChar *
 *    const pointer to mod prefix
 *********************************************************************/
 const xmlChar *
-    obj_get_mod_name (const obj_template_t  *obj)
+    obj_get_mod_name (ncx_instance_t *instance, const obj_template_t  *obj)
 {
     ncx_module_t  *usemod;
 
 #ifdef DEBUG
     if (obj == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9209,7 +9423,7 @@ const xmlChar *
     } else if (obj->tkerr.mod != NULL) {
         usemod = obj->tkerr.mod;
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
@@ -9224,7 +9438,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_mod
-* 
+*
 * Get the module pointer for this object
 *
 * INPUTS:
@@ -9234,13 +9448,13 @@ const xmlChar *
 *    pointer to module
 *********************************************************************/
 ncx_module_t *
-    obj_get_mod (obj_template_t  *obj)
+    obj_get_mod (ncx_instance_t *instance, obj_template_t  *obj)
 {
     ncx_module_t  *usemod;
 
 #ifdef DEBUG
     if (obj == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9250,7 +9464,7 @@ ncx_module_t *
     } else if (obj->tkerr.mod != NULL) {
         usemod = obj->tkerr.mod;
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     return usemod;
@@ -9260,7 +9474,7 @@ ncx_module_t *
 
 /********************************************************************
 * FUNCTION obj_get_mod_version
-* 
+*
 * Get the module version for this object
 *
 * INPUTS:
@@ -9270,11 +9484,11 @@ ncx_module_t *
 *    const pointer to mod version or NULL if none
 *********************************************************************/
 const xmlChar *
-    obj_get_mod_version (const obj_template_t  *obj)
+    obj_get_mod_version (ncx_instance_t *instance, const obj_template_t  *obj)
 {
 #ifdef DEBUG
     if (!obj || !obj->tkerr.mod) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9286,7 +9500,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_type_name
-* 
+*
 * Get the typename for an object
 *
 * INPUTS:
@@ -9296,7 +9510,7 @@ const xmlChar *
 *    const pointer to type name string
 *********************************************************************/
 const xmlChar *
-    obj_get_type_name (const obj_template_t  *obj)
+    obj_get_type_name (ncx_instance_t *instance, const obj_template_t  *obj)
 {
     const typ_def_t *typdef;
 
@@ -9304,21 +9518,21 @@ const xmlChar *
 
 #ifdef DEBUG
     if (!obj || !obj->tkerr.mod) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    typdef = obj_get_ctypdef(obj);
+    typdef = obj_get_ctypdef(instance, obj);
     if (typdef) {
         if (typdef->typenamestr) {
             return typdef->typenamestr;
         } else {
             return (const xmlChar *)
-                tk_get_btype_sym(obj_get_basetype(obj));
+                tk_get_btype_sym(obj_get_basetype(instance, obj));
         }
     } else {
-        return obj_get_typestr(obj);
+        return obj_get_typestr(instance, obj);
     }
 
 }  /* obj_get_type_name */
@@ -9326,7 +9540,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_nsid
-* 
+*
 * Get the namespace ID for this object
 *
 * INPUTS:
@@ -9336,11 +9550,11 @@ const xmlChar *
 *    namespace ID
 *********************************************************************/
 xmlns_id_t
-    obj_get_nsid (const obj_template_t  *obj)
+    obj_get_nsid (ncx_instance_t *instance, const obj_template_t  *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -9358,7 +9572,7 @@ xmlns_id_t
 
 /********************************************************************
 * FUNCTION obj_get_iqualval
-* 
+*
 * Get the instance qualifier for this object
 *
 * INPUTS:
@@ -9368,26 +9582,26 @@ xmlns_id_t
 *    instance qualifier enumeration
 *********************************************************************/
 ncx_iqual_t
-    obj_get_iqualval (obj_template_t  *obj)
+    obj_get_iqualval (ncx_instance_t *instance, obj_template_t  *obj)
 {
     boolean      required;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_IQUAL_NONE;
     }
 #endif
 
-    required = obj_is_mandatory(obj);
-    return obj_get_iqualval_ex(obj, required);
-    
+    required = obj_is_mandatory(instance, obj);
+    return obj_get_iqualval_ex(instance, obj, required);
+
 }  /* obj_get_iqualval */
 
 
 /********************************************************************
 * FUNCTION obj_get_iqualval_ex
-* 
+*
 * Get the instance qualifier for this object
 *
 * INPUTS:
@@ -9398,14 +9612,15 @@ ncx_iqual_t
 *    instance qualifier enumeration
 *********************************************************************/
 ncx_iqual_t
-    obj_get_iqualval_ex (obj_template_t  *obj,
+    obj_get_iqualval_ex (ncx_instance_t *instance,
+                         obj_template_t  *obj,
                          boolean required)
 {
     ncx_iqual_t  ret;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_IQUAL_NONE;
     }
 #endif
@@ -9423,14 +9638,14 @@ ncx_iqual_t
         break;
     case OBJ_TYP_LEAF_LIST:
         if (obj->def.leaflist->minset) {
-            if (obj->def.leaflist->maxset && 
+            if (obj->def.leaflist->maxset &&
                 obj->def.leaflist->maxelems==1) {
                 ret = NCX_IQUAL_ONE;
             } else {
                 ret = NCX_IQUAL_1MORE;
             }
         } else {
-            if (obj->def.leaflist->maxset && 
+            if (obj->def.leaflist->maxset &&
                 obj->def.leaflist->maxelems==1) {
                 ret = NCX_IQUAL_OPT;
             } else {
@@ -9461,7 +9676,7 @@ ncx_iqual_t
         ret = NCX_IQUAL_ONE;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     return ret;
 
@@ -9470,7 +9685,7 @@ ncx_iqual_t
 
 /********************************************************************
 * FUNCTION obj_get_min_elements
-* 
+*
 * Get the min-elements clause for this object, if any
 *
 * INPUTS:
@@ -9479,18 +9694,19 @@ ncx_iqual_t
 *
 * OUTPUTS:
 *   *minelems == min-elements value if it is set for this object
-*   
+*
 * RETURNS:
 *    TRUE if min-elements is set, FALSE if not or N/A
 *********************************************************************/
 boolean
-    obj_get_min_elements (obj_template_t  *obj,
+    obj_get_min_elements (ncx_instance_t *instance,
+                          obj_template_t  *obj,
                           uint32 *minelems)
 {
 
 #ifdef DEBUG
     if (!obj || !minelems) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -9515,7 +9731,7 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_get_max_elements
-* 
+*
 * Get the max-elements clause for this object, if any
 *
 * INPUTS:
@@ -9529,13 +9745,14 @@ boolean
 *    TRUE if max-elements is set, FALSE if not or N/A
 *********************************************************************/
 boolean
-    obj_get_max_elements (obj_template_t  *obj,
+    obj_get_max_elements (ncx_instance_t *instance,
+                          obj_template_t  *obj,
                           uint32 *maxelems)
 {
 
 #ifdef DEBUG
     if (!obj || !maxelems) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -9560,7 +9777,7 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_get_units
-* 
+*
 * Get the units clause for this object, if any
 *
 * INPUTS:
@@ -9570,14 +9787,14 @@ boolean
 *    pointer to units clause, or NULL if none
 *********************************************************************/
 const xmlChar *
-    obj_get_units (obj_template_t  *obj)
+    obj_get_units (ncx_instance_t *instance, obj_template_t  *obj)
 {
     const xmlChar    *units;
     const typ_def_t  *typdef;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9596,9 +9813,9 @@ const xmlChar *
     }
 
     if (!units) {
-        typdef = obj_get_ctypdef(obj);
+        typdef = obj_get_ctypdef(instance, obj);
         if (typdef) {
-            units = typ_get_units_from_typdef(typdef);
+            units = typ_get_units_from_typdef(instance, typdef);
         }
     }
     return units;
@@ -9608,7 +9825,7 @@ const xmlChar *
 
 /********************************************************************
 * FUNCTION obj_get_parent
-* 
+*
 * Get the parent of the current object
 *
 * INPUTS:
@@ -9618,11 +9835,11 @@ const xmlChar *
 *    pointer to the parent of this object or NULL if none
 *********************************************************************/
 obj_template_t *
-    obj_get_parent (obj_template_t  *obj)
+    obj_get_parent (ncx_instance_t *instance, obj_template_t  *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9634,7 +9851,7 @@ obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_get_cparent
-* 
+*
 * Get the parent of the current object
 * CONST POINTER VERSION
 *
@@ -9645,11 +9862,11 @@ obj_template_t *
 *    pointer to the parent of this object or NULL if none
 *********************************************************************/
 const obj_template_t *
-    obj_get_cparent (const obj_template_t  *obj)
+    obj_get_cparent (ncx_instance_t *instance, const obj_template_t  *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9661,7 +9878,7 @@ const obj_template_t *
 
 /********************************************************************
 * FUNCTION obj_get_real_parent
-* 
+*
 * Get the parent of the current object;
 * skip OBJ_TYP_CHOICE and OBJ_TYP_CASE
 *
@@ -9672,11 +9889,11 @@ const obj_template_t *
 *    pointer to the parent of this object or NULL if none
 *********************************************************************/
 obj_template_t *
-    obj_get_real_parent (obj_template_t  *obj)
+    obj_get_real_parent (ncx_instance_t *instance, obj_template_t  *obj)
 {
 #ifdef DEBUG
     if (obj == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9686,7 +9903,7 @@ obj_template_t *
         switch (obj->objtype) {
         case OBJ_TYP_CHOICE:
         case OBJ_TYP_CASE:
-            return obj_get_real_parent(obj);
+            return obj_get_real_parent(instance, obj);
         default:
             return obj;
         }
@@ -9709,12 +9926,12 @@ obj_template_t *
 *   NULL if none
 *********************************************************************/
 const xmlChar *
-    obj_get_presence_string (const obj_template_t *obj)
+    obj_get_presence_string (ncx_instance_t *instance, const obj_template_t *obj)
 {
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9740,9 +9957,10 @@ const xmlChar *
 *   pointer to address of presence string
 *   NULL if none
 *********************************************************************/
-void* obj_get_presence_string_field (const obj_template_t *obj)
+void* obj_get_presence_string_field (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert( obj && "obj is NULL" );
+    (void)instance;
 
     if (obj->objtype != OBJ_TYP_CONTAINER) {
         return NULL;
@@ -9758,24 +9976,25 @@ void* obj_get_presence_string_field (const obj_template_t *obj)
  * and child node, given the current context
  * !! Will ignore choice and case nodes !!
  * !! This function called by agt_val_parse and mgr_val_parse
- * !! Only YANG data nodes are expected 
+ * !! Only YANG data nodes are expected
  *
  * \param obj the parent object template
- * \param chobj the current child node 
+ * \param chobj the current child node
  *              (may be NULL if the xmlorder param is FALSE).
  * \param xmlorder TRUE if should follow strict XML element order,
- *                 FALSE if sibling node order errors should be 
+ *                 FALSE if sibling node order errors should be
  *                 ignored; find child nodes out of order
  *                 and check too-many-instances later
  * \param curnode the current XML start or empty node to check
- * \param force_modQ the Q of ncx_module_t to check, if set to NULL and the 
- *                   xmlns registry of module pointers will be used instead 
+ * \param force_modQ the Q of ncx_module_t to check, if set to NULL and the
+ *                   xmlns registry of module pointers will be used instead
  *                   (except netconf.yang)
  * \param rettop the address of return topchild object
  * \param retobj the address of return object to use
  * \return *   status
  *********************************************************************/
-status_t obj_get_child_node ( obj_template_t *obj,
+status_t obj_get_child_node (ncx_instance_t *instance,
+                               obj_template_t *obj,
                               obj_template_t *chobj,
                               const xml_node_t *curnode,
                               boolean xmlorder,
@@ -9789,15 +10008,15 @@ status_t obj_get_child_node ( obj_template_t *obj,
     assert ( retobj && "retobj is NULL" );
 
     boolean topdone = FALSE;
-    obj_template_t *foundobj = search_for_child_node( obj, chobj, curnode,
+    obj_template_t *foundobj = search_for_child_node(instance,  obj, chobj, curnode,
             xmlorder, force_modQ, rettop, &topdone );
 
     if (foundobj) {
         if (foundobj->objtype == OBJ_TYP_CHOICE) {
-            log_debug("\n***CHOICE %s \n", obj_get_name(foundobj));
+            log_debug(instance, "\n***CHOICE %s \n", obj_get_name(instance, foundobj));
         }
         if (foundobj->objtype == OBJ_TYP_CASE) {
-            log_debug("\n***CASE %s \n", obj_get_name(foundobj));
+            log_debug(instance, "\n***CASE %s \n", obj_get_name(instance, foundobj));
         }
 
         *retobj = foundobj;
@@ -9821,13 +10040,13 @@ status_t obj_get_child_node ( obj_template_t *obj,
 * RETURNS:
 *   number of child nodes
 *********************************************************************/
-uint32 obj_get_child_count (const obj_template_t *obj)
+uint32 obj_get_child_count (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert( obj && "obj is NULL" );
 
-    const dlq_hdr_t   *datadefQ = obj_get_cdatadefQ(obj);
+    const dlq_hdr_t   *datadefQ = obj_get_cdatadefQ(instance, obj);
     if (datadefQ) {
-        return dlq_count(datadefQ);
+        return dlq_count(instance, datadefQ);
     } else {
         return 0;
     }
@@ -9837,7 +10056,7 @@ uint32 obj_get_child_count (const obj_template_t *obj)
 
 /********************************************************************
 * FUNCTION obj_get_default_parm
-* 
+*
 * Get the ncx:default-parm object for this object
 * Only supported for OBJ_TYP_CONTAINER and OBJ_TYP_RPCIO (input)
 *
@@ -9847,12 +10066,12 @@ uint32 obj_get_child_count (const obj_template_t *obj)
 * RETURNS:
 *   pointer to the name field, NULL if some error or unnamed
 *********************************************************************/
-obj_template_t * 
-    obj_get_default_parm (obj_template_t *obj)
+obj_template_t *
+    obj_get_default_parm (ncx_instance_t *instance, obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9875,10 +10094,10 @@ obj_template_t *
         if (obj->def.rpcio->defaultparm != NULL) {
             return obj->def.rpcio->defaultparm;
         }
-        if (!xml_strcmp(obj_get_name(obj), YANG_K_INPUT)) {
-            if (obj_get_child_count(obj) == 1) {
-                obj_template_t  *childobj = obj_first_child(obj);
-                if (childobj != NULL && obj_is_leafy(childobj)) {
+        if (!xml_strcmp(instance, obj_get_name(instance, obj), YANG_K_INPUT)) {
+            if (obj_get_child_count(instance, obj) == 1) {
+                obj_template_t  *childobj = obj_first_child(instance, obj);
+                if (childobj != NULL && obj_is_leafy(instance, childobj)) {
                     return childobj;
                 }
             }
@@ -9888,7 +10107,7 @@ obj_template_t *
         return NULL;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -9900,7 +10119,7 @@ obj_template_t *
 * FUNCTION obj_get_config_flag_deep
 *
 * get config flag during augment expand
-* Get the config flag for an obj_template_t 
+* Get the config flag for an obj_template_t
 * Go all the way up the tree until an explicit
 * set node or the root is found
 *
@@ -9915,7 +10134,7 @@ obj_template_t *
 *   FALSE if config set to FALSE
 *********************************************************************/
 boolean
-    obj_get_config_flag_deep (const obj_template_t *obj)
+    obj_get_config_flag_deep (ncx_instance_t *instance, const obj_template_t *obj)
 {
     switch (obj->objtype) {
     case OBJ_TYP_CONTAINER:
@@ -9925,7 +10144,7 @@ boolean
     case OBJ_TYP_LIST:
     case OBJ_TYP_CHOICE:
         if (obj_is_root(obj)) {
-            return TRUE;   
+            return TRUE;
         }
         /* check if this normal object has a config-stmt */
         if (obj->flags & OBJ_FL_CONFSET) {
@@ -9933,7 +10152,7 @@ boolean
         }
 
         if (obj->parent) {
-            return obj_get_config_flag_deep(obj->parent);
+            return obj_get_config_flag_deep(instance, obj->parent);
         }
 
         /* this should be an object in a grouping */
@@ -9945,7 +10164,7 @@ boolean
         }
     case OBJ_TYP_CASE:
         if (obj->parent) {
-            return obj_get_config_flag_deep(obj->parent);
+            return obj_get_config_flag_deep(instance, obj->parent);
         } else {
             /* should not happen */
             return FALSE;
@@ -9961,7 +10180,7 @@ boolean
          */
         return TRUE;
     case OBJ_TYP_RPCIO:
-        if (!xml_strcmp(obj->def.rpcio->name, YANG_K_INPUT)) {
+        if (!xml_strcmp(instance, obj->def.rpcio->name, YANG_K_INPUT)) {
             return TRUE;
         } else {
             return FALSE;
@@ -9970,7 +10189,7 @@ boolean
         return FALSE;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -9998,12 +10217,13 @@ boolean
 *   !!! ignore if *ingrp == TRUE
 *********************************************************************/
 boolean
-    obj_get_config_flag_check (const obj_template_t *obj,
+    obj_get_config_flag_check (ncx_instance_t *instance,
+                               const obj_template_t *obj,
                                boolean *ingrp)
 {
 #ifdef DEBUG
     if (obj == NULL || ingrp == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -10023,7 +10243,7 @@ boolean
         }
 
         if (obj->parent) {
-            return obj_get_config_flag_check(obj->parent, ingrp);
+            return obj_get_config_flag_check(instance, obj->parent, ingrp);
         }
 
         /* this should be an object in a grouping */
@@ -10035,7 +10255,7 @@ boolean
         }
     case OBJ_TYP_CASE:
         if (obj->parent) {
-            return obj_get_config_flag_check(obj->parent, ingrp);
+            return obj_get_config_flag_check(instance, obj->parent, ingrp);
         } else {
             /* should not happen */
             return FALSE;
@@ -10051,7 +10271,7 @@ boolean
          */
         return TRUE;
     case OBJ_TYP_RPCIO:
-        if (!xml_strcmp(obj->def.rpcio->name, YANG_K_INPUT)) {
+        if (!xml_strcmp(instance, obj->def.rpcio->name, YANG_K_INPUT)) {
             return TRUE;
         } else {
             return FALSE;
@@ -10060,7 +10280,7 @@ boolean
         return FALSE;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -10070,7 +10290,7 @@ boolean
 
 /********************************************************************
 * FUNCTION obj_get_fraction_digits
-* 
+*
 * Get the fraction-digits field from the object typdef
 *
 * INPUTS:
@@ -10081,20 +10301,20 @@ boolean
 *     0 if some error
 *********************************************************************/
 uint8
-    obj_get_fraction_digits (const obj_template_t  *obj)
+    obj_get_fraction_digits (ncx_instance_t *instance, const obj_template_t  *obj)
 {
     const typ_def_t  *typdef;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
-    typdef = obj_get_ctypdef(obj);
+    typdef = obj_get_ctypdef(instance, obj);
     if (typdef) {
-        return typ_get_fraction_digits(typdef);
+        return typ_get_fraction_digits(instance, typdef);
     } else {
         return 0;
     }
@@ -10104,7 +10324,7 @@ uint8
 
 /********************************************************************
 * FUNCTION obj_get_first_iffeature
-* 
+*
 * Get the first if-feature clause (if any) for the specified object
 *
 * INPUTS:
@@ -10115,25 +10335,25 @@ uint8
 *     NULL if none available
 *********************************************************************/
 const ncx_iffeature_t *
-    obj_get_first_iffeature (const obj_template_t  *obj)
+    obj_get_first_iffeature (ncx_instance_t *instance, const obj_template_t  *obj)
 {
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     return (const ncx_iffeature_t *)
-        dlq_firstEntry(&obj->iffeatureQ);
+        dlq_firstEntry(instance, &obj->iffeatureQ);
 
 }  /* obj_get_first_iffeature */
 
 
 /********************************************************************
 * FUNCTION obj_get_next_iffeature
-* 
+*
 * Get the next if-feature clause (if any)
 *
 * INPUTS:
@@ -10144,17 +10364,17 @@ const ncx_iffeature_t *
 *     NULL if none available
 *********************************************************************/
 const ncx_iffeature_t *
-    obj_get_next_iffeature (const ncx_iffeature_t  *iffeature)
+    obj_get_next_iffeature (ncx_instance_t *instance, const ncx_iffeature_t  *iffeature)
 {
 
 #ifdef DEBUG
     if (!iffeature) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (const ncx_iffeature_t *)dlq_nextEntry(iffeature);
+    return (const ncx_iffeature_t *)dlq_nextEntry(instance, iffeature);
 
 }  /* obj_get_next_iffeature */
 
@@ -10165,23 +10385,27 @@ const ncx_iffeature_t *
  * \param obj the obj_template to check
  * \return TRUE if object is a leaf
  *********************************************************************/
-boolean obj_is_leaf (const obj_template_t  *obj)
+boolean obj_is_leaf (ncx_instance_t *instance,
+                     const obj_template_t  *obj)
 {
+    (void)instance;
     assert(obj && "obj is NULL" );
-    return (obj->objtype == OBJ_TYP_LEAF); 
+    return (obj->objtype == OBJ_TYP_LEAF);
 }  /* obj_is_leaf */
 
 
 /********************************************************************
- * Check if object is a proper leaf or leaflist 
+ * Check if object is a proper leaf or leaflist
  *
  * \param obj the obj_template to check
  * \return TRUE if object is a leaf or leaflist
  *********************************************************************/
-boolean obj_is_leafy (const obj_template_t  *obj)
+boolean obj_is_leafy (ncx_instance_t *instance, 
+                      const obj_template_t  *obj)
 {
+    (void)instance;
     assert(obj && "obj is NULL" );
-    return (obj->objtype == OBJ_TYP_LEAF || obj->objtype == OBJ_TYP_LEAF_LIST); 
+    return (obj->objtype == OBJ_TYP_LEAF || obj->objtype == OBJ_TYP_LEAF_LIST);
 }  /* obj_is_leafy */
 
 
@@ -10191,7 +10415,7 @@ boolean obj_is_leafy (const obj_template_t  *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is not mandatory
  *********************************************************************/
-boolean obj_is_mandatory (obj_template_t *obj)
+boolean obj_is_mandatory (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
     switch (obj->objtype) {
@@ -10203,9 +10427,9 @@ boolean obj_is_mandatory (obj_template_t *obj)
     case OBJ_TYP_CASE:
     case OBJ_TYP_RPCIO:
         {
-            obj_template_t *chobj = obj_first_child(obj);
-            for ( ; chobj; chobj = obj_next_child(chobj)) {
-                if (obj_is_mandatory(chobj)) {
+            obj_template_t *chobj = obj_first_child(instance, obj);
+            for ( ; chobj; chobj = obj_next_child(instance, chobj)) {
+                if (obj_is_mandatory(instance, chobj)) {
                     return TRUE;
                 }
             }
@@ -10215,7 +10439,7 @@ boolean obj_is_mandatory (obj_template_t *obj)
     case OBJ_TYP_LEAF:
         if (obj_is_key(obj)) {
             return TRUE;
-        } 
+        }
         /* else fall through */
     case OBJ_TYP_ANYXML:
     case OBJ_TYP_CHOICE:
@@ -10232,7 +10456,7 @@ boolean obj_is_mandatory (obj_template_t *obj)
         return FALSE;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 }   /* obj_is_mandatory */
@@ -10246,11 +10470,11 @@ boolean obj_is_mandatory (obj_template_t *obj)
  * \param config_only  flag indicating weather to only check the config.
  * \return TRUE if object is mandatory
 *********************************************************************/
-boolean obj_is_mandatory_when_ex (obj_template_t *obj, boolean config_only)
+boolean obj_is_mandatory_when_ex (ncx_instance_t *instance, obj_template_t *obj, boolean config_only)
 {
     assert(obj && "obj is NULL" );
 
-    if (config_only && !obj_is_config(obj)) {
+    if (config_only && !obj_is_config(instance, obj)) {
         return FALSE;
     }
 
@@ -10263,9 +10487,9 @@ boolean obj_is_mandatory_when_ex (obj_template_t *obj, boolean config_only)
     case OBJ_TYP_CASE:
     case OBJ_TYP_RPCIO:
         {
-            obj_template_t *chobj = obj_first_child(obj);
-            for ( ; chobj; chobj = obj_next_child(chobj)) {
-                if (obj_is_mandatory_when_ex(chobj, config_only)) {
+            obj_template_t *chobj = obj_first_child(instance, obj);
+            for ( ; chobj; chobj = obj_next_child(instance, chobj)) {
+                if (obj_is_mandatory_when_ex(instance, chobj, config_only)) {
                     return TRUE;
                 }
             }
@@ -10275,21 +10499,21 @@ boolean obj_is_mandatory_when_ex (obj_template_t *obj, boolean config_only)
     case OBJ_TYP_LEAF:
         if (obj_is_key(obj)) {
             return TRUE;
-        } 
+        }
         /* else fall through */
     case OBJ_TYP_ANYXML:
     case OBJ_TYP_CHOICE:
-        if (obj_has_when_stmts(obj)) {
+        if (obj_has_when_stmts(instance, obj)) {
             return FALSE;
         }
         return (obj->flags & OBJ_FL_MANDATORY) ? TRUE : FALSE;
     case OBJ_TYP_LEAF_LIST:
-        if (obj_has_when_stmts(obj)) {
+        if (obj_has_when_stmts(instance, obj)) {
             return FALSE;
         }
         return (obj->def.leaflist->minelems) ? TRUE : FALSE;
     case OBJ_TYP_LIST:
-        if (obj_has_when_stmts(obj)) {
+        if (obj_has_when_stmts(instance, obj)) {
             return FALSE;
         }
         return (obj->def.list->minelems) ? TRUE : FALSE;
@@ -10301,7 +10525,7 @@ boolean obj_is_mandatory_when_ex (obj_template_t *obj, boolean config_only)
         return FALSE;
     case OBJ_TYP_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 
@@ -10315,9 +10539,9 @@ boolean obj_is_mandatory_when_ex (obj_template_t *obj, boolean config_only)
  * \param obj the obj_template to check
  * \return TRUE if object is mandatory
  *********************************************************************/
-boolean obj_is_mandatory_when (obj_template_t *obj)
+boolean obj_is_mandatory_when (ncx_instance_t *instance, obj_template_t *obj)
 {
-    return obj_is_mandatory_when_ex(obj, FALSE);
+    return obj_is_mandatory_when_ex(instance, obj, FALSE);
 }   /* obj_is_mandatory_when */
 
 
@@ -10328,9 +10552,10 @@ boolean obj_is_mandatory_when (obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is cloned
  *********************************************************************/
-boolean obj_is_cloned (const obj_template_t *obj)
+boolean obj_is_cloned (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_CLONE) ? TRUE : FALSE;
 }   /* obj_is_cloned */
 
@@ -10342,9 +10567,10 @@ boolean obj_is_cloned (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is sourced from an augment
 *********************************************************************/
-boolean obj_is_augclone (const obj_template_t *obj)
+boolean obj_is_augclone (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_AUGCLONE) ? TRUE : FALSE;
 }   /* obj_is_augclone */
 
@@ -10355,20 +10581,22 @@ boolean obj_is_augclone (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is a refinement
  *********************************************************************/
-boolean obj_is_refine (const obj_template_t *obj)
+boolean obj_is_refine (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->objtype == OBJ_TYP_REFINE) ? TRUE : FALSE;
 }   /* obj_is_refine */
 
 /********************************************************************
  * Check if the object is defined within data or within a
  * notification or RPC instead
- * 
+ *
  * \param obj the obj_template to check
  * \return TRUE if data object (could be in a grouping or real data)
  *********************************************************************/
-boolean obj_is_data (const obj_template_t *obj)
+boolean obj_is_data (ncx_instance_t *instance,
+                     const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
@@ -10382,7 +10610,7 @@ boolean obj_is_data (const obj_template_t *obj)
         return FALSE;
     default:
         if (obj->parent && !obj_is_root(obj->parent)) {
-            return obj_is_data(obj->parent);
+            return obj_is_data(instance, obj->parent);
         } else {
             return TRUE;
         }
@@ -10391,19 +10619,20 @@ boolean obj_is_data (const obj_template_t *obj)
 
 
 /********************************************************************
- * Check if the object is some sort of data Constrained to only check 
+ * Check if the object is some sort of data Constrained to only check
  * the config DB objects, not any notification or RPC objects
  *
  * \param obj the obj_template to check
  * \return TRUE if data object (could be in a grouping or real data)
  *         FALSE if defined within notification or RPC (or some error)
  *********************************************************************/
-boolean obj_is_data_db (const obj_template_t *obj)
+boolean obj_is_data_db (ncx_instance_t *instance,
+                        const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
 //    if (/*obj_is_abstract(obj) ||*/ obj_is_cli(obj)) {
-    if (obj_is_abstract(obj) || obj_is_cli(obj)) {
+    if (obj_is_abstract(instance, obj) || obj_is_cli(instance, obj)) {
         return FALSE;
     }
 
@@ -10419,7 +10648,7 @@ boolean obj_is_data_db (const obj_template_t *obj)
         if (obj_is_root(obj)) {
             return TRUE;
         } else if (obj->parent && !obj_is_root(obj->parent)) {
-            return obj_is_data_db(obj->parent);
+            return obj_is_data_db(instance, obj->parent);
         } else {
             return TRUE;
         }
@@ -10435,7 +10664,7 @@ boolean obj_is_data_db (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if /rpc/input object
 *********************************************************************/
-boolean obj_in_rpc (const obj_template_t *obj)
+boolean obj_in_rpc (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
@@ -10444,13 +10673,13 @@ boolean obj_in_rpc (const obj_template_t *obj)
     case OBJ_TYP_NOTIF:
         return FALSE;
     case OBJ_TYP_RPCIO:
-        return (!xml_strcmp(obj_get_name(obj), YANG_K_INPUT)) ?
+        return (!xml_strcmp(instance, obj_get_name(instance, obj), YANG_K_INPUT)) ?
             TRUE : FALSE;
     case OBJ_TYP_REFINE:
         return FALSE;
     default:
         if (obj->parent && !obj_is_root(obj->parent)) {
-            return obj_in_rpc(obj->parent);
+            return obj_in_rpc(instance, obj->parent);
         } else {
             return FALSE;
         }
@@ -10466,7 +10695,7 @@ boolean obj_in_rpc (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if /rpc-reply/output object
  *********************************************************************/
-boolean obj_in_rpc_reply (const obj_template_t *obj)
+boolean obj_in_rpc_reply (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
@@ -10475,13 +10704,13 @@ boolean obj_in_rpc_reply (const obj_template_t *obj)
     case OBJ_TYP_NOTIF:
         return FALSE;
     case OBJ_TYP_RPCIO:
-        return (!xml_strcmp(obj_get_name(obj), YANG_K_OUTPUT)) ?
+        return (!xml_strcmp(instance, obj_get_name(instance, obj), YANG_K_OUTPUT)) ?
             TRUE : FALSE;
     case OBJ_TYP_REFINE:
         return FALSE;
     default:
         if (obj->parent && !obj_is_root(obj->parent)) {
-            return obj_in_rpc_reply(obj->parent);
+            return obj_in_rpc_reply(instance, obj->parent);
         } else {
             return FALSE;
         }
@@ -10493,7 +10722,7 @@ boolean obj_in_rpc_reply (const obj_template_t *obj)
 
 /********************************************************************
  * FUNCTION obj_in_notif
- * 
+ *
  * Check if the object is in a notification
  *
  * \param obj the obj_template to check
@@ -10525,26 +10754,30 @@ boolean obj_in_notif (const obj_template_t *obj)
 
 /********************************************************************
  * Check if the object is an RPC method
- * 
+ *
  * \param obj the obj_template to check
  * \return TRUE if RPC method
  *********************************************************************/
-boolean obj_is_rpc (const obj_template_t *obj)
+boolean obj_is_rpc (ncx_instance_t *instance,
+                    const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->objtype == OBJ_TYP_RPC) ? TRUE : FALSE;
 }  /* obj_is_rpc */
 
 
 /********************************************************************
  * Check if the object is a notification
- * 
+ *
  * \param obj the obj_template to check
  * \return TRUE if notification
  *********************************************************************/
-boolean obj_is_notif (const obj_template_t *obj)
+boolean obj_is_notif (ncx_instance_t *instance,
+                      const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->objtype == OBJ_TYP_NOTIF);
 }  /* obj_is_notif */
 
@@ -10558,9 +10791,11 @@ boolean obj_is_notif (const obj_template_t *obj)
  * \return TRUE if object is empty of subclauses
  *   FALSE if object is not empty of subclauses
  *********************************************************************/
-boolean obj_is_empty (const obj_template_t *obj)
+boolean obj_is_empty (ncx_instance_t *instance,
+                      const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_EMPTY) ? TRUE : FALSE;
 }   /* obj_is_empty */
 
@@ -10573,18 +10808,20 @@ boolean obj_is_empty (const obj_template_t *obj)
  * \param obj the second obj_template in the match
  * \return TRUE is a match, FALSE otherwise
  *********************************************************************/
-boolean obj_is_match ( const obj_template_t  *obj1,
-                       const obj_template_t *obj2 )
+boolean obj_is_match (ncx_instance_t *instance, 
+                      const obj_template_t  *obj1, 
+                      const obj_template_t *obj2 )
 {
 
-    if (!xmlns_ids_equal(obj_get_nsid(obj1),
-                         obj_get_nsid(obj2))) {
+    if (!xmlns_ids_equal(obj_get_nsid(instance, obj1),
+                         obj_get_nsid(instance, obj2))) {
         return FALSE;
     }
 
-    if (obj_has_name(obj1) && obj_has_name(obj2)) {
-        return xml_strcmp(obj_get_name(obj1), 
-                          obj_get_name(obj2)) ? FALSE : TRUE;
+    if (obj_has_name(instance, obj1) && obj_has_name(instance, obj2)) {
+        return xml_strcmp(instance,
+                          obj_get_name(instance, obj1),
+                          obj_get_name(instance, obj2)) ? FALSE : TRUE;
     } else {
         return FALSE;
     }
@@ -10596,11 +10833,13 @@ boolean obj_is_match ( const obj_template_t  *obj1,
  * Check if object is marked as a hidden object
  *
  * \param obj the obj_template to check
- * \return TRUE if object is marked as OBJ_FL_HIDDEN 
+ * \return TRUE if object is marked as OBJ_FL_HIDDEN
  *********************************************************************/
-boolean obj_is_hidden (const obj_template_t *obj)
+boolean obj_is_hidden (ncx_instance_t *instance,
+                       const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_HIDDEN) ? TRUE : FALSE;
 }   /* obj_is_hidden */
 
@@ -10624,9 +10863,11 @@ boolean obj_is_root (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as OBJ_FL_PASSWD
  *********************************************************************/
-boolean obj_is_password (const obj_template_t *obj)
+boolean obj_is_password (ncx_instance_t *instance,
+                         const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_PASSWD) ? TRUE : FALSE;
 }   /* obj_is_password */
 
@@ -10636,9 +10877,11 @@ boolean obj_is_password (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as OBJ_FL_XSDLIST
  *********************************************************************/
-boolean obj_is_xsdlist (const obj_template_t *obj)
+boolean obj_is_xsdlist (ncx_instance_t *instance,
+                        const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_XSDLIST) ? TRUE : FALSE;
 }   /* obj_is_xsdlist */
 
@@ -10648,14 +10891,15 @@ boolean obj_is_xsdlist (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as ncx:cli
  *********************************************************************/
-boolean obj_is_cli (const obj_template_t *obj)
+boolean obj_is_cli (ncx_instance_t *instance,
+                    const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
     if (obj->flags & OBJ_FL_CLI) {
         return TRUE;
     } else if (obj->parent) {
-        return obj_is_cli(obj->parent);
+        return obj_is_cli(instance, obj->parent);
     } else {
         return FALSE;
     }
@@ -10681,9 +10925,11 @@ boolean obj_is_key (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as ncx:abstract
  *********************************************************************/
-boolean obj_is_abstract (const obj_template_t *obj)
+boolean obj_is_abstract (ncx_instance_t *instance,
+                         const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_ABSTRACT) ? TRUE : FALSE;
 }   /* obj_is_abstract */
 
@@ -10694,18 +10940,18 @@ boolean obj_is_abstract (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as ncx:xpath
  *********************************************************************/
-boolean obj_is_xpath_string (const obj_template_t *obj)
+boolean obj_is_xpath_string (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
     boolean retval = ( (obj->flags & (OBJ_FL_XPATH | OBJ_FL_SCHEMAINST)) ||
-                        obj_get_basetype(obj)==NCX_BT_INSTANCE_ID) ? TRUE 
+                        obj_get_basetype(instance, obj)==NCX_BT_INSTANCE_ID) ? TRUE
                                                                    : FALSE;
 
     if ( !retval ) {
-        const typ_def_t *typdef = obj_get_ctypdef(obj);
+        const typ_def_t *typdef = obj_get_ctypdef(instance, obj);
         if (typdef) {
-            return typ_is_xpath_string(typdef);
+            return typ_is_xpath_string(instance, typdef);
         }
     }
 
@@ -10720,11 +10966,12 @@ boolean obj_is_xpath_string (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as ncx:schema-instance
  *********************************************************************/
-boolean obj_is_schema_instance_string (const obj_template_t *obj)
+boolean obj_is_schema_instance_string (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
-    if (obj_get_basetype(obj) != NCX_BT_STRING) {
+    (void)instance;
+    if (obj_get_basetype(instance, obj) != NCX_BT_STRING) {
         return FALSE;
     }
 
@@ -10738,9 +10985,11 @@ boolean obj_is_schema_instance_string (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as ncx:secure
  *********************************************************************/
-boolean obj_is_secure (const obj_template_t *obj)
+boolean obj_is_secure (ncx_instance_t *instance,
+                       const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_SECURE) ? TRUE : FALSE;
 }   /* obj_is_secure */
 
@@ -10751,9 +11000,11 @@ boolean obj_is_secure (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as ncx:very-secure
  *********************************************************************/
-boolean obj_is_very_secure (const obj_template_t *obj)
+boolean obj_is_very_secure (ncx_instance_t *instance,
+                            const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_VERY_SECURE) ? TRUE : FALSE;
 }   /* obj_is_very_secure */
 
@@ -10764,9 +11015,11 @@ boolean obj_is_very_secure (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is system ordered
  *********************************************************************/
-boolean obj_is_system_ordered (const obj_template_t *obj)
+boolean obj_is_system_ordered (ncx_instance_t *instance,
+                               const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
 
     switch (obj->objtype) {
     case OBJ_TYP_LEAF_LIST:
@@ -10787,9 +11040,11 @@ boolean obj_is_system_ordered (const obj_template_t *obj)
  * \return TRUE if object is an NP-container
  *********************************************************************/
 boolean
-    obj_is_np_container (const obj_template_t *obj)
+    obj_is_np_container (ncx_instance_t *instance, 
+                         const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
 
     if (obj->objtype != OBJ_TYP_CONTAINER) {
         return FALSE;
@@ -10807,22 +11062,22 @@ boolean
  * \param obj the obj_template to check
  * \return TRUE if object is enabled
  *********************************************************************/
-boolean obj_is_enabled (const obj_template_t *obj)
+boolean obj_is_enabled (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
-    const ncx_iffeature_t *iffeature = obj_get_first_iffeature(obj);
-    for ( ; iffeature ; iffeature = obj_get_next_iffeature(iffeature)) {
-        if (!iffeature->feature || !ncx_feature_enabled(iffeature->feature)) {
+    const ncx_iffeature_t *iffeature = obj_get_first_iffeature(instance, obj);
+    for ( ; iffeature ; iffeature = obj_get_next_iffeature(instance, iffeature)) {
+        if (!iffeature->feature || !ncx_feature_enabled(instance, iffeature->feature)) {
             return FALSE;
         }
     }
 
     const obj_iffeature_ptr_t *iffptr = (obj_iffeature_ptr_t *)
-        dlq_firstEntry(&obj->inherited_iffeatureQ);
-    for ( ; iffptr ; iffptr = (obj_iffeature_ptr_t *)dlq_nextEntry(iffptr) ) {
-        if (!iffptr->iffeature->feature || 
-            !ncx_feature_enabled(iffptr->iffeature->feature)) {
+        dlq_firstEntry(instance, &obj->inherited_iffeatureQ);
+    for ( ; iffptr ; iffptr = (obj_iffeature_ptr_t *)dlq_nextEntry(instance, iffptr) ) {
+        if (!iffptr->iffeature->feature ||
+            !ncx_feature_enabled(instance, iffptr->iffeature->feature)) {
             return FALSE;
         }
     }
@@ -10834,21 +11089,21 @@ boolean obj_is_enabled (const obj_template_t *obj)
             (testobj->objtype == OBJ_TYP_CHOICE ||
              testobj->objtype == OBJ_TYP_CASE)) {
 
-            iffeature = obj_get_first_iffeature(testobj);
-            for ( ; iffeature ; 
-                  iffeature = obj_get_next_iffeature(iffeature)) {
-                if (!iffeature->feature || 
-                    !ncx_feature_enabled(iffeature->feature)) {
+            iffeature = obj_get_first_iffeature(instance, testobj);
+            for ( ; iffeature ;
+                  iffeature = obj_get_next_iffeature(instance, iffeature)) {
+                if (!iffeature->feature ||
+                    !ncx_feature_enabled(instance, iffeature->feature)) {
                     return FALSE;
                 }
             }
 
             iffptr = (obj_iffeature_ptr_t *)
-                dlq_firstEntry(&testobj->inherited_iffeatureQ);
+                dlq_firstEntry(instance, &testobj->inherited_iffeatureQ);
             for ( ; iffptr ; iffptr = (obj_iffeature_ptr_t *)
-                      dlq_nextEntry(iffptr) ) {
-                if (!iffptr->iffeature->feature || 
-                    !ncx_feature_enabled(iffptr->iffeature->feature)) {
+                      dlq_nextEntry(instance, iffptr) ) {
+                if (!iffptr->iffeature->feature ||
+                    !ncx_feature_enabled(instance, iffptr->iffeature->feature)) {
                     return FALSE;
                 }
             }
@@ -10872,12 +11127,12 @@ boolean obj_is_enabled (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is a single instance object
  *********************************************************************/
-boolean obj_is_single_instance (obj_template_t *obj)
+boolean obj_is_single_instance (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
     while (obj != NULL) {
-        ncx_iqual_t iqual = obj_get_iqualval(obj);
+        ncx_iqual_t iqual = obj_get_iqualval(instance, obj);
         switch (iqual) {
         case NCX_IQUAL_ZMORE:
         case NCX_IQUAL_1MORE:
@@ -10901,7 +11156,7 @@ boolean obj_is_single_instance (obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is a 1 object case statement
  *********************************************************************/
-boolean obj_is_short_case (obj_template_t *obj)
+boolean obj_is_short_case (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
@@ -10912,7 +11167,7 @@ boolean obj_is_short_case (obj_template_t *obj)
 
     cas = obj->def.cas;
 
-    if (dlq_count(cas->datadefQ) != 1) {
+    if (dlq_count(instance, cas->datadefQ) != 1) {
         return FALSE;
     }
 
@@ -10920,23 +11175,23 @@ boolean obj_is_short_case (obj_template_t *obj)
         return FALSE;
     }
 
-    if (obj_get_first_iffeature(obj) != NULL) {
+    if (obj_get_first_iffeature(instance, obj) != NULL) {
         return FALSE;
     }
 
-    if (obj_get_status(obj) != NCX_STATUS_CURRENT) {
+    if (obj_get_status(instance, obj) != NCX_STATUS_CURRENT) {
         return FALSE;
     }
 
-    if (obj_get_description(obj) != NULL) {
+    if (obj_get_description(instance, obj) != NULL) {
         return FALSE;
     }
 
-    if (obj_get_reference(obj) != NULL) {
+    if (obj_get_reference(instance, obj) != NULL) {
         return FALSE;
     }
 
-    if (dlq_count(obj_get_appinfoQ(obj)) > 0) {
+    if (dlq_count(instance, obj_get_appinfoQ(instance, obj)) > 0) {
         return FALSE;
     }
 
@@ -10951,9 +11206,10 @@ boolean obj_is_short_case (obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if obj is a top-level object
  *********************************************************************/
-boolean obj_is_top (const obj_template_t *obj)
+boolean obj_is_top (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
     return (obj->flags & OBJ_FL_TOP) ? TRUE : FALSE;
 }  /* obj_is_top */
 
@@ -10966,7 +11222,7 @@ boolean obj_is_top (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is OK for CLI
  *********************************************************************/
-boolean obj_ok_for_cli (obj_template_t *obj)
+boolean obj_ok_for_cli (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
@@ -10974,8 +11230,8 @@ boolean obj_ok_for_cli (obj_template_t *obj)
         return FALSE;
     }
 
-    obj_template_t *chobj = obj_first_child(obj);
-    for (; chobj; chobj = obj_next_child(chobj)) {
+    obj_template_t *chobj = obj_first_child(instance, obj);
+    for (; chobj; chobj = obj_next_child(instance, chobj)) {
 
         switch (chobj->objtype) {
         case OBJ_TYP_ANYXML:
@@ -10985,10 +11241,10 @@ boolean obj_ok_for_cli (obj_template_t *obj)
             break;
         case OBJ_TYP_CHOICE:
             {
-                obj_template_t* casobj = obj_first_child(chobj);
-                for ( ; casobj; casobj = obj_next_child(casobj)) {
-                    obj_template_t* caschild = obj_first_child(casobj);
-                    for ( ; caschild ; caschild = obj_next_child(caschild)) {
+                obj_template_t* casobj = obj_first_child(instance, chobj);
+                for ( ; casobj; casobj = obj_next_child(instance, casobj)) {
+                    obj_template_t* caschild = obj_first_child(instance, casobj);
+                    for ( ; caschild ; caschild = obj_next_child(instance, caschild)) {
                         switch (caschild->objtype) {
                         case OBJ_TYP_ANYXML:
                             return FALSE;
@@ -11018,11 +11274,11 @@ boolean obj_ok_for_cli (obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if there are any accessible children
  *********************************************************************/
-boolean obj_has_children (obj_template_t *obj)
+boolean obj_has_children (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
-    if ( obj_first_child_deep(obj) ) {
+    if ( obj_first_child_deep(instance, obj) ) {
         return TRUE;
     } else {
         return FALSE;
@@ -11036,17 +11292,17 @@ boolean obj_has_children (obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if there are any accessible read-only children
  *********************************************************************/
-boolean obj_has_ro_children (obj_template_t *obj)
+boolean obj_has_ro_children (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
 
-    obj_template_t *childobj = obj_first_child(obj);
-    for ( ; childobj ; childobj = obj_next_child(childobj)) {
+    obj_template_t *childobj = obj_first_child(instance, obj);
+    for ( ; childobj ; childobj = obj_next_child(instance, childobj)) {
 
-        if ( obj_has_name(childobj) && obj_is_enabled(childobj) && 
-            !obj_is_abstract(childobj)) {
+        if ( obj_has_name(instance, childobj) && obj_is_enabled(instance, childobj) &&
+            !obj_is_abstract(instance, childobj)) {
 
-            if (!obj_get_config_flag(childobj)) {
+            if (!obj_get_config_flag(instance, childobj)) {
                 return TRUE;
             }
         }
@@ -11063,9 +11319,9 @@ boolean obj_has_ro_children (obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if there are any input children
  *********************************************************************/
-boolean obj_rpc_has_input (obj_template_t *obj)
+boolean obj_rpc_has_input (ncx_instance_t *instance, obj_template_t *obj)
 {
-    return obj_rpc_has_input_or_output( obj, YANG_K_INPUT );
+    return obj_rpc_has_input_or_output(instance,  obj, YANG_K_INPUT );
 }   /* obj_rpc_has_input */
 
 /********************************************************************
@@ -11074,9 +11330,9 @@ boolean obj_rpc_has_input (obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if there are any output children
  *********************************************************************/
-boolean obj_rpc_has_output (obj_template_t *obj)
+boolean obj_rpc_has_output (ncx_instance_t *instance, obj_template_t *obj)
 {
-    return obj_rpc_has_input_or_output( obj, YANG_K_OUTPUT );
+    return obj_rpc_has_input_or_output(instance,  obj, YANG_K_OUTPUT );
 }   /* obj_rpc_has_output */
 
 
@@ -11087,11 +11343,12 @@ boolean obj_rpc_has_output (obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object has any when-stmts associated with it
  *********************************************************************/
-boolean obj_has_when_stmts (obj_template_t *obj)
+boolean obj_has_when_stmts (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
 
-    if (obj->when || !dlq_empty(&obj->inherited_whenQ)) {
+    if (obj->when || !dlq_empty(instance, &obj->inherited_whenQ)) {
         return TRUE;
     }
 
@@ -11102,7 +11359,7 @@ boolean obj_has_when_stmts (obj_template_t *obj)
             (testobj->objtype == OBJ_TYP_CHOICE ||
              testobj->objtype == OBJ_TYP_CASE)) {
 
-            if (testobj->when || !dlq_empty(&testobj->inherited_whenQ)) {
+            if (testobj->when || !dlq_empty(instance, &testobj->inherited_whenQ)) {
                 return TRUE;
             }
 
@@ -11119,7 +11376,7 @@ boolean obj_has_when_stmts (obj_template_t *obj)
 
 /********************************************************************
 * FUNCTION obj_new_metadata
-* 
+*
 * Malloc and initialize the fields in a an obj_metadata_t
 *
 * INPUTS:
@@ -11129,20 +11386,20 @@ boolean obj_has_when_stmts (obj_template_t *obj)
 * RETURNS:
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
-obj_metadata_t * obj_new_metadata (void)
+obj_metadata_t * obj_new_metadata (ncx_instance_t *instance)
 {
     obj_metadata_t  *meta;
 
-    meta = m__getObj(obj_metadata_t);
+    meta = m__getObj(instance, obj_metadata_t);
     if (!meta) {
         return NULL;
     }
 
     (void)memset(meta, 0x0, sizeof(obj_metadata_t));
 
-    meta->typdef = typ_new_typdef();
+    meta->typdef = typ_new_typdef(instance);
     if (!meta->typdef) {
-        m__free(meta);
+        m__free(instance, meta);
         return NULL;
     }
 
@@ -11153,35 +11410,35 @@ obj_metadata_t * obj_new_metadata (void)
 
 /********************************************************************
 * FUNCTION obj_free_metadata
-* 
+*
 * Scrub the memory in a obj_metadata_t by freeing all
-* the sub-fields and then freeing the entire struct itself 
+* the sub-fields and then freeing the entire struct itself
 * The struct must be removed from any queue it is in before
 * this function is called.
 *
 * INPUTS:
 *    meta == obj_metadata_t data structure to free
 *********************************************************************/
-void obj_free_metadata (obj_metadata_t *meta)
+void obj_free_metadata (ncx_instance_t *instance, obj_metadata_t *meta)
 {
     if (!meta) {
         return;
     }
 
     if (meta->name) {
-        m__free(meta->name);
+        m__free(instance, meta->name);
     }
     if (meta->typdef) {
-        typ_free_typdef(meta->typdef);
+        typ_free_typdef(instance, meta->typdef);
     }
-    m__free(meta);
+    m__free(instance, meta);
 
 }  /* obj_free_metadata */
 
 
 /********************************************************************
 * FUNCTION obj_add_metadata
-* 
+*
 * Add the filled out object metadata definition to the object
 *
 * INPUTS:
@@ -11192,25 +11449,26 @@ void obj_free_metadata (obj_metadata_t *meta)
 *    status
 *********************************************************************/
 status_t
-    obj_add_metadata (obj_metadata_t *meta,
+    obj_add_metadata (ncx_instance_t *instance,
+                      obj_metadata_t *meta,
                       obj_template_t *obj)
 {
     obj_metadata_t *testmeta;
 
 #ifdef DEBUG
     if (!meta || !obj) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    testmeta = obj_find_metadata(obj, meta->name);
+    testmeta = obj_find_metadata(instance, obj, meta->name);
     if (testmeta) {
         return ERR_NCX_ENTRY_EXISTS;
     }
 
     meta->parent = obj;
-    meta->nsid = obj_get_nsid(obj);
-    dlq_enque(meta, &obj->metadataQ);
+    meta->nsid = obj_get_nsid(instance, obj);
+    dlq_enque(instance, meta, &obj->metadataQ);
     return NO_ERR;
 
 }  /* obj_add_metadata */
@@ -11218,7 +11476,7 @@ status_t
 
 /********************************************************************
 * FUNCTION obj_find_metadata
-* 
+*
 * Find the object metadata definition in the object
 *
 * INPUTS:
@@ -11229,25 +11487,26 @@ status_t
 *    pointer to found entry, NULL if not found
 *********************************************************************/
 obj_metadata_t *
-    obj_find_metadata (const obj_template_t *obj,
+    obj_find_metadata (ncx_instance_t *instance,
+                       const obj_template_t *obj,
                        const xmlChar *name)
 {
     obj_metadata_t *testmeta;
 
 #ifdef DEBUG
     if (!obj || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     for (testmeta = (obj_metadata_t *)
-             dlq_firstEntry(&obj->metadataQ);
+             dlq_firstEntry(instance, &obj->metadataQ);
          testmeta != NULL;
          testmeta = (obj_metadata_t *)
-             dlq_nextEntry(testmeta)) {
+             dlq_nextEntry(instance, testmeta)) {
 
-        if (!xml_strcmp(testmeta->name, name)) {
+        if (!xml_strcmp(instance, testmeta->name, name)) {
             return testmeta;
         }
     }
@@ -11259,7 +11518,7 @@ obj_metadata_t *
 
 /********************************************************************
 * FUNCTION obj_first_metadata
-* 
+*
 * Get the first object metadata definition in the object
 *
 * INPUTS:
@@ -11269,25 +11528,25 @@ obj_metadata_t *
 *    pointer to first entry, NULL if none
 *********************************************************************/
 obj_metadata_t *
-    obj_first_metadata (const obj_template_t *obj)
+    obj_first_metadata (ncx_instance_t *instance, const obj_template_t *obj)
 {
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     return (obj_metadata_t *)
-        dlq_firstEntry(&obj->metadataQ);
+        dlq_firstEntry(instance, &obj->metadataQ);
 
 }  /* obj_first_metadata */
 
 
 /********************************************************************
 * FUNCTION obj_next_metadata
-* 
+*
 * Get the next object metadata definition in the object
 *
 * INPUTS:
@@ -11297,24 +11556,24 @@ obj_metadata_t *
 *    pointer to next entry, NULL if none
 *********************************************************************/
 obj_metadata_t *
-    obj_next_metadata (const obj_metadata_t *meta)
+    obj_next_metadata (ncx_instance_t *instance, const obj_metadata_t *meta)
 {
 
 #ifdef DEBUG
     if (!meta) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (obj_metadata_t *)dlq_nextEntry(meta);
+    return (obj_metadata_t *)dlq_nextEntry(instance, meta);
 
 }  /* obj_next_metadata */
 
 
 /********************************************************************
  * FUNCTION obj_sort_children
- * 
+ *
  * Check all the child nodes of the specified object
  * and rearrange them into alphabetical order,
  * based on the element local-name.
@@ -11326,7 +11585,7 @@ obj_metadata_t *
  *    obj == object template to reorder
  *********************************************************************/
 void
-    obj_sort_children (obj_template_t *obj)
+    obj_sort_children (ncx_instance_t *instance, obj_template_t *obj)
 {
     obj_template_t    *newchild, *curchild;
     dlq_hdr_t         *datadefQ, sortQ;
@@ -11335,59 +11594,60 @@ void
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    datadefQ = obj_get_datadefQ(obj);
+    datadefQ = obj_get_datadefQ(instance, obj);
     if (datadefQ == NULL) {
         return;
-    } 
+    }
 
-    dlq_createSQue(&sortQ);
-    newchild = (obj_template_t *)dlq_deque(datadefQ);
+    dlq_createSQue(instance, &sortQ);
+    newchild = (obj_template_t *)dlq_deque(instance, datadefQ);
     while (newchild != NULL) {
-        if (!obj_has_name(newchild)) {
-            dlq_enque(newchild, &sortQ);
+        if (!obj_has_name(instance, newchild)) {
+            dlq_enque(instance, newchild, &sortQ);
         } else {
-            obj_sort_children(newchild);
+            obj_sort_children(instance, newchild);
 
             done = FALSE;
             for (curchild = (obj_template_t *)
-                     dlq_firstEntry(&sortQ);
+                     dlq_firstEntry(instance, &sortQ);
                  curchild != NULL && !done;
                  curchild = (obj_template_t *)
-                     dlq_nextEntry(curchild)) {
-            
-                if (!obj_has_name(curchild)) {
+                     dlq_nextEntry(instance, curchild)) {
+
+                if (!obj_has_name(instance, curchild)) {
                     continue;
                 }
 
-                retval = xml_strcmp(obj_get_name(newchild),
-                                    obj_get_name(curchild));
-                if (retval == 0) {        
-                   if (obj_get_nsid(newchild) 
-                        < obj_get_nsid(curchild)) {
-                        dlq_insertAhead(newchild, curchild);
+                retval = xml_strcmp(instance,
+                                    obj_get_name(instance, newchild),
+                                    obj_get_name(instance, curchild));
+                if (retval == 0) {
+                   if (obj_get_nsid(instance, newchild)
+                        < obj_get_nsid(instance, curchild)) {
+                        dlq_insertAhead(instance, newchild, curchild);
                     } else {
-                        dlq_insertAfter(newchild, curchild);                    
+                        dlq_insertAfter(instance, newchild, curchild);
                     }
                    done = TRUE;
                 } else if (retval < 0) {
-                    dlq_insertAhead(newchild, curchild);
+                    dlq_insertAhead(instance, newchild, curchild);
                     done = TRUE;
                 }
             }
-            
+
             if (!done) {
-                dlq_enque(newchild, &sortQ);
+                dlq_enque(instance, newchild, &sortQ);
             }
         }
-        newchild = (obj_template_t *)dlq_deque(datadefQ);
+        newchild = (obj_template_t *)dlq_deque(instance, datadefQ);
     }
 
-    dlq_block_enque(&sortQ, datadefQ);
+    dlq_block_enque(instance, &sortQ, datadefQ);
 
 }  /* obj_sort_children */
 
@@ -11405,86 +11665,87 @@ void
 *
 *********************************************************************/
 void
-    obj_set_ncx_flags (obj_template_t *obj)
+    obj_set_ncx_flags (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert( obj && "obj is NULL!" );
 
-    const dlq_hdr_t *appinfoQ = obj_get_appinfoQ(obj);
+    const dlq_hdr_t *appinfoQ = obj_get_appinfoQ(instance, obj);
 
-    if (obj_is_leafy(obj)) {
-        if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, NCX_EL_PASSWORD)) {
+    if (obj_is_leafy(instance, obj)) {
+        if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX, NCX_EL_PASSWORD)) {
             obj->flags |= OBJ_FL_PASSWD;
         }
     }
 
-    if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, NCX_EL_HIDDEN)) {
+    if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX, NCX_EL_HIDDEN)) {
         obj->flags |= OBJ_FL_HIDDEN;
     }
 
-    if (obj_is_leafy(obj)) {
-        if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, NCX_EL_XSDLIST)) {
+    if (obj_is_leafy(instance, obj)) {
+        if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX, NCX_EL_XSDLIST)) {
             obj->flags |= OBJ_FL_XSDLIST;
         }
     }
 
     if (obj->objtype == OBJ_TYP_CONTAINER) {
-        if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, NCX_EL_ROOT)) {
+        if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX, NCX_EL_ROOT)) {
             obj->flags |= OBJ_FL_ROOT;
         }
     }
 
-    if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, NCX_EL_CLI)) {
+    if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX, NCX_EL_CLI)) {
         obj->flags |= OBJ_FL_CLI;
     }
 
-    if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, NCX_EL_ABSTRACT)) {
+    if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX, NCX_EL_ABSTRACT)) {
         obj->flags |= OBJ_FL_ABSTRACT;
     }
 
-    if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, 
+    if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX,
                                NCX_EL_DEFAULT_PARM_EQUALS_OK)) {
         obj->flags |= OBJ_FL_CLI_EQUALS_OK;
     }
 
-    if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, 
+    if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX,
                                NCX_EL_SIL_DELETE_CHILDREN_FIRST)) {
         obj->flags |= OBJ_FL_SIL_DELETE_CHILDREN_FIRST;
     }
 
-    if (ncx_find_const_appinfo(appinfoQ, NACM_PREFIX, NCX_EL_SECURE)) {
+    if (ncx_find_const_appinfo(instance, appinfoQ, NACM_PREFIX, NCX_EL_SECURE)) {
         obj->flags |= OBJ_FL_SECURE;
     }
 
-    if (ncx_find_const_appinfo(appinfoQ, NACM_PREFIX, NCX_EL_VERY_SECURE)) {
+    if (ncx_find_const_appinfo(instance, appinfoQ, NACM_PREFIX, NCX_EL_VERY_SECURE)) {
         obj->flags |= OBJ_FL_VERY_SECURE;
     }
 
-    if (obj_is_config(obj)) {
-        const ncx_appinfo_t *appinfo = 
-            ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, NCX_EL_USER_WRITE);
+    if (obj_is_config(instance, obj)) {
+        const ncx_appinfo_t *appinfo =
+            ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX, NCX_EL_USER_WRITE);
         if (appinfo) {
-            const xmlChar *str = ncx_get_appinfo_value(appinfo);
+            const xmlChar *str = ncx_get_appinfo_value(instance, appinfo);
             if (str) {
                 ncx_list_t mylist;
-                ncx_init_list(&mylist, NCX_BT_STRING);
-                status_t res = ncx_set_list(NCX_BT_STRING, str, &mylist);
+                ncx_init_list(instance, &mylist, NCX_BT_STRING);
+                status_t res = ncx_set_list(instance, NCX_BT_STRING, str, &mylist);
                 if (res != NO_ERR) {
                     /* not setting any user-write flags! */
-                    log_error("\nError: invalid ncx:user-write value '%s' (%s)",
+                    log_error(instance,
+                              "\nError: invalid ncx:user-write value '%s' (%s)",
                               str, get_error_string(res));
                 } else {
                     /* not checking if the list has extra bogus strings!! */
-                    if (!ncx_string_in_list(NCX_EL_CREATE, &mylist)) {
+                    if (!ncx_string_in_list(instance, NCX_EL_CREATE, &mylist)) {
                         obj->flags |= OBJ_FL_BLOCK_CREATE;
                     }
-                    if (!ncx_string_in_list(NCX_EL_UPDATE, &mylist)) {
+                    if (!ncx_string_in_list(instance, NCX_EL_UPDATE, &mylist)) {
                         obj->flags |= OBJ_FL_BLOCK_UPDATE;
                     }
-                    if (!ncx_string_in_list(NCX_EL_DELETE, &mylist)) {
+                    if (!ncx_string_in_list(instance, NCX_EL_DELETE, &mylist)) {
                         obj->flags |= OBJ_FL_BLOCK_DELETE;
                     }
                 }
-                ncx_clean_list(&mylist);                
+                ncx_clean_list(instance, &mylist);
             } else {
                 /* treat no value the same as an empty string,
                  * which means no user access at all;
@@ -11497,29 +11758,29 @@ void
         }
     }
 
-    if (obj_is_leafy(obj)) {
-        const typ_def_t *typdef = obj_get_ctypdef(obj);
+    if (obj_is_leafy(instance, obj)) {
+        const typ_def_t *typdef = obj_get_ctypdef(instance, obj);
 
         /* ncx:xpath extension */
-        if (typ_is_xpath_string(typdef)) {
+        if (typ_is_xpath_string(instance, typdef)) {
             obj->flags |= OBJ_FL_XPATH;
-        } else if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, 
+        } else if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX,
                                           NCX_EL_XPATH)) {
             obj->flags |= OBJ_FL_XPATH;
         }
 
         /* ncx:qname extension */
-        if (typ_is_qname_string(typdef)) {
+        if (typ_is_qname_string(instance, typdef)) {
             obj->flags |= OBJ_FL_QNAME;
-        } else if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, 
+        } else if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX,
                                           NCX_EL_XPATH)) {
             obj->flags |= OBJ_FL_QNAME;
         }
 
         /* ncx:schema-instance extension */
-        if (typ_is_schema_instance_string(typdef)) {
+        if (typ_is_schema_instance_string(instance, typdef)) {
             obj->flags |= OBJ_FL_SCHEMAINST;
-        } else if (ncx_find_const_appinfo(appinfoQ, NCX_PREFIX, 
+        } else if (ncx_find_const_appinfo(instance, appinfoQ, NCX_PREFIX,
                                           NCX_EL_SCHEMA_INSTANCE)) {
             obj->flags |= OBJ_FL_SCHEMAINST;
         }
@@ -11541,7 +11802,7 @@ void
 *   number of enabled child nodes
 *********************************************************************/
 uint32
-    obj_enabled_child_count (obj_template_t *obj)
+    obj_enabled_child_count (ncx_instance_t *instance, obj_template_t *obj)
 {
     dlq_hdr_t       *childQ;
     obj_template_t  *chobj;
@@ -11549,25 +11810,25 @@ uint32
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
-    childQ = obj_get_datadefQ(obj);
+    childQ = obj_get_datadefQ(instance, obj);
     if (childQ == NULL) {
         return 0;
     }
 
     count = 0;
 
-    for (chobj = (obj_template_t *)dlq_firstEntry(childQ);
+    for (chobj = (obj_template_t *)dlq_firstEntry(instance, childQ);
          chobj != NULL;
-         chobj = (obj_template_t *)dlq_nextEntry(chobj)) {
-        if (!obj_has_name(chobj)) {
+         chobj = (obj_template_t *)dlq_nextEntry(instance, chobj)) {
+        if (!obj_has_name(instance, chobj)) {
             continue;
         }
-        if (obj_is_enabled(chobj)) {
+        if (obj_is_enabled(instance, chobj)) {
             count++;
         }
     }
@@ -11588,7 +11849,8 @@ uint32
 *   indent == indent amount
 *********************************************************************/
 void
-    obj_dump_child_list (dlq_hdr_t *datadefQ,
+    obj_dump_child_list (ncx_instance_t *instance,
+                         dlq_hdr_t *datadefQ,
                          uint32  startindent,
                          uint32 indent)
 {
@@ -11598,29 +11860,30 @@ void
 
 #ifdef DEBUG
     if (!datadefQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    for (obj = (obj_template_t *)dlq_firstEntry(datadefQ);
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, datadefQ);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-        log_write("\n");
+        log_write(instance, "\n");
         for (i=0; i < startindent; i++) {
-            log_write(" ");
+            log_write(instance, " ");
         }
 
-        log_write("%s", obj_get_typestr(obj));
+        log_write(instance, "%s", obj_get_typestr(instance, obj));
 
-        if (obj_has_name(obj)) {
-            log_write(" %s", obj_get_name(obj));
+        if (obj_has_name(instance, obj)) {
+            log_write(instance, " %s", obj_get_name(instance, obj));
         }
 
-        child_datadefQ = obj_get_datadefQ(obj);
+        child_datadefQ = obj_get_datadefQ(instance, obj);
         if (child_datadefQ != NULL) {
-            obj_dump_child_list(child_datadefQ,
+            obj_dump_child_list(instance,
+                                child_datadefQ,
                                 startindent+indent,
                                 indent);
         }
@@ -11641,11 +11904,11 @@ void
 *   pointer to key string or NULL if none or not a list
 *********************************************************************/
 const xmlChar *
-    obj_get_keystr (obj_template_t *obj)
+    obj_get_keystr (ncx_instance_t *instance, obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -11669,39 +11932,40 @@ const xmlChar *
 *
 *********************************************************************/
 void
-    obj_delete_obsolete (dlq_hdr_t  *objQ)
+    obj_delete_obsolete (ncx_instance_t *instance, dlq_hdr_t  *objQ)
 {
     obj_template_t  *childobj, *nextobj;
     dlq_hdr_t       *childdatadefQ;
 
 #ifdef DEBUG
     if (objQ == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    for (childobj = (obj_template_t *)dlq_firstEntry(objQ);
+    for (childobj = (obj_template_t *)dlq_firstEntry(instance, objQ);
          childobj != NULL;
          childobj = nextobj) {
 
-        nextobj = (obj_template_t *)dlq_nextEntry(childobj);
-        if (obj_has_name(childobj) &&
-            obj_get_status(childobj) == NCX_STATUS_OBSOLETE) {
+        nextobj = (obj_template_t *)dlq_nextEntry(instance, childobj);
+        if (obj_has_name(instance, childobj) &&
+            obj_get_status(instance, childobj) == NCX_STATUS_OBSOLETE) {
             if (LOGDEBUG) {
-                ncx_module_t  *testmod = obj_get_mod(childobj);
-                log_debug("\nDeleting obsolete node '%s' "
+                ncx_module_t  *testmod = obj_get_mod(instance, childobj);
+                log_debug(instance,
+                          "\nDeleting obsolete node '%s' "
                           "from %smodule '%s'",
-                          obj_get_name(childobj),
+                          obj_get_name(instance, childobj),
                           (testmod && !testmod->ismod) ? "sub" : "",
                           (testmod) ? testmod->name : EMPTY_STRING);
             }
-            dlq_remove(childobj);
-            obj_free_template(childobj);
+            dlq_remove(instance, childobj);
+            obj_free_template(instance, childobj);
         } else {
-            childdatadefQ = obj_get_datadefQ(childobj);
+            childdatadefQ = obj_get_datadefQ(instance, childobj);
             if (childdatadefQ != NULL) {
-                obj_delete_obsolete(childdatadefQ);
+                obj_delete_obsolete(instance, childdatadefQ);
             }
         }
     }
@@ -11714,18 +11978,19 @@ void
  * \param obj the obj_template to check
  * \return pointer to alt-name of NULL if none
  *********************************************************************/
-const xmlChar* obj_get_altname (const obj_template_t *obj)
+const xmlChar* obj_get_altname (ncx_instance_t *instance, const obj_template_t *obj)
 {
     assert( obj && "obj is NULL!" );
 
     const xmlChar *altname = NULL;
 
-    const ncx_appinfo_t* appinfo = ncx_find_const_appinfo( &obj->appinfoQ, 
+    const ncx_appinfo_t* appinfo = ncx_find_const_appinfo(instance,
+             &obj->appinfoQ,
             NULL, /* any module */
             NCX_EL_ALT_NAME );
 
     if ( appinfo ) {
-        altname = ncx_get_appinfo_value(appinfo);
+        altname = ncx_get_appinfo_value(instance, appinfo);
     }
 
     return altname;
@@ -11735,19 +12000,21 @@ const xmlChar* obj_get_altname (const obj_template_t *obj)
 /********************************************************************
  * Get the target object for a leafref leaf or leaf-list
  * \param obj the object to check
- * \return pointer to the target object or NULL if this object type does not 
+ * \return pointer to the target object or NULL if this object type does not
  *      have a leafref target object
  *********************************************************************/
 obj_template_t *
-    obj_get_leafref_targobj (obj_template_t  *obj)
+    obj_get_leafref_targobj (ncx_instance_t *instance,
+                             obj_template_t  *obj)
 {
     assert( obj && "obj is NULL!" );
+    (void)instance;
 
     if (obj->objtype == OBJ_TYP_LEAF) {
         return obj->def.leaf->leafrefobj;
     } else if (obj->objtype == OBJ_TYP_LEAF_LIST) {
         return obj->def.leaflist->leafrefobj;
-    } 
+    }
 
     return NULL;
 }  /* obj_get_leafref_targobj */
@@ -11760,13 +12027,15 @@ obj_template_t *
  *   or NULL if this object type does not have an augment target object
  *********************************************************************/
 obj_template_t *
-    obj_get_augment_targobj (obj_template_t  *obj)
+    obj_get_augment_targobj (ncx_instance_t *instance,
+                             obj_template_t  *obj)
 {
     assert( obj && "obj is NULL!" );
+    (void)instance;
 
     if (obj->augobj && obj->augobj->objtype == OBJ_TYP_AUGMENT) {
         return obj->augobj->def.augment->targobj;
-    } 
+    }
 
     return NULL;
 }  /* obj_get_augment_targobj */
@@ -11777,9 +12046,11 @@ obj_template_t *
  * \param obj the obj_template to check
  * \return TRUE if object is marked as ncx:default-parm-equals-ok
  *********************************************************************/
-boolean obj_is_cli_equals_ok (const obj_template_t *obj)
+boolean obj_is_cli_equals_ok (ncx_instance_t *instance,
+                              const obj_template_t *obj)
 {
     assert( obj && "obj is NULL!" );
+    (void)instance;
     return (obj->flags & OBJ_FL_CLI_EQUALS_OK) ? TRUE : FALSE;
 }   /* obj_is_cli_equals_ok */
 
@@ -11789,9 +12060,11 @@ boolean obj_is_cli_equals_ok (const obj_template_t *obj)
  * \param obj the obj_template to check
  * \return TRUE if object is marked as ncx:sil-delete-children-first.
  *********************************************************************/
-boolean obj_is_sil_delete_children_first (const obj_template_t *obj)
+boolean obj_is_sil_delete_children_first (ncx_instance_t *instance,
+                                          const obj_template_t *obj)
 {
     assert( obj && "obj is NULL!" );
+    (void)instance;
     return (obj->flags & OBJ_FL_SIL_DELETE_CHILDREN_FIRST) ? TRUE : FALSE;
 }   /* obj_is_sil_delete_children_first */
 
@@ -11801,14 +12074,14 @@ boolean obj_is_sil_delete_children_first (const obj_template_t *obj)
  * \param child the obj_template to add
  * \param parent the obj_template of the parent
  *********************************************************************/
-void obj_add_child (obj_template_t *child, obj_template_t *parent)
+void obj_add_child (ncx_instance_t *instance, obj_template_t *child, obj_template_t *parent)
 {
     assert( child && "child is NULL!" );
     assert( parent && "parent is NULL!" );
 
-    dlq_hdr_t *que = obj_get_datadefQ(parent);
+    dlq_hdr_t *que = obj_get_datadefQ(instance, parent);
     if (que) {
-        dlq_enque(child, que);
+        dlq_enque(instance, child, que);
     }
     child->parent = parent;
 
@@ -11818,7 +12091,7 @@ void obj_add_child (obj_template_t *child, obj_template_t *parent)
 /********************************************************************
 * FUNCTION obj_is_block_user_create
 *
-* Check if object is marked as ncx:user-write with create 
+* Check if object is marked as ncx:user-write with create
 * access disabled
 *
 * INPUTS:
@@ -11829,9 +12102,11 @@ void obj_add_child (obj_template_t *child, obj_template_t *parent)
 *   FALSE if not
 *********************************************************************/
 boolean
-    obj_is_block_user_create (const obj_template_t *obj)
+    obj_is_block_user_create (ncx_instance_t *instance,
+                              const obj_template_t *obj)
 {
     assert( obj && "obj is NULL!" );
+    (void)instance;
     return (obj->flags & OBJ_FL_BLOCK_CREATE) ? TRUE : FALSE;
 }
 
@@ -11850,9 +12125,11 @@ boolean
 *   FALSE if not
 *********************************************************************/
 boolean
-    obj_is_block_user_update (const obj_template_t *obj)
+    obj_is_block_user_update (ncx_instance_t *instance,
+                              const obj_template_t *obj)
 {
     assert( obj && "obj is NULL!" );
+    (void)instance;
     return (obj->flags & OBJ_FL_BLOCK_UPDATE) ? TRUE : FALSE;
 }
 
@@ -11871,9 +12148,11 @@ boolean
 *   FALSE if not
 *********************************************************************/
 boolean
-    obj_is_block_user_delete (const obj_template_t *obj)
+    obj_is_block_user_delete (ncx_instance_t *instance,
+                              const obj_template_t *obj)
 {
     assert( obj && "obj is NULL!" );
+    (void)instance;
     return (obj->flags & OBJ_FL_BLOCK_DELETE) ? TRUE : FALSE;
 }
 
@@ -11889,9 +12168,9 @@ boolean
 *   malloced struct or NULL if memory error
 *********************************************************************/
 obj_iffeature_ptr_t *
-    obj_new_iffeature_ptr (ncx_iffeature_t *iff)
+    obj_new_iffeature_ptr (ncx_instance_t *instance, ncx_iffeature_t *iff)
 {
-    obj_iffeature_ptr_t *iffptr = m__getObj(obj_iffeature_ptr_t);
+    obj_iffeature_ptr_t *iffptr = m__getObj(instance, obj_iffeature_ptr_t);
     if (iffptr == NULL) {
         return NULL;
     }
@@ -11909,12 +12188,12 @@ obj_iffeature_ptr_t *
 * INPUTS:
 *   iffptr == struct to free
 *********************************************************************/
-void obj_free_iffeature_ptr (obj_iffeature_ptr_t *iffptr)
+void obj_free_iffeature_ptr (ncx_instance_t *instance, obj_iffeature_ptr_t *iffptr)
 {
     if (iffptr == NULL) {
         return;
     }
-    m__free(iffptr);
+    m__free(instance, iffptr);
 }
 
 
@@ -11925,12 +12204,13 @@ void obj_free_iffeature_ptr (obj_iffeature_ptr_t *iffptr)
  * \return pointer to first entry or NULL if none
  *********************************************************************/
 obj_iffeature_ptr_t *
-    obj_first_iffeature_ptr (obj_template_t *obj)
+    obj_first_iffeature_ptr (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
 
     obj_iffeature_ptr_t *iffptr = (obj_iffeature_ptr_t *)
-        dlq_firstEntry(&obj->inherited_iffeatureQ);
+        dlq_firstEntry(instance, &obj->inherited_iffeatureQ);
     return iffptr;
 
 }  /* obj_first_iffeature_ptr */
@@ -11943,12 +12223,13 @@ obj_iffeature_ptr_t *
  * \return pointer to next entry or NULL if none
  *********************************************************************/
 obj_iffeature_ptr_t *
-    obj_next_iffeature_ptr (obj_iffeature_ptr_t *iffptr)
+    obj_next_iffeature_ptr (ncx_instance_t *instance, obj_iffeature_ptr_t *iffptr)
 {
     assert(iffptr && "iffptr is NULL" );
+    (void)instance;
 
     obj_iffeature_ptr_t *nextptr = (obj_iffeature_ptr_t *)
-        dlq_nextEntry(iffptr);
+        dlq_nextEntry(instance, iffptr);
     return nextptr;
 
 }  /* obj_next_iffeature_ptr */
@@ -11965,9 +12246,9 @@ obj_iffeature_ptr_t *
 *   malloced struct or NULL if memory error
 *********************************************************************/
 obj_xpath_ptr_t *
-    obj_new_xpath_ptr (struct xpath_pcb_t_ *xpath)
+    obj_new_xpath_ptr (ncx_instance_t *instance, struct xpath_pcb_t_ *xpath)
 {
-    obj_xpath_ptr_t *xptr = m__getObj(obj_xpath_ptr_t);
+    obj_xpath_ptr_t *xptr = m__getObj(instance, obj_xpath_ptr_t);
     if (xptr == NULL) {
         return NULL;
     }
@@ -11985,12 +12266,13 @@ obj_xpath_ptr_t *
 * INPUTS:
 *   xptr == struct to free
 *********************************************************************/
-void obj_free_xpath_ptr (obj_xpath_ptr_t *xptr)
+void obj_free_xpath_ptr (ncx_instance_t *instance, obj_xpath_ptr_t *xptr)
 {
+    (void)instance;
     if (xptr == NULL) {
         return;
     }
-    m__free(xptr);
+    m__free(instance, xptr);
 }
 
 
@@ -12001,12 +12283,13 @@ void obj_free_xpath_ptr (obj_xpath_ptr_t *xptr)
  * \return pointer to first entry or NULL if none
  *********************************************************************/
 obj_xpath_ptr_t *
-    obj_first_xpath_ptr (obj_template_t *obj)
+    obj_first_xpath_ptr (ncx_instance_t *instance, obj_template_t *obj)
 {
     assert(obj && "obj is NULL" );
+    (void)instance;
 
     obj_xpath_ptr_t *xptr = (obj_xpath_ptr_t *)
-        dlq_firstEntry(&obj->inherited_whenQ);
+        dlq_firstEntry(instance, &obj->inherited_whenQ);
     return xptr;
 
 }  /* obj_first_xpath_ptr */
@@ -12019,13 +12302,30 @@ obj_xpath_ptr_t *
  * \return pointer to next entry or NULL if none
  *********************************************************************/
 obj_xpath_ptr_t *
-    obj_next_xpath_ptr (obj_xpath_ptr_t *xptr)
+    obj_next_xpath_ptr (ncx_instance_t *instance, obj_xpath_ptr_t *xptr)
 {
     assert(xptr && "xptr is NULL" );
-    obj_xpath_ptr_t *nextptr = (obj_xpath_ptr_t *)dlq_nextEntry(xptr);
+    (void)instance;
+    obj_xpath_ptr_t *nextptr = (obj_xpath_ptr_t *)dlq_nextEntry(instance, xptr);
     return nextptr;
 
 }  /* obj_next_iffeature_ptr */
+
+/********************************************************************
+* FUNCTION obj_get_obj_tag
+*
+* Get the object's unique tag -- The tag is unique within module
+*
+* INPUTS:
+*    obj  == object to check
+*
+* RETURNS:
+*    A unique tag for this node
+*********************************************************************/
+uint32 obj_get_obj_tag (const obj_template_t  *obj)
+{
+    return obj->objtag;
+}  /* obj_get_obj_tag */
 
 
 

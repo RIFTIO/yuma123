@@ -415,7 +415,7 @@ typedef struct rpc_err_rec_t_ {
 *   string for the specified error-tag enum
 *********************************************************************/
 extern const xmlChar *
-    rpc_err_get_errtag (rpc_err_t errid);
+    rpc_err_get_errtag (struct ncx_instance_t_ *instance, rpc_err_t errid);
 
 
 /********************************************************************
@@ -430,7 +430,7 @@ extern const xmlChar *
 *   enum for this error-tag
 *********************************************************************/
 extern rpc_err_t
-    rpc_err_get_errtag_enum (const xmlChar *errtag);
+    rpc_err_get_errtag_enum (struct ncx_instance_t_ *instance, const xmlChar *errtag);
 
 
 /********************************************************************
@@ -442,7 +442,7 @@ extern rpc_err_t
 *   malloced error record or NULL if memory error
 *********************************************************************/
 extern rpc_err_rec_t *
-    rpc_err_new_record (void);
+    rpc_err_new_record (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -456,7 +456,7 @@ extern rpc_err_rec_t *
 *   none
 *********************************************************************/
 extern void
-    rpc_err_init_record (rpc_err_rec_t *err);
+    rpc_err_init_record (struct ncx_instance_t_ *instance, rpc_err_rec_t *err);
 
 
 /********************************************************************
@@ -470,7 +470,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    rpc_err_free_record (rpc_err_rec_t *err);
+    rpc_err_free_record (struct ncx_instance_t_ *instance, rpc_err_rec_t *err);
 
 
 /********************************************************************
@@ -484,7 +484,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    rpc_err_clean_record (rpc_err_rec_t *err);
+    rpc_err_clean_record (struct ncx_instance_t_ *instance, rpc_err_rec_t *err);
 
 
 /********************************************************************
@@ -496,7 +496,7 @@ extern void
 *   malloced error-info record, or NULL if memory error
 *********************************************************************/
 extern rpc_err_info_t *
-    rpc_err_new_info (void);
+    rpc_err_new_info (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -510,7 +510,7 @@ extern rpc_err_info_t *
 *   none
 *********************************************************************/
 extern void
-    rpc_err_free_info (rpc_err_info_t *errinfo);
+    rpc_err_free_info (struct ncx_instance_t_ *instance, rpc_err_info_t *errinfo);
 
 
 /********************************************************************
@@ -523,7 +523,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    rpc_err_dump_errors (const rpc_msg_t  *msg);
+    rpc_err_dump_errors (struct ncx_instance_t_ *instance, const rpc_msg_t  *msg);
 
 
 /********************************************************************
@@ -538,7 +538,7 @@ extern void
 * const pointer to the enum string
 *********************************************************************/
 extern const xmlChar *
-    rpc_err_get_severity (rpc_err_sev_t  sev);
+    rpc_err_get_severity (struct ncx_instance_t_ *instance, rpc_err_sev_t  sev);
 
 
 /********************************************************************
@@ -552,7 +552,7 @@ extern const xmlChar *
 *   none
 *********************************************************************/
 extern void 
-    rpc_err_clean_errQ (dlq_hdr_t *errQ);
+    rpc_err_clean_errQ (struct ncx_instance_t_ *instance, dlq_hdr_t *errQ);
 
 
 /********************************************************************
@@ -567,7 +567,7 @@ extern void
 *   TRUE if any errors recorded; FALSE if none
 *********************************************************************/
 extern boolean
-    rpc_err_any_errors (const rpc_msg_t  *msg);
+    rpc_err_any_errors (struct ncx_instance_t_ *instance, const rpc_msg_t  *msg);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

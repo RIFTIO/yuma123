@@ -103,7 +103,8 @@ extern "C" {
  *   FALSE if the node should be skipped
  */
 typedef boolean 
-    (*val_nodetest_fn_t) (ncx_withdefaults_t withdef,
+    (*val_nodetest_fn_t) (struct ncx_instance_t_ *instance,
+                          ncx_withdefaults_t withdef,
                           boolean realtest,
 			  val_value_t *node);
 
@@ -159,7 +160,7 @@ typedef boolean
  *
  *********************************************************************/
 extern void
-    val_set_canonical_order (val_value_t *val);
+    val_set_canonical_order (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -179,7 +180,8 @@ extern void
  *   status
  *********************************************************************/
 extern status_t 
-    val_gen_index_comp  (const obj_key_t *in,
+    val_gen_index_comp  (struct ncx_instance_t_ *instance,
+			 const obj_key_t *in,
 			 val_value_t *val);
 
 
@@ -200,7 +202,7 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t 
-    val_gen_key_entry  (val_value_t *keyval);
+    val_gen_key_entry  (struct ncx_instance_t_ *instance, val_value_t *keyval);
 
 
 /********************************************************************
@@ -220,7 +222,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t 
-    val_gen_index_chain (const obj_template_t *obj,
+    val_gen_index_chain (struct ncx_instance_t_ *instance,
+			 const obj_template_t *obj,
 			 val_value_t *val);
 
 
@@ -262,7 +265,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t 
-    val_add_defaults (val_value_t *val,
+    val_add_defaults (struct ncx_instance_t_ *instance,
+                      val_value_t *val,
                       val_value_t *valroot,
                       val_value_t *cxtval,
 		      boolean scriptmode);
@@ -287,7 +291,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    val_instance_check (val_value_t  *val,
+    val_instance_check (struct ncx_instance_t_ *instance,
+			val_value_t  *val,
 			obj_template_t *obj);
 
 
@@ -307,7 +312,8 @@ extern status_t
 *   pointer to first value struct or NULL if choice not set
 *********************************************************************/
 extern val_value_t *
-    val_get_choice_first_set (val_value_t *val,
+    val_get_choice_first_set (struct ncx_instance_t_ *instance,
+			      val_value_t *val,
 			      const obj_template_t *obj);
 
 
@@ -327,7 +333,8 @@ extern val_value_t *
 *   pointer to first value struct or NULL if choice not set
 *********************************************************************/
 extern val_value_t *
-    val_get_choice_next_set (const obj_template_t *obj,
+    val_get_choice_next_set (struct ncx_instance_t_ *instance,
+			     const obj_template_t *obj,
 			     val_value_t *curchild);
 
 
@@ -347,7 +354,8 @@ extern val_value_t *
 *   pointer to first value struct or NULL if choice not set
 *********************************************************************/
 extern boolean
-    val_choice_is_set (val_value_t *val,
+    val_choice_is_set (struct ncx_instance_t_ *instance,
+		       val_value_t *val,
 		       obj_template_t *obj);
 
 
@@ -362,7 +370,7 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    val_purge_errors_from_root (val_value_t *val);
+    val_purge_errors_from_root (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -380,7 +388,8 @@ extern void
  *   status
  *********************************************************************/
 extern val_value_t *
-    val_new_child_val (xmlns_id_t   nsid,
+    val_new_child_val (struct ncx_instance_t_ *instance,
+                       xmlns_id_t   nsid,
                        const xmlChar *name,
                        boolean copyname,
                        val_value_t *parent,
@@ -409,7 +418,8 @@ extern val_value_t *
 *   status
 *********************************************************************/
 extern status_t
-    val_gen_instance_id (xml_msg_hdr_t *mhdr,
+    val_gen_instance_id (struct ncx_instance_t_ *instance,
+			 xml_msg_hdr_t *mhdr,
 			 const val_value_t  *val, 
 			 ncx_instfmt_t format,
 			 xmlChar  **buff);
@@ -438,7 +448,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    val_gen_instance_id_ex (xml_msg_hdr_t *mhdr,
+    val_gen_instance_id_ex (struct ncx_instance_t_ *instance,
+                            xml_msg_hdr_t *mhdr,
                             const val_value_t  *val, 
                             ncx_instfmt_t format,
                             boolean stop_at_root,
@@ -471,7 +482,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    val_gen_split_instance_id (xml_msg_hdr_t *mhdr,
+    val_gen_split_instance_id (struct ncx_instance_t_ *instance,
+			       xml_msg_hdr_t *mhdr,
 			       const val_value_t  *val, 
 			       ncx_instfmt_t format,
 			       xmlns_id_t leaf_nsid,
@@ -503,7 +515,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    val_get_index_string (xml_msg_hdr_t *mhdr,
+    val_get_index_string (struct ncx_instance_t_ *instance,
+			  xml_msg_hdr_t *mhdr,
 			  ncx_instfmt_t format,
 			  const val_value_t *val,
 			  xmlChar *buff,
@@ -538,7 +551,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    val_check_obj_when (val_value_t *val,
+    val_check_obj_when (struct ncx_instance_t_ *instance,
+                        val_value_t *val,
                         val_value_t *valroot,
                         val_value_t *objval,
                         obj_template_t *obj,
@@ -558,7 +572,7 @@ extern status_t
 *    pointer to xpath control block or NULL if none
 *********************************************************************/
 extern xpath_pcb_t *
-    val_get_xpathpcb (val_value_t *val);
+    val_get_xpathpcb (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -573,7 +587,7 @@ extern xpath_pcb_t *
 *    pointer to xpath control block or NULL if none
 *********************************************************************/
 extern const xpath_pcb_t *
-    val_get_const_xpathpcb (const val_value_t *val);
+    val_get_const_xpathpcb (struct ncx_instance_t_ *instance, const val_value_t *val);
 
 
 /********************************************************************
@@ -596,7 +610,8 @@ extern const xpath_pcb_t *
 *    NULL if some error
 *********************************************************************/
 extern val_value_t *
-    val_make_simval_obj (obj_template_t *obj,
+    val_make_simval_obj (struct ncx_instance_t_ *instance,
+			 obj_template_t *obj,
 			 const xmlChar *valstr,
 			 status_t  *res);
 
@@ -619,7 +634,8 @@ extern val_value_t *
 *   status
 *********************************************************************/
 extern status_t 
-    val_set_simval_obj (val_value_t  *val,
+    val_set_simval_obj (struct ncx_instance_t_ *instance,
+			val_value_t  *val,
 			obj_template_t *obj,
 			const xmlChar *valstr);
 
@@ -645,7 +661,7 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t
-    val_set_warning_parms (val_value_t *parentval);
+    val_set_warning_parms (struct ncx_instance_t_ *instance, val_value_t *parentval);
 
 
 /********************************************************************
@@ -669,7 +685,7 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t
-    val_set_logging_parms (val_value_t *parentval);
+    val_set_logging_parms (struct ncx_instance_t_ *instance, val_value_t *parentval);
 
 
 /********************************************************************
@@ -691,7 +707,7 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t
-    val_set_path_parms (val_value_t *parentval);
+    val_set_path_parms (struct ncx_instance_t_ *instance, val_value_t *parentval);
 
 
 /********************************************************************
@@ -707,7 +723,7 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t
-    val_set_subdirs_parm (val_value_t *parentval);
+    val_set_subdirs_parm (struct ncx_instance_t_ *instance, val_value_t *parentval);
 
 
 /********************************************************************
@@ -731,7 +747,7 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t
-    val_set_feature_parms (val_value_t *parentval);
+    val_set_feature_parms (struct ncx_instance_t_ *instance, val_value_t *parentval);
 
 
 /********************************************************************
@@ -748,7 +764,7 @@ extern status_t
 *    status:  at least 1 protocol must be selected
 *********************************************************************/
 extern status_t
-    val_set_protocols_parm (val_value_t *parentval);
+    val_set_protocols_parm (struct ncx_instance_t_ *instance, val_value_t *parentval);
 
 
 /********************************************************************
@@ -766,7 +782,8 @@ extern status_t
 *    status:  at least 1 protocol must be selected
 *********************************************************************/
 extern status_t
-    val_set_ses_protocols_parm (ses_cb_t *scb,
+    val_set_ses_protocols_parm (struct ncx_instance_t_ *instance,
+                                ses_cb_t *scb,
                                 val_value_t *parentval);
 
 
@@ -791,7 +808,8 @@ extern status_t
 *   of 
 *********************************************************************/
 extern status_t
-    val_ok_to_partial_lock (val_value_t *val,
+    val_ok_to_partial_lock (struct ncx_instance_t_ *instance,
+                            val_value_t *val,
                             ses_id_t sesid,
                             ses_id_t *lockowner);
 
@@ -812,7 +830,8 @@ extern status_t
 *   of locks reached or lock already help by another session
 *********************************************************************/
 extern status_t
-    val_set_partial_lock (val_value_t *val,
+    val_set_partial_lock (struct ncx_instance_t_ *instance,
+                          val_value_t *val,
                           plock_cb_t *plcb);
 
 
@@ -827,7 +846,8 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    val_clear_partial_lock (val_value_t *val,
+    val_clear_partial_lock (struct ncx_instance_t_ *instance,
+                            val_value_t *val,
                             plock_cb_t *plcb);
 
 
@@ -856,7 +876,8 @@ extern void
 *    status, NO_ERR indicates no partial lock conflicts
 *********************************************************************/
 extern status_t
-    val_write_ok (val_value_t *val,
+    val_write_ok (struct ncx_instance_t_ *instance,
+                  val_value_t *val,
                   op_editop_t editop,
                   ses_id_t sesid,
                   boolean checkup,
@@ -876,7 +897,8 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    val_check_swap_resnode (val_value_t *curval,
+    val_check_swap_resnode (struct ncx_instance_t_ *instance,
+                            val_value_t *curval,
                             val_value_t *newval);
 
 
@@ -891,7 +913,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    val_check_delete_resnode (val_value_t *curval);
+    val_check_delete_resnode (struct ncx_instance_t_ *instance, val_value_t *curval);
 
 
 /********************************************************************
@@ -907,7 +929,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    val_write_extern (ses_cb_t *scb,
+    val_write_extern (struct ncx_instance_t_ *instance,
+                      ses_cb_t *scb,
                       const val_value_t *val);
 
 
@@ -924,7 +947,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    val_write_intern (ses_cb_t *scb,
+    val_write_intern (struct ncx_instance_t_ *instance,
+                      ses_cb_t *scb,
                       const val_value_t *val);
 
 
@@ -954,7 +978,8 @@ extern void
 *   !!!! check for ERR_NCX_SKIPPED !!!
 *********************************************************************/
 extern val_value_t *
-    val_get_value (ses_cb_t *scb,
+    val_get_value (struct ncx_instance_t_ *instance,
+                   ses_cb_t *scb,
                    xml_msg_hdr_t *msg,
                    val_value_t *val,
                    val_nodetest_fn_t testfn,
@@ -980,7 +1005,8 @@ extern val_value_t *
 *
 *********************************************************************/
 extern void
-    val_traverse_keys (val_value_t *val,
+    val_traverse_keys (struct ncx_instance_t_ *instance,
+                       val_value_t *val,
                        void *cookie1,
                        void *cookie2,
                        val_walker_fn_t walkerfn);
@@ -1001,7 +1027,7 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    val_build_index_chains (val_value_t *val);
+    val_build_index_chains (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 #ifdef __cplusplus

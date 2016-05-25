@@ -82,7 +82,6 @@ date         init     comment
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-static ses_total_stats_t totals;
 
 
 /********************************************************************
@@ -107,7 +106,8 @@ static ses_total_stats_t totals;
 *   status
 *********************************************************************/
 static status_t
-    accept_buffer_ssh_v10 (ses_cb_t *scb,
+    accept_buffer_ssh_v10 (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            size_t len)
 {
     ses_msg_t      *msg;
@@ -121,24 +121,25 @@ static status_t
 #ifdef SES_DEBUG
     if (LOGDEBUG3 && scb->state != SES_ST_INIT) {
         scb->readbuff[len] = 0;
-        log_debug3("\nses: accept buffer (%u):\n%s\n", 
+        log_debug3(instance, 
+                   "\nses: accept buffer (%u):\n%s\n", 
                    len, 
                    scb->readbuff);
     } else if (LOGDEBUG2) {
-        log_debug2("\nses: accept buffer (%u)", len);
+        log_debug2(instance, "\nses: accept buffer (%u)", len);
     }
 #endif
 
     /* make sure there is a current message */
-    msg = (ses_msg_t *)dlq_lastEntry(&scb->msgQ);
+    msg = (ses_msg_t *)dlq_lastEntry(instance, &scb->msgQ);
     if (msg == NULL || msg->ready) {
         /* need a new message */
-        res = ses_msg_new_msg(&msg);
+        res = ses_msg_new_msg(instance, &msg);
         if (res != NO_ERR) {
             return res;
         }
         /* add early */
-        dlq_enque(msg, &scb->msgQ);
+        dlq_enque(instance, msg, &scb->msgQ);
     }
 
     /* init local vars */
@@ -148,16 +149,17 @@ static status_t
     res = NO_ERR;
 
     /* make sure there is a current buffer to use */
-    buff = (ses_msg_buff_t *)dlq_lastEntry(&msg->buffQ);
+    buff = (ses_msg_buff_t *)dlq_lastEntry(instance, &msg->buffQ);
     if (buff == NULL || buff->bufflen == SES_MSG_BUFFSIZE) {
         /* need a new buffer */
-        res = ses_msg_new_buff(scb,
+        res = ses_msg_new_buff(instance,
+                               scb,
                                FALSE,  /* outbuff */
                                &buff);
         if (res != NO_ERR) {
             return res;
         }
-        dlq_enque(buff, &msg->buffQ);
+        dlq_enque(instance, buff, &msg->buffQ);
     }
 
     /* check the chars in the buffer for the 
@@ -177,10 +179,10 @@ static status_t
 
         /* check if a new message is needed */
         if (msg == NULL) {
-            res = ses_msg_new_msg(&msg);
+            res = ses_msg_new_msg(instance, &msg);
             if (res == NO_ERR) {
                 /* put msg in the msg Q early */
-                dlq_enque(msg, &scb->msgQ);
+                dlq_enque(instance, msg, &scb->msgQ);
             } else {
                 return res;
             }
@@ -189,24 +191,26 @@ static status_t
         /* check if a buffer is needed */
         if (buff == NULL) {
             /* need new first buff for a message */
-            res = ses_msg_new_buff(scb,
+            res = ses_msg_new_buff(instance,
+                                   scb,
                                    FALSE,  /* outbuff */
                                    &buff);
             if (res != NO_ERR) {
                 return res;
             }
-            dlq_enque(buff, &msg->buffQ);
+            dlq_enque(instance, buff, &msg->buffQ);
         } else if (buff->buffpos == SES_MSG_BUFFSIZE) {
             /* current buffer is full; get a new one */
             buff->buffpos = 0;
             buff->bufflen = SES_MSG_BUFFSIZE;
-            res = ses_msg_new_buff(scb,
+            res = ses_msg_new_buff(instance,
+                                   scb,
                                    FALSE,  /* outbuff */
                                    &buff);
             if (res != NO_ERR) {
                 return res;
             }
-            dlq_enque(buff, &msg->buffQ);
+            dlq_enque(instance, buff, &msg->buffQ);
         }
 
         /* get the next char in the input buffer and advance the pointer */
@@ -259,7 +263,7 @@ static status_t
                     buff->islast = TRUE;
                     msg->curbuff = NULL;
                     msg->ready = TRUE;
-                    ses_msg_make_inready(scb);
+                    ses_msg_make_inready(instance, scb);
 
                     /* reset reader state */
                     scb->instate = SES_INST_IDLE;
@@ -276,10 +280,11 @@ static status_t
                      * error out if a 3rd real message <rpc> is found
                      */
                     if (scb->protocol == NCX_PROTO_NONE &&
-                        ncx_protocol_enabled(NCX_PROTO_NETCONF11) &&
-                        dlq_count(&scb->msgQ) >= 4) {
+                        ncx_protocol_enabled(instance, NCX_PROTO_NETCONF11) &&
+                        dlq_count(instance, &scb->msgQ) >= 4) {
                         /* do not continue processing readbuff */
-                        log_error("\nses: Message could not "
+                        log_error(instance,
+                                  "\nses: Message could not "
                                   "be deferred for s:%d because "
                                   "protocol framing not set",
                                   scb->sid);
@@ -296,7 +301,7 @@ static status_t
             break;
         default:
             /* should not happen */
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
@@ -361,7 +366,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    accept_buffer_ssh_v11 (ses_cb_t *scb,
+    accept_buffer_ssh_v11 (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            size_t len)
 {
     ses_msg_t      *msg;
@@ -376,24 +382,25 @@ static status_t
 #ifdef SES_DEBUG
     if (LOGDEBUG3 && scb->state != SES_ST_INIT) {
         scb->readbuff[len] = 0;
-        log_debug3("\nses: accept base:1.1 buffer (%u):\n%s\n", 
+        log_debug3(instance, 
+                   "\nses: accept base:1.1 buffer (%u):\n%s\n", 
                    len, 
                    scb->readbuff);
     } else if (LOGDEBUG2) {
-        log_debug2("\nses: accept base:1.1 buffer (%u)", len);
+        log_debug2(instance, "\nses: accept base:1.1 buffer (%u)", len);
     }
 #endif
 
     /* make sure there is a current message */
-    msg = (ses_msg_t *)dlq_lastEntry(&scb->msgQ);
+    msg = (ses_msg_t *)dlq_lastEntry(instance, &scb->msgQ);
     if (msg == NULL || msg->ready) {
         /* need a new message */
-        res = ses_msg_new_msg(&msg);
+        res = ses_msg_new_msg(instance, &msg);
         if (res != NO_ERR) {
             return res;
         }
         /* add early */
-        dlq_enque(msg, &scb->msgQ);
+        dlq_enque(instance, msg, &scb->msgQ);
     }
 
     /* init local vars */
@@ -403,16 +410,17 @@ static status_t
     count = 0;
 
     /* make sure there is a current buffer to use */
-    buff = (ses_msg_buff_t *)dlq_lastEntry(&msg->buffQ);
+    buff = (ses_msg_buff_t *)dlq_lastEntry(instance, &msg->buffQ);
     if (buff == NULL || buff->bufflen == SES_MSG_BUFFSIZE) {
         /* need a new buffer */
-        res = ses_msg_new_buff(scb,
+        res = ses_msg_new_buff(instance,
+                               scb,
                                FALSE,  /* outbuff */
                                &buff);
         if (res != NO_ERR) {
             return res;
         }
-        dlq_enque(buff, &msg->buffQ);
+        dlq_enque(instance, buff, &msg->buffQ);
     }
 
     /* check the chars in the buffer for the 
@@ -429,24 +437,26 @@ static status_t
         /* check if a buffer is needed */
         if (buff == NULL) {
             /* need new first buff for a message */
-            res = ses_msg_new_buff(scb,
+            res = ses_msg_new_buff(instance,
+                                   scb,
                                    FALSE,  /* outbuff */
                                    &buff);
             if (res != NO_ERR) {
                 return res;
             }
-            dlq_enque(buff, &msg->buffQ);
+            dlq_enque(instance, buff, &msg->buffQ);
         } else if (buff->buffpos == SES_MSG_BUFFSIZE) {
             /* current buffer is full; get a new one */
             buff->buffpos = 0;
             buff->bufflen = SES_MSG_BUFFSIZE;
-            res = ses_msg_new_buff(scb,
+            res = ses_msg_new_buff(instance,
+                                   scb,
                                    FALSE,  /* outbuff */
                                    &buff);
             if (res != NO_ERR) {
                 return res;
             }
-            dlq_enque(buff, &msg->buffQ);
+            dlq_enque(instance, buff, &msg->buffQ);
         }
 
         /* get the next char in the input buffer and advance the pointer */
@@ -463,7 +473,7 @@ static status_t
             } else {
                 /* return framing error */
                 if (LOGDEBUG) {
-                    log_debug("\nses: invalid base:1;1 framing "
+                    log_debug(instance, "\nses: invalid base:1;1 framing "
                               "(idle: expect first newline)");
                 }
                 done = TRUE;
@@ -480,7 +490,7 @@ static status_t
                      * save buff for garbage collection 
                      */
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(instart: expect '#')");
                     }
                     done = TRUE;
@@ -494,7 +504,7 @@ static status_t
                 } else {
                     /* return framing error */
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(instart: expect digit)");
                     }
                     done = TRUE;
@@ -507,7 +517,7 @@ static status_t
                 if (scb->inendpos == SES_MAX_STARTCHUNK_SIZE) {
                     /* invalid number -- too long error */
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(instart: number too long)");
                     }
                     done = TRUE;
@@ -517,10 +527,11 @@ static status_t
                      * done with chunk start tag
                      * get a binary number from this number
                      */
-                    ncx_init_num(&num);
+                    ncx_init_num(instance, &num);
                     scb->startchunk[scb->inendpos - 2] = 0;
                     scb->inendpos = 0;
-                    res = ncx_convert_num(scb->startchunk,
+                    res = ncx_convert_num(instance,
+                                          scb->startchunk,
                                           NCX_NF_DEC,
                                           NCX_BT_UINT32,
                                           &num);
@@ -530,13 +541,13 @@ static status_t
                         scb->instate = SES_INST_INMSG;
                     } else {
                         if (LOGDEBUG) {
-                            log_debug("\nses: invalid base:1;1 framing "
+                            log_debug(instance, "\nses: invalid base:1;1 framing "
                                       "(instart: invalid number)");
                         }
                         done = TRUE;
                         res = ERR_NCX_INVALID_FRAMING;
                     }
-                    ncx_clean_num(NCX_BT_UINT32, &num);
+                    ncx_clean_num(instance, NCX_BT_UINT32, &num);
                 } else if (ch >= '0' && ch <= '9') {
                     /* continue collecting digits */
                     scb->startchunk[scb->inendpos - 2] = ch;
@@ -544,7 +555,7 @@ static status_t
                 } else {
                     /* return framing error; invalid char */
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(instart: expect digit char)");
                     }
                     done = TRUE;
@@ -571,7 +582,8 @@ static status_t
             /* copy the required input bytes to 1 or more buffers */
             if (outbuffleft >= copylen) {
                 /* rest of chunk or input fits in rest of current buffer */
-                xml_strncpy(&buff->buff[buff->buffpos],
+                xml_strncpy(instance,
+                            &buff->buff[buff->buffpos],
                             &scb->readbuff[count],
                             copylen);
                 buff->buffpos += copylen;
@@ -581,7 +593,8 @@ static status_t
                  * split input across N buffers;
                  * first finish current buffer
                  */
-                xml_strncpy(&buff->buff[buff->buffpos],
+                xml_strncpy(instance,
+                            &buff->buff[buff->buffpos],
                             &scb->readbuff[count],
                             outbuffleft);
                 buff->buffpos = 0;
@@ -596,16 +609,18 @@ static status_t
                     size_t copy2len;
 
                     /* get new buffer */
-                    res = ses_msg_new_buff(scb,
+                    res = ses_msg_new_buff(instance,
+                                           scb,
                                            FALSE,  /* outbuff */
                                            &buff);
                     if (res != NO_ERR) {
                         return res;
                     }
-                    dlq_enque(buff, &msg->buffQ);
+                    dlq_enque(instance, buff, &msg->buffQ);
 
                     copy2len = min(SES_MSG_BUFFSIZE, copylen);
-                    xml_strncpy(&buff->buff[buff->buffpos],
+                    xml_strncpy(instance,
+                                &buff->buff[buff->buffpos],
                                 &scb->readbuff[count],
                                 copy2len);
                     buff->buffpos += copy2len;
@@ -621,7 +636,7 @@ static status_t
                     scb->inendpos++;
                 } else {
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(inbetween: expect newline)");
                     }
                     done = TRUE;
@@ -632,7 +647,7 @@ static status_t
                     scb->inendpos++;
                 } else {
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(inbetween: expect '#')");
                     }
                     done = TRUE;
@@ -650,7 +665,7 @@ static status_t
                     scb->instate = SES_INST_INSTART;
                 } else {
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(inbetween: expect digit or '#')");
                     }
                     done = TRUE;
@@ -665,7 +680,7 @@ static status_t
                     scb->inendpos++;
                 } else {
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(inend: expect '#')");
                     }
                     done = TRUE;
@@ -678,7 +693,7 @@ static status_t
                      */
                     msg->curbuff = NULL;
                     msg->ready = TRUE;
-                    ses_msg_make_inready(scb);
+                    ses_msg_make_inready(instance, scb);
                     
                     /* reset reader state */
                     scb->instate = SES_INST_IDLE;
@@ -688,27 +703,28 @@ static status_t
 
                     if (count < len) {
                         /* need a new message */
-                        res = ses_msg_new_msg(&msg);
+                        res = ses_msg_new_msg(instance, &msg);
                         if (res != NO_ERR) {
                             return res;
                         }
                         /* add early */
-                        dlq_enque(msg, &scb->msgQ);
+                        dlq_enque(instance, msg, &scb->msgQ);
 
                         /* get a new buffer */
-                        res = ses_msg_new_buff(scb,
+                        res = ses_msg_new_buff(instance,
+                                               scb,
                                                FALSE,  /* outbuff */
                                                &buff);
                         if (res != NO_ERR) {
                             return res;
                         }
-                        dlq_enque(buff, &msg->buffQ);
+                        dlq_enque(instance, buff, &msg->buffQ);
                     } else {
                         buff = NULL;
                     }
                 } else {
                     if (LOGDEBUG) {
-                        log_debug("\nses: invalid base:1;1 framing "
+                        log_debug(instance, "\nses: invalid base:1;1 framing "
                                   "(inend: expect newline)");
                     }
                     done = TRUE;
@@ -717,13 +733,13 @@ static status_t
             } else {
                 /* should not happen */
                 done = TRUE;
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
             break;
         default:
             /* should not happen */
             done = TRUE;
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
@@ -743,17 +759,18 @@ static status_t
 *
 *********************************************************************/
 static void
-    put_char_entity (ses_cb_t *scb,
+    put_char_entity (ncx_instance_t *instance,
+                     ses_cb_t *scb,
                      xmlChar ch)
 {
     xmlChar     numbuff[NCX_MAX_NUMLEN];
 
     snprintf((char *)numbuff, NCX_MAX_NUMLEN, "%u", (uint32)ch);
 
-    ses_putchar(scb, '&');
-    ses_putchar(scb, '#');
-    ses_putstr(scb, numbuff);
-    ses_putchar(scb, ';');
+    ses_putchar(instance, scb, '&');
+    ses_putchar(instance, scb, '#');
+    ses_putstr(instance, scb, numbuff);
+    ses_putchar(instance, scb, ';');
 
 }  /* put_char_entity */
 
@@ -789,7 +806,8 @@ static void
 *   *retlen may be increased if prolog or newline added
 *********************************************************************/
 static void
-    handle_prolog_state (ses_msg_t *msg,
+    handle_prolog_state (ncx_instance_t *instance,
+                         ses_msg_t *msg,
                          char *buffer,
                          int bufflen,
                          ses_msg_buff_t *buff,
@@ -856,7 +874,7 @@ static void
     case SES_PRST_DONE:
         return;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
@@ -870,7 +888,7 @@ static void
     if (needprolog) {
         /* expected string sequence is not present */
         if (bufflen < XML_START_MSG_SIZE+5) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else {
             /* copy the prolog string inline
              * to make libxml2 happy
@@ -911,20 +929,20 @@ static void
 *   pointer to initialized SCB, or NULL if malloc error
 *********************************************************************/
 ses_cb_t *
-    ses_new_scb (void)
+    ses_new_scb (ncx_instance_t *instance)
 {
     ses_cb_t  *scb;
     xmlChar   *now;
     
-    now = m__getMem(TSTAMP_MIN_SIZE);
+    now = m__getMem(instance, TSTAMP_MIN_SIZE);
     if (now == NULL) {
         return NULL;
     }
-    tstamp_datetime(now);
+    tstamp_datetime(instance, now);
 
-    scb = m__getObj(ses_cb_t);
+    scb = m__getObj(instance, ses_cb_t);
     if (scb == NULL) {
-        m__free(now);
+        m__free(instance, now);
         return NULL;
     }
     memset(scb, 0x0, sizeof(ses_cb_t));
@@ -935,17 +953,17 @@ ses_cb_t *
     /* make sure the debug log trace code never writes a zero byte
      * past the end of a full read buffer by adding 2 pad bytes
      */
-    scb->readbuff = m__getMem(scb->readbuffsize + 2);
+    scb->readbuff = m__getMem(instance, scb->readbuffsize + 2);
     if (scb->readbuff == NULL) {
-        m__free(now);
-        m__free(scb);
+        m__free(instance, now);
+        m__free(instance, scb);
         return NULL;
     }
 
     scb->start_time = now;
-    dlq_createSQue(&scb->msgQ);
-    dlq_createSQue(&scb->freeQ);
-    dlq_createSQue(&scb->outQ);
+    dlq_createSQue(instance, &scb->msgQ);
+    dlq_createSQue(instance, &scb->freeQ);
+    dlq_createSQue(instance, &scb->outQ);
     scb->linesize = SES_DEF_LINESIZE;
     scb->withdef = NCX_DEF_WITHDEF;
     scb->indent = NCX_DEF_INDENT;
@@ -966,11 +984,11 @@ ses_cb_t *
 *   pointer to initialized SCB, or NULL if malloc error
 *********************************************************************/
 ses_cb_t *
-    ses_new_dummy_scb (void)
+    ses_new_dummy_scb (ncx_instance_t *instance)
 {
     ses_cb_t  *scb;
 
-    scb = ses_new_scb();
+    scb = ses_new_scb(instance);
     if (!scb) {
         return NULL;
     }
@@ -979,7 +997,7 @@ ses_cb_t *
     scb->mode = SES_MODE_XML;
     scb->state = SES_ST_IDLE;
     scb->sid = 0;
-    scb->username = xml_strdup(NCX_DEF_SUPERUSER);
+    scb->username = xml_strdup(instance, NCX_DEF_SUPERUSER);
 
     return scb;
 
@@ -996,7 +1014,7 @@ ses_cb_t *
 * RETURNS:
 *   none
 *********************************************************************/
-void ses_free_scb (ses_cb_t *scb)
+void ses_free_scb (ncx_instance_t *instance, ses_cb_t *scb)
 {
     ses_msg_t *msg;
     ses_msg_buff_t *buff;
@@ -1004,19 +1022,19 @@ void ses_free_scb (ses_cb_t *scb)
     assert( scb && "scb is NULL" );
 
     if (scb->start_time) {
-        m__free(scb->start_time);
+        m__free(instance, scb->start_time);
     }
 
     if (scb->username) {
-        m__free(scb->username);
+        m__free(instance, scb->username);
     }
 
     if (scb->peeraddr) {
-        m__free(scb->peeraddr);
+        m__free(instance, scb->peeraddr);
     }
 
     if (scb->reader) {
-        xml_free_reader(scb->reader);
+        xml_free_reader(instance, scb->reader);
     }
 
     if (scb->fd) {
@@ -1027,41 +1045,42 @@ void ses_free_scb (ses_cb_t *scb)
         fclose(scb->fp);
     }
 
-    while (!dlq_empty(&scb->msgQ)) {
-        msg = (ses_msg_t *)dlq_deque(&scb->msgQ);
-        ses_msg_free_msg(scb, msg);
+    while (!dlq_empty(instance, &scb->msgQ)) {
+        msg = (ses_msg_t *)dlq_deque(instance, &scb->msgQ);
+        ses_msg_free_msg(instance, scb, msg);
     }
 
     if (scb->outbuff) {
-        ses_msg_free_buff(scb, scb->outbuff);
+        ses_msg_free_buff(instance, scb, scb->outbuff);
     }
 
-    while (!dlq_empty(&scb->outQ)) {
-        buff = (ses_msg_buff_t *)dlq_deque(&scb->outQ);
-        ses_msg_free_buff(scb, buff);
+    while (!dlq_empty(instance, &scb->outQ)) {
+        buff = (ses_msg_buff_t *)dlq_deque(instance, &scb->outQ);
+        ses_msg_free_buff(instance, scb, buff);
     }
 
     /* the freeQ must be cleared after the outQ because
      * the normal free buffer action is to move it to
      * the scb->freeQ
      */
-    while (!dlq_empty(&scb->freeQ)) {
-        buff = (ses_msg_buff_t *)dlq_deque(&scb->freeQ);
-        ses_msg_free_buff(scb, buff);
+    while (!dlq_empty(instance, &scb->freeQ)) {
+        buff = (ses_msg_buff_t *)dlq_deque(instance, &scb->freeQ);
+        ses_msg_free_buff(instance, scb, buff);
     }
 
     if (scb->readbuff != NULL) {
-        m__free(scb->readbuff);
+        m__free(instance, scb->readbuff);
     }
 
     if (scb->buffcnt) {
-        log_error("\nsession %d terminated with %d buffers",
+        log_error(instance,
+                  "\nsession %d terminated with %d buffers",
                   scb->sid, scb->buffcnt);
     }
 
     /* the mgrcb must be cleaned before this function is called */
 
-    m__free(scb);
+    m__free(instance, scb);
 
 }  /* ses_free_scb */
 
@@ -1084,7 +1103,8 @@ void ses_free_scb (ses_cb_t *scb)
 *
 *********************************************************************/
 void
-    ses_putchar (ses_cb_t *scb,
+    ses_putchar (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  uint32    ch)
 {
     ses_msg_buff_t *buff;
@@ -1094,13 +1114,13 @@ void
         /* Normal NETCONF session mode: */
         res = NO_ERR;
         if (scb->outbuff == NULL) {
-            res = ses_msg_new_buff(scb, TRUE, &scb->outbuff);
+            res = ses_msg_new_buff(instance, scb, TRUE, &scb->outbuff);
         }
         if (scb->outbuff != NULL) {
             buff = scb->outbuff;
             res = ses_msg_write_buff(scb, buff, ch);
             if (res == ERR_BUFF_OVFL) {
-                res = ses_msg_new_output_buff(scb);
+                res = ses_msg_new_output_buff(instance, scb);
                 if (res == NO_ERR) {
                     buff = scb->outbuff;
                     res = ses_msg_write_buff(scb, buff, ch);
@@ -1112,7 +1132,7 @@ void
 
         if (res == NO_ERR) {
             scb->stats.out_bytes++;
-            totals.stats.out_bytes++;
+            instance->totals->stats.out_bytes++;
         }
     } else if (scb->fp) {
         /* debug session, sending output to a file */
@@ -1144,11 +1164,12 @@ void
 *
 *********************************************************************/
 void
-    ses_putstr (ses_cb_t *scb,
+    ses_putstr (ncx_instance_t *instance,
+                ses_cb_t *scb,
                 const xmlChar *str)
 {
     while (*str) {
-        ses_putchar(scb, *str++);
+        ses_putchar(instance, scb, *str++);
     }
 
 }  /* ses_putstr */
@@ -1170,21 +1191,22 @@ void
 *
 *********************************************************************/
 void
-    ses_putstr_indent (ses_cb_t *scb,
+    ses_putstr_indent (ncx_instance_t *instance,
+                       ses_cb_t *scb,
                        const xmlChar *str,
                        int32 indent)
 {
-    ses_indent(scb, indent);
+    ses_indent(instance, scb, indent);
     while (*str) {
         if (*str == '\n') {
             if (indent < 0) {
-                ses_putchar(scb, *str++);
+                ses_putchar(instance, scb, *str++);
             } else {
-                ses_indent(scb, indent);
+                ses_indent(instance, scb, indent);
                 str++;
             }
         } else {
-            ses_putchar(scb, *str++);
+            ses_putchar(instance, scb, *str++);
         }
     }
 }  /* ses_putstr_indent */
@@ -1206,30 +1228,31 @@ void
 *
 *********************************************************************/
 void
-    ses_putcstr (ses_cb_t *scb,
+    ses_putcstr (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  const xmlChar *str,
                  int32 indent)
 {
     while (*str) {
         if (*str == '<') {
-            ses_putstr(scb, LTSTR);
+            ses_putstr(instance, scb, LTSTR);
             str++;
         } else if (*str == '>') {
-            ses_putstr(scb, GTSTR);
+            ses_putstr(instance, scb, GTSTR);
             str++;
         } else if (*str == '&') {
-            ses_putstr(scb, AMPSTR);
+            ses_putstr(instance, scb, AMPSTR);
             str++;
         } else if ((scb->mode == SES_MODE_XMLDOC
                     || scb->mode == SES_MODE_TEXT) && *str == '\n') {
             if (indent < 0) {
-                ses_putchar(scb, *str++);
+                ses_putchar(instance, scb, *str++);
             } else {
-                ses_indent(scb, indent);
+                ses_indent(instance, scb, indent);
                 str++;
             }
         } else {
-            ses_putchar(scb, *str++);
+            ses_putchar(instance, scb, *str++);
         }
     }
 }  /* ses_putcstr */
@@ -1250,21 +1273,22 @@ void
 *
 *********************************************************************/
 void
-    ses_puthstr (ses_cb_t *scb,
+    ses_puthstr (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  const xmlChar *str)
 {
     while (*str) {
         if (*str == '<') {
-            ses_putstr(scb, LTSTR);
+            ses_putstr(instance, scb, LTSTR);
             str++;
         } else if (*str == '>') {
-            ses_putstr(scb, GTSTR);
+            ses_putstr(instance, scb, GTSTR);
             str++;
         } else if (*str == '&') {
-            ses_putstr(scb, AMPSTR);
+            ses_putstr(instance, scb, AMPSTR);
             str++;
         } else {
-            ses_putchar(scb, *str++);
+            ses_putchar(instance, scb, *str++);
         }
     }
 }  /* ses_puthstr */
@@ -1288,27 +1312,28 @@ void
 *
 *********************************************************************/
 void
-    ses_putcchar (ses_cb_t *scb,
+    ses_putcchar (ncx_instance_t *instance,
+                  ses_cb_t *scb,
                   uint32    ch)
 {
     if (ch) {
         if (ch == '<') {
-            ses_putstr(scb, LTSTR);
+            ses_putstr(instance, scb, LTSTR);
         } else if (ch == '>') {
-            ses_putstr(scb, GTSTR);
+            ses_putstr(instance, scb, GTSTR);
         } else if (ch == '&') {
-            ses_putstr(scb, AMPSTR);
+            ses_putstr(instance, scb, AMPSTR);
         } else if ((scb->mode == SES_MODE_XMLDOC
                     || scb->mode == SES_MODE_TEXT) && 
                    ch == '\n') {
             int32 indent = ses_indent_count(scb);
             if (indent < 0) {
-                ses_putchar(scb, ch);
+                ses_putchar(instance, scb, ch);
             } else {
-                ses_indent(scb, indent);
+                ses_indent(instance, scb, indent);
             }
         } else {
-            ses_putchar(scb, ch);
+            ses_putchar(instance, scb, ch);
         }
     }
 }  /* ses_putcchar */
@@ -1330,39 +1355,40 @@ void
 *
 *********************************************************************/
 void
-    ses_putastr (ses_cb_t *scb,
+    ses_putastr (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  const xmlChar *str,
                  int32 indent)
 {
     while (*str) {
         if (*str == '<') {
-            ses_putstr(scb, LTSTR);
+            ses_putstr(instance, scb, LTSTR);
             str++;
         } else if (*str == '>') {
-            ses_putstr(scb, GTSTR);
+            ses_putstr(instance, scb, GTSTR);
             str++;
         } else if (*str == '&') {
-            ses_putstr(scb, AMPSTR);
+            ses_putstr(instance, scb, AMPSTR);
             str++;
         } else if (*str == '"') {
-            ses_putstr(scb, QSTR);
+            ses_putstr(instance, scb, QSTR);
             str++;
         } else if (*str == '\n') {
             if (scb->mode == SES_MODE_XMLDOC || 
                 scb->mode == SES_MODE_TEXT) {
                 if (indent < 0) {
-                    ses_putchar(scb, *str++);
+                    ses_putchar(instance, scb, *str++);
                 } else {
-                    ses_indent(scb, indent);
+                    ses_indent(instance, scb, indent);
                     str++;
                 }
             } else {
-                put_char_entity(scb, *str++);
+                put_char_entity(instance, scb, *str++);
             }
         } else if (isspace(*str)) {
-            put_char_entity(scb, *str++);
+            put_char_entity(instance, scb, *str++);
         } else {
-            ses_putchar(scb, *str++);
+            ses_putchar(instance, scb, *str++);
         }
     }
 }  /* ses_putastr */
@@ -1384,47 +1410,48 @@ void
 *
 *********************************************************************/
 void
-    ses_putjstr (ses_cb_t *scb,
+    ses_putjstr (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  const xmlChar *str,
                  int32 indent)
 {
-    ses_indent(scb, indent);
+    ses_indent(instance, scb, indent);
     while (*str) {
         switch (*str) {
         case '"':
-            ses_putchar(scb, '\\');
-            ses_putchar(scb, '"');
+            ses_putchar(instance, scb, '\\');
+            ses_putchar(instance, scb, '"');
             break;
         case '\\':
-            ses_putchar(scb, '\\');
-            ses_putchar(scb, '\\');
+            ses_putchar(instance, scb, '\\');
+            ses_putchar(instance, scb, '\\');
             break;
         case '/':
-            ses_putchar(scb, '\\');
-            ses_putchar(scb, '/');
+            ses_putchar(instance, scb, '\\');
+            ses_putchar(instance, scb, '/');
             break;
         case '\b':
-            ses_putchar(scb, '\\');
-            ses_putchar(scb, 'b');
+            ses_putchar(instance, scb, '\\');
+            ses_putchar(instance, scb, 'b');
             break;
         case '\f':
-            ses_putchar(scb, '\\');
-            ses_putchar(scb, 'f');
+            ses_putchar(instance, scb, '\\');
+            ses_putchar(instance, scb, 'f');
             break;
         case '\n':
-            ses_putchar(scb, '\\');
-            ses_putchar(scb, 'n');
+            ses_putchar(instance, scb, '\\');
+            ses_putchar(instance, scb, 'n');
             break;
         case '\r':
-            ses_putchar(scb, '\\');
-            ses_putchar(scb, 'r');
+            ses_putchar(instance, scb, '\\');
+            ses_putchar(instance, scb, 'r');
             break;
         case '\t':
-            ses_putchar(scb, '\\');
-            ses_putchar(scb, 't');
+            ses_putchar(instance, scb, '\\');
+            ses_putchar(instance, scb, 't');
             break;
         default:
-            ses_putchar(scb, *str);
+            ses_putchar(instance, scb, *str);
         }
         ++str;
     }
@@ -1448,7 +1475,8 @@ void
 *
 *********************************************************************/
 void
-    ses_indent (ses_cb_t *scb,
+    ses_indent (ncx_instance_t *instance,
+                ses_cb_t *scb,
                 int32 indent)
 {
     int32 i;
@@ -1459,9 +1487,9 @@ void
 
     /* set limit on indentation in case of bug */
     indent = min(indent, 255);
-    ses_putchar(scb, '\n');
+    ses_putchar(instance, scb, '\n');
     for (i=0; i<indent; i++) {
-        ses_putchar(scb, ' ');
+        ses_putchar(instance, scb, ' ');
     }
 
 }  /* ses_indent */
@@ -1498,12 +1526,13 @@ int32
 *
 *********************************************************************/
 void
-    ses_set_indent (ses_cb_t *scb,
+    ses_set_indent (ncx_instance_t *instance,
+                    ses_cb_t *scb,
                     int32 indent)
 {
 #ifdef DEBUG
     if (scb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -1567,7 +1596,7 @@ ses_mode_t ses_get_mode (ses_cb_t *scb)
 * RETURNS:
 *   status
 *********************************************************************/
-status_t ses_start_msg (ses_cb_t *scb)
+status_t ses_start_msg (ncx_instance_t *instance, ses_cb_t *scb)
 {
     assert( scb && "scb is NULL" );
 
@@ -1577,7 +1606,7 @@ status_t ses_start_msg (ses_cb_t *scb)
     }
 
     /* Generate Start of XML Message Directive */
-    ses_putstr(scb, XML_START_MSG);
+    ses_putstr(instance, scb, XML_START_MSG);
 
     return NO_ERR;
 
@@ -1594,7 +1623,7 @@ status_t ses_start_msg (ses_cb_t *scb)
 * RETURNS:
 *   none
 *********************************************************************/
-void ses_finish_msg (ses_cb_t *scb)
+void ses_finish_msg (ncx_instance_t *instance, ses_cb_t *scb)
 {
     assert( scb && "scb is NULL" );
 
@@ -1604,7 +1633,7 @@ void ses_finish_msg (ses_cb_t *scb)
         if (scb->framing11) {
             scb->outbuff->islast = TRUE;
         } else {
-            ses_putstr(scb, (const xmlChar *)NC_SSH_END);
+            ses_putstr(instance, scb, (const xmlChar *)NC_SSH_END);
         }
     }
 
@@ -1612,12 +1641,12 @@ void ses_finish_msg (ses_cb_t *scb)
      * but never if writing to a socket or STDOUT
      */
     if (scb->fd == 0 && scb->fp != stdout) {
-        ses_putchar(scb, '\n');
+        ses_putchar(instance, scb, '\n');
     }
 
     /* queue for output if not done so already */
     if (scb->type != SES_TYP_DUMMY) {
-        ses_msg_finish_outmsg(scb);
+        ses_msg_finish_outmsg(instance, scb);
     }
 
 }  /* ses_finish_msg */
@@ -1669,8 +1698,9 @@ int
     if (scb->state >= SES_ST_SHUTDOWN_REQ) {
         return -1;
     }
+    ncx_instance_t *instance = scb->instance;
 
-    msg = (ses_msg_t *)dlq_firstEntry(&scb->msgQ);
+    msg = (ses_msg_t *)dlq_firstEntry(instance, &scb->msgQ);
     if (msg == NULL) {
         return 0;
     }
@@ -1690,7 +1720,7 @@ int
     /* check if this is the first read for this message */
     buff = msg->curbuff;
     if (buff == NULL) {
-        buff = (ses_msg_buff_t *)dlq_firstEntry(&msg->buffQ);
+        buff = (ses_msg_buff_t *)dlq_firstEntry(instance, &msg->buffQ);
         if (buff == NULL) {
             return 0;
         } else {
@@ -1701,7 +1731,7 @@ int
 
     /* check current buffer end has been reached */
     if (buff->buffpos == buff->bufflen) {
-        buff = (ses_msg_buff_t *)dlq_nextEntry(buff);
+        buff = (ses_msg_buff_t *)dlq_nextEntry(instance, buff);
         if (buff == NULL) {
             return 0;
         } else {
@@ -1710,7 +1740,7 @@ int
         }
     }
 
-    handle_prolog_state(msg, buffer, len, buff, buff->bufflen, &retlen);
+    handle_prolog_state(instance, msg, buffer, len, buff, buff->bufflen, &retlen);
 
     /* start transferring bytes to the return buffer */
     done = FALSE;
@@ -1726,21 +1756,21 @@ int
 
         /* check current buffer end has been reached */
         if (buff->buffpos == buff->bufflen) {
-            buff = (ses_msg_buff_t *)dlq_nextEntry(buff);
+            buff = (ses_msg_buff_t *)dlq_nextEntry(instance, buff);
             if (buff == NULL) {
                 done = TRUE;
                 continue;
             } else {
                 buff->buffpos = buff->buffstart;
                 msg->curbuff = buff;
-                handle_prolog_state(msg, buffer, len, buff, 
+                handle_prolog_state(instance, msg, buffer, len, buff, 
                                     buff->bufflen, &retlen);
             }
         }
     }
 
 #ifdef SES_DEBUG_XML_TRACE
-    ncx_write_tracefile(buffer, retlen);
+    ncx_write_tracefile(instance, buffer, retlen);
 #endif
 
     return retlen;
@@ -1768,7 +1798,7 @@ int
 *   status
 *********************************************************************/
 status_t
-    ses_accept_input (ses_cb_t *scb)
+    ses_accept_input (ncx_instance_t *instance, ses_cb_t *scb)
 {
     status_t        res;
     ssize_t         ret;
@@ -1777,13 +1807,13 @@ status_t
 
 #ifdef DEBUG
     if (scb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
 #ifdef SES_DEBUG
     if (LOGDEBUG3) {
-        log_debug3("\nses_accept_input on session %d", scb->sid);
+        log_debug3(instance, "\nses_accept_input on session %d", scb->sid);
     }
 #endif
 
@@ -1836,7 +1866,8 @@ status_t
                 }
 
                 if (res == ERR_NCX_READ_FAILED) {
-                    log_error("\nError: ses read failed on session %d (%s)", 
+                    log_error(instance, 
+                              "\nError: ses read failed on session %d (%s)", 
                               scb->sid, 
                               strerror(errno));
                 }
@@ -1858,20 +1889,22 @@ status_t
         if (ret == 0) {
             /* session closed by remote peer */
             if (LOGINFO) {
-                log_info("\nses: session %d shut by remote peer", 
+                log_info(instance, 
+                         "\nses: session %d shut by remote peer", 
                          scb->sid);
             }
             return ERR_NCX_SESSION_CLOSED;
         } else {
             if (LOGDEBUG2) {
-                log_debug2("\nses read OK (%d) on session %d", 
+                log_debug2(instance, 
+                           "\nses read OK (%d) on session %d", 
                            ret, 
                            scb->sid);
             }
 
             /* increment session byte counters */
             scb->stats.in_bytes += (uint32)ret;
-            totals.stats.in_bytes += (uint32)ret;
+            instance->totals->stats.in_bytes += (uint32)ret;
 
             /* adjust length if read was z-terminated
              * should not be needed; zero not a valid
@@ -1883,7 +1916,7 @@ status_t
                  * just the contents of the string
                  */
                 if (LOGDEBUG3) {
-                    log_debug3("\nses: dropping zero byte at EObuff");
+                    log_debug3(instance, "\nses: dropping zero byte at EObuff");
                 }
                 ret--;
             }
@@ -1891,10 +1924,10 @@ status_t
             /* pass the read buffer in 1 of these functions
              * to handle the buffer framing
              */
-            if (ses_get_protocol(scb) == NCX_PROTO_NETCONF11) {
-                res = accept_buffer_ssh_v11(scb, ret);
+            if (ses_get_protocol(instance, scb) == NCX_PROTO_NETCONF11) {
+                res = accept_buffer_ssh_v11(instance, scb, ret);
             } else {
-                res = accept_buffer_ssh_v10(scb, ret);
+                res = accept_buffer_ssh_v10(instance, scb, ret);
             }
 
             if (res != NO_ERR || 
@@ -1902,7 +1935,8 @@ status_t
                 scb->rdfn == NULL) {
 #ifdef SES_DEBUG_TRACE
                 if (LOGDEBUG3) {
-                    log_debug3("\nses: bail exit %u:%u (%s)", 
+                    log_debug3(instance, 
+                               "\nses: bail exit %u:%u (%s)", 
                                ret, 
                                scb->readbuffsize,
                                get_error_string(res));
@@ -1929,7 +1963,7 @@ status_t
 *   staing corresponding to the state name
 *********************************************************************/
 const xmlChar *
-    ses_state_name (ses_state_t state)
+    ses_state_name (ncx_instance_t *instance, ses_state_t state)
 {
     switch (state) {
     case SES_ST_NONE:
@@ -1947,7 +1981,7 @@ const xmlChar *
     case SES_ST_SHUTDOWN:
         return (const xmlChar *)"shutdown";
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return (const xmlChar *)"--";   
     }
     /*NOTREACHED*/
@@ -1967,11 +2001,11 @@ const xmlChar *
 *   with-defaults value for the session
 *********************************************************************/
 ncx_withdefaults_t
-    ses_withdef (const ses_cb_t *scb)
+    ses_withdef (ncx_instance_t *instance, const ses_cb_t *scb)
 {
 #ifdef DEBUG
     if (scb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_WITHDEF_NONE;
     }
 #endif
@@ -2016,7 +2050,8 @@ uint32
 *
 *********************************************************************/
 void
-    ses_put_extern (ses_cb_t *scb,
+    ses_put_extern (ncx_instance_t *instance,
+                    ses_cb_t *scb,
                     const xmlChar *fname)
 {
     FILE               *fil;
@@ -2025,7 +2060,7 @@ void
 
     fil = fopen((const char *)fname, "r");
     if (!fil) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     } 
 
@@ -2036,7 +2071,7 @@ void
             fclose(fil);
             done = TRUE;
         } else {
-            ses_putchar(scb, (uint32)ch);
+            ses_putchar(instance, scb, (uint32)ch);
         }
     }
 
@@ -2052,9 +2087,9 @@ void
 *  pointer to the global session stats struct 
 *********************************************************************/
 ses_total_stats_t *
-    ses_get_total_stats (void)
+    ses_get_total_stats (ncx_instance_t *instance)
 {
-    return &totals;
+    return instance->totals;
 } /* ses_get_total_stats */
 
 
@@ -2070,7 +2105,7 @@ ses_total_stats_t *
 *   pointer to the string value for the specified enum
 *********************************************************************/
 const xmlChar *
-    ses_get_transport_name (ses_transport_t transport)
+    ses_get_transport_name (ncx_instance_t *instance, ses_transport_t transport)
 {
     /* needs to match netconf-state DM values */
     switch (transport) {
@@ -2089,7 +2124,7 @@ const xmlChar *
     case SES_TRANSPORT_TCP:
         return (const xmlChar *)"netconf-tcp";
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return (const xmlChar *)"none";
     }
 
@@ -2145,12 +2180,13 @@ boolean
 *    status
 *********************************************************************/
 status_t
-    ses_set_protocol (ses_cb_t *scb,
+    ses_set_protocol (ncx_instance_t *instance,
+                      ses_cb_t *scb,
                       ncx_protocol_t proto)
 {
 #ifdef DEBUG
     if (scb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
     if (proto == NCX_PROTO_NONE) {
@@ -2167,7 +2203,7 @@ status_t
 
     if (scb->outbuff != NULL && scb->framing11) {
         if (scb->outbuff->bufflen != 0) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         ses_msg_init_buff(scb, TRUE, scb->outbuff);
     }
@@ -2189,11 +2225,11 @@ status_t
 *   protocol enumeration in use
 *********************************************************************/
 ncx_protocol_t
-    ses_get_protocol (const ses_cb_t *scb)
+    ses_get_protocol (ncx_instance_t *instance, const ses_cb_t *scb)
 {
 #ifdef DEBUG
     if (scb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_PROTO_NONE;
     }
 #endif
@@ -2214,12 +2250,13 @@ ncx_protocol_t
 *    status
 *********************************************************************/
 void
-    ses_set_protocols_requested (ses_cb_t *scb,
+    ses_set_protocols_requested (ncx_instance_t *instance,
+                                 ses_cb_t *scb,
                                  ncx_protocol_t proto)
 {
 #ifdef DEBUG
     if (scb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2231,7 +2268,7 @@ void
         scb->protocols_requested |= NCX_FL_PROTO_NETCONF11;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 }  /* ses_set_protocols_requested */
@@ -2249,14 +2286,15 @@ void
 *    TRUE is requested; FALSE otherwise
 *********************************************************************/
 boolean
-    ses_protocol_requested (ses_cb_t *scb,
+    ses_protocol_requested (ncx_instance_t *instance,
+                            ses_cb_t *scb,
                             ncx_protocol_t proto)
 {
     boolean ret = FALSE;
 
 #ifdef DEBUG
     if (scb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -2272,7 +2310,7 @@ boolean
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     return ret;
 

@@ -88,7 +88,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t 
-    c_convert_module (yang_pcb_t *pcb,
+    c_convert_module (struct ncx_instance_t_ *instance,
+		      yang_pcb_t *pcb,
 		      const yangdump_cvtparms_t *cp,
 		      ses_cb_t *scb);
 
@@ -109,7 +110,8 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    c_write_fn_prototypes (ncx_module_t *mod,
+    c_write_fn_prototypes (struct ncx_instance_t_ *instance,
+                           ncx_module_t *mod,
                            const yangdump_cvtparms_t *cp,
                            ses_cb_t *scb,
                            dlq_hdr_t *objnameQ);

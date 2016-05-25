@@ -108,7 +108,8 @@ extern "C" {
 *    status
 *********************************************************************/
 extern status_t 
-    agt_get_cfg_from_parm (const xmlChar *parmname,
+    agt_get_cfg_from_parm (struct ncx_instance_t_ *instance,
+			   const xmlChar *parmname,
 			   rpc_msg_t *msg,
 			   xml_node_t *methnode,
 			   cfg_template_t  **retcfg);
@@ -132,7 +133,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_get_inline_cfg_from_parm (const xmlChar *parmname,
+    agt_get_inline_cfg_from_parm (struct ncx_instance_t_ *instance,
+                                  const xmlChar *parmname,
                                   rpc_msg_t *msg,
                                   xml_node_t *methnode,
                                   val_value_t  **retval);
@@ -162,7 +164,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_get_url_from_parm (const xmlChar *parmname,
+    agt_get_url_from_parm (struct ncx_instance_t_ *instance,
+                           const xmlChar *parmname,
                            rpc_msg_t *msg,
                            xml_node_t *methnode,
                            const xmlChar **returl,
@@ -186,7 +189,8 @@ extern status_t
 *    NULL if some error
 *********************************************************************/
 extern xmlChar *
-    agt_get_filespec_from_url (const xmlChar *urlstr,
+    agt_get_filespec_from_url (struct ncx_instance_t_ *instance,
+                               const xmlChar *urlstr,
                                status_t *res);
 
 
@@ -203,7 +207,8 @@ extern xmlChar *
 *    status
 *********************************************************************/
 extern const val_value_t *
-    agt_get_parmval (const xmlChar *parmname,
+    agt_get_parmval (struct ncx_instance_t_ *instance,
+		     const xmlChar *parmname,
 		     rpc_msg_t *msg);
 
 
@@ -235,7 +240,8 @@ extern const val_value_t *
 *    none
 *********************************************************************/
 extern void
-    agt_record_error (ses_cb_t *scb,
+    agt_record_error (struct ncx_instance_t_ *instance,
+		      ses_cb_t *scb,
 		      xml_msg_hdr_t *msghdr,
 		      ncx_layer_t layer,
 		      status_t  res,
@@ -277,7 +283,8 @@ extern void
 *    none
 *********************************************************************/
 extern void
-    agt_record_error_errinfo (ses_cb_t *scb,
+    agt_record_error_errinfo (struct ncx_instance_t_ *instance,
+			      ses_cb_t *scb,
 			      xml_msg_hdr_t *msghdr,
 			      ncx_layer_t layer,
 			      status_t  res,
@@ -315,7 +322,8 @@ extern void
 *    none
 *********************************************************************/
 extern void
-    agt_record_attr_error (ses_cb_t *scb,
+    agt_record_attr_error (struct ncx_instance_t_ *instance,
+			   ses_cb_t *scb,
 			   xml_msg_hdr_t *msghdr,
 			   ncx_layer_t layer,
 			   status_t  res,
@@ -350,7 +358,8 @@ extern void
 *    none
 *********************************************************************/
 extern void
-    agt_record_insert_error (ses_cb_t *scb,
+    agt_record_insert_error (struct ncx_instance_t_ *instance,
+			     ses_cb_t *scb,
 			     xml_msg_hdr_t *msghdr,
 			     status_t  res,
 			     val_value_t *errval);
@@ -380,7 +389,8 @@ extern void
 *    none
 *********************************************************************/
 extern void
-    agt_record_unique_error (ses_cb_t *scb,
+    agt_record_unique_error (struct ncx_instance_t_ *instance,
+			     ses_cb_t *scb,
 			     xml_msg_hdr_t *msghdr,
 			     val_value_t *errval,
 			     dlq_hdr_t  *valuniqueQ);
@@ -401,7 +411,8 @@ extern void
 *    status
 *********************************************************************/
 extern status_t 
-    agt_validate_filter (ses_cb_t *scb,
+    agt_validate_filter (struct ncx_instance_t_ *instance,
+			 ses_cb_t *scb,
 			 rpc_msg_t *msg);
 
 
@@ -420,7 +431,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_validate_filter_ex (ses_cb_t *scb,
+    agt_validate_filter_ex (struct ncx_instance_t_ *instance,
+			    ses_cb_t *scb,
 			    rpc_msg_t *msg,
 			    val_value_t *filter);
 
@@ -440,7 +452,8 @@ extern status_t
 *    TRUE if config; FALSE if non-config
 *********************************************************************/
 extern boolean
-    agt_check_config (ncx_withdefaults_t withdef,
+    agt_check_config (struct ncx_instance_t_ *instance,
+                      ncx_withdefaults_t withdef,
                       boolean realtest,
 		      val_value_t *node);
 
@@ -460,7 +473,8 @@ extern boolean
 *    status
 *********************************************************************/
 extern boolean
-    agt_check_default (ncx_withdefaults_t withdef,
+    agt_check_default (struct ncx_instance_t_ *instance,
+                       ncx_withdefaults_t withdef,
                        boolean realtest,
 		       val_value_t *node);
 
@@ -481,7 +495,8 @@ extern boolean
 *    status
 *********************************************************************/
 extern boolean
-    agt_check_save (ncx_withdefaults_t withdef,
+    agt_check_save (struct ncx_instance_t_ *instance,
+                    ncx_withdefaults_t withdef,
                     boolean realtest,
 		    val_value_t *node);
 
@@ -498,7 +513,8 @@ extern boolean
 *    status
 *********************************************************************/
 extern status_t
-    agt_output_filter (ses_cb_t *scb,
+    agt_output_filter (struct ncx_instance_t_ *instance,
+		       ses_cb_t *scb,
 		       rpc_msg_t *msg,
 		       int32 indent);
 
@@ -514,7 +530,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    agt_output_schema (ses_cb_t *scb,
+    agt_output_schema (struct ncx_instance_t_ *instance,
+		       ses_cb_t *scb,
 		       rpc_msg_t *msg,
 		       int32 indent);
 
@@ -548,7 +565,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_check_max_access (val_value_t *newval,
+    agt_check_max_access (struct ncx_instance_t_ *instance,
+                          val_value_t *newval,
                           boolean cur_exists);
 
 
@@ -589,7 +607,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_check_editop (op_editop_t   pop,
+    agt_check_editop (struct ncx_instance_t_ *instance,
+                      op_editop_t   pop,
                       op_editop_t  *cop,
                       val_value_t *newnode,
                       val_value_t *curnode,
@@ -613,7 +632,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_enable_feature (const xmlChar *modname,
+    agt_enable_feature (struct ncx_instance_t_ *instance,
+			const xmlChar *modname,
 			const xmlChar *featurename);
 
 
@@ -633,10 +653,12 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_disable_feature (const xmlChar *modname,
+    agt_disable_feature (struct ncx_instance_t_ *instance,
+			 const xmlChar *modname,
 			 const xmlChar *featurename);
 extern status_t
-    agt_check_feature (const xmlChar *modname,
+    agt_check_feature (struct ncx_instance_t_ *instance,
+		       const xmlChar *modname,
 		       const xmlChar *featurename,
                        int* enabled/*output*/);
 
@@ -659,7 +681,8 @@ INPUTS:
 *   malloced value struct or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_leaf (obj_template_t *parentobj,
+    agt_make_leaf (struct ncx_instance_t_ *instance,
+		   obj_template_t *parentobj,
 		   const xmlChar *leafname,
 		   const xmlChar *leafstrval,
 		   status_t *res);
@@ -683,7 +706,8 @@ INPUTS:
 *   malloced value struct or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_uint_leaf (obj_template_t *parentobj,
+    agt_make_uint_leaf (struct ncx_instance_t_ *instance,
+                        obj_template_t *parentobj,
                         const xmlChar *leafname,
                         uint32 leafval,
                         status_t *res);
@@ -706,7 +730,8 @@ INPUTS:
 *   malloced value struct or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_int_leaf (obj_template_t *parentobj,
+    agt_make_int_leaf (struct ncx_instance_t_ *instance,
+                       obj_template_t *parentobj,
                        const xmlChar *leafname,
                        int32 leafval,
                        status_t *res);
@@ -730,7 +755,8 @@ INPUTS:
 *   malloced value struct or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_uint64_leaf (obj_template_t *parentobj,
+    agt_make_uint64_leaf (struct ncx_instance_t_ *instance,
+                          obj_template_t *parentobj,
                           const xmlChar *leafname,
                           uint64 leafval,
                           status_t *res);
@@ -754,7 +780,8 @@ INPUTS:
 *   malloced value struct or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_int64_leaf (obj_template_t *parentobj,
+    agt_make_int64_leaf (struct ncx_instance_t_ *instance,
+                         obj_template_t *parentobj,
                          const xmlChar *leafname,
                          int64 leafval,
                          status_t *res);
@@ -778,7 +805,8 @@ INPUTS:
 *   malloced value struct or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_idref_leaf (obj_template_t *parentobj,
+    agt_make_idref_leaf (struct ncx_instance_t_ *instance,
+                         obj_template_t *parentobj,
                          const xmlChar *leafname,
                          const val_idref_t *leafval,
                          status_t *res);
@@ -801,7 +829,8 @@ INPUTS:
 *   malloced value struct for the list or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_list (obj_template_t *parentobj,
+    agt_make_list (struct ncx_instance_t_ *instance,
+                   obj_template_t *parentobj,
                    const xmlChar *listname,
                    status_t *res);
 
@@ -823,7 +852,8 @@ INPUTS:
 *   malloced value struct for the list or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_object (obj_template_t *parentobj,
+    agt_make_object (struct ncx_instance_t_ *instance,
+                     obj_template_t *parentobj,
                      const xmlChar *objname,
                      status_t *res);
 
@@ -847,7 +877,8 @@ INPUTS:
 *   malloced value struct or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    agt_make_virtual_leaf (obj_template_t *parentobj,
+    agt_make_virtual_leaf (struct ncx_instance_t_ *instance,
+			   obj_template_t *parentobj,
 			   const xmlChar *leafname,
 			   getcb_fn_t callbackfn,
 			   status_t *res);
@@ -867,7 +898,8 @@ INPUTS:
 *   status
 *********************************************************************/
 extern status_t
-    agt_add_top_virtual (obj_template_t *obj,
+    agt_add_top_virtual (struct ncx_instance_t_ *instance,
+                         obj_template_t *obj,
                          getcb_fn_t callbackfn);
 
 
@@ -896,7 +928,8 @@ INPUTS:
 *   status
 *********************************************************************/
 extern status_t
-    agt_add_top_container (obj_template_t *obj,
+    agt_add_top_container (struct ncx_instance_t_ *instance,
+                           obj_template_t *obj,
                            val_value_t **val);
 
 
@@ -927,7 +960,8 @@ INPUTS:
 *   status
 *********************************************************************/
 extern status_t
-    agt_add_container (const xmlChar *modname,
+    agt_add_container (struct ncx_instance_t_ *instance,
+                       const xmlChar *modname,
                        const xmlChar *objname,
                        val_value_t *parentval,
                        val_value_t **val);
@@ -952,7 +986,8 @@ extern status_t
 *   or NULL if error or not found
 *********************************************************************/
 extern val_value_t *
-    agt_init_cache (const xmlChar *modname,
+    agt_init_cache (struct ncx_instance_t_ *instance,
+                    const xmlChar *modname,
                     const xmlChar *objname,
                     status_t *res);
 
@@ -975,7 +1010,8 @@ INPUTS:
 *   status
 *********************************************************************/
 extern status_t
-    agt_check_cache (val_value_t **cacheptr,
+    agt_check_cache (struct ncx_instance_t_ *instance,
+                     val_value_t **cacheptr,
                      val_value_t *newval,
                      val_value_t *curval,
                      op_editop_t editop);
@@ -1000,7 +1036,8 @@ extern status_t
 *   NULL if some error
 *********************************************************************/
 extern xpath_pcb_t *
-    agt_new_xpath_pcb (ses_cb_t *scb,
+    agt_new_xpath_pcb (struct ncx_instance_t_ *instance,
+                       ses_cb_t *scb,
                        const xmlChar *expr,
                        status_t *res);
 
@@ -1021,7 +1058,7 @@ extern xpath_pcb_t *
 *   NULL if malloc error
 *********************************************************************/
 extern xmlChar *
-    agt_get_startup_filespec (status_t *res);
+    agt_get_startup_filespec (struct ncx_instance_t_ *instance, status_t *res);
 
 
 /********************************************************************
@@ -1044,7 +1081,8 @@ extern xmlChar *
 *   NULL if some error
 *********************************************************************/
 extern xmlChar *
-    agt_get_target_filespec (const xmlChar *target_url,
+    agt_get_target_filespec (struct ncx_instance_t_ *instance,
+                             const xmlChar *target_url,
                              status_t *res);
 
 
@@ -1062,7 +1100,7 @@ extern xmlChar *
 *   status
 *********************************************************************/
 extern status_t
-    agt_set_mod_defaults (ncx_module_t *mod);
+    agt_set_mod_defaults (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -1088,7 +1126,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_set_with_defaults (ses_cb_t *scb,
+    agt_set_with_defaults (struct ncx_instance_t_ *instance,
+                           ses_cb_t *scb,
                            rpc_msg_t *msg,
                            xml_node_t *methnode);
 
@@ -1114,7 +1153,8 @@ extern status_t
 *   NULL if some bad error like no next key found
 *********************************************************************/
 extern val_value_t *
-    agt_get_key_value (val_value_t *startval,
+    agt_get_key_value (struct ncx_instance_t_ *instance,
+                       val_value_t *startval,
                        val_value_t **lastkey);
 
 
@@ -1142,7 +1182,8 @@ extern val_value_t *
 *      !!!! No MRO nodes or default nodes have been added !!!!
 *********************************************************************/
 extern val_value_t *
-    agt_add_top_node_if_missing (ncx_module_t *mod,
+    agt_add_top_node_if_missing (struct ncx_instance_t_ *instance,
+                                 ncx_module_t *mod,
                                  const xmlChar *objname,
                                  boolean *added,
                                  status_t *res);
@@ -1161,7 +1202,7 @@ extern val_value_t *
 *   FALSE if no operation attributes found
 */
 extern boolean
-    agt_any_operations_set (val_value_t *val);
+    agt_any_operations_set (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -1180,7 +1221,8 @@ extern boolean
 *    FALSE if this is a NO=OP node (either explicit or special merge)
 *********************************************************************/
 extern boolean
-    agt_apply_this_node (op_editop_t editop,
+    agt_apply_this_node (struct ncx_instance_t_ *instance,
+                         op_editop_t editop,
                          const val_value_t *newnode,
                          const val_value_t *curnode);
 

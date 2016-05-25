@@ -67,13 +67,13 @@ extern "C" {
  */
 
 /* advance the current token pointer */
-#define TK_ADV(T) \
-    ((T)->cur ? (((T)->cur = (tk_token_t *)dlq_nextEntry((T)->cur)) \
+#define TK_ADV(instance, T) \
+    ((T)->cur ? (((T)->cur = (tk_token_t *)dlq_nextEntry(instance, (T)->cur)) \
                  ? NO_ERR : ERR_NCX_EOF) : ERR_NCX_EOF)
 
 /* back-up the current token pointer */
-#define TK_BKUP(T) \
-    if (!  ((T)->cur = (tk_token_t *)dlq_prevEntry((T)->cur)))  \
+#define TK_BKUP(instance, T) \
+    if (!  ((T)->cur = (tk_token_t *)dlq_prevEntry(instance, (T)->cur)))  \
         (T)->cur = (tk_token_t *)&((T)->tkQ)
 
 /* return the current token */
@@ -335,7 +335,7 @@ typedef struct tk_chain_t_ {
 *  new parse chain or NULL if memory error
 *********************************************************************/
 extern tk_chain_t *
-    tk_new_chain (void);
+    tk_new_chain (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -349,7 +349,8 @@ extern tk_chain_t *
 *    filename == source filespec
 *********************************************************************/
 extern void
-    tk_setup_chain_conf (tk_chain_t *tkc,
+    tk_setup_chain_conf (struct ncx_instance_t_ *instance,
+			 tk_chain_t *tkc,
 			 FILE *fp,
 			 const xmlChar *filename);
 
@@ -365,7 +366,8 @@ extern void
 *    filename == source filespec
 *********************************************************************/
 extern void
-    tk_setup_chain_yang (tk_chain_t *tkc,
+    tk_setup_chain_yang (struct ncx_instance_t_ *instance,
+			 tk_chain_t *tkc,
 			 FILE *fp,
 			 const xmlChar *filename);
 
@@ -380,7 +382,8 @@ extern void
 *    filename == source filespec
 *********************************************************************/
 extern void
-    tk_setup_chain_yin (tk_chain_t *tkc,
+    tk_setup_chain_yin (struct ncx_instance_t_ *instance,
+                        tk_chain_t *tkc,
                         const xmlChar *filename);
 
 
@@ -393,7 +396,7 @@ extern void
 *    tkc == token chain to setup
 *********************************************************************/
 extern void
-    tk_setup_chain_docmode (tk_chain_t *tkc);
+    tk_setup_chain_docmode (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -406,7 +409,7 @@ extern void
 *  none
 *********************************************************************/
 extern void
-    tk_free_chain (tk_chain_t *tkc);
+    tk_free_chain (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -422,7 +425,8 @@ extern void
 *   btype found or NCX_BT_NONE if no match
 *********************************************************************/
 extern ncx_btype_t 
-    tk_get_yang_btype_id (const xmlChar *buff, 
+    tk_get_yang_btype_id (struct ncx_instance_t_ *instance, 
+			  const xmlChar *buff, 
 			  uint32 len);
 
 
@@ -479,7 +483,7 @@ extern const char *
 *   token type
 *********************************************************************/
 extern tk_type_t
-    tk_next_typ (tk_chain_t *tkc);
+    tk_next_typ (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -493,7 +497,7 @@ extern tk_type_t
 *   token type
 *********************************************************************/
 extern tk_type_t
-    tk_next_typ2 (tk_chain_t *tkc);
+    tk_next_typ2 (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -507,7 +511,7 @@ extern tk_type_t
 *   token type
 *********************************************************************/
 extern const xmlChar *
-    tk_next_val (tk_chain_t *tkc);
+    tk_next_val (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -521,7 +525,7 @@ extern const xmlChar *
 *
 *********************************************************************/
 extern void
-    tk_dump_token (const tk_token_t *tk);
+    tk_dump_token (struct ncx_instance_t_ *instance, const tk_token_t *tk);
 
 
 /********************************************************************
@@ -537,7 +541,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    tk_dump_chain (const tk_chain_t *tkc);
+    tk_dump_chain (struct ncx_instance_t_ *instance, const tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -553,7 +557,7 @@ extern void
 *    FALSE if not a string or no whitespace in the string
 *********************************************************************/
 extern boolean
-    tk_is_wsp_string (const tk_token_t *tk);
+    tk_is_wsp_string (struct ncx_instance_t_ *instance, const tk_token_t *tk);
 
 
 /********************************************************************
@@ -589,7 +593,8 @@ extern boolean
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    tk_tokenize_input (tk_chain_t *tkc,
+    tk_tokenize_input (struct ncx_instance_t_ *instance,
+		       tk_chain_t *tkc,
 		       ncx_module_t *mod);
 
 
@@ -609,7 +614,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    tk_retokenize_cur_string (tk_chain_t *tkc,
+    tk_retokenize_cur_string (struct ncx_instance_t_ *instance,
+			      tk_chain_t *tkc,
 			      ncx_module_t *mod);
 
 
@@ -632,7 +638,8 @@ extern status_t
 *   ready to be traversed; always check *res for valid syntax
 *********************************************************************/
 extern tk_chain_t *
-    tk_tokenize_metadata_string (ncx_module_t *mod,
+    tk_tokenize_metadata_string (struct ncx_instance_t_ *instance,
+				 ncx_module_t *mod,
 				 xmlChar *str,
 				 status_t *res);
 
@@ -657,7 +664,8 @@ extern tk_chain_t *
 *   ready to be traversed; always check *res for valid syntax
 *********************************************************************/
 extern tk_chain_t *
-    tk_tokenize_xpath_string (ncx_module_t *mod,
+    tk_tokenize_xpath_string (struct ncx_instance_t_ *instance,
+			      ncx_module_t *mod,
 			      xmlChar *str,
 			      uint32 curlinenum,
 			      uint32 curlinepos,
@@ -676,7 +684,7 @@ extern tk_chain_t *
 *   number of tokens in the queue
 *********************************************************************/
 extern uint32
-    tk_token_count (const tk_chain_t *tkc);
+    tk_token_count (struct ncx_instance_t_ *instance, const tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -689,7 +697,7 @@ extern uint32
 *
 *********************************************************************/
 extern void
-    tk_reset_chain (tk_chain_t *tkc);
+    tk_reset_chain (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -705,7 +713,7 @@ extern void
 *    new cloned parse chain or NULL if memory error
 *********************************************************************/
 extern tk_chain_t *
-    tk_clone_chain (tk_chain_t *oldtkc);
+    tk_clone_chain (struct ncx_instance_t_ *instance, tk_chain_t *oldtkc);
 
 
 /********************************************************************
@@ -721,7 +729,8 @@ extern tk_chain_t *
 *    status
 *********************************************************************/
 extern status_t
-    tk_add_id_token (tk_chain_t *tkc,
+    tk_add_id_token (struct ncx_instance_t_ *instance,
+                     tk_chain_t *tkc,
                      const xmlChar *valstr);
 
 
@@ -741,7 +750,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    tk_add_pid_token (tk_chain_t *tkc,
+    tk_add_pid_token (struct ncx_instance_t_ *instance,
+                      tk_chain_t *tkc,
                       const xmlChar *prefix,
                       uint32 prefixlen,
                       const xmlChar *valstr);
@@ -760,7 +770,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    tk_add_string_token (tk_chain_t *tkc,
+    tk_add_string_token (struct ncx_instance_t_ *instance,
+                         tk_chain_t *tkc,
                          const xmlChar *valstr);
 
 
@@ -776,7 +787,7 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    tk_add_lbrace_token (tk_chain_t *tkc);
+    tk_add_lbrace_token (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 
@@ -792,7 +803,7 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    tk_add_rbrace_token (tk_chain_t *tkc);
+    tk_add_rbrace_token (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -807,7 +818,7 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    tk_add_semicol_token (tk_chain_t *tkc);
+    tk_add_semicol_token (struct ncx_instance_t_ *instance, tk_chain_t *tkc);
 
 
 /********************************************************************
@@ -825,7 +836,8 @@ extern status_t
 *    status; ERR_INTERNAL_MEM if entry cannot be malloced
 *********************************************************************/
 extern status_t
-    tk_check_save_origstr (tk_chain_t  *tkc,
+    tk_check_save_origstr (struct ncx_instance_t_ *instance,
+                           tk_chain_t  *tkc,
                            tk_token_t *tk,
                            const void *field);
 
@@ -849,7 +861,8 @@ extern status_t
 *   pointer to the first string fragment
 *********************************************************************/
 extern const xmlChar *
-    tk_get_first_origstr (const tk_token_ptr_t  *tkptr,
+    tk_get_first_origstr (struct ncx_instance_t_ *instance,
+                          const tk_token_ptr_t  *tkptr,
                           boolean *dquote,
                           boolean *morestr);
 
@@ -866,7 +879,7 @@ extern const xmlChar *
 *   pointer to the first original string record
 *********************************************************************/
 extern const tk_origstr_t *
-    tk_first_origstr_rec (const tk_token_ptr_t  *tkptr);
+    tk_first_origstr_rec (struct ncx_instance_t_ *instance, const tk_token_ptr_t  *tkptr);
 
 
 /********************************************************************
@@ -881,7 +894,7 @@ extern const tk_origstr_t *
 *   pointer to the next original string record
 *********************************************************************/
 extern const tk_origstr_t *
-    tk_next_origstr_rec (const tk_origstr_t  *origstr);
+    tk_next_origstr_rec (struct ncx_instance_t_ *instance, const tk_origstr_t  *origstr);
 
 
 /********************************************************************
@@ -903,7 +916,8 @@ extern const tk_origstr_t *
 *   pointer to the string fragment
 *********************************************************************/
 extern const xmlChar *
-    tk_get_origstr_parts (const tk_origstr_t  *origstr,
+    tk_get_origstr_parts (struct ncx_instance_t_ *instance,
+                          const tk_origstr_t  *origstr,
                           boolean *dquote,
                           boolean *newline);
 
@@ -921,7 +935,8 @@ extern const xmlChar *
 *   pointer to the token pointer record or NULL if not found
 *********************************************************************/
 extern const tk_token_ptr_t *
-    tk_find_tkptr (const tk_chain_t  *tkc,
+    tk_find_tkptr (struct ncx_instance_t_ *instance,
+                   const tk_chain_t  *tkc,
                    const void *field);
 
 
@@ -938,7 +953,7 @@ extern const tk_token_ptr_t *
 *   number of quotes used in first string
 *********************************************************************/
 extern uint32
-    tk_tkptr_quotes (const tk_token_ptr_t  *tkptr);
+    tk_tkptr_quotes (struct ncx_instance_t_ *instance, const tk_token_ptr_t  *tkptr);
 
 
 #ifdef __cplusplus

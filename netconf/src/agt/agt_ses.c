@@ -118,7 +118,8 @@ static time_t     last_timeout_check;
 *    status
 *********************************************************************/
 static status_t
-    get_session_key (const val_value_t *virval,
+    get_session_key (ncx_instance_t *instance,
+                     const val_value_t *virval,
                      ses_id_t *retsid)
 {
     const val_value_t  *parentval, *sidval;
@@ -128,8 +129,9 @@ static status_t
         return ERR_NCX_DEF_NOT_FOUND;
     }
 
-    sidval = val_find_child(parentval,
-                            obj_get_mod_name(parentval->obj),
+    sidval = val_find_child(instance,
+                            parentval,
+                            obj_get_mod_name(instance, parentval->obj),
                             (const xmlChar *)"session-id");
 
     if (sidval == NULL) {
@@ -152,7 +154,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    get_my_session_invoke (ses_cb_t *scb,
+    get_my_session_invoke (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            rpc_msg_t *msg,
                            xml_node_t *methnode)
 {
@@ -162,7 +165,8 @@ static status_t
     (void)methnode;
 
     snprintf((char *)numbuff, sizeof(numbuff), "%u", scb->indent);
-    indentval = val_make_string(mysesmod->nsid,
+    indentval = val_make_string(instance,
+                                mysesmod->nsid,
                                 NCX_EL_INDENT,
                                 numbuff);
     if (indentval == NULL) {
@@ -170,27 +174,29 @@ static status_t
     }
 
     snprintf((char *)numbuff, sizeof(numbuff), "%u", scb->linesize);
-    linesizeval = val_make_string(mysesmod->nsid,
+    linesizeval = val_make_string(instance,
+                                  mysesmod->nsid,
                                   NCX_EL_LINESIZE,
                                   numbuff);
     if (linesizeval == NULL) {
-        val_free_value(indentval);
+        val_free_value(instance, indentval);
         return ERR_INTERNAL_MEM;
     }
 
     withdefval =
-        val_make_string(mysesmod->nsid,
+        val_make_string(instance,
+                        mysesmod->nsid,
                         NCX_EL_WITH_DEFAULTS,
-                        ncx_get_withdefaults_string(scb->withdef));
+                        ncx_get_withdefaults_string(instance, scb->withdef));
     if (withdefval == NULL) {
-        val_free_value(indentval);
-        val_free_value(linesizeval);
+        val_free_value(instance, indentval);
+        val_free_value(instance, linesizeval);
         return ERR_INTERNAL_MEM;
     }
 
-    dlq_enque(indentval, &msg->rpc_dataQ);
-    dlq_enque(linesizeval, &msg->rpc_dataQ);
-    dlq_enque(withdefval, &msg->rpc_dataQ);
+    dlq_enque(instance, indentval, &msg->rpc_dataQ);
+    dlq_enque(instance, linesizeval, &msg->rpc_dataQ);
+    dlq_enque(instance, withdefval, &msg->rpc_dataQ);
     msg->rpc_data_type = RPC_DATA_YANG;
     return NO_ERR;
 
@@ -207,7 +213,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    set_my_session_invoke (ses_cb_t *scb,
+    set_my_session_invoke (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            rpc_msg_t *msg,
                            xml_node_t *methnode)
 {
@@ -216,7 +223,8 @@ static status_t
     (void)methnode;
 
     /* get the indent amount parameter */
-    indentval = val_find_child(msg->rpc_input,
+    indentval = val_find_child(instance,
+                               msg->rpc_input,
                                AGT_SES_MODULE,
                                NCX_EL_INDENT);
     if (indentval && indentval->res == NO_ERR) {
@@ -224,7 +232,8 @@ static status_t
     }
 
     /* get the line sizer parameter */
-    linesizeval = val_find_child(msg->rpc_input,
+    linesizeval = val_find_child(instance,
+                                 msg->rpc_input,
                                  AGT_SES_MODULE,
                                  NCX_EL_LINESIZE);
     if (linesizeval && linesizeval->res == NO_ERR) {
@@ -232,12 +241,13 @@ static status_t
     }
 
     /* get the with-defaults parameter */
-    withdefval = val_find_child(msg->rpc_input,
+    withdefval = val_find_child(instance,
+                                msg->rpc_input,
                                 AGT_SES_MODULE,
                                 NCX_EL_WITH_DEFAULTS);
     if (withdefval && withdefval->res == NO_ERR) {
         scb->withdef =
-            ncx_get_withdefaults_enum(VAL_ENUM_NAME(withdefval));
+            ncx_get_withdefaults_enum(instance, VAL_ENUM_NAME(withdefval));
     }
 
     return NO_ERR;
@@ -258,7 +268,7 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    agt_ses_init (void)
+    agt_ses_init (ncx_instance_t *instance)
 {
 
     agt_profile_t   *agt_profile;
@@ -270,7 +280,7 @@ status_t
     }
 
 #ifdef AGT_STATE_DEBUG
-    log_debug2("\nagt: Loading netconf-state module");
+    log_debug2(instance, "\nagt: Loading netconf-state module");
 #endif
 
     agt_profile = agt_get_profile();
@@ -289,14 +299,15 @@ status_t
     next_sesid = 1;
     mysesmod = NULL;
 
-    agttotals = ses_get_total_stats();
+    agttotals = ses_get_total_stats(instance);
     memset(agttotals, 0x0, sizeof(ses_total_stats_t));
-    tstamp_datetime(agttotals->startTime);
+    tstamp_datetime(instance, agttotals->startTime);
     (void)time(&last_timeout_check);
     agt_ses_init_done = TRUE;
 
     /* load the netconf-state module */
-    res = ncxmod_load_module(AGT_SES_MODULE,
+    res = ncxmod_load_module(instance,
+                             AGT_SES_MODULE,
                              NULL,
                              &agt_profile->agt_savedevQ,
                              &mysesmod);
@@ -305,21 +316,23 @@ status_t
     }
 
     /* set up get-my-session RPC operation */
-    res = agt_rpc_register_method(AGT_SES_MODULE,
+    res = agt_rpc_register_method(instance,
+                                  AGT_SES_MODULE,
                                   AGT_SES_GET_MY_SESSION,
                                   AGT_RPC_PH_INVOKE,
                                   get_my_session_invoke);
     if (res != NO_ERR) {
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
     /* set up set-my-session RPC operation */
-    res = agt_rpc_register_method(AGT_SES_MODULE,
+    res = agt_rpc_register_method(instance,
+                                  AGT_SES_MODULE,
                                   AGT_SES_SET_MY_SESSION,
                                   AGT_RPC_PH_INVOKE,
                                   set_my_session_invoke);
     if (res != NO_ERR) {
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
     return res;
@@ -337,7 +350,7 @@ status_t
 *   none
 *********************************************************************/
 void
-    agt_ses_cleanup (void)
+    agt_ses_cleanup (ncx_instance_t *instance)
 {
     uint32 i;
     agt_profile_t   *agt_profile;
@@ -347,7 +360,7 @@ void
     if (agt_ses_init_done) {
         for (i=0; i<agt_profile->agt_max_sessions; i++) {
             if (agtses[i]) {
-                agt_ses_free_session(agtses[i]);
+                agt_ses_free_session(instance, agtses[i]);
             }
         }
 
@@ -355,10 +368,12 @@ void
 
         next_sesid = 0;
 
-        agt_rpc_unregister_method(AGT_SES_MODULE,
+        agt_rpc_unregister_method(instance,
+                                  AGT_SES_MODULE,
                                   AGT_SES_GET_MY_SESSION);
 
-        agt_rpc_unregister_method(AGT_SES_MODULE,
+        agt_rpc_unregister_method(instance,
+                                  AGT_SES_MODULE,
                                   AGT_SES_SET_MY_SESSION);
 
         agt_ses_init_done = FALSE;
@@ -377,22 +392,22 @@ void
 *   pointer to initialized dummy SCB, or NULL if malloc error
 *********************************************************************/
 ses_cb_t *
-    agt_ses_new_dummy_session (void)
+    agt_ses_new_dummy_session (ncx_instance_t *instance)
 {
     ses_cb_t  *scb;
 
     if (!agt_ses_init_done) {
-        agt_ses_init();
+        agt_ses_init(instance);
     }
 
     /* check if dummy session already cached */
     if (agtses[0]) {
-        SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
         return NULL;
     }
 
     /* no, so create it */
-    scb = ses_new_dummy_scb();
+    scb = ses_new_dummy_scb(instance);
     if (!scb) {
         return NULL;
     }
@@ -417,7 +432,8 @@ ses_cb_t *
 *   status
 *********************************************************************/
 status_t
-    agt_ses_set_dummy_session_acm (ses_cb_t *dummy_session,
+    agt_ses_set_dummy_session_acm (ncx_instance_t *instance,
+                                   ses_cb_t *dummy_session,
                                    ses_id_t  use_sid)
 {
     ses_cb_t  *scb;
@@ -425,7 +441,7 @@ status_t
     assert( dummy_session && "dummy_session is NULL!" );
 
     if (!agt_ses_init_done) {
-        agt_ses_init();
+        agt_ses_init(instance);
     }
 
     scb = agtses[use_sid];
@@ -444,24 +460,24 @@ status_t
     }
 
     if (dummy_session->username && scb->username) {
-        m__free(dummy_session->username);
+        m__free(instance, dummy_session->username);
         dummy_session->username = NULL;
     }
 
     if (scb->username) {
-        dummy_session->username = xml_strdup(scb->username);
+        dummy_session->username = xml_strdup(instance, scb->username);
         if (dummy_session->username == NULL) {
             return ERR_INTERNAL_MEM;
         }
     }
 
     if (dummy_session->peeraddr && scb->peeraddr) {
-        m__free(dummy_session->peeraddr);
+        m__free(instance, dummy_session->peeraddr);
         dummy_session->peeraddr = NULL;
     }
 
     if (scb->peeraddr) {
-        dummy_session->peeraddr = xml_strdup(scb->peeraddr);
+        dummy_session->peeraddr = xml_strdup(instance, scb->peeraddr);
         if (dummy_session->peeraddr == NULL) {
             return ERR_INTERNAL_MEM;
         }
@@ -481,14 +497,14 @@ status_t
 *
 *********************************************************************/
 void
-    agt_ses_free_dummy_session (ses_cb_t *scb)
+    agt_ses_free_dummy_session (ncx_instance_t *instance, ses_cb_t *scb)
 {
     assert( scb && "scb is NULL!" );
     assert( agt_ses_init_done && "agt_ses_init_done is false!" );
     assert( agtses[0] && "agtses[0] is null" );
 
-    agt_acm_clear_session_cache(scb);
-    ses_free_scb(scb);
+    agt_acm_clear_session_cache(instance, scb);
+    ses_free_scb(instance, scb);
     agtses[0] = NULL;
 
 }  /* agt_ses_free_dummy_session */
@@ -507,7 +523,8 @@ void
 *   not have to be saved by the caller
 *********************************************************************/
 ses_cb_t *
-    agt_ses_new_session (ses_transport_t transport,
+    agt_ses_new_session (ncx_instance_t *instance,
+                         ses_transport_t transport,
                          int fd)
 {
     ses_cb_t       *scb;
@@ -518,7 +535,7 @@ ses_cb_t *
     agt_profile = agt_get_profile();
 
     if (!agt_ses_init_done) {
-        agt_ses_init();
+        agt_ses_init(instance);
     }
 
     res = NO_ERR;
@@ -542,17 +559,17 @@ ses_cb_t *
 
     if (slot) {
         /* make sure there is memory for a session control block */
-        scb = ses_new_scb();
+        scb = ses_new_scb(instance);
         if (scb) {
             /* initialize the profile vars */
             scb->linesize = agt_profile->agt_linesize;
             scb->withdef = agt_profile->agt_defaultStyleEnum;
             scb->indent = agt_profile->agt_indent;
 
-            if (ncx_protocol_enabled(NCX_PROTO_NETCONF10)) {
+            if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF10)) {
                 scb->protocols_requested |= NCX_FL_PROTO_NETCONF10;
             }
-            if (ncx_protocol_enabled(NCX_PROTO_NETCONF11)) {
+            if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF11)) {
                 scb->protocols_requested |= NCX_FL_PROTO_NETCONF11;
             }
 
@@ -568,7 +585,7 @@ ses_cb_t *
             scb->fd = fd;
             scb->instate = SES_INST_IDLE;
             scb->stream_output = TRUE;
-            res = ses_msg_new_buff(scb, TRUE, &scb->outbuff);
+            res = ses_msg_new_buff(instance, scb, TRUE, &scb->outbuff);
         } else {
             res = ERR_INTERNAL_MEM;
         }
@@ -578,7 +595,7 @@ ses_cb_t *
 
     /* add the FD to SCB mapping in the definition registry */
     if (res == NO_ERR) {
-        res = def_reg_add_scb(scb->fd, scb);
+        res = def_reg_add_scb(instance, scb->fd, scb);
     }
 
     /* check result and add to session array if NO_ERR */
@@ -593,17 +610,18 @@ ses_cb_t *
             }
         }
         if (LOGINFO) {
-            log_info("\nNew session %d created OK", slot);
+            log_info(instance, "\nNew session %d created OK", slot);
         }
         agttotals->inSessions++;
         agttotals->active_sessions++;
     } else {
         if (scb) {
-            agt_ses_free_session(scb);
+            agt_ses_free_session(instance, scb);
             scb = NULL;
         }
         if (LOGINFO) {
-            log_info("\nNew session request failed (%s)",
+            log_info(instance,
+                     "\nNew session request failed (%s)",
                      get_error_string(res));
         }
     }
@@ -622,7 +640,7 @@ ses_cb_t *
 *
 *********************************************************************/
 void
-    agt_ses_free_session (ses_cb_t *scb)
+    agt_ses_free_session (ncx_instance_t *instance, ses_cb_t *scb)
 {
     ses_id_t  slot;
 
@@ -630,20 +648,20 @@ void
     assert( agt_ses_init_done && "agt_ses_init_done is false!" );
 
     if (scb->type==SES_TYP_DUMMY) {
-        agt_ses_free_dummy_session( scb );
+        agt_ses_free_dummy_session(instance,  scb );
         return;
     }
 
     slot = scb->sid;
 
     if (scb->fd) {
-        def_reg_del_scb(scb->fd);
+        def_reg_del_scb(instance, scb->fd);
     }
 
-    cfg_release_locks(slot);
+    cfg_release_locks(instance, slot);
 
-    agt_state_remove_session(slot);
-    agt_not_remove_subscription(slot);
+    agt_state_remove_session(instance, slot);
+    agt_not_remove_subscription(instance, slot);
 
     /* add this session to ses stats */
     agttotals->active_sessions--;
@@ -659,18 +677,18 @@ void
     agt_ncxserver_clear_fd(scb->fd);
 
     /* clear any NACM cache that this session was using */
-    agt_acm_clear_session_cache(scb);
+    agt_acm_clear_session_cache(instance, scb);
 
-    ses_msg_unmake_inready(scb);
-    ses_msg_unmake_outready(scb);
+    ses_msg_unmake_inready(instance, scb);
+    ses_msg_unmake_outready(instance, scb);
 
     /* this will close the socket if it is still open */
-    ses_free_scb(scb);
+    ses_free_scb(instance, scb);
 
     agtses[slot] = NULL;
 
     if (LOGINFO) {
-        log_info("\nSession %d closed", slot);
+        log_info(instance, "\nSession %d closed", slot);
     }
 
 }  /* agt_ses_free_session */
@@ -713,7 +731,8 @@ boolean
 *   none
 *********************************************************************/
 void
-    agt_ses_request_close (ses_cb_t *scb,
+    agt_ses_request_close (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            ses_id_t killedby,
                            ses_term_reason_t termreason)
 {
@@ -734,7 +753,8 @@ void
     case SES_ST_IDLE:
     case SES_ST_SHUTDOWN:
     case SES_ST_SHUTDOWN_REQ:
-        agt_ses_kill_session(scb,
+        agt_ses_kill_session(instance,
+                             scb,
                              killedby,
                              termreason);
         break;
@@ -743,8 +763,9 @@ void
         scb->state = SES_ST_SHUTDOWN_REQ;
         break;
     default:
-        if (dlq_empty(&scb->outQ)) {
-            agt_ses_kill_session(scb,
+        if (dlq_empty(instance, &scb->outQ)) {
+            agt_ses_kill_session(instance,
+                                 scb,
                                  killedby,
                                  termreason);
         } else {
@@ -765,7 +786,8 @@ void
 *   none
 *********************************************************************/
 void
-    agt_ses_kill_session (ses_cb_t *scb,
+    agt_ses_kill_session (ncx_instance_t *instance,
+                          ses_cb_t *scb,
                           ses_id_t killedby,
                           ses_term_reason_t termreason)
 {
@@ -781,18 +803,19 @@ void
     /* handle confirmed commit started by this session */
     if (agt_ncx_cc_active() && agt_ncx_cc_ses_id() == scb->sid) {
         if (agt_ncx_cc_persist_id() == NULL) {
-            agt_ncx_cancel_confirmed_commit(scb, NCX_CC_EVENT_CANCEL);
+            agt_ncx_cancel_confirmed_commit(instance, scb, NCX_CC_EVENT_CANCEL);
         } else {
             agt_ncx_clear_cc_ses_id();
         }
     }
 
-    agt_sys_send_sysSessionEnd(scb,
+    agt_sys_send_sysSessionEnd(instance,
+                               scb,
                                termreason,
                                killedby);
 
     /* clear all resources and delete the session control block */
-    agt_ses_free_session(scb);
+    agt_ses_free_session(instance, scb);
 
 } /* agt_ses_kill_session */
 
@@ -806,7 +829,7 @@ void
 *     FALSE if the readyQ was empty
 *********************************************************************/
 boolean
-    agt_ses_process_first_ready (void)
+    agt_ses_process_first_ready (ncx_instance_t *instance)
 {
     ses_cb_t     *scb;
     ses_ready_t  *rdy;
@@ -815,7 +838,7 @@ boolean
     uint32        cnt;
     xmlChar       buff[32];
 
-    rdy = ses_msg_get_first_inready();
+    rdy = ses_msg_get_first_inready(instance);
     if (!rdy) {
         return FALSE;
     }
@@ -824,52 +847,57 @@ boolean
     scb = agtses[rdy->sid];
 
     if (scb == NULL) {
-        log_debug("\nagt_ses: session %d gone", rdy->sid);
+        log_debug(instance, "\nagt_ses: session %d gone", rdy->sid);
         return FALSE;
     }
 
-    log_debug2("\nagt_ses msg ready for session %d", scb->sid);
+    log_debug2(instance, "\nagt_ses msg ready for session %d", scb->sid);
 
     /* check the session control block state */
     if (scb->state >= SES_ST_SHUTDOWN_REQ) {
         /* don't process the message or even it mark it
          * It will be cleaned up when the session is freed
          */
-        log_debug("\nagt_ses drop input, session %d shutting down",
+        log_debug(instance,
+                  "\nagt_ses drop input, session %d shutting down",
                   scb->sid);
         return TRUE;
     }
 
     /* make sure a message is really there */
-    msg = (ses_msg_t *)dlq_firstEntry(&scb->msgQ);
+    msg = (ses_msg_t *)dlq_firstEntry(instance, &scb->msgQ);
     if (!msg || !msg->ready) {
-        SET_ERROR(ERR_INTERNAL_PTR);
-        log_error("\nagt_ses ready Q message not correct");
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
+        log_error(instance, "\nagt_ses ready Q message not correct");
         if (msg && scb->state != SES_ST_INIT) {
             /* do not echo the ncx-connect message */
-            cnt = xml_strcpy(buff,
+            cnt = xml_strcpy(instance,
+                             buff,
                              (const xmlChar *)"Incoming msg for session ");
             snprintf((char *)(&buff[cnt]), sizeof(buff) - cnt, "%u", scb->sid);
-            ses_msg_dump(msg, buff);
+            ses_msg_dump(instance, msg, buff);
         }
 
         return FALSE;
     } else if (LOGDEBUG2 && scb->state != SES_ST_INIT) {
-        cnt = xml_strcpy(buff,
+        cnt = xml_strcpy(instance,
+                         buff,
                          (const xmlChar *)"Incoming msg for session ");
         snprintf((char *)(&buff[cnt]), sizeof(buff) - cnt, "%u", scb->sid);
-        ses_msg_dump(msg, buff);
+        ses_msg_dump(instance, msg, buff);
     }
 
     /* setup the XML parser */
     if (scb->reader) {
             /* reset the xmlreader */
-        res = xml_reset_reader_for_session(ses_read_cb,
+        res = xml_reset_reader_for_session(instance,
+                                           ses_read_cb,
                                            NULL,
                                            scb,
                                            scb->reader);
     } else {
-        res = xml_get_reader_for_session(ses_read_cb,
+        res = xml_get_reader_for_session(instance,
+                                         ses_read_cb,
                                          NULL,
                                          scb,
                                          &scb->reader);
@@ -880,26 +908,27 @@ boolean
         /* process the message
          * the scb pointer may get deleted !!!
          */
-        agt_top_dispatch_msg(&scb);
+        agt_top_dispatch_msg(instance, &scb);
     } else {
         if (LOGINFO) {
-            log_info("\nReset xmlreader failed for session %d (%s)",
+            log_info(instance,
+                     "\nReset xmlreader failed for session %d (%s)",
                      scb->sid,
                      get_error_string(res));
         }
-        agt_ses_kill_session(scb, 0, SES_TR_OTHER);
+        agt_ses_kill_session(instance, scb, 0, SES_TR_OTHER);
         scb = NULL;
     }
 
     if (scb) {
         /* free the message that was just processed */
-        dlq_remove(msg);
-        ses_msg_free_msg(scb, msg);
+        dlq_remove(instance, msg);
+        ses_msg_free_msg(instance, scb, msg);
 
         /* check if any messages left for this session */
-        msg = (ses_msg_t *)dlq_firstEntry(&scb->msgQ);
+        msg = (ses_msg_t *)dlq_firstEntry(instance, &scb->msgQ);
         if (msg && msg->ready) {
-            ses_msg_make_inready(scb);
+            ses_msg_make_inready(instance, scb);
         }
     }
 
@@ -915,7 +944,7 @@ boolean
 *
 *********************************************************************/
 void
-    agt_ses_check_timeouts (void)
+    agt_ses_check_timeouts (ncx_instance_t *instance)
 {
     ses_cb_t         *scb;
     agt_profile_t    *agt_profile;
@@ -974,9 +1003,9 @@ void
             timediff = difftime(timenow, scb->hello_time);
             if (timediff >= (double)agt_profile->agt_hello_timeout) {
                 if (LOGDEBUG) {
-                    log_debug("\nHello timeout for session %u", i);
+                    log_debug(instance, "\nHello timeout for session %u", i);
                 }
-                agt_ses_kill_session(scb, 0, SES_TR_TIMEOUT);
+                agt_ses_kill_session(instance, scb, 0, SES_TR_TIMEOUT);
                 continue;
             }
         }
@@ -988,21 +1017,21 @@ void
         if (agt_profile->agt_idle_timeout > 0 &&
             scb->active &&
             !scb->notif_active &&
-            (strcmp(scb->peeraddr,"127.0.0.1")!=0)) {
+            (strcmp((const char *)scb->peeraddr,"127.0.0.1")!=0)) {
 
             timediff = difftime(timenow, scb->last_rpc_time);
             if (timediff >= (double)agt_profile->agt_idle_timeout) {
                 if (LOGDEBUG) {
-                    log_debug("\nIdle timeout for session %u", i);
+                    log_debug(instance, "\nIdle timeout for session %u", i);
                 }
-                agt_ses_kill_session(scb, 0, SES_TR_TIMEOUT);
+                agt_ses_kill_session(instance, scb, 0, SES_TR_TIMEOUT);
                 continue;
             }
         }
     }
 
     /* check the confirmed-commit timeout */
-    agt_ncx_check_cc_timeout();
+    agt_ncx_check_cc_timeout(instance);
 
 }  /* agt_ses_check_timeouts */
 
@@ -1016,7 +1045,7 @@ void
 *     FALSE if port not allowed
 *********************************************************************/
 boolean
-    agt_ses_ssh_port_allowed (uint16 port)
+    agt_ses_ssh_port_allowed (ncx_instance_t *instance, uint16 port)
 {
     const agt_profile_t *profile;
     uint32         i;
@@ -1027,7 +1056,7 @@ boolean
 
     profile = agt_get_profile();
     if (!profile) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 
@@ -1066,7 +1095,8 @@ boolean
 *    *maxfdnum may be updated
 *********************************************************************/
 void
-    agt_ses_fill_writeset (fd_set *fdset,
+    agt_ses_fill_writeset (ncx_instance_t *instance,
+                           fd_set *fdset,
                            int *maxfdnum)
 {
     ses_ready_t *rdy;
@@ -1076,7 +1106,7 @@ void
     FD_ZERO(fdset);
     done = FALSE;
     while (!done) {
-        rdy = ses_msg_get_first_outready();
+        rdy = ses_msg_get_first_outready(instance);
         if (!rdy) {
             done = TRUE;
         } else {
@@ -1104,13 +1134,15 @@ void
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_inSessions (ses_cb_t *scb,
+    agt_ses_get_inSessions (ncx_instance_t *instance,
+                            ses_cb_t *scb,
                             getcb_mode_t cbmode,
                             const val_value_t *virval,
                             val_value_t  *dstval)
 {
     (void)scb;
     (void)virval;
+    (void)instance;
 
     if (cbmode == GETCB_GET_VALUE) {
         VAL_UINT(dstval) = agttotals->inSessions;
@@ -1133,13 +1165,15 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_inBadHellos (ses_cb_t *scb,
+    agt_ses_get_inBadHellos (ncx_instance_t *instance,
+                             ses_cb_t *scb,
                              getcb_mode_t cbmode,
                              const val_value_t *virval,
                              val_value_t  *dstval)
 {
     (void)scb;
     (void)virval;
+    (void)instance;
 
     if (cbmode == GETCB_GET_VALUE) {
         VAL_UINT(dstval) = agttotals->inBadHellos;
@@ -1162,13 +1196,15 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_inRpcs (ses_cb_t *scb,
+    agt_ses_get_inRpcs (ncx_instance_t *instance,
+                        ses_cb_t *scb,
                         getcb_mode_t cbmode,
                         const val_value_t *virval,
                         val_value_t  *dstval)
 {
     (void)scb;
     (void)virval;
+    (void)instance;
 
     if (cbmode == GETCB_GET_VALUE) {
         VAL_UINT(dstval) = agttotals->stats.inRpcs;
@@ -1191,13 +1227,15 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_inBadRpcs (ses_cb_t *scb,
+    agt_ses_get_inBadRpcs (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            getcb_mode_t cbmode,
                            const val_value_t *virval,
                            val_value_t  *dstval)
 {
     (void)scb;
     (void)virval;
+    (void)instance;
 
     if (cbmode == GETCB_GET_VALUE) {
         VAL_UINT(dstval) = agttotals->stats.inBadRpcs;
@@ -1220,13 +1258,15 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_outRpcErrors (ses_cb_t *scb,
+    agt_ses_get_outRpcErrors (ncx_instance_t *instance,
+                              ses_cb_t *scb,
                               getcb_mode_t cbmode,
                               const val_value_t *virval,
                               val_value_t  *dstval)
 {
     (void)scb;
     (void)virval;
+    (void)instance;
 
     if (cbmode == GETCB_GET_VALUE) {
         VAL_UINT(dstval) = agttotals->stats.outRpcErrors;
@@ -1249,13 +1289,15 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_outNotifications (ses_cb_t *scb,
+    agt_ses_get_outNotifications (ncx_instance_t *instance,
+                                  ses_cb_t *scb,
                                   getcb_mode_t cbmode,
                                   const val_value_t *virval,
                                   val_value_t  *dstval)
 {
     (void)scb;
     (void)virval;
+    (void)instance;
 
     if (cbmode == GETCB_GET_VALUE) {
         VAL_UINT(dstval) = agttotals->stats.outNotifications;
@@ -1278,13 +1320,15 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_droppedSessions (ses_cb_t *scb,
+    agt_ses_get_droppedSessions (ncx_instance_t *instance,
+                                 ses_cb_t *scb,
                                  getcb_mode_t cbmode,
                                  const val_value_t *virval,
                                  val_value_t  *dstval)
 {
     (void)scb;
     (void)virval;
+    (void)instance;
 
     if (cbmode == GETCB_GET_VALUE) {
         VAL_UINT(dstval) = agttotals->droppedSessions;
@@ -1307,7 +1351,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_session_inRpcs (ses_cb_t *scb,
+    agt_ses_get_session_inRpcs (ncx_instance_t *instance,
+                                ses_cb_t *scb,
                                 getcb_mode_t cbmode,
                                 const val_value_t *virval,
                                 val_value_t  *dstval)
@@ -1323,7 +1368,7 @@ status_t
     }
 
     sid = 0;
-    res = get_session_key(virval, &sid);
+    res = get_session_key(instance, virval, &sid);
     if (res != NO_ERR) {
         return res;
     }
@@ -1346,7 +1391,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_session_inBadRpcs (ses_cb_t *scb,
+    agt_ses_get_session_inBadRpcs (ncx_instance_t *instance,
+                                   ses_cb_t *scb,
                                    getcb_mode_t cbmode,
                                    const val_value_t *virval,
                                    val_value_t  *dstval)
@@ -1362,7 +1408,7 @@ status_t
     }
 
     sid = 0;
-    res = get_session_key(virval, &sid);
+    res = get_session_key(instance, virval, &sid);
     if (res != NO_ERR) {
         return res;
     }
@@ -1385,7 +1431,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_session_outRpcErrors (ses_cb_t *scb,
+    agt_ses_get_session_outRpcErrors (ncx_instance_t *instance,
+                                      ses_cb_t *scb,
                                       getcb_mode_t cbmode,
                                       const val_value_t *virval,
                                       val_value_t  *dstval)
@@ -1401,7 +1448,7 @@ status_t
     }
 
     sid = 0;
-    res = get_session_key(virval, &sid);
+    res = get_session_key(instance, virval, &sid);
     if (res != NO_ERR) {
         return res;
     }
@@ -1424,7 +1471,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    agt_ses_get_session_outNotifications (ses_cb_t *scb,
+    agt_ses_get_session_outNotifications (ncx_instance_t *instance,
+                                          ses_cb_t *scb,
                                           getcb_mode_t cbmode,
                                           const val_value_t *virval,
                                           val_value_t  *dstval)
@@ -1440,7 +1488,7 @@ status_t
     }
 
     sid = 0;
-    res = get_session_key(virval, &sid);
+    res = get_session_key(instance, virval, &sid);
     if (res != NO_ERR) {
         return res;
     }

@@ -90,14 +90,16 @@ date         init     comment
 *    found resnode or NULL if not found
 *********************************************************************/
 static xpath_resnode_t *
-    find_val_resnode (dlq_hdr_t *resultQ,
+    find_val_resnode (ncx_instance_t *instance,
+                      dlq_hdr_t *resultQ,
                       val_value_t *valptr)
 {
     xpath_resnode_t  *resnode;
+    (void)instance;
 
-    for (resnode = (xpath_resnode_t *)dlq_firstEntry(resultQ);
+    for (resnode = (xpath_resnode_t *)dlq_firstEntry(instance, resultQ);
          resnode != NULL;
-         resnode = (xpath_resnode_t *)dlq_nextEntry(resnode)) {
+         resnode = (xpath_resnode_t *)dlq_nextEntry(instance, resnode)) {
 
         if (resnode->node.valptr == valptr) {
             return resnode;
@@ -129,7 +131,8 @@ static xpath_resnode_t *
 *
 *********************************************************************/
 static void
-    output_resnode (ses_cb_t *scb,
+    output_resnode (ncx_instance_t *instance,
+                    ses_cb_t *scb,
                     rpc_msg_t *msg,
                     xpath_pcb_t *pcb,
                     dlq_hdr_t *resultQ,
@@ -145,8 +148,8 @@ static void
     int32              indentamount;
     boolean            dowrite;
 
-    dlq_createSQue(&dummyQ);
-    dlq_createSQue(&descendantQ);
+    dlq_createSQue(instance, &dummyQ);
+    dlq_createSQue(instance, &descendantQ);
     indentamount = ses_indent_count(scb);
 
     /* find the top-level node for this result node */
@@ -167,13 +170,15 @@ static void
          */
         if (!curval->index) {
             if (getop) {
-                xml_wr_full_check_val(scb, 
+                xml_wr_full_check_val(instance, 
+                                      scb, 
                                       &msg->mhdr, 
                                       curval, 
                                       indent,
                                       agt_check_default);
             } else {
-                xml_wr_full_check_val(scb, 
+                xml_wr_full_check_val(instance, 
+                                      scb, 
                                       &msg->mhdr,
                                       curval, 
                                       indent, 
@@ -188,35 +193,37 @@ static void
      * make a dummy node to check all the
      * resnodes for this common ancestor
      */
-    xpath_init_resnode(&dummynode);
+    xpath_init_resnode(instance, &dummynode);
     dummynode.node.valptr = topval;
-    dlq_enque(&dummynode, &dummyQ);
+    dlq_enque(instance, &dummynode, &dummyQ);
 
     /* gather all the remaining resnodes
      * that also have this value node as its top
      * level parent
      */
-    for (testnode = (xpath_resnode_t *)dlq_firstEntry(resultQ);
+    for (testnode = (xpath_resnode_t *)dlq_firstEntry(instance, resultQ);
          testnode != NULL;
          testnode = nextnode) {
 
-        nextnode = (xpath_resnode_t *)dlq_nextEntry(testnode);
+        nextnode = (xpath_resnode_t *)dlq_nextEntry(instance, testnode);
 
-        if (xpath1_check_node_exists(pcb, 
+        if (xpath1_check_node_exists(instance, 
+                                     pcb, 
                                      &dummyQ,
                                      testnode->node.valptr)) {
-            dlq_remove(testnode);
-            dlq_enque(testnode, &descendantQ);
+            dlq_remove(instance, testnode);
+            dlq_enque(instance, testnode, &descendantQ);
         }
     }
 
-    dlq_remove(&dummynode);
-    xpath_clean_resnode(&dummynode);
+    dlq_remove(instance, &dummynode);
+    xpath_clean_resnode(instance, &dummynode);
 
     /* check if access control is allowing this user
      * to retrieve this value node
      */
-    dowrite = agt_acm_val_read_allowed(&msg->mhdr,
+    dowrite = agt_acm_val_read_allowed(instance,
+                                      &msg->mhdr,
                                       scb->username,
                                       topval);
             
@@ -226,7 +233,8 @@ static void
      * have been output
      */
     if (dowrite) {
-        xml_wr_begin_elem_ex(scb, 
+        xml_wr_begin_elem_ex(instance, 
+                             scb, 
                              &msg->mhdr,
                              ceilingval->nsid,
                              topval->nsid,
@@ -242,27 +250,29 @@ static void
     }
 
     /* check special case for lists; generate key leafs first */
-    if (val_has_index(topval)) {
+    if (val_has_index(instance, topval)) {
         /* write all key leafs in order
          * remove any of them that happen to be
          * in the descendantQ
          */
-        for (valindex = val_get_first_index(topval);
+        for (valindex = val_get_first_index(instance, topval);
              valindex != NULL;
-             valindex = val_get_next_index(valindex)) {
+             valindex = val_get_next_index(instance, valindex)) {
 
             if (dowrite) {
-                xml_wr_full_val(scb, 
+                xml_wr_full_val(instance, 
+                                scb, 
                                 &msg->mhdr, 
                                 valindex->val, 
                                 indent);
             }
 
-            testnode = find_val_resnode(&descendantQ,
+            testnode = find_val_resnode(instance,
+                                        &descendantQ,
                                         valindex->val);
             if (testnode) {
-                dlq_remove(testnode);
-                xpath_free_resnode(testnode);
+                dlq_remove(instance, testnode);
+                xpath_free_resnode(instance, testnode);
             }
         }
     }
@@ -270,34 +280,36 @@ static void
     /* clear any nodes from the descendantQ which are child
      * nodes of 'topval'
      */
-    for (testnode = (xpath_resnode_t *)dlq_firstEntry(&descendantQ);
+    for (testnode = (xpath_resnode_t *)dlq_firstEntry(instance, &descendantQ);
          testnode != NULL;
          testnode = nextnode) {
             
-        nextnode = (xpath_resnode_t *)dlq_nextEntry(testnode);
+        nextnode = (xpath_resnode_t *)dlq_nextEntry(instance, testnode);
 
         if (testnode->node.valptr->parent == topval) {
             /* this descendant is a sibling or higher-up
              * descendant of the topval, so output it now
              */
-            dlq_remove(testnode);
+            dlq_remove(instance, testnode);
             if (getop) {
                 if (dowrite) {
-                    xml_wr_full_val(scb, 
+                    xml_wr_full_val(instance, 
+                                    scb, 
                                     &msg->mhdr, 
                                     testnode->node.valptr, 
                                     indent);
                 }
             } else {
                 if (dowrite) {
-                    xml_wr_full_check_val(scb, 
+                    xml_wr_full_check_val(instance, 
+                                          scb, 
                                           &msg->mhdr,
                                           testnode->node.valptr, 
                                           indent, 
                                           agt_check_config);
                 }
             }
-            xpath_free_resnode(testnode);
+            xpath_free_resnode(instance, testnode);
         }
     }
 
@@ -305,7 +317,8 @@ static void
         /* move the ceiling closer to the curval and try again
          * with the current value
          */
-        output_resnode(scb, 
+        output_resnode(instance, 
+                       scb, 
                        msg, 
                        pcb, 
                        &descendantQ, 
@@ -318,10 +331,11 @@ static void
     /* need to clear the descendant nodes before 
      * generating the topval end tag
      */
-    testnode = (xpath_resnode_t *)dlq_deque(&descendantQ);
+    testnode = (xpath_resnode_t *)dlq_deque(instance, &descendantQ);
     while (testnode) {
         if (dowrite) {
-            output_resnode(scb, 
+            output_resnode(instance, 
+                           scb, 
                            msg, 
                            pcb, 
                            &descendantQ, 
@@ -330,8 +344,8 @@ static void
                            getop, 
                            indent);
         }
-        xpath_free_resnode(testnode);
-        testnode = (xpath_resnode_t *)dlq_deque(&descendantQ);
+        xpath_free_resnode(instance, testnode);
+        testnode = (xpath_resnode_t *)dlq_deque(instance, &descendantQ);
     }
 
     if (indent >= 0) {
@@ -340,7 +354,8 @@ static void
 
     /* finish off the topval node */
     if (dowrite) {
-        xml_wr_end_elem(scb, 
+        xml_wr_end_elem(instance, 
+                        scb, 
                         &msg->mhdr, 
                         topval->nsid,
                         topval->name, 
@@ -367,7 +382,8 @@ static void
 *
 *********************************************************************/
 static void
-    output_result (ses_cb_t *scb,
+    output_result (ncx_instance_t *instance,
+                   ses_cb_t *scb,
                    rpc_msg_t *msg,
                    xpath_pcb_t *pcb,
                    xpath_result_t *result,
@@ -377,26 +393,28 @@ static void
     val_value_t       *curval;
     xpath_resnode_t   *resnode;
 
-    resnode = (xpath_resnode_t *)dlq_deque(&result->r.nodeQ);
+    resnode = (xpath_resnode_t *)dlq_deque(instance, &result->r.nodeQ);
     while (resnode) {
         curval = resnode->node.valptr;
 
         /* check corner case, output entire tree */
         if (curval == pcb->val_docroot) {
             if (getop) {
-                xml_wr_val(scb, &msg->mhdr, curval, indent);
+                xml_wr_val(instance, scb, &msg->mhdr, curval, indent);
             } else {
-                xml_wr_check_val(scb, 
+                xml_wr_check_val(instance, 
+                                 scb, 
                                  &msg->mhdr, 
                                  curval, 
                                  indent, 
                                  agt_check_config);
             }
-            xpath_free_resnode(resnode);
+            xpath_free_resnode(instance, resnode);
             return;
         }
 
-        output_resnode(scb, 
+        output_resnode(instance, 
+                       scb, 
                        msg, 
                        pcb,
                        &result->r.nodeQ,
@@ -405,9 +423,9 @@ static void
                        getop, 
                        indent);
 
-        xpath_free_resnode(resnode);
+        xpath_free_resnode(instance, resnode);
 
-        resnode = (xpath_resnode_t *)dlq_deque(&result->r.nodeQ);
+        resnode = (xpath_resnode_t *)dlq_deque(instance, &result->r.nodeQ);
     }
 
 } /* output_result */
@@ -439,7 +457,8 @@ static void
 *    status
 *********************************************************************/
 status_t
-    agt_xpath_output_filter (ses_cb_t *scb,
+    agt_xpath_output_filter (ncx_instance_t *instance,
+                             ses_cb_t *scb,
                              rpc_msg_t *msg,
                              const cfg_template_t *cfg,
                              boolean getop,
@@ -451,7 +470,7 @@ status_t
 
 #ifdef DEBUG
     if (!scb || !msg || !cfg || !msg->rpc_filter.op_filter) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -465,7 +484,8 @@ status_t
     /* the msg filter should be non-NULL */
     selectval = msg->rpc_filter.op_filter;
     
-    result = xpath1_eval_xmlexpr(scb->reader,
+    result = xpath1_eval_xmlexpr(instance,
+                                 scb->reader,
                                  selectval->xpathpcb,
                                  cfg->root,
                                  cfg->root,
@@ -477,10 +497,11 @@ status_t
         (result->restype == XP_RT_NODESET)) {
 
         /* prune result of redundant nodes */
-        xpath1_prune_nodeset(selectval->xpathpcb, result);
+        xpath1_prune_nodeset(instance, selectval->xpathpcb, result);
 
         /* output filter */
-        output_result(scb, 
+        output_result(instance, 
+                      scb, 
                       msg, 
                       selectval->xpathpcb,
                       result, 
@@ -488,7 +509,7 @@ status_t
                       indent);
     }
 
-    xpath_free_result(result);
+    xpath_free_result(instance, result);
 
     return res;
 
@@ -516,7 +537,8 @@ status_t
 *    status
 *********************************************************************/
 boolean
-    agt_xpath_test_filter (xml_msg_hdr_t *msghdr,
+    agt_xpath_test_filter (ncx_instance_t *instance,
+                           xml_msg_hdr_t *msghdr,
                            ses_cb_t *scb,
                            const val_value_t *selectval,
                            val_value_t *val)
@@ -528,7 +550,7 @@ boolean
 
 #ifdef DEBUG
     if (!msghdr || !scb || !selectval || !val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -536,7 +558,8 @@ boolean
     /* make sure the <eventType> is allowed to be
      * viewed by the specified session
      */
-    readallowed = agt_acm_val_read_allowed(msghdr,
+    readallowed = agt_acm_val_read_allowed(instance,
+                                           msghdr,
                                            scb->username,
                                            val);
     
@@ -551,7 +574,8 @@ boolean
      * any nodeset result that is non-empty
      * will pass the filter test
      */
-    result = xpath1_eval_xmlexpr(scb->reader,
+    result = xpath1_eval_xmlexpr(instance,
+                                 scb->reader,
                                  selectval->xpathpcb,
                                  val,
                                  val,
@@ -561,13 +585,13 @@ boolean
 
     if (result && (res == NO_ERR) && 
         (result->restype == XP_RT_NODESET)) {
-        retval = xpath_cvt_boolean(result);
+        retval = xpath_cvt_boolean(instance, result);
     } else {
         retval = FALSE;
     }
 
     if (result) {
-        xpath_free_result(result);
+        xpath_free_result(instance, result);
     }
 
     return retval;

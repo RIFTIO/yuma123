@@ -22,6 +22,7 @@ date         init     comment
 30oct05      abb      begun
 30oct07      abb      change identifier separator from '.' to '/'
                       and change valid identifier chars to match YANG
+02Sep14      rajv     Support for unique tag ids
 
 *********************************************************************
 *                                                                   *
@@ -52,6 +53,7 @@ date         init     comment
 #include "curversion.h"
 #endif
 
+#include "bobhash.h"
 #include "cfg.h"
 #include "cli.h"
 #include "def_reg.h"
@@ -68,6 +70,7 @@ date         init     comment
 #include "ncxmod.h"
 #include "obj.h"
 #include "rpc.h"
+#include "rpc_err.h"
 #include "runstack.h"
 #include "status.h"
 #include "ses_msg.h"
@@ -117,118 +120,11 @@ typedef struct warnoff_t_ {
 *                                                                   *
 *********************************************************************/
 
-/* Q of ncx_module_t
- * list of active modules
- */
-static dlq_hdr_t         ncx_modQ;
-
-/* pointer to the current Q of active modules */
-static dlq_hdr_t        *ncx_curQ;
-
-/* pointer to the current session Q of active modules
- * this is for yangcli to serialize access to the
- * database of modules
- */
-static dlq_hdr_t        *ncx_sesmodQ;
+/* Gloval instance, set by the application, if needed. */
+ncx_instance_t *ncx_g_instance;
 
 
-/* pointer to dead modules during yangdump subtree processing */
-static dlq_hdr_t          deadmodQ;
-static boolean            usedeadmodQ;
-  
-/* Q of ncx_filptr_t
- * used as a cache of subtree filtering headers 
- */
-static dlq_hdr_t         ncx_filptrQ;
 
-/* maximum number of filter cache entries */
-static uint32            ncx_max_filptrs;
-
-/* current number of filter cache entries */
-static uint32            ncx_cur_filptrs;
-
-/* generic anyxml object template */
-static obj_template_t   *gen_anyxml;
-
-/* generic container object template */
-static obj_template_t   *gen_container;
-
-/* generic string object template */
-static obj_template_t   *gen_string;
-
-/* generic empty object template */
-static obj_template_t   *gen_empty;
-
-/* generic root container object template */
-static obj_template_t   *gen_root;
-
-/* generic binary leaf object template */
-static obj_template_t   *gen_binary;
-
-/* module load callback function
- * TBD: support multiple callbacks 
- *  used when a ncxmod loads a module
- */
-static ncx_load_cbfn_t  mod_load_callback;
-
-/* module init */
-static boolean       ncx_init_done = FALSE;
-
-/* save descriptive clauses like description, reference */
-static boolean       save_descr;
-
-/* system warning length for identifiers */
-static uint32        warn_idlen;
-
-/* system warning length for YANG file line length */
-static uint32        warn_linelen;
-
-/* Q of warnoff_t
- * used to suppress warnings
- * from being counted in the total
- * only filters out the ncx_print_errormsg calls
- * not the log_warn text messages
- */
-static dlq_hdr_t     warnoffQ;
-
-/* pointer to the current Q of modules to use
- * for yangcli sessions; will be 1 per thread
- * later but now this works because access is
- * serialized and the temp_modQ is set when each
- * session needs to look for objects (CLI or XPath)
- */
-static dlq_hdr_t   *temp_modQ;
-
-/* default diplay mode in all programs except yangcli,
- * which uses a more complex schem for diplay-mode
- */
-static ncx_display_mode_t  display_mode;
-
-/* memory leak debugging vars */
-uint32              malloc_cnt;
-uint32              free_cnt;
-
-/* use XML prefix flag */
-boolean             use_prefix;
-
-/* search subdirs in the CWD for modules, for default search
- * not YUMA_MODPATH or YUMA_HOME, or YUMA_INSTALL subdirs
- * this is over-ridden by the --subdirs=false parameter
- */
-boolean             cwd_subdirs;
-
-/* bitmask of protocols to match ncx_protocol_t enum */
-uint32              protocols_enabled;
-
-/* flag to indicate whether ordered-by system is sorted or not */
-boolean             system_sorted;
-
-static FILE *tracefile;
-
-
-/* flag to force yang_parse to reject a module that has top-level
- * mandatory data nodes; applies to server <load> operation  */
-static boolean      allow_top_mandatory;
 
 /**
  * \fn check_moddef
@@ -247,7 +143,8 @@ static boolean      allow_top_mandatory;
  * \return status
  */   
 static status_t
-    check_moddef (yang_pcb_t *pcb,
+    check_moddef (ncx_instance_t *instance,
+                  yang_pcb_t *pcb,
                   ncx_import_t *imp,
                   const xmlChar *defname,
                   ncx_node_t *dtyp,
@@ -261,11 +158,12 @@ static status_t
     }
 
     if (!imp->mod) {
-        imp->mod = ncx_find_module(imp->module, imp->revision);
+        imp->mod = ncx_find_module(instance, imp->module, imp->revision);
     }
 
     if (!imp->mod) {
-        res = ncxmod_load_module(imp->module, 
+        res = ncxmod_load_module(instance, 
+                                 imp->module, 
                                  imp->revision, 
                                  pcb->savedevQ,
                                  &imp->mod);
@@ -280,29 +178,31 @@ static status_t
      */
     switch (*dtyp) {
     case NCX_NT_TYP:
-        *dptr = ncx_find_type(imp->mod, defname, FALSE);
+        *dptr = ncx_find_type(instance, imp->mod, defname, FALSE);
         break;
     case NCX_NT_GRP:
-        *dptr = ncx_find_grouping(imp->mod, defname, FALSE);
+        *dptr = ncx_find_grouping(instance, imp->mod, defname, FALSE);
         break;
     case NCX_NT_OBJ:
-        *dptr = obj_find_template(&imp->mod->datadefQ, 
+        *dptr = obj_find_template(instance, 
+                                  &imp->mod->datadefQ, 
                                   imp->mod->name, 
                                   defname);
         break;
     case NCX_NT_NONE:
-        *dptr = ncx_find_type(imp->mod, defname, FALSE);
+        *dptr = ncx_find_type(instance, imp->mod, defname, FALSE);
         if (*dptr) {
             *dtyp = NCX_NT_TYP;
         }
         if (!*dptr) {
-            *dptr = ncx_find_grouping(imp->mod, defname, FALSE);
+            *dptr = ncx_find_grouping(instance, imp->mod, defname, FALSE);
             if (*dptr) {
                 *dtyp = NCX_NT_GRP;
             }
         }
         if (!*dptr) {
-            *dptr = obj_find_template(&imp->mod->datadefQ, 
+            *dptr = obj_find_template(instance, 
+                                      &imp->mod->datadefQ, 
                                       imp->mod->name, 
                                       defname);
             if (*dptr) {
@@ -311,7 +211,7 @@ static status_t
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         *dptr = NULL;
     }
 
@@ -329,7 +229,8 @@ static status_t
  * \return status 
  */
 static status_t 
-    set_toplevel_defs (ncx_module_t *mod,
+    set_toplevel_defs (ncx_instance_t *instance,
+                       ncx_module_t *mod,
                        xmlns_id_t    nsid)
 {
     typ_template_t *typ;
@@ -337,16 +238,16 @@ static status_t
     obj_template_t *obj;
     ext_template_t *ext;
 
-    for (typ = (typ_template_t *)dlq_firstEntry(&mod->typeQ);
+    for (typ = (typ_template_t *)dlq_firstEntry(instance, &mod->typeQ);
          typ != NULL;
-         typ = (typ_template_t *)dlq_nextEntry(typ)) {
+         typ = (typ_template_t *)dlq_nextEntry(instance, typ)) {
 
         typ->nsid = nsid;
     }
 
-    for (grp = (grp_template_t *)dlq_firstEntry(&mod->groupingQ);
+    for (grp = (grp_template_t *)dlq_firstEntry(instance, &mod->groupingQ);
          grp != NULL;
-         grp = (grp_template_t *)dlq_nextEntry(grp)) {
+         grp = (grp_template_t *)dlq_nextEntry(instance, grp)) {
 
         grp->nsid = nsid;
     }
@@ -357,20 +258,20 @@ static status_t
      * There are no real data objects in this module.
      * All other modules that follow will set the parent of
      * top-level objects to 'gen_root' for XPath usage */
-    for (obj = (obj_template_t *)dlq_firstEntry(&mod->datadefQ);
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, &mod->datadefQ);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-        if (obj_is_data_db(obj) || obj_is_rpc(obj) || obj_is_notif(obj)) {
+        if (obj_is_data_db(instance, obj) || obj_is_rpc(instance, obj) || obj_is_notif(instance, obj)) {
             /* set the parent to the gen_root object so XPath expressions
              * that reference the root via ancestor (../../foo) will work; */
-            obj->parent = gen_root;
+            obj->parent = instance->gen_root;
         }
     }
 
-    for (ext = (ext_template_t *)dlq_firstEntry(&mod->extensionQ);
+    for (ext = (ext_template_t *)dlq_firstEntry(instance, &mod->extensionQ);
          ext != NULL;
-         ext = (ext_template_t *)dlq_nextEntry(ext)) {
+         ext = (ext_template_t *)dlq_nextEntry(instance, ext)) {
         ext->nsid = nsid;
     }
 
@@ -392,7 +293,7 @@ static status_t
  * \return none
  */
 static void 
-    free_module (ncx_module_t *mod)
+    free_module (ncx_instance_t *instance, ncx_module_t *mod)
 {
     ncx_revhist_t  *revhist;
     ncx_import_t   *import;
@@ -401,123 +302,125 @@ static void
     ncx_identity_t *identity;
     yang_stmt_t    *stmt;
 
+    (void)instance;
 #ifdef NCX_DEBUG_MOD_MEMORY
     if (LOGDEBUG3) {
-        log_debug3("\n%p:modtrace:freemod:%s:%s", 
+        log_debug3(instance, 
+                   "\n%p:modtrace:freemod:%s:%s", 
                    mod, 
                    (mod->ismod) ? NCX_EL_MODULE : NCX_EL_SUBMODULE,
                    mod->name);
-        if (usedeadmodQ) {
-            log_debug3(" save in deadmodQ");
+        if (instance->usedeadmodQ) {
+            log_debug3(instance, " save in deadmodQ");
         }
     }
 #endif
 
-    if (usedeadmodQ) {
-        dlq_enque(mod, &deadmodQ);
+    if (instance->usedeadmodQ) {
+        dlq_enque(instance, mod, &instance->deadmodQ);
         return;
     }
 
     /* clear the revision Q */
-    while (!dlq_empty(&mod->revhistQ)) {
-        revhist = (ncx_revhist_t *)dlq_deque(&mod->revhistQ);
-        ncx_free_revhist(revhist);
+    while (!dlq_empty(instance, &mod->revhistQ)) {
+        revhist = (ncx_revhist_t *)dlq_deque(instance, &mod->revhistQ);
+        ncx_free_revhist(instance, revhist);
     }
 
     /* clear the import Que */
-    while (!dlq_empty(&mod->importQ)) {
-        import = (ncx_import_t *)dlq_deque(&mod->importQ);
-        ncx_free_import(import);
+    while (!dlq_empty(instance, &mod->importQ)) {
+        import = (ncx_import_t *)dlq_deque(instance, &mod->importQ);
+        ncx_free_import(instance, import);
     }
 
     /* clear the include Que */
-    while (!dlq_empty(&mod->includeQ)) {
-        incl = (ncx_include_t *)dlq_deque(&mod->includeQ);
-        ncx_free_include(incl);
+    while (!dlq_empty(instance, &mod->includeQ)) {
+        incl = (ncx_include_t *)dlq_deque(instance, &mod->includeQ);
+        ncx_free_include(instance, incl);
     }
 
     /* clear the allinc Q , empty unless this is a mod w/ submods */
-    yang_clean_nodeQ(&mod->allincQ);
+    yang_clean_nodeQ(instance, &mod->allincQ);
 
     /* clear the incchain Q , empty unless this is a mod w/ submods */
-    yang_clean_nodeQ(&mod->incchainQ);
+    yang_clean_nodeQ(instance, &mod->incchainQ);
 
     /* clear the type Que */
-    typ_clean_typeQ(&mod->typeQ);
+    typ_clean_typeQ(instance, &mod->typeQ);
 
     /* clear the grouping Que */
-    grp_clean_groupingQ(&mod->groupingQ);
+    grp_clean_groupingQ(instance, &mod->groupingQ);
 
     /* clear the datadefQ */
-    obj_clean_datadefQ(&mod->datadefQ);
+    obj_clean_datadefQ(instance, &mod->datadefQ);
 
     /* clear the extension Que */
-    ext_clean_extensionQ(&mod->extensionQ);
+    ext_clean_extensionQ(instance, &mod->extensionQ);
 
-    obj_clean_deviationQ(&mod->deviationQ);
+    obj_clean_deviationQ(instance, &mod->deviationQ);
 
-    ncx_clean_appinfoQ(&mod->appinfoQ);
+    ncx_clean_appinfoQ(instance, &mod->appinfoQ);
 
-    ncx_clean_typnameQ(&mod->typnameQ);
+    ncx_clean_typnameQ(instance, &mod->typnameQ);
 
-    yang_clean_import_ptrQ(&mod->saveimpQ);
+    yang_clean_import_ptrQ(instance, &mod->saveimpQ);
 
     /* clear the YANG stmtQ, used for docmode only */
-    while (!dlq_empty(&mod->stmtQ)) {
-        stmt = (yang_stmt_t *)dlq_deque(&mod->stmtQ);
-        yang_free_stmt(stmt);
+    while (!dlq_empty(instance, &mod->stmtQ)) {
+        stmt = (yang_stmt_t *)dlq_deque(instance, &mod->stmtQ);
+        yang_free_stmt(instance, stmt);
     }
 
     /* clear the YANG featureQ */
-    while (!dlq_empty(&mod->featureQ)) {
-        feature = (ncx_feature_t *)dlq_deque(&mod->featureQ);
-        ncx_free_feature(feature);
+    while (!dlq_empty(instance, &mod->featureQ)) {
+        feature = (ncx_feature_t *)dlq_deque(instance, &mod->featureQ);
+        ncx_free_feature(instance, feature);
     }
 
     /* clear the YANG identityQ */
-    while (!dlq_empty(&mod->identityQ)) {
-        identity = (ncx_identity_t *)dlq_deque(&mod->identityQ);
-        ncx_free_identity(identity);
+    while (!dlq_empty(instance, &mod->identityQ)) {
+        identity = (ncx_identity_t *)dlq_deque(instance, &mod->identityQ);
+        ncx_free_identity(instance, identity);
     }
 
     /* clear the name and other fields last for easier debugging */
     if (mod->name) {
-        m__free(mod->name);
+        m__free(instance, mod->name);
     }
     if (mod->version) {
-        m__free(mod->version);
+        m__free(instance, mod->version);
     }
     if (mod->organization) {
-        m__free(mod->organization);
+        m__free(instance, mod->organization);
     }
     if (mod->contact_info) {
-        m__free(mod->contact_info);
+        m__free(instance, mod->contact_info);
     }
     if (mod->descr) {
-        m__free(mod->descr);
+        m__free(instance, mod->descr);
     }
     if (mod->ref) {
-        m__free(mod->ref);
+        m__free(instance, mod->ref);
     }
     if (mod->ismod && mod->ns) {
-        m__free(mod->ns);
+        m__free(instance, mod->ns);
     } 
     if (mod->prefix) {
-        m__free(mod->prefix);
+        m__free(instance, mod->prefix);
     }
     if (mod->xmlprefix) {
-        m__free(mod->xmlprefix);
+        m__free(instance, mod->xmlprefix);
     }
     if (mod->source) {
-        m__free(mod->source);
+        m__free(instance, mod->source);
     }
     if (mod->belongs) {
-        m__free(mod->belongs);
+        m__free(instance, mod->belongs);
     }
 
-    ncx_clean_list(&mod->devmodlist);
+    ncx_clean_list(instance, &mod->devmodlist);
 
-    m__free(mod);
+    m__free(instance, mod);
 
 }  /* free_module */
 
@@ -545,7 +448,8 @@ static void
  * \return status
  */
 static status_t 
-    bootstrap_cli (int argc,
+    bootstrap_cli (ncx_instance_t *instance,
+                   int argc,
                    char *argv[],
                    log_debug_t dlevel,
                    boolean logtstamps)
@@ -557,7 +461,7 @@ static status_t
     boolean          logappend;
     status_t         res;
 
-    dlq_createSQue(&parmQ);
+    dlq_createSQue(instance, &parmQ);
 
     res = NO_ERR;
     logfilename = NULL;
@@ -565,65 +469,65 @@ static status_t
     loglevel = LOG_DEBUG_NONE;
 
     /* create bootstrap parm: home */
-    parm = cli_new_rawparm(NCX_EL_HOME);
+    parm = cli_new_rawparm(instance, NCX_EL_HOME);
     if (parm) {
-        dlq_enque(parm, &parmQ);
+        dlq_enque(instance, parm, &parmQ);
     } else {
-        log_error("\nError: malloc failed");
+        log_error(instance, "\nError: malloc failed");
         res = ERR_INTERNAL_MEM;
     }
 
     /* create bootstrap parm: log-level */
     if (res == NO_ERR) {
-        parm = cli_new_rawparm(NCX_EL_LOGLEVEL);
+        parm = cli_new_rawparm(instance, NCX_EL_LOGLEVEL);
         if (parm) {
-            dlq_enque(parm, &parmQ);
+            dlq_enque(instance, parm, &parmQ);
         } else {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             res = ERR_INTERNAL_MEM;
         }
     }
 
     /* create bootstrap parm: log */
     if (res == NO_ERR) {
-        parm = cli_new_rawparm(NCX_EL_LOG);
+        parm = cli_new_rawparm(instance, NCX_EL_LOG);
         if (parm) {
-            dlq_enque(parm, &parmQ);
+            dlq_enque(instance, parm, &parmQ);
         } else {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             res = ERR_INTERNAL_MEM;
         }
     }
 
     /* create bootstrap parm: log-append */
     if (res == NO_ERR) {
-        parm = cli_new_empty_rawparm(NCX_EL_LOGAPPEND);
+        parm = cli_new_empty_rawparm(instance, NCX_EL_LOGAPPEND);
         if (parm) {
-            dlq_enque(parm, &parmQ);
+            dlq_enque(instance, parm, &parmQ);
         } else {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             res = ERR_INTERNAL_MEM;
         }
     }
 
     /* create bootstrap parm: modpath */
     if (res == NO_ERR) {
-        parm = cli_new_rawparm(NCX_EL_MODPATH);
+        parm = cli_new_rawparm(instance, NCX_EL_MODPATH);
         if (parm) {
-            dlq_enque(parm, &parmQ);
+            dlq_enque(instance, parm, &parmQ);
         } else {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             res = ERR_INTERNAL_MEM;
         }
     }
 
     /* create bootstrap parm: yuma-home */
     if (res == NO_ERR) {
-        parm = cli_new_rawparm(NCX_EL_YUMA_HOME);
+        parm = cli_new_rawparm(instance, NCX_EL_YUMA_HOME);
         if (parm) {
-            dlq_enque(parm, &parmQ);
+            dlq_enque(instance, parm, &parmQ);
         } else {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             res = ERR_INTERNAL_MEM;
         }
     }
@@ -634,88 +538,91 @@ static status_t
      * validated, and then invoked
      */
     if (res == NO_ERR) {
-        res = cli_parse_raw(argc, argv, &parmQ);
+        res = cli_parse_raw(instance, argc, argv, &parmQ);
         if (res != NO_ERR) {
-            log_error("\nError: bootstrap CLI failed (%s)",
+            log_error(instance,
+                      "\nError: bootstrap CLI failed (%s)",
                       get_error_string(res));
         }
     }
 
     if (res != NO_ERR) {
-        cli_clean_rawparmQ(&parmQ);
+        cli_clean_rawparmQ(instance, &parmQ);
         return res;
     }
 
     /* --home=<dirspec> */
-    parm = cli_find_rawparm(NCX_EL_HOME, &parmQ);
+    parm = cli_find_rawparm(instance, NCX_EL_HOME, &parmQ);
     if (parm && parm->count) {
         if (parm->count > 1) {
-            log_error("\nError: Only one home parameter allowed");
+            log_error(instance, "\nError: Only one home parameter allowed");
             res = ERR_NCX_DUP_ENTRY;
         } else if (parm->value) {
-            ncxmod_set_home((const xmlChar *)parm->value);
+            ncxmod_set_home(instance, (const xmlChar *)parm->value);
         } else {
-            log_error("\nError: no value entered for 'home' parameter");
+            log_error(instance, "\nError: no value entered for 'home' parameter");
             res = ERR_NCX_INVALID_VALUE;
         }
     }
 
     /* --log-level=<debug_level> */
-    parm = cli_find_rawparm(NCX_EL_LOGLEVEL, &parmQ);
+    parm = cli_find_rawparm(instance, NCX_EL_LOGLEVEL, &parmQ);
     if (parm && parm->count) {
         if (parm->count > 1) {
-            log_error("\nError: Only one log-level parameter allowed");
+            log_error(instance, "\nError: Only one log-level parameter allowed");
             res = ERR_NCX_DUP_ENTRY;
         } else if (parm->value) {
-            loglevel = log_get_debug_level_enum(parm->value);
+            loglevel = log_get_debug_level_enum(instance, parm->value);
             if (loglevel == LOG_DEBUG_NONE) {
-                log_error("\nError: '%s' not valid log-level",
+                log_error(instance,
+                          "\nError: '%s' not valid log-level",
                           parm->value);
                 res = ERR_NCX_INVALID_VALUE;
             } else {
-                log_set_debug_level(loglevel);
+                log_set_debug_level(instance, loglevel);
             }
         } else {
-            log_error("\nError: no value entered for "
+            log_error(instance, "\nError: no value entered for "
                       "'log-level' parameter");
             res = ERR_NCX_INVALID_VALUE;
         }
     } else {
-        log_set_debug_level(dlevel);
+        log_set_debug_level(instance, dlevel);
     }
 
     /* --log-append */
     if (res == NO_ERR) {
-        parm = cli_find_rawparm(NCX_EL_LOGAPPEND, &parmQ);
+        parm = cli_find_rawparm(instance, NCX_EL_LOGAPPEND, &parmQ);
         logappend = (parm && parm->count) ? TRUE : FALSE;
         if (parm && parm->value) {
-            log_error("\nError: log-append is empty parameter");
+            log_error(instance, "\nError: log-append is empty parameter");
             res = ERR_NCX_INVALID_VALUE;
         }
     }
 
     /* --log=<logfilespec> */
     if (res == NO_ERR) {
-        parm = cli_find_rawparm(NCX_EL_LOG, &parmQ);
+        parm = cli_find_rawparm(instance, NCX_EL_LOG, &parmQ);
         if (parm && parm->count) {
             if (parm->count > 1) {
-                log_error("\nError: Only one 'log' filename allowed");
+                log_error(instance, "\nError: Only one 'log' filename allowed");
                 res = ERR_NCX_DUP_ENTRY;
             } else if (parm->value) {
                 res = NO_ERR;
                 logfilename = (char *)
-                    ncx_get_source((const xmlChar *)parm->value, &res);
+                    ncx_get_source(instance, (const xmlChar *)parm->value, &res);
                 if (logfilename) {
-                    res = log_open(logfilename, logappend, logtstamps);
+                    res = log_open(instance, logfilename, logappend, logtstamps);
                     if (res != NO_ERR) {
-                        log_error("\nError: open logfile '%s' failed (%s)",
+                        log_error(instance,
+                                  "\nError: open logfile '%s' failed (%s)",
                                   logfilename,
                                   get_error_string(res));
                     }
-                    m__free(logfilename);
+                    m__free(instance, logfilename);
                 }
             } else {
-                log_error("\nError: no value entered for "
+                log_error(instance, "\nError: no value entered for "
                           "'log' parameter");
                 res = ERR_NCX_INVALID_VALUE;
             }
@@ -724,16 +631,16 @@ static status_t
 
     /* --modpath=<pathspeclist> */
     if (res == NO_ERR) {
-        parm = cli_find_rawparm(NCX_EL_MODPATH, &parmQ);
+        parm = cli_find_rawparm(instance, NCX_EL_MODPATH, &parmQ);
         if (parm && parm->count) {
             if (parm->count > 1) {
-                log_error("\nError: Only one 'modpath' parameter allowed");
+                log_error(instance, "\nError: Only one 'modpath' parameter allowed");
                 res = ERR_NCX_DUP_ENTRY;
             } else if (parm->value) {
                 /*** VALIDATE MODPATH FIRST ***/
-                ncxmod_set_modpath((const xmlChar *)parm->value);
+                ncxmod_set_modpath(instance, (const xmlChar *)parm->value);
             } else {
-                log_error("\nError: no value entered for "
+                log_error(instance, "\nError: no value entered for "
                           "'modpath' parameter");
                 res = ERR_NCX_INVALID_VALUE;
             }
@@ -742,19 +649,19 @@ static status_t
 
     /* --yuma-home=<$YUMA_HOME> */
     if (res == NO_ERR) {
-        parm = cli_find_rawparm(NCX_EL_YUMA_HOME, &parmQ);
+        parm = cli_find_rawparm(instance, NCX_EL_YUMA_HOME, &parmQ);
         if (parm && parm->count) {
             if (parm->count > 1) {
-                log_error("\nError: Only one 'yuma-home' parameter allowed");
+                log_error(instance, "\nError: Only one 'yuma-home' parameter allowed");
                 res = ERR_NCX_DUP_ENTRY;
             } else {
                 /*** VALIDATE YUMA_HOME ***/
-                ncxmod_set_yuma_home((const xmlChar *)parm->value);
+                ncxmod_set_yuma_home(instance, (const xmlChar *)parm->value);
             }
         } /* else use default modpath */
     }
 
-    cli_clean_rawparmQ(&parmQ);
+    cli_clean_rawparmQ(instance, &parmQ);
 
     return res;
 
@@ -771,7 +678,8 @@ static status_t
  * \return none
  */
 static void
-    add_to_modQ (ncx_module_t *mod,
+    add_to_modQ (ncx_instance_t *instance,
+                 ncx_module_t *mod,
                  dlq_hdr_t *modQ)
 {
     ncx_module_t   *testmod;
@@ -780,19 +688,21 @@ static void
 
     done = FALSE;
 
-    for (testmod = (ncx_module_t *)dlq_firstEntry(modQ);
+    for (testmod = (ncx_module_t *)dlq_firstEntry(instance, modQ);
          testmod != NULL && !done;
-         testmod = (ncx_module_t *)dlq_nextEntry(testmod)) {
+         testmod = (ncx_module_t *)dlq_nextEntry(instance, testmod)) {
 
-        retval = xml_strcmp(mod->name, testmod->name);
+        retval = xml_strcmp(instance, mod->name, testmod->name);
         if (retval == 0) {
-            retval = yang_compare_revision_dates(mod->version,
+            retval = yang_compare_revision_dates(instance,
+                                                 mod->version,
                                                  testmod->version);
             if (retval == 0) {
                 if ((!mod->version && !testmod->version) ||
                     (mod->version && testmod->version)) {
                     /* !!! adding duplicate version !!! */
-                    log_info("\nInfo: Adding duplicate revision '%s' of "
+                    log_info(instance,
+                             "\nInfo: Adding duplicate revision '%s' of "
                              "%s module (%s)",
                              (mod->version) ? mod->version : EMPTY_STRING,
                              mod->name,
@@ -800,28 +710,28 @@ static void
                 }
                 testmod->defaultrev = FALSE;
                 mod->defaultrev = TRUE;
-                dlq_insertAhead(mod, testmod);
+                dlq_insertAhead(instance, mod, testmod);
                 done = TRUE;
             } else if (retval > 0) {
                 testmod->defaultrev = FALSE;
                 mod->defaultrev = TRUE;
-                dlq_insertAhead(mod, testmod);
+                dlq_insertAhead(instance, mod, testmod);
                 done = TRUE;
             } else {
                 mod->defaultrev = FALSE;
-                dlq_insertAfter(mod, testmod);
+                dlq_insertAfter(instance, mod, testmod);
                 done = TRUE;
             }
         } else if (retval < 0) {
             mod->defaultrev = TRUE;
-            dlq_insertAhead(mod, testmod);
+            dlq_insertAhead(instance, mod, testmod);
             done = TRUE;
         } /* else keep going */
     }
 
     if (!done) {
         mod->defaultrev = TRUE;
-        dlq_enque(mod, modQ);
+        dlq_enque(instance, mod, modQ);
     }
             
 }  /* add_to_modQ */
@@ -837,7 +747,8 @@ static void
  * \return none
  */
 static void
-    do_match_rpc_error (ncx_module_t *mod,
+    do_match_rpc_error (ncx_instance_t *instance,
+                        ncx_module_t *mod,
                         const xmlChar *rpcname,
                         boolean match)
 {
@@ -846,36 +757,38 @@ static void
 
     len = 0;
     if (match) {
-        len = xml_strlen(rpcname);
+        len = xml_strlen(instance, rpcname);
     }
 
-    for (rpc = (obj_template_t *)dlq_firstEntry(&mod->datadefQ);
+    for (rpc = (obj_template_t *)dlq_firstEntry(instance, &mod->datadefQ);
          rpc != NULL;
-         rpc = (obj_template_t *)dlq_nextEntry(rpc)) {
+         rpc = (obj_template_t *)dlq_nextEntry(instance, rpc)) {
         if (rpc->objtype != OBJ_TYP_RPC) {
             continue;
         }
         if (match) {
-            if (xml_strncmp(obj_get_name(rpc), rpcname, len)) {
+            if (xml_strncmp(instance, obj_get_name(instance, rpc), rpcname, len)) {
                 continue;
             }
         } else {
-            if (xml_strcmp(obj_get_name(rpc), rpcname)) {
+            if (xml_strcmp(instance, obj_get_name(instance, rpc), rpcname)) {
                 continue;
             }
         }
 
         if (mod->version) {
-            log_error("\n    '%s:%s' from module '%s@%s'",
+            log_error(instance,
+                      "\n    '%s:%s' from module '%s@%s'",
                       ncx_get_mod_xmlprefix(mod),
-                      obj_get_name(rpc),
-                      obj_get_mod_name(rpc),
+                      obj_get_name(instance, rpc),
+                      obj_get_mod_name(instance, rpc),
                       mod->version);
         } else {
-            log_error("\n    '%s:%s' from module '%s'",
+            log_error(instance,
+                      "\n    '%s:%s' from module '%s'",
                       ncx_get_mod_xmlprefix(mod),
-                      obj_get_name(rpc),
-                      obj_get_mod_name(rpc));
+                      obj_get_name(instance, rpc),
+                      obj_get_mod_name(instance, rpc));
         }
     }
 
@@ -884,6 +797,55 @@ static void
 
 
 /**************    E X T E R N A L   F U N C T I O N S **********/
+
+
+/**
+ * \fn ncx_alloc
+ * \brief Allocate NCX instance structure
+ * \return The allocated and initialized structure
+ */
+ncx_instance_t *
+    ncx_alloc (void)
+{
+    ncx_instance_t *instance = calloc(1, sizeof(ncx_instance_t));
+
+    if (instance) {
+        instance->basetypes = calloc(NCX_NUM_BASETYPES+1, sizeof(instance->basetypes[0]));
+        instance->cfg_arr = calloc(CFG_NUM_STATIC, sizeof(instance->cfg_arr[0]));
+        instance->topht = calloc(DR_TOP_HASH_SIZE, sizeof(instance->topht[0]));
+        instance->defcxt = calloc(1, sizeof(instance->defcxt[0]));
+        instance->error_stack = calloc(MAX_ERR_LEVEL, sizeof(instance->error_stack[0]));
+        instance->staterr = calloc(1, sizeof(instance->staterr[0]));
+        instance->totals = calloc(1, sizeof(instance->totals[0]));
+        instance->xmlns = calloc(XMLNS_MAX_NS, sizeof(instance->xmlns[0]));
+        instance->custom = calloc(1, sizeof(instance->custom[0]));
+        instance->custom->instance = instance;
+
+        if (   !instance->basetypes
+            || !instance->cfg_arr
+            || !instance->topht
+            || !instance->defcxt
+            || !instance->error_stack
+            || !instance->staterr
+            || !instance->totals
+            || !instance->xmlns )
+        {
+            free(instance->basetypes);
+            free(instance->cfg_arr);
+            free(instance->topht);
+            free(instance->defcxt);
+            free(instance->error_stack);
+            free(instance->staterr);
+            free(instance->totals);
+            free(instance->xmlns);
+            free(instance->custom);
+            free(instance);
+            return NULL;
+        }
+    }
+
+    return instance;
+}
 
 
 /**
@@ -906,7 +868,8 @@ static void
  * \return status 
  */
 status_t 
-    ncx_init (boolean savestr,
+    ncx_init (ncx_instance_t *instance,
+              boolean savestr,
               log_debug_t dlevel,
               boolean logtstamps,
               const char *startmsg,
@@ -917,88 +880,89 @@ status_t
     status_t       res;
     xmlns_id_t     nsid;
     
-    if (ncx_init_done) {
+    if (instance->ncx_init_done) {
         return NO_ERR;
     }
 
-    malloc_cnt = 0;
-    free_cnt = 0;
+    instance->malloc_cnt = 0;
+    instance->free_cnt = 0;
 
-    status_init();
+    status_init(instance);
 
-    save_descr = savestr;
-    warn_idlen = NCX_DEF_WARN_IDLEN;
-    warn_linelen = NCX_DEF_WARN_LINELEN;
-    ncx_feature_init();
+    instance->save_descr = savestr;
+    instance->warn_idlen = NCX_DEF_WARN_IDLEN;
+    instance->warn_linelen = NCX_DEF_WARN_LINELEN;
+    ncx_feature_init(instance);
 
-    mod_load_callback = NULL;
-    log_set_debug_level(dlevel);
+    instance->mod_load_callback = NULL;
+    log_set_debug_level(instance, dlevel);
 
     /* create the module and appnode queues */
-    dlq_createSQue(&ncx_modQ);
-    dlq_createSQue(&deadmodQ);
-    ncx_curQ = &ncx_modQ;
-    ncx_sesmodQ = NULL;
-    dlq_createSQue(&ncx_filptrQ);
-    dlq_createSQue(&warnoffQ);
+    dlq_createSQue(instance, &instance->ncx_modQ);
+    dlq_createSQue(instance, &instance->deadmodQ);
+    instance->ncx_curQ = &instance->ncx_modQ;
+    instance->ncx_sesmodQ = NULL;
+    dlq_createSQue(instance, &instance->ncx_filptrQ);
+    dlq_createSQue(instance, &instance->warnoffQ);
 
-    temp_modQ = NULL;
+    instance->temp_modQ = NULL;
 
-    display_mode = NCX_DISPLAY_MODE_PREFIX;
+    instance->display_mode = NCX_DISPLAY_MODE_PREFIX;
 
-    ncx_max_filptrs = NCX_DEF_FILPTR_CACHESIZE;
-    ncx_cur_filptrs = 0;
+    instance->ncx_max_filptrs = NCX_DEF_FILPTR_CACHESIZE;
+    instance->ncx_cur_filptrs = 0;
 
     /* no CLI parameters for these 2 parms yet */
-    use_prefix = FALSE;
-    cwd_subdirs = FALSE;
-    system_sorted = FALSE;
+    instance->use_prefix = FALSE;
+    instance->cwd_subdirs = FALSE;
+    instance->system_sorted = FALSE;
 
-    tracefile = NULL;
+    instance->tracefile = NULL;
 
 #ifdef WITH_TRACEFILE
-    tracefile = fopen("tracefile.xml", "w");
+    instance->tracefile = fopen("tracefile.xml", "w");
 #endif
 
-    allow_top_mandatory = TRUE;
+    instance->allow_top_mandatory = TRUE;
 
     /* check that the correct version of libxml2 is installed */
     LIBXML_TEST_VERSION;
 
     /* init module library handler */
-    res = ncxmod_init();
+    res = ncxmod_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* deal with bootstrap CLI parms */
     if (argv != NULL) {
-        res = bootstrap_cli(argc, argv, dlevel, logtstamps);
+        res = bootstrap_cli(instance, argc, argv, dlevel, logtstamps);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     if (startmsg) {
-        log_write(startmsg);
+        log_write(instance, startmsg);
     }
 
     /* init runstack script support */
-    runstack_init();
+    runstack_init(instance);
 
     /* init top level msg dispatcher */
-    top_init();
+    top_init(instance);
 
     /* initialize the definition resistry */
-    def_reg_init();
+    def_reg_init(instance);
 
     /* initialize the namespace registry */
-    xmlns_init();
+    xmlns_init(instance);
 
-    ncx_init_done = TRUE;
+    instance->ncx_init_done = TRUE;
 
     /* Initialize the INVALID namespace to help filter handling */
-    res = xmlns_register_ns(INVALID_URN, 
+    res = xmlns_register_ns(instance, 
+                            INVALID_URN, 
                             INV_PREFIX, 
                             NCX_MODULE, 
                             NULL, 
@@ -1008,7 +972,8 @@ status_t
     }
 
     /* Initialize the Wildcard namespace for base:1.1 filter handling */
-    res = xmlns_register_ns(WILDCARD_URN, 
+    res = xmlns_register_ns(instance, 
+                            WILDCARD_URN, 
                             WILDCARD_PREFIX, 
                             NCX_MODULE, 
                             NULL, 
@@ -1018,7 +983,8 @@ status_t
     }
 
     /* Initialize the XML namespace for NETCONF */
-    res = xmlns_register_ns(NC_URN, 
+    res = xmlns_register_ns(instance, 
+                            NC_URN, 
                             NC_PREFIX, 
                             NC_MODULE, 
                             NULL, 
@@ -1028,7 +994,8 @@ status_t
     }
 
     /* Initialize the XML namespace for YANG */
-    res = xmlns_register_ns(YANG_URN, 
+    res = xmlns_register_ns(instance, 
+                            YANG_URN, 
                             YANG_PREFIX, 
                             YANG_MODULE, 
                             NULL, 
@@ -1038,7 +1005,8 @@ status_t
     }
 
     /* Initialize the XML namespace for YIN */
-    res = xmlns_register_ns(YIN_URN, 
+    res = xmlns_register_ns(instance, 
+                            YIN_URN, 
                             YIN_PREFIX, 
                             YIN_MODULE, 
                             NULL, 
@@ -1048,7 +1016,8 @@ status_t
     }
 
     /* Initialize the XMLNS namespace for xmlns attributes */
-    res = xmlns_register_ns(NS_URN, 
+    res = xmlns_register_ns(instance, 
+                            NS_URN, 
                             NS_PREFIX, 
                             (const xmlChar *)"W3C XML Namespaces", 
                             NULL, 
@@ -1058,7 +1027,8 @@ status_t
     }
 
     /* Initialize the XSD namespace for ncxdump program */
-    res = xmlns_register_ns(XSD_URN, 
+    res = xmlns_register_ns(instance, 
+                            XSD_URN, 
                             XSD_PREFIX, 
                             (const xmlChar *)"W3C XML Schema Definition",
                             NULL, 
@@ -1068,7 +1038,8 @@ status_t
     }
 
     /* Initialize the XSI namespace for ncxdump program */
-    res = xmlns_register_ns(XSI_URN, 
+    res = xmlns_register_ns(instance, 
+                            XSI_URN, 
                             XSI_PREFIX, 
                             (const xmlChar *)"W3C XML Schema Instance",
                             NULL, 
@@ -1078,7 +1049,8 @@ status_t
     }
 
     /* Initialize the XML namespace for xml:lang attribute support */
-    res = xmlns_register_ns(XML_URN, 
+    res = xmlns_register_ns(instance, 
+                            XML_URN, 
                             XML_PREFIX,
                             (const xmlChar *)"W3C XML Lang Attribute",
                             NULL, 
@@ -1088,7 +1060,8 @@ status_t
     }
 
     /* Initialize the XML namespace for wd:default attribute support */
-    res = xmlns_register_ns(NC_WD_ATTR_URN, 
+    res = xmlns_register_ns(instance, 
+                            NC_WD_ATTR_URN, 
                             NC_WD_ATTR_PREFIX,
                             (const xmlChar *)"wd:default Attribute",
                             NULL, 
@@ -1098,19 +1071,20 @@ status_t
     }
 
     /* load the basetypes into the definition registry */
-    res = typ_load_basetypes();
+    res = typ_load_basetypes(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* initialize the configuration manager */
-    cfg_init();
+    cfg_init(instance);
 
     /* initialize the session message manager */
-    ses_msg_init();
+    ses_msg_init(instance);
 
     mod = NULL;
-    res = ncxmod_load_module(NCXMOD_NCX, 
+    res = ncxmod_load_module(instance, 
+                             NCXMOD_NCX, 
                              NULL, 
                              NULL,
                              &mod);
@@ -1118,35 +1092,60 @@ status_t
         return res;
     }
 
-    gen_anyxml = ncx_find_object(mod, NCX_EL_ANY);
-    if (!gen_anyxml) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+    instance->gen_anyxml = ncx_find_object(instance, mod, NCX_EL_ANY);
+    if (!instance->gen_anyxml) {
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    gen_container = ncx_find_object(mod, NCX_EL_STRUCT);
-    if (!gen_container) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+    instance->gen_container = ncx_find_object(instance, mod, NCX_EL_STRUCT);
+    if (!instance->gen_container) {
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    gen_string = ncx_find_object(mod, NCX_EL_STRING);
-    if (!gen_string) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+    instance->gen_string = ncx_find_object(instance, mod, NCX_EL_STRING);
+    if (!instance->gen_string) {
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    gen_empty = ncx_find_object(mod, NCX_EL_EMPTY);
-    if (!gen_empty) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+    instance->gen_empty = ncx_find_object(instance, mod, NCX_EL_EMPTY);
+    if (!instance->gen_empty) {
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    gen_root = ncx_find_object(mod, NCX_EL_ROOT);
-    if (!gen_root) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+    instance->gen_root = ncx_find_object(instance, mod, NCX_EL_ROOT);
+    if (!instance->gen_root) {
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    gen_binary = ncx_find_object(mod, NCX_EL_BINARY);
-    if (!gen_binary) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+    instance->gen_binary = ncx_find_object(instance, mod, NCX_EL_BINARY);
+    if (!instance->gen_binary) {
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
+
+    return NO_ERR;
+
+}  /* ncx_init */
+
+/**
+ * \fn ncx_custom_init
+ * \brief Initialize the NCX module custom structure
+ * \param yang model  - associated yang model
+ * \param logging routine - call back routine for log events
+ * \return status 
+ */
+status_t 
+    ncx_custom_init (ncx_instance_t *instance,
+              void *yang_model,
+              void *logging_context,
+              Logging_Routine logging_routine)
+{
+    if (!instance->ncx_init_done) {
+        return ERR_INTERNAL_VAL;
+    }
+    assert(instance->custom != NULL);
+    instance->custom->yang_model = yang_model;
+    instance->custom->logging_context = logging_context;
+    instance->custom->logging_routine = logging_routine;
 
     return NO_ERR;
 
@@ -1160,72 +1159,89 @@ status_t
  * \return none
  */
 void
-    ncx_cleanup (void)
+    ncx_cleanup (ncx_instance_t *instance)
 {
     ncx_module_t     *mod;
     ncx_filptr_t     *filptr;
     warnoff_t        *warnoff;
 
-    if (!ncx_init_done) {
+    if (!instance->ncx_init_done) {
         return;
     }
 
-    while (!dlq_empty(&ncx_modQ)) {
-        mod = (ncx_module_t *)dlq_deque(&ncx_modQ);
-        free_module(mod);
+    while (!dlq_empty(instance, &instance->ncx_modQ)) {
+        mod = (ncx_module_t *)dlq_deque(instance, &instance->ncx_modQ);
+        free_module(instance, mod);
     }
-    usedeadmodQ = FALSE;
-    while (!dlq_empty(&deadmodQ)) {
-        mod = (ncx_module_t *)dlq_deque(&deadmodQ);
-        free_module(mod);
-    }
-
-    while (!dlq_empty(&ncx_filptrQ)) {
-        filptr = (ncx_filptr_t *)dlq_deque(&ncx_filptrQ);
-        m__free(filptr);
+    instance->usedeadmodQ = FALSE;
+    while (!dlq_empty(instance, &instance->deadmodQ)) {
+        mod = (ncx_module_t *)dlq_deque(instance, &instance->deadmodQ);
+        free_module(instance, mod);
     }
 
-    while (!dlq_empty(&warnoffQ)) {
-        warnoff = (warnoff_t *)dlq_deque(&warnoffQ);
-        m__free(warnoff);
+    while (!dlq_empty(instance, &instance->ncx_filptrQ)) {
+        filptr = (ncx_filptr_t *)dlq_deque(instance, &instance->ncx_filptrQ);
+        m__free(instance, filptr);
     }
 
-    gen_anyxml = NULL;
-    gen_container = NULL;
-    gen_string = NULL;
-    gen_empty = NULL;
-    gen_root = NULL;
-    gen_binary = NULL;
+    while (!dlq_empty(instance, &instance->warnoffQ)) {
+        warnoff = (warnoff_t *)dlq_deque(instance, &instance->warnoffQ);
+        m__free(instance, warnoff);
+    }
 
-    ncx_feature_cleanup();
-    typ_unload_basetypes();
-    xmlns_cleanup();
-    def_reg_cleanup();
-    cfg_cleanup();
-    ses_msg_cleanup();
-    top_cleanup();
-    runstack_cleanup();
-    ncxmod_cleanup();
+    instance->gen_anyxml = NULL;
+    instance->gen_container = NULL;
+    instance->gen_string = NULL;
+    instance->gen_empty = NULL;
+    instance->gen_root = NULL;
+    instance->gen_binary = NULL;
+
+    ncx_feature_cleanup(instance);
+    typ_unload_basetypes(instance);
+    xmlns_cleanup(instance);
+    def_reg_cleanup(instance);
+    cfg_cleanup(instance);
+    ses_msg_cleanup(instance);
+    top_cleanup(instance);
+    runstack_cleanup(instance);
+    ncxmod_cleanup(instance);
     xmlCleanupParser();
-    status_cleanup();
+    status_cleanup(instance);
 
-    if (malloc_cnt > free_cnt) {
-        log_error("\n*** Error: memory leak (m:%u f:%u)\n", 
-                  malloc_cnt, 
-                  free_cnt);
-    } else if (malloc_cnt < free_cnt) {
-        log_error("\n*** Error: memory corruption (m:%u f:%u)\n", 
-                  malloc_cnt, 
-                  free_cnt);
+    if (instance->malloc_cnt > instance->free_cnt) {
+        log_error(instance, 
+                  "\n+++ Warning: memory leak (m:%u f:%u)\n", 
+                  instance->malloc_cnt, 
+                  instance->free_cnt);
+    } else if (instance->malloc_cnt < instance->free_cnt) {
+        log_error(instance, 
+                  "\n+++ Error: memory corruption (m:%u f:%u)\n", 
+                  instance->malloc_cnt, 
+                  instance->free_cnt);
     }
 
-    log_close();
+    log_close(instance);
 
-    if (tracefile != NULL) {
-        fclose(tracefile);
+    if (instance->tracefile != NULL) {
+        fclose(instance->tracefile);
     }
 
-    ncx_init_done = FALSE;
+    instance->ncx_init_done = FALSE;
+
+
+    free(instance->basetypes);
+    free(instance->cfg_arr);
+    free(instance->topht);
+    free(instance->defcxt);
+    free(instance->error_stack);
+    free(instance->staterr);
+    free(instance->totals);
+    free(instance->xmlns);
+    if (instance->custom) 
+    {
+      free(instance->custom);
+    }
+    free(instance);
 
 }   /* ncx_cleanup */
 
@@ -1237,41 +1253,42 @@ void
  * \return pointer to the malloced and initialized struct or NULL if an error
  */
 ncx_module_t *
-    ncx_new_module (void)
+    ncx_new_module (ncx_instance_t *instance)
 {
     ncx_module_t  *mod;
 
-    mod = m__getObj(ncx_module_t);
+    mod = m__getObj(instance, ncx_module_t);
     if (!mod) {
         return NULL;
     }
 
 #ifdef NCX_DEBUG_MOD_MEMORY
     if (LOGDEBUG3) {
-        log_debug3("\n%p:modtrace:newmod", mod);
+        log_debug3(instance, "\n%p:modtrace:newmod", mod);
     }
 #endif
 
+    mod->modtag = 1;
     (void)memset(mod, 0x0, sizeof(ncx_module_t));
     mod->langver = 1;
     mod->defaultrev = TRUE;
-    dlq_createSQue(&mod->revhistQ);
-    dlq_createSQue(&mod->importQ);
-    dlq_createSQue(&mod->includeQ);
-    dlq_createSQue(&mod->allincQ);
-    dlq_createSQue(&mod->incchainQ);
-    dlq_createSQue(&mod->typeQ);
-    dlq_createSQue(&mod->groupingQ);
-    dlq_createSQue(&mod->datadefQ);
-    dlq_createSQue(&mod->extensionQ);
-    dlq_createSQue(&mod->deviationQ);
-    dlq_createSQue(&mod->appinfoQ);
-    dlq_createSQue(&mod->typnameQ);
-    dlq_createSQue(&mod->saveimpQ);
-    dlq_createSQue(&mod->stmtQ);
-    dlq_createSQue(&mod->featureQ);
-    dlq_createSQue(&mod->identityQ);
-    ncx_init_list(&mod->devmodlist, NCX_BT_STRING);
+    dlq_createSQue(instance, &mod->revhistQ);
+    dlq_createSQue(instance, &mod->importQ);
+    dlq_createSQue(instance, &mod->includeQ);
+    dlq_createSQue(instance, &mod->allincQ);
+    dlq_createSQue(instance, &mod->incchainQ);
+    dlq_createSQue(instance, &mod->typeQ);
+    dlq_createSQue(instance, &mod->groupingQ);
+    dlq_createSQue(instance, &mod->datadefQ);
+    dlq_createSQue(instance, &mod->extensionQ);
+    dlq_createSQue(instance, &mod->deviationQ);
+    dlq_createSQue(instance, &mod->appinfoQ);
+    dlq_createSQue(instance, &mod->typnameQ);
+    dlq_createSQue(instance, &mod->saveimpQ);
+    dlq_createSQue(instance, &mod->stmtQ);
+    dlq_createSQue(instance, &mod->featureQ);
+    dlq_createSQue(instance, &mod->identityQ);
+    ncx_init_list(instance, &mod->devmodlist, NCX_BT_STRING);
     return mod;
 
 }  /* ncx_new_module */
@@ -1287,7 +1304,8 @@ ncx_module_t *
  * \return module pointer if found or NULL if not
  */
 ncx_module_t *
-    ncx_find_module (const xmlChar *modname,
+    ncx_find_module (ncx_instance_t *instance,
+                     const xmlChar *modname,
                      const xmlChar *revision)
 {
     ncx_module_t *mod;
@@ -1298,11 +1316,11 @@ ncx_module_t *
      * and then the current module Q
      */
     mod = NULL;
-    if (ncx_sesmodQ) {
-        mod = ncx_find_module_que(ncx_sesmodQ, modname, revision);
+    if (instance->ncx_sesmodQ) {
+        mod = ncx_find_module_que(instance, instance->ncx_sesmodQ, modname, revision);
     }
     if (mod == NULL) {
-        mod = ncx_find_module_que(ncx_curQ, modname, revision);
+        mod = ncx_find_module_que(instance, instance->ncx_curQ, modname, revision);
     }
     return mod;
 
@@ -1320,7 +1338,8 @@ ncx_module_t *
  * \return module pointer if found or NULL if not
  */
 ncx_module_t *
-    ncx_find_module_que (dlq_hdr_t *modQ,
+    ncx_find_module_que (ncx_instance_t *instance,
+                         dlq_hdr_t *modQ,
                          const xmlChar *modname,
                          const xmlChar *revision)
 {
@@ -1330,18 +1349,19 @@ ncx_module_t *
     assert ( modQ && " param modQ is NULL" );
     assert ( modname && " param modname is NULL" );
 
-    for (mod = (ncx_module_t *)dlq_firstEntry(modQ);
+    for (mod = (ncx_module_t *)dlq_firstEntry(instance, modQ);
          mod != NULL;
-         mod = (ncx_module_t *)dlq_nextEntry(mod)) {
+         mod = (ncx_module_t *)dlq_nextEntry(instance, mod)) {
 
-        retval = xml_strcmp(modname, mod->name);
+        retval = xml_strcmp(instance, modname, mod->name);
         if (retval == 0) {
             if (!revision || !mod->version) {
                 if (mod->defaultrev) {
                     return mod;
                 }
             } else {
-                retval = yang_compare_revision_dates(revision,
+                retval = yang_compare_revision_dates(instance,
+                                                     revision,
                                                      mod->version);
                 if (retval == 0) {
                     return mod;
@@ -1367,17 +1387,19 @@ ncx_module_t *
  * \return module pointer if found or NULL if not
  */
 ncx_module_t *
-    ncx_find_module_que_nsid (dlq_hdr_t *modQ,
+    ncx_find_module_que_nsid (ncx_instance_t *instance,
+                              dlq_hdr_t *modQ,
                               xmlns_id_t nsid)
 {
     ncx_module_t  *mod;
+    (void)instance;
 
     assert ( modQ && " param modQ is NULL" );
     assert ( nsid && " param nsid is NULL" );
 
-    for (mod = (ncx_module_t *)dlq_firstEntry(modQ);
+    for (mod = (ncx_module_t *)dlq_firstEntry(instance, modQ);
          mod != NULL;
-         mod = (ncx_module_t *)dlq_nextEntry(mod)) {
+         mod = (ncx_module_t *)dlq_nextEntry(instance, mod)) {
 
         if (mod->nsid == nsid) {
             return mod;
@@ -1401,11 +1423,11 @@ ncx_module_t *
  * \return none 
  */
 void 
-    ncx_free_module (ncx_module_t *mod)
+    ncx_free_module (ncx_instance_t *instance, ncx_module_t *mod)
 {
     assert ( mod && " param mod is NULL" );
 
-    free_module(mod);
+    free_module(instance, mod);
 
 }  /* ncx_free_module */
 
@@ -1419,13 +1441,13 @@ void
  * modules present have a status of NO_ERR
  */
 boolean
-    ncx_any_mod_errors (void)
+    ncx_any_mod_errors (ncx_instance_t *instance)
 {
     ncx_module_t  *mod;
 
-    for (mod = (ncx_module_t *)dlq_firstEntry(ncx_curQ);
+    for (mod = (ncx_module_t *)dlq_firstEntry(instance, instance->ncx_curQ);
          mod != NULL;
-         mod = (ncx_module_t *)dlq_nextEntry(mod)) {
+         mod = (ncx_module_t *)dlq_nextEntry(instance, mod)) {
         if (mod->status != NO_ERR) {
             return TRUE;
         }
@@ -1446,23 +1468,24 @@ boolean
  * modules present have a status of NO_ERR
  */
 boolean
-    ncx_any_dependency_errors (const ncx_module_t *mod)
+    ncx_any_dependency_errors (ncx_instance_t *instance, const ncx_module_t *mod)
 {
     assert ( mod && " param mod is NULL" );
 
     const yang_import_ptr_t *impptr = 
-        (const yang_import_ptr_t *)dlq_firstEntry(&mod->saveimpQ);
+        (const yang_import_ptr_t *)dlq_firstEntry(instance, &mod->saveimpQ);
     for (; impptr != NULL;  impptr = (const yang_import_ptr_t *)
-             dlq_nextEntry(impptr)) {
+             dlq_nextEntry(instance, impptr)) {
 
         /*** hack: skip ietf-netconf because it is not stored
          *** remove when ietf-netconf is supported
          ***/
-        if (!xml_strcmp(impptr->modname, NCXMOD_IETF_NETCONF)) {
+        if (!xml_strcmp(instance, impptr->modname, NCXMOD_IETF_NETCONF)) {
             continue;
         }
 
-        ncx_module_t *testmod = ncx_find_module(impptr->modname,
+        ncx_module_t *testmod = ncx_find_module(instance,
+                                                impptr->modname,
                                                 impptr->revision);
         if (!testmod) {
             /* missing import */
@@ -1490,7 +1513,8 @@ boolean
  * \return pointer to struct if present, NULL otherwise
  */
 typ_template_t *
-    ncx_find_type (ncx_module_t *mod,
+    ncx_find_type (ncx_instance_t *instance,
+                   ncx_module_t *mod,
                    const xmlChar *typname,
                    boolean useall)
 {
@@ -1502,7 +1526,7 @@ typ_template_t *
     ncx_include_t  *inc;
     dlq_hdr_t      *que;
 
-    typ = ncx_find_type_que(&mod->typeQ, typname);
+    typ = ncx_find_type_que(instance, &mod->typeQ, typname);
     if (typ) {
         return typ;
     }
@@ -1510,12 +1534,13 @@ typ_template_t *
     que = ncx_get_allincQ(mod);
 
     if (useall) {
-        for (node = (yang_node_t *)dlq_firstEntry(que);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, que);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
             if (node->submod) {
-                typ = ncx_find_type_que(&node->submod->typeQ, 
+                typ = ncx_find_type_que(instance, 
+                                        &node->submod->typeQ, 
                                         typname);
                 if (typ) {
                     return typ;
@@ -1526,13 +1551,14 @@ typ_template_t *
         /* check all the submodules, but only the ones visible
          * to this module or submodule, YANG only
          */
-        for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+        for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
              inc != NULL;
-             inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+             inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
             /* get the real submodule struct */
             if (!inc->submod) {
-                node = yang_find_node(que, 
+                node = yang_find_node(instance, 
+                                      que, 
                                       inc->submodule,
                                       inc->revision);
                 if (node) {
@@ -1545,7 +1571,7 @@ typ_template_t *
             }
 
             /* check the type Q in this submodule */
-            typ = ncx_find_type_que(&inc->submod->typeQ, typname);
+            typ = ncx_find_type_que(instance, &inc->submod->typeQ, typname);
             if (typ) {
                 return typ;
             }
@@ -1570,7 +1596,8 @@ typ_template_t *
 *  pointer to struct if present, NULL otherwise
 *********************************************************************/
 typ_template_t *
-    ncx_find_type_que (const dlq_hdr_t *typeQ,
+    ncx_find_type_que (ncx_instance_t *instance,
+                       const dlq_hdr_t *typeQ,
                        const xmlChar *typname)
 {
     typ_template_t *typ;
@@ -1578,10 +1605,10 @@ typ_template_t *
     assert ( typeQ && " param typeQ is NULL");
     assert ( typname && " param typname is NULL");
 
-    for (typ = (typ_template_t *)dlq_firstEntry(typeQ);
+    for (typ = (typ_template_t *)dlq_firstEntry(instance, typeQ);
          typ != NULL;
-         typ = (typ_template_t *)dlq_nextEntry(typ)) {
-        if (typ->name && !xml_strcmp(typ->name, typname)) {
+         typ = (typ_template_t *)dlq_nextEntry(instance, typ)) {
+        if (typ->name && !xml_strcmp(instance, typ->name, typname)) {
             return typ;
         }
     }
@@ -1601,7 +1628,8 @@ typ_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 grp_template_t *
-    ncx_find_grouping (ncx_module_t *mod,
+    ncx_find_grouping (ncx_instance_t *instance,
+                       ncx_module_t *mod,
                        const xmlChar *grpname,
                        boolean useall)
 {
@@ -1614,7 +1642,7 @@ grp_template_t *
     assert ( grpname && " param grpname is NULL" );
 
     /* check the main module */
-    grp = ncx_find_grouping_que(&mod->groupingQ, grpname);
+    grp = ncx_find_grouping_que(instance, &mod->groupingQ, grpname);
     if (grp) {
         return grp;
     }
@@ -1622,12 +1650,13 @@ grp_template_t *
     que = ncx_get_allincQ(mod);
 
     if (useall) {
-        for (node = (yang_node_t *)dlq_firstEntry(que);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, que);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
             if (node->submod) {
-                grp = ncx_find_grouping_que(&node->submod->groupingQ, 
+                grp = ncx_find_grouping_que(instance, 
+                                            &node->submod->groupingQ, 
                                             grpname);
                 if (grp) {
                     return grp;
@@ -1638,13 +1667,14 @@ grp_template_t *
         /* check all the submodules, but only the ones visible
          * to this module or submodule, YANG only
          */
-        for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+        for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
              inc != NULL;
-             inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+             inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
             /* get the real submodule struct */
             if (!inc->submod) {
-                node = yang_find_node(que, 
+                node = yang_find_node(instance, 
+                                      que, 
                                       inc->submodule,
                                       inc->revision);
                 if (node) {
@@ -1657,7 +1687,7 @@ grp_template_t *
             }
 
             /* check the grouping Q in this submodule */
-            grp = ncx_find_grouping_que(&inc->submod->groupingQ, grpname);
+            grp = ncx_find_grouping_que(instance, &inc->submod->groupingQ, grpname);
             if (grp) {
                 return grp;
             }
@@ -1677,7 +1707,8 @@ grp_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 grp_template_t *
-    ncx_find_grouping_que (const dlq_hdr_t *groupingQ,
+    ncx_find_grouping_que (ncx_instance_t *instance,
+                           const dlq_hdr_t *groupingQ,
                            const xmlChar *grpname)
 {
     grp_template_t *grp;
@@ -1685,10 +1716,10 @@ grp_template_t *
     assert ( groupingQ && " param groupingQ is NULL" );
     assert ( grpname && " param grpname is NULL" );
 
-    for (grp = (grp_template_t *)dlq_firstEntry(groupingQ);
+    for (grp = (grp_template_t *)dlq_firstEntry(instance, groupingQ);
          grp != NULL;
-         grp = (grp_template_t *)dlq_nextEntry(grp)) {
-        if (grp->name && !xml_strcmp(grp->name, grpname)) {
+         grp = (grp_template_t *)dlq_nextEntry(instance, grp)) {
+        if (grp->name && !xml_strcmp(instance, grp->name, grpname)) {
             return grp;
         }
     }
@@ -1706,7 +1737,8 @@ grp_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 obj_template_t *
-    ncx_find_rpc (const ncx_module_t *mod,
+    ncx_find_rpc (ncx_instance_t *instance,
+                  const ncx_module_t *mod,
                   const xmlChar *rpcname)
 {
     obj_template_t *rpc;
@@ -1714,11 +1746,11 @@ obj_template_t *
     assert ( mod && " param mod is NULL" );
     assert ( rpcname && " param rpcname is NULL" );
 
-    for (rpc = (obj_template_t *)dlq_firstEntry(&mod->datadefQ);
+    for (rpc = (obj_template_t *)dlq_firstEntry(instance, &mod->datadefQ);
          rpc != NULL;
-         rpc = (obj_template_t *)dlq_nextEntry(rpc)) {
+         rpc = (obj_template_t *)dlq_nextEntry(instance, rpc)) {
         if (rpc->objtype == OBJ_TYP_RPC) {
-            if (!xml_strcmp(obj_get_name(rpc), rpcname)) {
+            if (!xml_strcmp(instance, obj_get_name(instance, rpc), rpcname)) {
                 return rpc;
             }
         }
@@ -1740,7 +1772,8 @@ obj_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 obj_template_t *
-    ncx_match_rpc (const ncx_module_t *mod,
+    ncx_match_rpc (ncx_instance_t *instance,
+                   const ncx_module_t *mod,
                    const xmlChar *rpcname,
                    uint32 *retcount)
 {
@@ -1754,13 +1787,13 @@ obj_template_t *
     *retcount = 0;
     cnt = 0;
     firstfound = NULL;
-    len = xml_strlen(rpcname);
+    len = xml_strlen(instance, rpcname);
 
-    for (rpc = (obj_template_t *)dlq_firstEntry(&mod->datadefQ);
+    for (rpc = (obj_template_t *)dlq_firstEntry(instance, &mod->datadefQ);
          rpc != NULL;
-         rpc = (obj_template_t *)dlq_nextEntry(rpc)) {
+         rpc = (obj_template_t *)dlq_nextEntry(instance, rpc)) {
         if (rpc->objtype == OBJ_TYP_RPC) {
-            if (!xml_strncmp(obj_get_name(rpc), rpcname, len)) {
+            if (!xml_strncmp(instance, obj_get_name(instance, rpc), rpcname, len)) {
                 if (firstfound == NULL) {
                     firstfound = rpc;
                 }
@@ -1787,7 +1820,8 @@ obj_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 obj_template_t *
-    ncx_match_any_rpc (const xmlChar *module,
+    ncx_match_any_rpc (ncx_instance_t *instance,
+                       const xmlChar *module,
                        const xmlChar *rpcname,
                        uint32 *retcount)
 {
@@ -1802,18 +1836,18 @@ obj_template_t *
     *retcount = 0;
 
     if (module) {
-        mod = ncx_find_module(module, NULL);
+        mod = ncx_find_module(instance, module, NULL);
         if (mod) {
-            firstfound = ncx_match_rpc(mod, rpcname, retcount);
+            firstfound = ncx_match_rpc(instance, mod, rpcname, retcount);
         }
     } else {
         cnt = 0;
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL;
-             mod =  ncx_get_next_module(mod)) {
+             mod =  ncx_get_next_module(instance, mod)) {
 
             tempcnt = 0;
-            rpc = ncx_match_rpc(mod, rpcname, &tempcnt);
+            rpc = ncx_match_rpc(instance, mod, rpcname, &tempcnt);
             if (rpc) {
                 if (firstfound == NULL) {
                     firstfound = rpc;
@@ -1839,7 +1873,8 @@ obj_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 obj_template_t *
-    ncx_match_any_rpc_mod (ncx_module_t *mod,
+    ncx_match_any_rpc_mod (ncx_instance_t *instance,
+                           ncx_module_t *mod,
                            const xmlChar *rpcname,
                            uint32 *retcount)
 {
@@ -1849,7 +1884,7 @@ obj_template_t *
 
     *retcount = 0;
 
-    obj_template_t *firstfound = ncx_match_rpc(mod, rpcname, retcount);
+    obj_template_t *firstfound = ncx_match_rpc(instance, mod, rpcname, retcount);
 
     return firstfound;
 
@@ -1871,7 +1906,8 @@ obj_template_t *
  * \return none 
  */
 void
-    ncx_match_rpc_error (ncx_module_t *mod,
+    ncx_match_rpc_error (ncx_instance_t *instance,
+                         ncx_module_t *mod,
                          const xmlChar *modname,
                          const xmlChar *rpcname,
                          boolean match,
@@ -1882,26 +1918,28 @@ void
 
     if (firstmsg) {
         if (match) {
-            log_error("\nError: Ambiguous partial command name: '%s'",
+            log_error(instance,
+                      "\nError: Ambiguous partial command name: '%s'",
                       rpcname);
         } else {
-            log_error("\nError: Ambiguous command name: '%s'",
+            log_error(instance,
+                      "\nError: Ambiguous command name: '%s'",
                       rpcname);
         }
     }
 
     if (mod != NULL) {
-        do_match_rpc_error(mod, rpcname, match);
+        do_match_rpc_error(instance, mod, rpcname, match);
     } else if (modname != NULL) {
-        mod = ncx_find_module(modname, NULL);
+        mod = ncx_find_module(instance, modname, NULL);
         if (mod != NULL) {
-            do_match_rpc_error(mod, rpcname, match);
+            do_match_rpc_error(instance, mod, rpcname, match);
         }
     } else {
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL;
-             mod =  ncx_get_next_module(mod)) {
-             do_match_rpc_error(mod, rpcname, match);
+             mod =  ncx_get_next_module(instance, mod)) {
+             do_match_rpc_error(instance, mod, rpcname, match);
         }
     }
 
@@ -1917,7 +1955,7 @@ void
  * \return pointer to struct if present, NULL otherwise
  */
 obj_template_t *
-    ncx_find_any_object (const xmlChar *objname)
+    ncx_find_any_object (ncx_instance_t *instance, const xmlChar *objname)
 {
     assert ( objname && " param objname is NULL" );
 
@@ -1925,21 +1963,22 @@ obj_template_t *
     ncx_module_t   *mod = NULL;
     boolean        useses = FALSE;
 
-    if (ncx_sesmodQ != NULL) {
-        mod = (ncx_module_t *)dlq_firstEntry(ncx_sesmodQ);
+    if (instance->ncx_sesmodQ != NULL) {
+        mod = (ncx_module_t *)dlq_firstEntry(instance, instance->ncx_sesmodQ);
         if (mod != NULL) {
             useses = TRUE;
         }
     }
     if (mod == NULL) {
-        mod = ncx_get_first_module();
+        mod = ncx_get_first_module(instance);
     }
 
     for (;
          mod != NULL;
-         mod =  ncx_get_next_module(mod)) {
+         mod =  ncx_get_next_module(instance, mod)) {
 
-        obj = obj_find_template_top(mod, 
+        obj = obj_find_template_top(instance, 
+                                    mod, 
                                     ncx_get_modname(mod), 
                                     objname);
         if (obj) {
@@ -1949,11 +1988,12 @@ obj_template_t *
 
     if (useses) {
         /* make 1 more loop trying the main moduleQ */
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL;
-             mod = ncx_get_next_module(mod)) {
+             mod = ncx_get_next_module(instance, mod)) {
 
-            obj = obj_find_template_top(mod, 
+            obj = obj_find_template_top(instance, 
+                                        mod, 
                                         ncx_get_modname(mod), 
                                         objname);
             if (obj) {
@@ -1980,7 +2020,8 @@ obj_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 obj_template_t *
-    ncx_match_any_object (const xmlChar *objname,
+    ncx_match_any_object (ncx_instance_t *instance,
+                          const xmlChar *objname,
                           ncx_name_match_t name_match,
                           boolean alt_names,
                           status_t *retres)
@@ -1992,22 +2033,23 @@ obj_template_t *
     boolean        useses = FALSE;
 
     /* find a queue of modules to use; get first entry */
-    if (ncx_sesmodQ != NULL) {
-        mod = (ncx_module_t *)dlq_firstEntry(ncx_sesmodQ);
+    if (instance->ncx_sesmodQ != NULL) {
+        mod = (ncx_module_t *)dlq_firstEntry(instance, instance->ncx_sesmodQ);
         if (mod != NULL) {
             useses = TRUE;
         }
     }
     if (mod == NULL) {
-        mod = ncx_get_first_module();
+        mod = ncx_get_first_module(instance);
     }
 
     /* always check exact match first */
     for (;
          mod != NULL;
-         mod =  ncx_get_next_module(mod)) {
+         mod =  ncx_get_next_module(instance, mod)) {
 
-        obj = obj_find_template_top_ex(mod, 
+        obj = obj_find_template_top_ex(instance, 
+                                       mod, 
                                        ncx_get_modname(mod), 
                                        objname,
                                        name_match,
@@ -2024,11 +2066,12 @@ obj_template_t *
 
     if (useses) {
         /* make 1 more loop trying the main moduleQ */
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL;
-             mod = ncx_get_next_module(mod)) {
+             mod = ncx_get_next_module(instance, mod)) {
 
-            obj = obj_find_template_top_ex(mod, 
+            obj = obj_find_template_top_ex(instance, 
+                                           mod, 
                                            ncx_get_modname(mod), 
                                            objname,
                                            name_match,
@@ -2059,7 +2102,8 @@ obj_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 obj_template_t *
-    ncx_find_any_object_que (dlq_hdr_t *modQ,
+    ncx_find_any_object_que (ncx_instance_t *instance,
+                             dlq_hdr_t *modQ,
                              const xmlChar *objname)
 {
     assert ( modQ && " param modQ is NULL" );
@@ -2068,11 +2112,12 @@ obj_template_t *
     obj_template_t *obj = NULL;
     ncx_module_t   *mod;
 
-    for (mod = (ncx_module_t *)dlq_firstEntry(modQ);
+    for (mod = (ncx_module_t *)dlq_firstEntry(instance, modQ);
          mod != NULL;
-         mod = (ncx_module_t *)dlq_nextEntry(mod)) {
+         mod = (ncx_module_t *)dlq_nextEntry(instance, mod)) {
 
-        obj = obj_find_template_top(mod, 
+        obj = obj_find_template_top(instance, 
+                                    mod, 
                                     ncx_get_modname(mod), 
                                     objname);
         if (obj) {
@@ -2093,13 +2138,14 @@ obj_template_t *
  * \return pointer to struct if present, NULL otherwise
  */
 obj_template_t *
-    ncx_find_object (ncx_module_t *mod,
+    ncx_find_object (ncx_instance_t *instance,
+                     ncx_module_t *mod,
                      const xmlChar *objname)
 {
     assert ( mod && " param mod is NULL" );
     assert ( objname && " param objname is NULL" );
 
-    return obj_find_template_top(mod, mod->name, objname);
+    return obj_find_template_top(instance, mod, mod->name, objname);
 
 }  /* ncx_find_object */
 
@@ -2115,7 +2161,8 @@ obj_template_t *
  * \return status of the operation
  */
 status_t 
-    ncx_add_namespace_to_registry (ncx_module_t *mod,
+    ncx_add_namespace_to_registry (ncx_instance_t *instance,
+                                   ncx_module_t *mod,
                                    boolean tempmod)
 {
     assert ( mod && " param mod is NULL" );
@@ -2131,48 +2178,50 @@ status_t
     }
 
     if (mod->ns == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     res = NO_ERR;
     isnetconf = FALSE;
 
     /* if this is the XSD module, then use the NS ID already registered */
-    if (!xml_strcmp(mod->name, NCX_EL_XSD)) {
-        mod->nsid = xmlns_xs_id();
-    } else if (!xml_strcmp(mod->name,
+    if (!xml_strcmp(instance, mod->name, NCX_EL_XSD)) {
+        mod->nsid = xmlns_xs_id(instance);
+    } else if (!xml_strcmp(instance,
+                           mod->name,
                            (const xmlChar *)"ietf-netconf")) {
-        mod->nsid = xmlns_nc_id();
+        mod->nsid = xmlns_nc_id(instance);
         isnetconf = TRUE;
     } else {
-        mod->nsid = xmlns_find_ns_by_module(mod->name);
+        mod->nsid = xmlns_find_ns_by_module(instance, mod->name);
     }
 
     if (!tempmod) {
         /* check module prefix collision */
-        nsid = xmlns_find_ns_by_prefix(mod->prefix);
+        nsid = xmlns_find_ns_by_prefix(instance, mod->prefix);
         if (nsid) {
-            modname = xmlns_get_module(nsid);
-            if (xml_strcmp(mod->name, modname) && !isnetconf) {
-                if (ncx_warning_enabled(ERR_NCX_DUP_PREFIX)) {
-                    log_warn("\nWarning: prefix '%s' already in use "
+            modname = xmlns_get_module(instance, nsid);
+            if (xml_strcmp(instance, mod->name, modname) && !isnetconf) {
+                if (ncx_warning_enabled(instance, ERR_NCX_DUP_PREFIX)) {
+                    log_warn(instance,
+                             "\nWarning: prefix '%s' already in use "
                              "by module '%s'",
                              mod->prefix, 
                              modname);
-                    ncx_print_errormsg(NULL, mod, ERR_NCX_DUP_PREFIX);
+                    ncx_print_errormsg(instance, NULL, mod, ERR_NCX_DUP_PREFIX);
                 } else {
                     ncx_inc_warnings(mod);
                 }
                 
                 /* redo the module xmlprefix, the length is the length of the 
                  * prefix + 6 characters for the suffix value and a NULL */
-                uint32 buflen = xml_strlen(mod->prefix) + 6;
-                xmlChar *buffer = m__getMem(buflen + 6);
+                uint32 buflen = xml_strlen(instance, mod->prefix) + 6;
+                xmlChar *buffer = m__getMem(instance, buflen + 6);
                 if (!buffer) {
                     return ERR_INTERNAL_MEM;
                 }
                 xmlChar* p = buffer;
-                p += xml_strcpy(p, mod->prefix);
+                p += xml_strcpy(instance, p, mod->prefix);
 
                 /* keep adding numbers to end of prefix until
                  * 1 is unused or run out of numbers
@@ -2180,13 +2229,13 @@ status_t
                 uint32 i = 1;
                 for ( ; i<10000 && nsid; ++i) {
                     snprintf((char *)p, 6, "%u", i);
-                    nsid = xmlns_find_ns_by_prefix(buffer);
+                    nsid = xmlns_find_ns_by_prefix(instance, buffer);
                 }
                 if (nsid) {
-                    log_error("\nError: could not assign module prefix");
+                    log_error(instance, "\nError: could not assign module prefix");
                     res = ERR_NCX_OPERATION_FAILED;
-                    ncx_print_errormsg(NULL, mod, res);
-                    m__free(buffer);
+                    ncx_print_errormsg(instance, NULL, mod, res);
+                    m__free(instance, buffer);
                     return res;
                 }
 
@@ -2196,22 +2245,23 @@ status_t
         }
     }
 
-    ns = def_reg_find_ns(mod->ns);
+    ns = def_reg_find_ns(instance, mod->ns);
     if (ns) {
         if (tempmod) {
             mod->nsid = ns->ns_id;
         } else if (isnetconf) {
             /* ignore the hack corner-case for yuma-netconf */
             ;
-        } else if (ns->ns_id == xmlns_xs_id() ||
-                   ns->ns_id == xmlns_xsi_id() ||
-                   ns->ns_id == xmlns_xml_id()) {
+        } else if (ns->ns_id == xmlns_xs_id(instance) ||
+                   ns->ns_id == xmlns_xsi_id(instance) ||
+                   ns->ns_id == xmlns_xml_id(instance)) {
             /* ignore these special XML duplicates used by yangdump */
             ;
-        } else if (xml_strcmp(mod->name, ns->ns_module) &&
-                   xml_strcmp(ns->ns_module, NCX_MODULE)) {
+        } else if (xml_strcmp(instance, mod->name, ns->ns_module) &&
+                   xml_strcmp(instance, ns->ns_module, NCX_MODULE)) {
             /* this NS string already registered to another module */
-            log_error("\nError: Module '%s' registering "
+            log_error(instance,
+                      "\nError: Module '%s' registering "
                       "duplicate namespace '%s'\n    "
                       "registered by module '%s'",
                       mod->name, 
@@ -2223,7 +2273,8 @@ status_t
             mod->nsid = ns->ns_id;
         }
     } else if (!isnetconf) {
-        res = xmlns_register_ns(mod->ns, 
+        res = xmlns_register_ns(instance, 
+                                mod->ns, 
                                 (mod->xmlprefix) 
                                 ? mod->xmlprefix : mod->prefix, 
                                 mod->name, 
@@ -2231,7 +2282,8 @@ status_t
                                 &mod->nsid);
         if (res != NO_ERR) {
             /* this NS registration failed */
-            log_error("\nncx reg: Module '%s' registering "
+            log_error(instance,
+                      "\nncx reg: Module '%s' registering "
                       "namespace '%s' failed (%s)",
                       mod->name, 
                       mod->ns,
@@ -2255,7 +2307,7 @@ status_t
  * \return status of the operation
  */
 status_t 
-    ncx_add_to_registry (ncx_module_t *mod)
+    ncx_add_to_registry (ncx_instance_t *instance, ncx_module_t *mod)
 {
     assert ( mod && " param mod is NULL" );
 
@@ -2270,20 +2322,22 @@ status_t
         res = mod->status;
         if (NEED_EXIT(res)) {
             /* should not happen */
-            log_error("\nError: cannot add module '%s' to registry"
+            log_error(instance, 
+                      "\nError: cannot add module '%s' to registry"
                       " with fatal errors", 
                       mod->name);
-            ncx_print_errormsg(NULL, mod, res);
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            ncx_print_errormsg(instance, NULL, mod, res);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else {
-            log_warn("\nWarning: Adding module '%s' to registry"
+            log_warn(instance, 
+                     "\nWarning: Adding module '%s' to registry"
                      " with errors", 
                      mod->name);
             res = NO_ERR;
         }
     }
 
-    res = set_toplevel_defs(mod, mod->nsid);
+    res = set_toplevel_defs(instance, mod, mod->nsid);
     if (res != NO_ERR) {
         return res;
     }
@@ -2291,12 +2345,12 @@ status_t
     /* add all the submodules included in this module */
     yang_node_t    *node;
 
-    for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         node->submod->nsid = mod->nsid;
-        res = set_toplevel_defs(node->submod, mod->nsid);
+        res = set_toplevel_defs(instance, node->submod, mod->nsid);
         if (res != NO_ERR) {
             return res;
         }
@@ -2307,7 +2361,7 @@ status_t
      */
     if (mod->ismod) {
         /* save the module in the module Q */
-        add_to_modQ(mod, &ncx_modQ);
+        add_to_modQ(instance, mod, &instance->ncx_modQ);
         mod->added = TRUE;
 
         /* !!! hack to cleanup after xmlns init cycle !!!
@@ -2315,14 +2369,14 @@ status_t
          * all the xmlns entries for those modules with the
          * real module pointer
          */
-        if (!xml_strcmp(mod->name, NC_MODULE)) {
-            xmlns_set_modptrs(NC_MODULE, mod);
-        } else if (!xml_strcmp(mod->name, NCX_MODULE)) {
-            xmlns_set_modptrs(NCX_MODULE, mod);
+        if (!xml_strcmp(instance, mod->name, NC_MODULE)) {
+            xmlns_set_modptrs(instance, NC_MODULE, mod);
+        } else if (!xml_strcmp(instance, mod->name, NCX_MODULE)) {
+            xmlns_set_modptrs(instance, NCX_MODULE, mod);
         }
 
-        if (mod_load_callback) {
-            (*mod_load_callback)(mod);
+        if (instance->mod_load_callback) {
+            (*instance->mod_load_callback)(instance, mod);
         }
 
     }
@@ -2342,12 +2396,12 @@ status_t
  * \return status of the operation
  */
 status_t 
-    ncx_add_to_modQ (ncx_module_t *mod)
+    ncx_add_to_modQ (ncx_instance_t *instance, ncx_module_t *mod)
 {
     assert ( mod && " param mod is NULL" );
 
     if (mod->ismod) {
-        add_to_modQ(mod, ncx_curQ);
+        add_to_modQ(instance, mod, instance->ncx_curQ);
         mod->added = TRUE;
     }
     return NO_ERR;
@@ -2366,16 +2420,17 @@ status_t
  * \return TRUE if found, FALSE otherwise
  */
 boolean
-    ncx_is_duplicate (ncx_module_t *mod,
+    ncx_is_duplicate (ncx_instance_t *instance,
+                      ncx_module_t *mod,
                       const xmlChar *defname)
 {
     assert ( mod && " param mod is NULL" );
     assert ( defname && " param defname is NULL" );
 
-    if (ncx_find_type(mod, defname, TRUE)) {
+    if (ncx_find_type(instance, mod, defname, TRUE)) {
         return TRUE;
     }
-    if (ncx_find_rpc(mod, defname)) {
+    if (ncx_find_rpc(instance, mod, defname)) {
         return TRUE;
     }
     return FALSE;
@@ -2390,14 +2445,14 @@ boolean
  * \return pointer to the first entry or NULL if empty Q
  */
 ncx_module_t *
-    ncx_get_first_module (void)
+    ncx_get_first_module (ncx_instance_t *instance)
 {
-    ncx_module_t *mod = (ncx_module_t *)dlq_firstEntry(ncx_curQ);
+    ncx_module_t *mod = (ncx_module_t *)dlq_firstEntry(instance, instance->ncx_curQ);
     while (mod) {
         if (mod->defaultrev) {
             return mod;
         }
-        mod = (ncx_module_t *)dlq_nextEntry(mod);
+        mod = (ncx_module_t *)dlq_nextEntry(instance, mod);
     }
     return mod;
 
@@ -2412,16 +2467,17 @@ ncx_module_t *
  * \return pointer to the first entry or NULL if empty Q
  */
 ncx_module_t *
-    ncx_get_next_module (const ncx_module_t *mod)
+    ncx_get_next_module (ncx_instance_t *instance, const ncx_module_t *mod)
 {
     assert ( mod && " param mod is NULL" );
+    (void)instance;
 
-    ncx_module_t *nextmod = (ncx_module_t *)dlq_nextEntry(mod);
+    ncx_module_t *nextmod = (ncx_module_t *)dlq_nextEntry(instance, mod);
     while (nextmod) {
         if (nextmod->defaultrev) {
             return nextmod;
         }
-        nextmod = (ncx_module_t *)dlq_nextEntry(nextmod);
+        nextmod = (ncx_module_t *)dlq_nextEntry(instance, nextmod);
     }
     return nextmod;
 
@@ -2435,13 +2491,13 @@ ncx_module_t *
  * \return pointer to the first entry or NULL if empty Q
  */
 ncx_module_t *
-    ncx_get_first_session_module (void)
+    ncx_get_first_session_module (ncx_instance_t *instance)
 {
-    if (ncx_sesmodQ == NULL) {
+    if (instance->ncx_sesmodQ == NULL) {
         return NULL;
     }
 
-    ncx_module_t *mod = (ncx_module_t *)dlq_firstEntry(ncx_sesmodQ);
+    ncx_module_t *mod = (ncx_module_t *)dlq_firstEntry(instance, instance->ncx_sesmodQ);
     return mod;
 
 }  /* ncx_get_first_session_module */
@@ -2455,11 +2511,12 @@ ncx_module_t *
  * \return pointer to the first entry or NULL if empty Q
  */
 ncx_module_t *
-    ncx_get_next_session_module (const ncx_module_t *mod)
+    ncx_get_next_session_module (ncx_instance_t *instance, const ncx_module_t *mod)
 {
     assert ( mod && " param mod is NULL" );
+    (void)instance;
 
-    ncx_module_t *nextmod = (ncx_module_t *)dlq_nextEntry(mod);
+    ncx_module_t *nextmod = (ncx_module_t *)dlq_nextEntry(instance, mod);
     return nextmod;
 
 }  /* ncx_get_next_session_module */
@@ -2558,7 +2615,7 @@ const xmlChar *
  * \return main module NULL if error
  */
 ncx_module_t *
-    ncx_get_mainmod (ncx_module_t *mod)
+    ncx_get_mainmod (ncx_instance_t *instance, ncx_module_t *mod)
 {
 
     assert ( mod && " param mod is NULL");
@@ -2568,7 +2625,7 @@ ncx_module_t *
     }
 
     /**** DO NOT KNOW THE REAL MAIN MODULE REVISION ****/
-    return ncx_find_module(mod->belongs, NULL);
+    return ncx_find_module(instance, mod->belongs, NULL);
 
 }  /* ncx_get_mainmod */
 
@@ -2582,18 +2639,18 @@ ncx_module_t *
  * \return pointer to the first object or NULL if empty Q
  */
 obj_template_t *
-    ncx_get_first_object (ncx_module_t *mod)
+    ncx_get_first_object (ncx_instance_t *instance, ncx_module_t *mod)
 {
     assert ( mod && " param mod is NULL");
 
     obj_template_t *obj;
-    for (obj = (obj_template_t *)dlq_firstEntry(&mod->datadefQ);
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, &mod->datadefQ);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
-        if (!obj_has_name(obj) ||
-            !obj_is_enabled(obj) ||
-            obj_is_cli(obj) || 
-            obj_is_abstract(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
+        if (!obj_has_name(instance, obj) ||
+            !obj_is_enabled(instance, obj) ||
+            obj_is_cli(instance, obj) || 
+            obj_is_abstract(instance, obj)) {
             continue;
         }
         return obj;
@@ -2604,24 +2661,24 @@ obj_template_t *
     }
 
     yang_node_t    *node;
-    for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         if (!node->submod) {
-            SET_ERROR(ERR_INTERNAL_PTR);
+            SET_ERROR(instance, ERR_INTERNAL_PTR);
             continue;
         }
 
         for (obj = (obj_template_t *)
-                 dlq_firstEntry(&node->submod->datadefQ);
+                 dlq_firstEntry(instance, &node->submod->datadefQ);
              obj != NULL;
-             obj = (obj_template_t *)dlq_nextEntry(obj)) {
+             obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-            if (!obj_has_name(obj)  || 
-                !obj_is_enabled(obj) ||
-                obj_is_cli(obj) ||
-                obj_is_abstract(obj)) {
+            if (!obj_has_name(instance, obj)  || 
+                !obj_is_enabled(instance, obj) ||
+                obj_is_cli(instance, obj) ||
+                obj_is_abstract(instance, obj)) {
                 continue;
             }
 
@@ -2644,21 +2701,22 @@ obj_template_t *
  * \return pointer to the next object or NULL if none
  */
 obj_template_t *
-    ncx_get_next_object (ncx_module_t *mod,
+    ncx_get_next_object (ncx_instance_t *instance,
+                         ncx_module_t *mod,
                          obj_template_t *curobj)
 {
     assert ( mod && " param mod is NULL" );
     assert ( curobj && " param curobj is NULL" );
 
     obj_template_t *obj;
-    for (obj = (obj_template_t *)dlq_nextEntry(curobj);
+    for (obj = (obj_template_t *)dlq_nextEntry(instance, curobj);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-        if (!obj_has_name(obj) || 
-            !obj_is_enabled(obj) ||
-            obj_is_cli(obj) ||
-            obj_is_abstract(obj)) {
+        if (!obj_has_name(instance, obj) || 
+            !obj_is_enabled(instance, obj) ||
+            obj_is_cli(instance, obj) ||
+            obj_is_abstract(instance, obj)) {
             continue;
         }
 
@@ -2671,12 +2729,12 @@ obj_template_t *
     }
 
     yang_node_t    *node;
-    for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         if (!node->submod) {
-            SET_ERROR(ERR_INTERNAL_PTR);
+            SET_ERROR(instance, ERR_INTERNAL_PTR);
             continue;
         }
 
@@ -2688,14 +2746,14 @@ obj_template_t *
         }
 
         for (obj = (obj_template_t *)
-                 dlq_firstEntry(&node->submod->datadefQ);
+                 dlq_firstEntry(instance, &node->submod->datadefQ);
              obj != NULL;
-             obj = (obj_template_t *)dlq_nextEntry(obj)) {
+             obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-            if (!obj_has_name(obj) || 
-                !obj_is_enabled(obj) ||
-                obj_is_cli(obj) ||
-                obj_is_abstract(obj)) {
+            if (!obj_has_name(instance, obj) || 
+                !obj_is_enabled(instance, obj) ||
+                obj_is_cli(instance, obj) ||
+                obj_is_abstract(instance, obj)) {
                 continue;
             }
 
@@ -2717,21 +2775,21 @@ obj_template_t *
  * \return pointer to the first object or NULL if empty Q
  */
 obj_template_t *
-    ncx_get_first_data_object (ncx_module_t *mod)
+    ncx_get_first_data_object (ncx_instance_t *instance, ncx_module_t *mod)
 {
     assert ( mod && " param mod is NULL");
 
     obj_template_t *obj;
-    for (obj = (obj_template_t *)dlq_firstEntry(&mod->datadefQ);
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, &mod->datadefQ);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
-        if (!obj_has_name(obj) || 
-            !obj_is_enabled(obj) ||
-            obj_is_cli(obj) ||
-            obj_is_abstract(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
+        if (!obj_has_name(instance, obj) || 
+            !obj_is_enabled(instance, obj) ||
+            obj_is_cli(instance, obj) ||
+            obj_is_abstract(instance, obj)) {
             continue;
         }
-        if (obj_is_data_db(obj)) {
+        if (obj_is_data_db(instance, obj)) {
             return obj;
         }
     }
@@ -2741,28 +2799,28 @@ obj_template_t *
     }
 
     yang_node_t    *node;
-    for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         if (!node->submod) {
-            SET_ERROR(ERR_INTERNAL_PTR);
+            SET_ERROR(instance, ERR_INTERNAL_PTR);
             continue;
         }
 
         for (obj = (obj_template_t *)
-                 dlq_firstEntry(&node->submod->datadefQ);
+                 dlq_firstEntry(instance, &node->submod->datadefQ);
              obj != NULL;
-             obj = (obj_template_t *)dlq_nextEntry(obj)) {
+             obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-            if (!obj_has_name(obj) || 
-                !obj_is_enabled(obj) ||
-                obj_is_cli(obj) ||
-                obj_is_abstract(obj)) {
+            if (!obj_has_name(instance, obj) || 
+                !obj_is_enabled(instance, obj) ||
+                obj_is_cli(instance, obj) ||
+                obj_is_abstract(instance, obj)) {
                 continue;
             }
 
-            if (obj_is_data_db(obj)) {
+            if (obj_is_data_db(instance, obj)) {
                 return obj;
             }
         }
@@ -2782,24 +2840,25 @@ obj_template_t *
  * \return pointer to the next object or NULL if none
  */
 obj_template_t *
-    ncx_get_next_data_object (ncx_module_t *mod,
+    ncx_get_next_data_object (ncx_instance_t *instance,
+                              ncx_module_t *mod,
                               obj_template_t *curobj)
 {
     assert ( mod && " param mod is NULL");
 
     obj_template_t *obj;
-    for (obj = (obj_template_t *)dlq_nextEntry(curobj);
+    for (obj = (obj_template_t *)dlq_nextEntry(instance, curobj);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-        if (!obj_has_name(obj) || 
-            !obj_is_enabled(obj) ||
-            obj_is_cli(obj) ||
-            obj_is_abstract(obj)) {
+        if (!obj_has_name(instance, obj) || 
+            !obj_is_enabled(instance, obj) ||
+            obj_is_cli(instance, obj) ||
+            obj_is_abstract(instance, obj)) {
             continue;
         }
 
-        if (obj_is_data_db(obj)) {
+        if (obj_is_data_db(instance, obj)) {
             return obj;
         }
     }
@@ -2810,12 +2869,12 @@ obj_template_t *
 
     boolean start = (curobj->tkerr.mod == mod) ? TRUE : FALSE;
     yang_node_t    *node;
-    for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         if (!node->submod) {
-            SET_ERROR(ERR_INTERNAL_PTR);
+            SET_ERROR(instance, ERR_INTERNAL_PTR);
             continue;
         }
 
@@ -2827,18 +2886,18 @@ obj_template_t *
         }
 
         for (obj = (obj_template_t *)
-                 dlq_firstEntry(&node->submod->datadefQ);
+                 dlq_firstEntry(instance, &node->submod->datadefQ);
              obj != NULL;
-             obj = (obj_template_t *)dlq_nextEntry(obj)) {
+             obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-            if (!obj_has_name(obj) || 
-                !obj_is_enabled(obj) ||
-                obj_is_cli(obj) ||
-                obj_is_abstract(obj)) {
+            if (!obj_has_name(instance, obj) || 
+                !obj_is_enabled(instance, obj) ||
+                obj_is_cli(instance, obj) ||
+                obj_is_abstract(instance, obj)) {
                 continue;
             }
 
-            if (obj_is_data_db(obj)) {
+            if (obj_is_data_db(instance, obj)) {
                 return obj;
             }
         }
@@ -2856,14 +2915,14 @@ obj_template_t *
  * \return pointer to the malloced and initialized struct or NULL if an error
  */
 ncx_import_t * 
-    ncx_new_import (void)
+    ncx_new_import (ncx_instance_t *instance)
 {
-    ncx_import_t  *import = m__getObj(ncx_import_t);
+    ncx_import_t  *import = m__getObj(instance, ncx_import_t);
     if (!import) {
         return NULL;
     }
     (void)memset(import, 0x0, sizeof(ncx_import_t));
-    dlq_createSQue(&import->appinfoQ);
+    dlq_createSQue(instance, &import->appinfoQ);
     return import;
 
 }  /* ncx_new_import */
@@ -2880,26 +2939,26 @@ ncx_import_t *
  * \return none 
  */
 void 
-    ncx_free_import (ncx_import_t *import)
+    ncx_free_import (ncx_instance_t *instance, ncx_import_t *import)
 {
     assert ( import && " param import is NULL");
 
     if (import->module) {
-        m__free(import->module);
+        m__free(instance, import->module);
     }
 
     if (import->prefix) {
-        m__free(import->prefix);
+        m__free(instance, import->prefix);
     }
 
     if (import->revision) {
-        m__free(import->revision);
+        m__free(instance, import->revision);
     }
 
     /* YANG only */
-    ncx_clean_appinfoQ(&import->appinfoQ);
+    ncx_clean_appinfoQ(instance, &import->appinfoQ);
 
-    m__free(import);
+    m__free(instance, import);
 
 }  /* ncx_free_import */
 
@@ -2913,12 +2972,13 @@ void
  * \return pointer to the node if found, NULL if not found
  */
 ncx_import_t * 
-    ncx_find_import (const ncx_module_t *mod,
+    ncx_find_import (ncx_instance_t *instance,
+                     const ncx_module_t *mod,
                      const xmlChar *module)
 {
     assert ( mod && " param mod is NULL");
     assert ( module && " param module is NULL");
-    return ncx_find_import_que(&mod->importQ, module);
+    return ncx_find_import_que(instance, &mod->importQ, module);
 
 } /* ncx_find_import */
 
@@ -2932,17 +2992,18 @@ ncx_import_t *
  * \return pointer to the node if found, NULL if not found
  */
 ncx_import_t * 
-    ncx_find_import_que (const dlq_hdr_t *importQ,
+    ncx_find_import_que (ncx_instance_t *instance,
+                         const dlq_hdr_t *importQ,
                          const xmlChar *module)
 {
     assert ( importQ && " param importQ is NULL");
     assert ( module && " param module is NULL");
 
     ncx_import_t  *import;
-    for (import = (ncx_import_t *)dlq_firstEntry(importQ);
+    for (import = (ncx_import_t *)dlq_firstEntry(instance, importQ);
          import != NULL;
-         import = (ncx_import_t *)dlq_nextEntry(import)) {
-        if (!xml_strcmp(import->module, module)) {
+         import = (ncx_import_t *)dlq_nextEntry(instance, import)) {
+        if (!xml_strcmp(instance, import->module, module)) {
             import->used = TRUE;
             return import;
         }
@@ -2962,17 +3023,18 @@ ncx_import_t *
  * \return pointer to the node if found, NULL if not found
  */
 ncx_import_t * 
-    ncx_find_import_test (const ncx_module_t *mod,
+    ncx_find_import_test (ncx_instance_t *instance,
+                          const ncx_module_t *mod,
                           const xmlChar *module)
 {
     assert ( mod && " param mod is NULL");
     assert ( module && " param module is NULL");
 
     ncx_import_t  *import;
-    for (import = (ncx_import_t *)dlq_firstEntry(&mod->importQ);
+    for (import = (ncx_import_t *)dlq_firstEntry(instance, &mod->importQ);
          import != NULL;
-         import = (ncx_import_t *)dlq_nextEntry(import)) {
-        if (!xml_strcmp(import->module, module)) {
+         import = (ncx_import_t *)dlq_nextEntry(instance, import)) {
+        if (!xml_strcmp(instance, import->module, module)) {
             return import;
         }
     }
@@ -2990,12 +3052,13 @@ ncx_import_t *
  * \return pointer to the node if found, NULL if not found
  */
 ncx_import_t * 
-    ncx_find_pre_import (const ncx_module_t *mod,
+    ncx_find_pre_import (ncx_instance_t *instance,
+                         const ncx_module_t *mod,
                          const xmlChar *prefix)
 {
     assert ( mod && " param mod is NULL");
     assert ( prefix && " param prefix is NULL");
-    return ncx_find_pre_import_que(&mod->importQ, prefix);
+    return ncx_find_pre_import_que(instance, &mod->importQ, prefix);
 
 } /* ncx_find_pre_import */
 
@@ -3009,17 +3072,18 @@ ncx_import_t *
  * \return pointer to the node if found, NULL if not found
  */
 ncx_import_t * 
-    ncx_find_pre_import_que (const dlq_hdr_t *importQ,
+    ncx_find_pre_import_que (ncx_instance_t *instance,
+                             const dlq_hdr_t *importQ,
                              const xmlChar *prefix)
 {
     assert ( importQ && " param importQ is NULL");
     assert ( prefix && " param prefix is NULL");
 
     ncx_import_t  *import;
-    for (import = (ncx_import_t *)dlq_firstEntry(importQ);
+    for (import = (ncx_import_t *)dlq_firstEntry(instance, importQ);
          import != NULL;
-         import = (ncx_import_t *)dlq_nextEntry(import)) {
-        if (import->prefix && !xml_strcmp(import->prefix, prefix)) {
+         import = (ncx_import_t *)dlq_nextEntry(instance, import)) {
+        if (import->prefix && !xml_strcmp(instance, import->prefix, prefix)) {
             import->used = TRUE;
             return import;
         }
@@ -3039,17 +3103,18 @@ ncx_import_t *
  * \return pointer to the node if found, NULL if not found
  */
 ncx_import_t * 
-    ncx_find_pre_import_test (const ncx_module_t *mod,
+    ncx_find_pre_import_test (ncx_instance_t *instance,
+                              const ncx_module_t *mod,
                               const xmlChar *prefix)
 {
     assert ( mod && " param mod is NULL");
     assert ( prefix && " param prefix is NULL");
 
     ncx_import_t  *import;
-    for (import = (ncx_import_t *)dlq_firstEntry(&mod->importQ);
+    for (import = (ncx_import_t *)dlq_firstEntry(instance, &mod->importQ);
          import != NULL;
-         import = (ncx_import_t *)dlq_nextEntry(import)) {
-        if (import->prefix && !xml_strcmp(import->prefix, prefix)) {
+         import = (ncx_import_t *)dlq_nextEntry(instance, import)) {
+        if (import->prefix && !xml_strcmp(instance, import->prefix, prefix)) {
             return import;
         }
     }
@@ -3076,7 +3141,8 @@ ncx_import_t *
  * \return pointer to the located definition or NULL if not found
  */
 void *
-    ncx_locate_modqual_import (yang_pcb_t *pcb,
+    ncx_locate_modqual_import (ncx_instance_t *instance,
+                               yang_pcb_t *pcb,
                                ncx_import_t *imp,
                                const xmlChar *defname,
                                ncx_node_t *deftyp)
@@ -3086,7 +3152,7 @@ void *
     assert ( deftyp && " param deftyp is NULL");
 
     void *dptr;
-    status_t  res = check_moddef(pcb, imp, defname, deftyp, &dptr);
+    status_t  res = check_moddef(instance, pcb, imp, defname, deftyp, &dptr);
     return (res==NO_ERR) ? dptr : NULL;
     /*** error res is lost !!! ***/
 
@@ -3100,14 +3166,14 @@ void *
  * \return pointer to the malloced and initialized struct or NULL if an error
  */
 ncx_include_t * 
-    ncx_new_include (void)
+    ncx_new_include (ncx_instance_t *instance)
 {
-    ncx_include_t  *inc = m__getObj(ncx_include_t);
+    ncx_include_t  *inc = m__getObj(instance, ncx_include_t);
     if (!inc) {
         return NULL;
     }
     (void)memset(inc, 0x0, sizeof(ncx_include_t));
-    dlq_createSQue(&inc->appinfoQ);
+    dlq_createSQue(instance, &inc->appinfoQ);
     return inc;
 
 }  /* ncx_new_include */
@@ -3124,20 +3190,20 @@ ncx_include_t *
  * \return none 
  */
 void 
-    ncx_free_include (ncx_include_t *inc)
+    ncx_free_include (ncx_instance_t *instance, ncx_include_t *inc)
 {
     assert ( inc && " param inc is NULL");
 
     if (inc->submodule) {
-        m__free(inc->submodule);
+        m__free(instance, inc->submodule);
     }
 
     if (inc->revision) {
-        m__free(inc->revision);
+        m__free(instance, inc->revision);
     }
 
-    ncx_clean_appinfoQ(&inc->appinfoQ);
-    m__free(inc);
+    ncx_clean_appinfoQ(instance, &inc->appinfoQ);
+    m__free(instance, inc);
 
 }  /* ncx_free_include */
 
@@ -3151,17 +3217,18 @@ void
  * \return pointer to the node if found, NULL if not found
  */
 ncx_include_t * 
-    ncx_find_include (const ncx_module_t *mod,
+    ncx_find_include (ncx_instance_t *instance,
+                      const ncx_module_t *mod,
                       const xmlChar *submodule)
 {
     assert ( mod && " param mod is NULL");
     assert ( submodule && " param submodule is NULL");
 
     ncx_include_t  *inc;
-    for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+    for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
          inc != NULL;
-         inc = (ncx_include_t *)dlq_nextEntry(inc)) {
-        if (!xml_strcmp(inc->submodule, submodule)) {
+         inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
+        if (!xml_strcmp(instance, inc->submodule, submodule)) {
             return inc;
         }
     }
@@ -3178,9 +3245,9 @@ ncx_include_t *
  *  NULL if malloc error
  */
 ncx_binary_t *
-    ncx_new_binary (void)
+    ncx_new_binary (ncx_instance_t *instance)
 {
-    ncx_binary_t  *binary = m__getObj(ncx_binary_t);
+    ncx_binary_t  *binary = m__getObj(instance, ncx_binary_t);
     if (!binary) {
         return NULL;
     }
@@ -3215,12 +3282,12 @@ void
  * \return none
  */
 void
-    ncx_clean_binary (ncx_binary_t *binary)
+    ncx_clean_binary (ncx_instance_t *instance, ncx_binary_t *binary)
 {
     assert ( binary && " param binary is NULL");
 
     if (binary->ustr) {
-        m__free(binary->ustr);
+        m__free(instance, binary->ustr);
     }
     memset(binary, 0x0, sizeof(ncx_binary_t));
 
@@ -3235,11 +3302,11 @@ void
  * \return none
  */
 void
-    ncx_free_binary (ncx_binary_t *binary)
+    ncx_free_binary (ncx_instance_t *instance, ncx_binary_t *binary)
 {
     assert ( binary && " param binary is NULL");
-    ncx_clean_binary(binary);
-    m__free(binary);
+    ncx_clean_binary(instance, binary);
+    m__free(instance, binary);
 
 }  /* ncx_free_binary */
 
@@ -3252,16 +3319,16 @@ void
  * or NULL if malloc error
  */
 ncx_identity_t *
-    ncx_new_identity (void)
+    ncx_new_identity (ncx_instance_t *instance)
 {
-    ncx_identity_t *identity = m__getObj(ncx_identity_t);
+    ncx_identity_t *identity = m__getObj(instance, ncx_identity_t);
     if (!identity) {
         return NULL;
     }
     memset(identity, 0x0, sizeof(ncx_identity_t));
 
-    dlq_createSQue(&identity->childQ);
-    dlq_createSQue(&identity->appinfoQ);
+    dlq_createSQue(instance, &identity->childQ);
+    dlq_createSQue(instance, &identity->appinfoQ);
     identity->idlink.identity = identity;
     return identity;
 
@@ -3276,7 +3343,7 @@ ncx_identity_t *
  * \return none
  */
 void 
-    ncx_free_identity (ncx_identity_t *identity)
+    ncx_free_identity (ncx_instance_t *instance, ncx_identity_t *identity)
 {
     assert ( identity && " param identity is NULL");
 
@@ -3293,28 +3360,28 @@ void
     identity->idlink.identity = NULL;
 
     if (identity->name) {
-        m__free(identity->name);
+        m__free(instance, identity->name);
     }
 
     if (identity->baseprefix) {
-        m__free(identity->baseprefix);
+        m__free(instance, identity->baseprefix);
     }
 
     if (identity->basename) {
-        m__free(identity->basename);
+        m__free(instance, identity->basename);
     }
 
     if (identity->descr) {
-        m__free(identity->descr);
+        m__free(instance, identity->descr);
     }
 
     if (identity->ref) {
-        m__free(identity->ref);
+        m__free(instance, identity->ref);
     }
 
-    ncx_clean_appinfoQ(&identity->appinfoQ);
+    ncx_clean_appinfoQ(instance, &identity->appinfoQ);
 
-    m__free(identity);
+    m__free(instance, identity);
     
 } /* ncx_free_identity */
 
@@ -3332,14 +3399,15 @@ void
  * \return pointer to found feature or NULL if not found
  */
 ncx_identity_t *
-    ncx_find_identity (ncx_module_t *mod,
+    ncx_find_identity (ncx_instance_t *instance,
+                       ncx_module_t *mod,
                        const xmlChar *name,
                        boolean useall)
 {
     assert ( mod && " param mod is NULL");
     assert ( name && " param name NULL");
 
-    ncx_identity_t *identity = ncx_find_identity_que(&mod->identityQ, name);
+    ncx_identity_t *identity = ncx_find_identity_que(instance, &mod->identityQ, name);
     if (identity) {
         return identity;
     }
@@ -3349,13 +3417,14 @@ ncx_identity_t *
     yang_node_t     *node;
     ncx_include_t   *inc;
     if (useall) {
-        for (node = (yang_node_t *)dlq_firstEntry(que);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, que);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
             if (node->submod) {
                 /* check the identity Q in this submodule */
-                identity = ncx_find_identity_que(&node->submod->identityQ, 
+                identity = ncx_find_identity_que(instance, 
+                                                 &node->submod->identityQ, 
                                                  name);
                 if (identity) {
                     return identity;
@@ -3366,13 +3435,14 @@ ncx_identity_t *
         /* check all the submodules, but only the ones visible
          * to this module or submodule
          */
-        for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+        for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
              inc != NULL;
-             inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+             inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
             /* get the real submodule struct */
             if (!inc->submod) {
-                node = yang_find_node(que, 
+                node = yang_find_node(instance, 
+                                      que, 
                                       inc->submodule,
                                       inc->revision);
                 if (node) {
@@ -3385,7 +3455,7 @@ ncx_identity_t *
             }
 
             /* check the identity Q in this submodule */
-            identity = ncx_find_identity_que(&inc->submod->identityQ, name);
+            identity = ncx_find_identity_que(instance, &inc->submod->identityQ, name);
             if (identity) {
                 return identity;
             }
@@ -3405,18 +3475,19 @@ ncx_identity_t *
  * \return pointer to found identity or NULL if not found
  */
 ncx_identity_t *
-    ncx_find_identity_que (dlq_hdr_t *identityQ,
+    ncx_find_identity_que (ncx_instance_t *instance,
+                           dlq_hdr_t *identityQ,
                            const xmlChar *name)
 {
     assert ( identityQ && " param identityQ is NULL");
     assert ( name && " param name is NULL");
 
     ncx_identity_t *identity;
-    for (identity = (ncx_identity_t *)dlq_firstEntry(identityQ);
+    for (identity = (ncx_identity_t *)dlq_firstEntry(instance, identityQ);
          identity != NULL;
-         identity = (ncx_identity_t *)dlq_nextEntry(identity)) {
+         identity = (ncx_identity_t *)dlq_nextEntry(instance, identity)) {
 
-        if (!xml_strcmp(identity->name, name)) {
+        if (!xml_strcmp(instance, identity->name, name)) {
             return identity;
         }
     }
@@ -3433,24 +3504,24 @@ ncx_identity_t *
  * or NULL if none available
  */
 ncx_filptr_t *
-    ncx_new_filptr (void)
+    ncx_new_filptr (ncx_instance_t *instance)
 {
     ncx_filptr_t *filptr;
 
     /* check the cache first */
-    if (ncx_cur_filptrs) {
-        filptr = (ncx_filptr_t *)dlq_deque(&ncx_filptrQ);
-        ncx_cur_filptrs--;
+    if (instance->ncx_cur_filptrs) {
+        filptr = (ncx_filptr_t *)dlq_deque(instance, &instance->ncx_filptrQ);
+        instance->ncx_cur_filptrs--;
         return filptr;
     }
     
     /* create a new one */
-    filptr = m__getObj(ncx_filptr_t);
+    filptr = m__getObj(instance, ncx_filptr_t);
     if (!filptr) {
         return NULL;
     }
     memset (filptr, 0x0, sizeof(ncx_filptr_t));
-    dlq_createSQue(&filptr->childQ);
+    dlq_createSQue(instance, &filptr->childQ);
     return filptr;
 
 } /* ncx_new_filptr */
@@ -3464,26 +3535,26 @@ ncx_filptr_t *
  * \return none
  */
 void 
-    ncx_free_filptr (ncx_filptr_t *filptr)
+    ncx_free_filptr (ncx_instance_t *instance, ncx_filptr_t *filptr)
 {
     assert ( filptr && " param filptr is NULL");
  
     /* recursively clean out the child Queues */
     ncx_filptr_t *fp;
-    while (!dlq_empty(&filptr->childQ)) {
-        fp = (ncx_filptr_t *)dlq_deque(&filptr->childQ);
-        ncx_free_filptr(fp);
+    while (!dlq_empty(instance, &filptr->childQ)) {
+        fp = (ncx_filptr_t *)dlq_deque(instance, &filptr->childQ);
+        ncx_free_filptr(instance, fp);
     }
 
     /* check if this entry should be put in the cache */
-    if (ncx_cur_filptrs < ncx_max_filptrs) {
+    if (instance->ncx_cur_filptrs < instance->ncx_max_filptrs) {
         memset(filptr, 0x0, sizeof(ncx_filptr_t));
-        dlq_createSQue(&filptr->childQ);
-        dlq_enque(filptr, &ncx_filptrQ);
-        ncx_cur_filptrs++;
+        dlq_createSQue(instance, &filptr->childQ);
+        dlq_enque(instance, filptr, &instance->ncx_filptrQ);
+        instance->ncx_cur_filptrs++;
     } else {
         /* cache full, so just delete this entry */
-        m__free(filptr);
+        m__free(instance, filptr);
     }
     
 } /* ncx_free_filptr */
@@ -3496,9 +3567,9 @@ void
  * \return malloced revision history entry or NULL if malloc error
  */
 ncx_revhist_t *
-    ncx_new_revhist (void)
+    ncx_new_revhist (ncx_instance_t *instance)
 {
-    ncx_revhist_t *revhist = m__getObj(ncx_revhist_t);
+    ncx_revhist_t *revhist = m__getObj(instance, ncx_revhist_t);
     if (!revhist) {
         return NULL;
     }
@@ -3516,20 +3587,20 @@ ncx_revhist_t *
  * \return none
  */
 void 
-    ncx_free_revhist (ncx_revhist_t *revhist)
+    ncx_free_revhist (ncx_instance_t *instance, ncx_revhist_t *revhist)
 {
     assert ( revhist && " param revhist is NULL");
 
     if (revhist->version) {
-        m__free(revhist->version);
+        m__free(instance, revhist->version);
     }
     if (revhist->descr) {
-        m__free(revhist->descr);
+        m__free(instance, revhist->descr);
     }
     if (revhist->ref) {
-        m__free(revhist->ref);
+        m__free(instance, revhist->ref);
     }
-    m__free(revhist);
+    m__free(instance, revhist);
 
 }  /* ncx_free_revhist */
 
@@ -3543,17 +3614,18 @@ void
  * \return pointer to the node if found, NULL if not found
  */
 ncx_revhist_t * 
-    ncx_find_revhist (const ncx_module_t *mod,
+    ncx_find_revhist (ncx_instance_t *instance,
+                      const ncx_module_t *mod,
                       const xmlChar *ver)
 {
     assert ( mod && " param mod is NULL");
     assert ( ver && " param ver is NULL");
 
     ncx_revhist_t  *revhist;
-    for (revhist = (ncx_revhist_t *)dlq_firstEntry(&mod->revhistQ);
+    for (revhist = (ncx_revhist_t *)dlq_firstEntry(instance, &mod->revhistQ);
          revhist != NULL;
-         revhist = (ncx_revhist_t *)dlq_nextEntry(revhist)) {
-        if (!xml_strcmp(revhist->version, ver)) {
+         revhist = (ncx_revhist_t *)dlq_nextEntry(instance, revhist)) {
+        if (!xml_strcmp(instance, revhist->version, ver)) {
             return revhist;
         }
     }
@@ -3591,13 +3663,13 @@ void
  * \return none
  */
 void
-    ncx_clean_enum (ncx_enum_t *enu)
+    ncx_clean_enum (ncx_instance_t *instance, ncx_enum_t *enu)
 {
     assert ( enu && " param enu is NULL" );
 
     enu->name = NULL;
     if (enu->dname) {
-        m__free(enu->dname);
+        m__free(instance, enu->dname);
         enu->dname = NULL;
     }
     enu->val = 0;
@@ -3616,13 +3688,14 @@ void
  *         1 if enu1 is > enu2
  */
 int32
-    ncx_compare_enums (const ncx_enum_t *enu1,
+    ncx_compare_enums (ncx_instance_t *instance,
+                       const ncx_enum_t *enu1,
                        const ncx_enum_t *enu2)
 {
     assert ( enu1 && " param enu1 is NULL" );
     assert ( enu2 && " param enu2 is NULL" );
     /* just check strings exact match */
-    return xml_strcmp(enu1->name, enu2->name);
+    return xml_strcmp(instance, enu1->name, enu2->name);
 
 } /* ncx_compare_enums */
 
@@ -3638,19 +3711,20 @@ int32
  * \return status 
  */
 status_t
-    ncx_set_enum (const xmlChar *enumval,
+    ncx_set_enum (ncx_instance_t *instance,
+                  const xmlChar *enumval,
                   ncx_enum_t *retenu)
 {
     assert ( enumval && " param enumval is NULL" );
     assert ( retenu && " param retenu is NULL" );
 
-    xmlChar       *str = xml_strdup(enumval);
+    xmlChar       *str = xml_strdup(instance, enumval);
     if (!str) {
         return ERR_INTERNAL_MEM;
     }
 
     if (retenu->dname != NULL) {
-        m__free(retenu->dname);
+        m__free(instance, retenu->dname);
     }
 
     retenu->dname = str;
@@ -3691,12 +3765,12 @@ void
  * \return none
  */
 void
-    ncx_clean_bit (ncx_bit_t *bit)
+    ncx_clean_bit (ncx_instance_t *instance, ncx_bit_t *bit)
 {
     assert ( bit && " param bit is NULL" );
 
     if (bit->dname) {
-        m__free(bit->dname);
+        m__free(instance, bit->dname);
         bit->dname = NULL;
     }
     bit->pos = 0;
@@ -3744,9 +3818,9 @@ int32
  * \return malloced struct or NULL if memory error
  */
 ncx_typname_t *
-    ncx_new_typname (void)
+    ncx_new_typname (ncx_instance_t *instance)
 {
-    ncx_typname_t  *tn = m__getObj(ncx_typname_t);
+    ncx_typname_t  *tn = m__getObj(instance, ncx_typname_t);
     if (!tn) {
         return NULL;
     }
@@ -3764,14 +3838,14 @@ ncx_typname_t *
  * \return none
  */
 void
-    ncx_free_typname (ncx_typname_t *typnam)
+    ncx_free_typname (ncx_instance_t *instance, ncx_typname_t *typnam)
 {
     assert ( typnam && " param typnam is NULL" );
 
     if (typnam->typname_malloc) {
-        m__free(typnam->typname_malloc);
+        m__free(instance, typnam->typname_malloc);
     }
-    m__free(typnam);
+    m__free(instance, typnam);
 
 } /* ncx_free_typname */
 
@@ -3785,17 +3859,19 @@ void
  * \return name assigned to this type template
  */
 const xmlChar *
-    ncx_find_typname (const typ_template_t *typ,
+    ncx_find_typname (ncx_instance_t *instance,
+                      const typ_template_t *typ,
                       const dlq_hdr_t *que)
 {
     assert ( typ && " param typ is NULL" );
     assert ( que && " param que is NULL" );
+    (void)instance;
 
     const ncx_typname_t  *tn;
 
-    for (tn = (const ncx_typname_t *)dlq_firstEntry(que);
+    for (tn = (const ncx_typname_t *)dlq_firstEntry(instance, que);
          tn != NULL;
-         tn = (const ncx_typname_t *)dlq_nextEntry(tn)) {
+         tn = (const ncx_typname_t *)dlq_nextEntry(instance, tn)) {
         if (tn->typ == typ) {
             return tn->typname;
         }
@@ -3815,7 +3891,8 @@ const xmlChar *
  * \return pointer to the stored typstatus
  */
 const typ_template_t *
-    ncx_find_typname_type (const dlq_hdr_t *que,
+    ncx_find_typname_type (ncx_instance_t *instance,
+                           const dlq_hdr_t *que,
                            const xmlChar *typname)
 {
     assert ( que && " param que is NULL" );
@@ -3823,10 +3900,10 @@ const typ_template_t *
 
     const ncx_typname_t  *tn;
 
-    for (tn = (const ncx_typname_t *)dlq_firstEntry(que);
+    for (tn = (const ncx_typname_t *)dlq_firstEntry(instance, que);
          tn != NULL;
-         tn = (const ncx_typname_t *)dlq_nextEntry(tn)) {
-        if (!xml_strcmp(tn->typname, typname)) {
+         tn = (const ncx_typname_t *)dlq_nextEntry(instance, tn)) {
+        if (!xml_strcmp(instance, tn->typname, typname)) {
             return tn->typ;
         }
     }
@@ -3843,15 +3920,15 @@ const typ_template_t *
  * \return none
  */
 void
-    ncx_clean_typnameQ (dlq_hdr_t *que)
+    ncx_clean_typnameQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     assert ( que && " param que is NULL" );
 
     ncx_typname_t  *tn;
 
-    while (!dlq_empty(que)) {
-        tn = (ncx_typname_t *)dlq_deque(que);
-        ncx_free_typname(tn);
+    while (!dlq_empty(instance, que)) {
+        tn = (ncx_typname_t *)dlq_deque(instance, que);
+        ncx_free_typname(instance, tn);
     }
 
 }  /* ncx_clean_typnameQ */
@@ -3864,9 +3941,9 @@ void
  * \return pointer to generic anyxml object template
  */
 obj_template_t *
-    ncx_get_gen_anyxml (void)
+    ncx_get_gen_anyxml (ncx_instance_t *instance)
 {
-    return gen_anyxml;
+    return instance->gen_anyxml;
 
 } /* ncx_get_gen_anyxml */
 
@@ -3878,9 +3955,9 @@ obj_template_t *
  * \return pointer to generic container object template
  */
 obj_template_t *
-    ncx_get_gen_container (void)
+    ncx_get_gen_container (ncx_instance_t *instance)
 {
-    return gen_container;
+    return instance->gen_container;
 
 } /* ncx_get_gen_container */
 
@@ -3892,9 +3969,9 @@ obj_template_t *
  * \return pointer to generic string object template
  */
 obj_template_t *
-    ncx_get_gen_string (void)
+    ncx_get_gen_string (ncx_instance_t *instance)
 {
-    return gen_string;
+    return instance->gen_string;
 
 } /* ncx_get_gen_string */
 
@@ -3906,9 +3983,9 @@ obj_template_t *
  * \return pointer to generic empty object template
  */
 obj_template_t *
-    ncx_get_gen_empty (void)
+    ncx_get_gen_empty (ncx_instance_t *instance)
 {
-    return gen_empty;
+    return instance->gen_empty;
 
 } /* ncx_get_gen_empty */
 
@@ -3920,9 +3997,9 @@ obj_template_t *
  * \return pointer to generic root container object template
  */
 obj_template_t *
-    ncx_get_gen_root (void)
+    ncx_get_gen_root (ncx_instance_t *instance)
 {
-    return gen_root;
+    return instance->gen_root;
 
 } /* ncx_get_gen_root */
 
@@ -3935,9 +4012,9 @@ obj_template_t *
  * \return pointer to generic binary object template
  */
 obj_template_t *
-    ncx_get_gen_binary (void)
+    ncx_get_gen_binary (ncx_instance_t *instance)
 {
-    return gen_binary;
+    return instance->gen_binary;
 
 } /* ncx_get_gen_binary */
 
@@ -3951,7 +4028,7 @@ obj_template_t *
  * \return const pointer to the string value
  */
 const xmlChar *
-    ncx_get_layer (ncx_layer_t  layer)
+    ncx_get_layer (ncx_instance_t *instance, ncx_layer_t  layer)
 {
     switch (layer) {
     case NCX_LAYER_NONE:
@@ -3965,7 +4042,7 @@ const xmlChar *
     case NCX_LAYER_CONTENT:
         return (const xmlChar *)"application";
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return (const xmlChar *)"--";
     }
 }  /* ncx_get_layer */
@@ -3981,7 +4058,8 @@ const xmlChar *
  * \return current string pointer after operation
  */
 const xmlChar *
-    ncx_get_name_segment (const xmlChar *str,
+    ncx_get_name_segment (ncx_instance_t *instance,
+                          const xmlChar *str,
                           xmlChar  *buff,
                           uint32 buffsize)
 {
@@ -3995,7 +4073,7 @@ const xmlChar *
     }
 
     if ((uint32)(teststr - str) >= buffsize) {
-        SET_ERROR(ERR_BUFF_OVFL);
+        SET_ERROR(instance, ERR_BUFF_OVFL);
         return NULL;
     }
 
@@ -4016,39 +4094,39 @@ const xmlChar *
  * \return enum value
  */
 ncx_cvttyp_t
-    ncx_get_cvttyp_enum (const char *str)
+    ncx_get_cvttyp_enum (ncx_instance_t *instance, const char *str)
 {
     assert ( str && " param str is NULL" );
 
-    if (!xml_strcmp(NCX_EL_XSD, (const xmlChar *)str)) {
+    if (!xml_strcmp(instance, NCX_EL_XSD, (const xmlChar *)str)) {
         return NCX_CVTTYP_XSD;
-    } else if (!xml_strcmp(NCX_EL_SQL, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_SQL, (const xmlChar *)str)) {
         return NCX_CVTTYP_SQL;
-    } else if (!xml_strcmp(NCX_EL_SQLDB, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_SQLDB, (const xmlChar *)str)) {
         return NCX_CVTTYP_SQLDB;
-    } else if (!xml_strcmp(NCX_EL_HTML, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_HTML, (const xmlChar *)str)) {
         return NCX_CVTTYP_HTML;
-    } else if (!xml_strcmp(NCX_EL_H, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_H, (const xmlChar *)str)) {
         return NCX_CVTTYP_H;
-    } else if (!xml_strcmp(NCX_EL_C, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_C, (const xmlChar *)str)) {
         return NCX_CVTTYP_C;
-    } else if (!xml_strcmp(NCX_EL_CPP_TEST, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_CPP_TEST, (const xmlChar *)str)) {
         return NCX_CVTTYP_CPP_TEST;
-    } else if (!xml_strcmp(NCX_EL_YANG, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_YANG, (const xmlChar *)str)) {
         return NCX_CVTTYP_YANG;
-    } else if (!xml_strcmp(NCX_EL_COPY, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_COPY, (const xmlChar *)str)) {
         return NCX_CVTTYP_COPY;
-    } else if (!xml_strcmp(NCX_EL_YIN, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_YIN, (const xmlChar *)str)) {
         return NCX_CVTTYP_YIN;
-    } else if (!xml_strcmp(NCX_EL_TG2, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_TG2, (const xmlChar *)str)) {
         return NCX_CVTTYP_TG2;
-    } else if (!xml_strcmp(NCX_EL_UC, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_UC, (const xmlChar *)str)) {
         return NCX_CVTTYP_UC;
-    } else if (!xml_strcmp(NCX_EL_UH, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_UH, (const xmlChar *)str)) {
         return NCX_CVTTYP_UH;
-    } else if (!xml_strcmp(NCX_EL_YC, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_YC, (const xmlChar *)str)) {
         return NCX_CVTTYP_YC;
-    } else if (!xml_strcmp(NCX_EL_YH, (const xmlChar *)str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_YH, (const xmlChar *)str)) {
         return NCX_CVTTYP_YH;
     } else {
         return NCX_CVTTYP_NONE;
@@ -4066,15 +4144,15 @@ ncx_cvttyp_t
  * \return enum value
  */
 ncx_status_t
-    ncx_get_status_enum (const xmlChar *str)
+    ncx_get_status_enum (ncx_instance_t *instance, const xmlChar *str)
 {
     assert ( str && " param str is NULL" );
 
-    if (!xml_strcmp(NCX_EL_CURRENT, str)) {
+    if (!xml_strcmp(instance, NCX_EL_CURRENT, str)) {
         return NCX_STATUS_CURRENT;
-    } else if (!xml_strcmp(NCX_EL_DEPRECATED, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_DEPRECATED, str)) {
         return NCX_STATUS_DEPRECATED;
-    } else if (!xml_strcmp(NCX_EL_OBSOLETE, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_OBSOLETE, str)) {
         return NCX_STATUS_OBSOLETE;
     } else {
         return NCX_STATUS_NONE;
@@ -4092,7 +4170,7 @@ ncx_status_t
  * \return string name of the enum value 
  */
 const xmlChar *
-    ncx_get_status_string (ncx_status_t status)
+    ncx_get_status_string (ncx_instance_t *instance, ncx_status_t status)
 {
     switch (status) {
     case NCX_STATUS_CURRENT:
@@ -4103,7 +4181,7 @@ const xmlChar *
     case NCX_STATUS_OBSOLETE:
         return NCX_EL_OBSOLETE;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return (const xmlChar *)"none";
     }
     /*NOTREACHED*/
@@ -4120,7 +4198,8 @@ const xmlChar *
  * \return status of the operation
  */
 status_t
-    ncx_check_yang_status (ncx_status_t mystatus,
+    ncx_check_yang_status (ncx_instance_t *instance,
+                           ncx_status_t mystatus,
                            ncx_status_t depstatus)
 {
     switch (mystatus) {
@@ -4136,7 +4215,7 @@ status_t
         case NCX_STATUS_OBSOLETE:
             return ERR_NCX_USING_OBSOLETE;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         /*NOTRECHED*/
     case NCX_STATUS_DEPRECATED:
@@ -4150,7 +4229,7 @@ status_t
         case NCX_STATUS_OBSOLETE:
             return ERR_NCX_USING_OBSOLETE;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         /*NOTREACHED*/
     case NCX_STATUS_OBSOLETE:
@@ -4158,7 +4237,7 @@ status_t
         return NO_ERR;
     case NCX_STATUS_NONE:
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     /*NOTREACHED*/
 
@@ -4173,9 +4252,9 @@ status_t
  *         FALSE descriptive strings should not be saved
  */
 boolean 
-    ncx_save_descr (void)
+    ncx_save_descr (ncx_instance_t *instance)
 {
-    return save_descr;
+    return instance->save_descr;
 }  /* ncx_save_descr */
 
 // ----------------------------------------------------------------------------!
@@ -4189,11 +4268,12 @@ boolean
  * \return none
  */
 void
-    ncx_print_errormsg (tk_chain_t *tkc,
+    ncx_print_errormsg (ncx_instance_t *instance,
+                        tk_chain_t *tkc,
                         ncx_module_t  *mod,
                         status_t     res)
 {
-    ncx_print_errormsg_ex(tkc, mod, res, NULL, 0, TRUE);
+    ncx_print_errormsg_ex(instance, tkc, mod, res, NULL, 0, TRUE);
 
 } /* ncx_print_errormsg */
 
@@ -4211,7 +4291,8 @@ void
  * \return none
  */
 void
-    ncx_print_errormsg_ex (tk_chain_t *tkc,
+    ncx_print_errormsg_ex (ncx_instance_t *instance,
+                           tk_chain_t *tkc,
                            ncx_module_t  *mod,
                            status_t     res,
                            const char *filename,
@@ -4219,14 +4300,14 @@ void
                            boolean fineoln)
 {
     if (res == NO_ERR) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     boolean iserr = (res <= ERR_LAST_USR_ERR) ? TRUE : FALSE;
 
-    if (!iserr && !ncx_warning_enabled(res)) {
-         log_debug3("\nSuppressed warning %d (%s.%u)", res, 
+    if (!iserr && !ncx_warning_enabled(instance, res)) {
+         log_debug3(instance, "\nSuppressed warning %d (%s.%u)", res, 
                get_error_string(res),
                ( mod ? (const xmlChar*)mod->name : (const xmlChar*)"UNKNOWN" ),
                linenum);
@@ -4252,35 +4333,38 @@ void
     }
 
     if (tkc && tkc->curerr && tkc->curerr->mod) {
-        log_write("\n%s:", (tkc->curerr->mod->sourcefn) ? 
+        log_write(instance, "\n%s:", (tkc->curerr->mod->sourcefn) ? 
                   (const char *)tkc->curerr->mod->sourcefn : "--");
     } else if (mod && mod->sourcefn) {
-        log_write("\n%s:", (mod->sourcefn) ? 
+        log_write(instance, "\n%s:", (mod->sourcefn) ? 
                   (const char *)mod->sourcefn : "--");
     } else if (tkc && tkc->filename) {
-        log_write("\n%s:", tkc->filename);
+        log_write(instance, "\n%s:", tkc->filename);
     } else if (filename) {
-        log_write("\n%s:", filename);
+        log_write(instance, "\n%s:", filename);
         if (linenum) {
-            log_write("line %u:", linenum);
+            log_write(instance, "line %u:", linenum);
         }
     } else {
-        log_write("\n");
+        log_write(instance, "\n");
     }
 
     if (tkc) {
         if (tkc->curerr && tkc->curerr->mod) {
-            log_write("%u.%u:", 
+            log_write(instance, 
+                      "%u.%u:", 
                       tkc->curerr->linenum, 
                       tkc->curerr->linepos);
         } else if (tkc->cur && 
                    (tkc->cur != (tk_token_t *)&tkc->tkQ) &&
                    TK_CUR_VAL(tkc)) {
-            log_write("%u.%u:", 
+            log_write(instance, 
+                      "%u.%u:", 
                       TK_CUR_LNUM(tkc), 
                       TK_CUR_LPOS(tkc));
         } else {
-            log_write("%u.%u:", 
+            log_write(instance, 
+                      "%u.%u:", 
                       tkc->linenum, 
                       tkc->linepos);
 
@@ -4289,13 +4373,13 @@ void
     }
 
     if (iserr) {
-        log_write(" error(%u): %s", res, get_error_string(res));
+        log_write(instance, " error(%u): %s", res, get_error_string(res));
     } else {
-        log_write(" warning(%u): %s", res, get_error_string(res));
+        log_write(instance, " warning(%u): %s", res, get_error_string(res));
     }
 
     if (fineoln) {
-        log_write("\n");
+        log_write(instance, "\n");
     }
 
 } /* ncx_print_errormsg_ex */
@@ -4311,18 +4395,20 @@ void
  * \return none
  */
 void
-    ncx_conf_exp_err (tk_chain_t  *tkc,
+    ncx_conf_exp_err (ncx_instance_t *instance,
+                      tk_chain_t  *tkc,
                       status_t result,
                       const char *expstr)
 {
-    ncx_print_errormsg_ex(tkc, 
+    ncx_print_errormsg_ex(instance, 
+                          tkc, 
                           NULL, 
                           result, 
                           NULL, 
                           0,
                           (expstr) ? FALSE : TRUE);
     if (expstr) {
-        log_write("  Expected: %s\n", expstr);
+        log_write(instance, "  Expected: %s\n", expstr);
     }
 
 }  /* ncx_conf_exp_err */
@@ -4339,7 +4425,8 @@ void
  * \return none
  */
 void
-    ncx_mod_exp_err (tk_chain_t  *tkc,
+    ncx_mod_exp_err (ncx_instance_t *instance,
+                     tk_chain_t  *tkc,
                      ncx_module_t *mod,
                      status_t result,
                      const char *expstr)
@@ -4367,13 +4454,13 @@ void
 
     if (LOGERROR) {
         if (gotval && expstr) {
-            log_error("\nError:  Got '%s', Expected: %s", gotval, expstr);
+            log_error(instance, "\nError:  Got '%s', Expected: %s", gotval, expstr);
         } else if (expstr) {
-            log_error("\nError:  Expected: %s", expstr);
+            log_error(instance, "\nError:  Expected: %s", expstr);
         }
-        ncx_print_errormsg_ex(tkc, mod, result, NULL, 0,
+        ncx_print_errormsg_ex(instance, tkc, mod, result, NULL, 0,
                               (expstr) ? FALSE : TRUE);
-        log_error("\n");
+        log_error(instance, "\n");
     }
 
     if (skip) {
@@ -4387,7 +4474,7 @@ void
         boolean done = FALSE;
         status_t res = NO_ERR;
         while (!done && res == NO_ERR) {
-            res = TK_ADV(tkc);
+            res = TK_ADV(instance, tkc);
             if (res == NO_ERR) {
                 tktyp = TK_CUR_TYP(tkc);
                 if (tktyp == TK_TT_LBRACE) {
@@ -4417,28 +4504,31 @@ void
  * \return none
  */
 void
-    ncx_mod_missing_err (tk_chain_t  *tkc,
+    ncx_mod_missing_err (ncx_instance_t *instance,
+                         tk_chain_t  *tkc,
                          ncx_module_t *mod,
                          const char *stmtstr,
                          const char *expstr)
 {
     if (LOGERROR) {
         if (stmtstr && expstr) {
-            log_error("\nError: '%s' statement missing "
+            log_error(instance, 
+                      "\nError: '%s' statement missing "
                       "mandatory '%s' sub-statement", 
                       stmtstr, 
                       expstr);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
-        ncx_print_errormsg_ex(tkc, 
+        ncx_print_errormsg_ex(instance, 
+                              tkc, 
                               mod, 
                               ERR_NCX_DATA_MISSING,
                               NULL, 
                               0,
                               (expstr) ? FALSE : TRUE);
-        log_error("\n");
+        log_error(instance, "\n");
     }
 
 }  /* ncx_mod_missing_err */
@@ -4453,39 +4543,40 @@ void
  * \return none
  */
 void
-    ncx_free_node (ncx_node_t nodetyp,
+    ncx_free_node (ncx_instance_t *instance,
+                   ncx_node_t nodetyp,
                    void *node)
 {
     assert ( node && " param node is NULL" );
 
     switch (nodetyp) {
     case NCX_NT_NONE:                          /* uninitialized */
-        m__free(node);
+        m__free(instance, node);
         break;
     case NCX_NT_TYP:                          /* typ_template_t */
-        typ_free_template(node);
+        typ_free_template(instance, node);
         break;
     case NCX_NT_GRP:                          /* grp_template_t */
-        grp_free_template(node);
+        grp_free_template(instance, node);
         break;
     case NCX_NT_VAL:                             /* val_value_t */
-        val_free_value(node);
+        val_free_value(instance, node);
         break;
     case NCX_NT_OBJ:                          /* obj_template_t */
-        obj_free_template(node);
+        obj_free_template(instance, node);
         break;
     case NCX_NT_STRING:                       /* xmlChar string */
-        m__free(node);
+        m__free(instance, node);
         break;
     case NCX_NT_CFG:                          /* cfg_template_t */
-        cfg_free_template(node);
+        cfg_free_template(instance, node);
         break;
     case NCX_NT_QNAME:                         /* xmlns_qname_t */
-        xmlns_free_qname(node);
+        xmlns_free_qname(instance, node);
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
-        m__free(node);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
+        m__free(instance, node);
     }
 
 } /* ncx_free_node */
@@ -4499,14 +4590,14 @@ void
  * \return enum value
  */
 ncx_data_class_t
-    ncx_get_data_class_enum (const xmlChar *str)
+    ncx_get_data_class_enum (ncx_instance_t *instance, const xmlChar *str)
 {
     if (!str) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_DC_NONE;
-    } else if (!xml_strcmp(NCX_EL_CONFIG, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_CONFIG, str)) {
         return NCX_DC_CONFIG;
-    } else if (!xml_strcmp(NCX_EL_STATE, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_STATE, str)) {
         return NCX_DC_STATE;
     } else {
         /* SET_ERROR(ERR_INTERNAL_VAL); */
@@ -4525,7 +4616,7 @@ ncx_data_class_t
  * \return string value for the enum
  */
 const xmlChar *
-    ncx_get_data_class_str (ncx_data_class_t dataclass)
+    ncx_get_data_class_str (ncx_instance_t *instance, ncx_data_class_t dataclass)
 {
     switch (dataclass) {
     case NCX_DC_NONE:
@@ -4535,7 +4626,7 @@ const xmlChar *
     case NCX_DC_STATE:
         return NCX_EL_STATE;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -4573,18 +4664,18 @@ const xmlChar *
  * \return enum value
  */
 ncx_access_t
-    ncx_get_access_enum (const xmlChar *str)
+    ncx_get_access_enum (ncx_instance_t *instance, const xmlChar *str)
 {
     assert ( str && " param str is NULL" );
 
-    if (!xml_strcmp(NCX_EL_ACCESS_RO, str)) {
+    if (!xml_strcmp(instance, NCX_EL_ACCESS_RO, str)) {
         return NCX_ACCESS_RO;
-    } else if (!xml_strcmp(NCX_EL_ACCESS_RW, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_ACCESS_RW, str)) {
         return NCX_ACCESS_RW;
-    } else if (!xml_strcmp(NCX_EL_ACCESS_RC, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_ACCESS_RC, str)) {
         return NCX_ACCESS_RC;
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_ACCESS_NONE;
     }
     /*NOTREACHED*/
@@ -4600,7 +4691,7 @@ ncx_access_t
  * \return tclass enum 
  */
 ncx_tclass_t
-    ncx_get_tclass (ncx_btype_t btyp)
+    ncx_get_tclass (ncx_instance_t *instance, ncx_btype_t btyp)
 {
     switch (btyp) {
     case NCX_BT_NONE:
@@ -4632,7 +4723,7 @@ ncx_tclass_t
     case NCX_BT_CASE:
         return NCX_CL_COMPLEX;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_CL_NONE;
     }
 }  /* ncx_get_tclass */
@@ -4732,10 +4823,10 @@ boolean
  * \return TRUE if a valid name string, FALSE otherwise
  */
 boolean
-    ncx_valid_name2 (const xmlChar *str)
+    ncx_valid_name2 (ncx_instance_t *instance, const xmlChar *str)
 {
     assert ( str && " param str is NULL" );
-    return ncx_valid_name(str, xml_strlen(str));
+    return ncx_valid_name(str, xml_strlen(instance, str));
 
 } /* ncx_valid_name2 */
 
@@ -4786,12 +4877,12 @@ status_t
  * FALSE otherwise
  */
 boolean
-    ncx_is_true (const xmlChar *str)
+    ncx_is_true (ncx_instance_t *instance, const xmlChar *str)
 {
     assert ( str && " param str is NULL" );
 
-    if (!xml_strcmp(str, (const xmlChar *)"true") ||
-        !xml_strcmp(str, (const xmlChar *)"1")) {
+    if (!xml_strcmp(instance, str, (const xmlChar *)"true") ||
+        !xml_strcmp(instance, str, (const xmlChar *)"1")) {
         return TRUE;
     } else {
         return FALSE;
@@ -4809,12 +4900,12 @@ boolean
  * FALSE otherwise
  */
 boolean
-    ncx_is_false (const xmlChar *str)
+    ncx_is_false (ncx_instance_t *instance, const xmlChar *str)
 {
     assert ( str && " param str is NULL" );
 
-    if (!xml_strcmp(str, (const xmlChar *)"false") ||
-        !xml_strcmp(str, (const xmlChar *)"0")) {
+    if (!xml_strcmp(instance, str, (const xmlChar *)"false") ||
+        !xml_strcmp(instance, str, (const xmlChar *)"0")) {
         return TRUE;
     } else {
         return FALSE;
@@ -4840,26 +4931,27 @@ boolean
  * \return status of the operation
  */
 status_t 
-    ncx_consume_tstring (tk_chain_t *tkc,
+    ncx_consume_tstring (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          ncx_module_t *mod,
                          const xmlChar *name,
                          ncx_opt_t opt)
 {
     assert ( tkc && " param tkc is NULL" );
 
-    status_t res = TK_ADV(tkc);
+    status_t res = TK_ADV(instance, tkc);
     if (res == NO_ERR) {
         if (TK_CUR_TYP(tkc) != TK_TT_TSTRING) {
             if (opt==NCX_OPT) {
-                TK_BKUP(tkc);
+                TK_BKUP(instance, tkc);
                 return ERR_NCX_SKIPPED;
             } else {
                 res = ERR_NCX_WRONG_TKTYPE;
             }
         } else {
-            if (xml_strcmp(TK_CUR_VAL(tkc), name)) {
+            if (xml_strcmp(instance, TK_CUR_VAL(tkc), name)) {
                 if (opt==NCX_OPT) {
-                    TK_BKUP(tkc);
+                    TK_BKUP(instance, tkc);
                     return ERR_NCX_SKIPPED;
                 } else {
                     res = ERR_NCX_WRONG_TKVAL;
@@ -4869,7 +4961,7 @@ status_t
     }
 
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
     }
 
     return res;
@@ -4896,7 +4988,8 @@ status_t
  * \return status of the operation
  */
 status_t 
-    ncx_consume_name (tk_chain_t *tkc,
+    ncx_consume_name (ncx_instance_t *instance,
+                      tk_chain_t *tkc,
                       ncx_module_t *mod,
                       const xmlChar *name,
                       xmlChar **namebuff,
@@ -4911,28 +5004,28 @@ status_t
     const char *expstr = "name string";
 
     /* check 'name' token */
-    status_t res = TK_ADV(tkc);
+    status_t res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_mod_exp_err(tkc, mod, res, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         return res;
     }
     if (TK_CUR_TYP(tkc) != TK_TT_TSTRING) {
         if (opt==NCX_OPT) {
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             return ERR_NCX_SKIPPED;
         } else {
             res = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         }
     }
     
-    if (res==NO_ERR && xml_strcmp(TK_CUR_VAL(tkc), name)) {
+    if (res==NO_ERR && xml_strcmp(instance, TK_CUR_VAL(tkc), name)) {
         if (opt==NCX_OPT) {
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             return ERR_NCX_SKIPPED;
         } else {
             res = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         }
     }
 
@@ -4940,19 +5033,19 @@ status_t
     expstr = "name string";
 
     /* check string value token */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_mod_exp_err(tkc, mod, res, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         return res;
     } else {
         if (TK_CUR_TYP(tkc) != TK_TT_TSTRING) {
             res = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         } else {
-            *namebuff = xml_strdup(TK_CUR_VAL(tkc));
+            *namebuff = xml_strdup(instance, TK_CUR_VAL(tkc));
             if (!*namebuff) {
                 res = ERR_INTERNAL_MEM;
-                ncx_print_errormsg(tkc, mod, res);
+                ncx_print_errormsg(instance, tkc, mod, res);
                 return res;
             }
         }
@@ -4963,13 +5056,13 @@ status_t
 
     /* check for a closing token */
     if (ctyp != TK_TT_NONE) {
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         } else {
             if (TK_CUR_TYP(tkc) != ctyp) {
                 res = ERR_NCX_WRONG_TKTYPE;
-                ncx_mod_exp_err(tkc, mod, res, expstr);
+                ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             }
         }
         CHK_EXIT(res, retres);
@@ -4994,7 +5087,8 @@ status_t
  * \return status of the operation
  */
 status_t 
-    ncx_consume_token (tk_chain_t *tkc,
+    ncx_consume_token (ncx_instance_t *instance,
+                       tk_chain_t *tkc,
                        ncx_module_t *mod,
                        tk_type_t  ttyp)
 {
@@ -5002,9 +5096,9 @@ status_t
 
     const char  *tkname;
 
-    status_t res = TK_ADV(tkc);
+    status_t res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -5015,7 +5109,7 @@ status_t
         tkname = tk_get_token_name(ttyp);
         switch (tkc->source) {
         case TK_SOURCE_YANG:
-            ncx_mod_exp_err(tkc, mod, res, tkname);
+            ncx_mod_exp_err(instance, tkc, mod, res, tkname);
 
             /* if a token is missing and the token
              * parsed instead looks like the continuation
@@ -5029,7 +5123,7 @@ status_t
                 case TK_TT_TSTRING:
                 case TK_TT_MSTRING:
                 case TK_TT_RBRACE:
-                    TK_BKUP(tkc);
+                    TK_BKUP(instance, tkc);
                     break;
                 default:
                     ;
@@ -5039,7 +5133,7 @@ status_t
                 switch (TK_CUR_TYP(tkc)) {
                 case TK_TT_TSTRING:
                 case TK_TT_MSTRING:
-                    TK_BKUP(tkc);
+                    TK_BKUP(instance, tkc);
                     break;
                 default:
                     ;
@@ -5067,9 +5161,9 @@ status_t
  * \return pointer to malloced ncx_errinfo_t, or NULL if memory error
  */
 ncx_errinfo_t *
-    ncx_new_errinfo (void)
+    ncx_new_errinfo (ncx_instance_t *instance)
 {
-    ncx_errinfo_t *err = m__getObj(ncx_errinfo_t);
+    ncx_errinfo_t *err = m__getObj(instance, ncx_errinfo_t);
     if (!err) {
         return NULL;
     }
@@ -5104,24 +5198,24 @@ void
  * \return none
  */
 void 
-    ncx_clean_errinfo (ncx_errinfo_t *err)
+    ncx_clean_errinfo (ncx_instance_t *instance, ncx_errinfo_t *err)
 {
     assert ( err && " param err is NULL" );
 
     if (err->descr) {
-        m__free(err->descr);
+        m__free(instance, err->descr);
         err->descr = NULL;
     }
     if (err->ref) {
-        m__free(err->ref);
+        m__free(instance, err->ref);
         err->ref = NULL;
     }
     if (err->error_app_tag) {
-        m__free(err->error_app_tag);
+        m__free(instance, err->error_app_tag);
         err->error_app_tag = NULL;
     }
     if (err->error_message) {
-        m__free(err->error_message);
+        m__free(instance, err->error_message);
         err->error_message = NULL;
     }
 
@@ -5137,11 +5231,11 @@ void
  * \return none
  */
 void 
-    ncx_free_errinfo (ncx_errinfo_t *err)
+    ncx_free_errinfo (ncx_instance_t *instance, ncx_errinfo_t *err)
 {
     assert ( err && " param err is NULL" );
-    ncx_clean_errinfo(err);
-    m__free(err);
+    ncx_clean_errinfo(instance, err);
+    m__free(instance, err);
 
 }  /* ncx_free_errinfo */
 
@@ -5179,7 +5273,8 @@ boolean
  * \return status
  */
 status_t
-    ncx_copy_errinfo (const ncx_errinfo_t *src,
+    ncx_copy_errinfo (ncx_instance_t *instance,
+                      const ncx_errinfo_t *src,
                       ncx_errinfo_t *dest)
 {
     assert ( src && " param src is NULL" );
@@ -5187,9 +5282,9 @@ status_t
 
     if (src->descr) {
         if (dest->descr) {
-            m__free(dest->descr);
+            m__free(instance, dest->descr);
         }
-        dest->descr = xml_strdup(src->descr);
+        dest->descr = xml_strdup(instance, src->descr);
         if (!dest->descr) {
             return ERR_INTERNAL_MEM;
         }
@@ -5197,9 +5292,9 @@ status_t
 
     if (src->ref) {
         if (dest->ref) {
-            m__free(dest->ref);
+            m__free(instance, dest->ref);
         }
-        dest->ref = xml_strdup(src->ref);
+        dest->ref = xml_strdup(instance, src->ref);
         if (!dest->ref) {
             return ERR_INTERNAL_MEM;
         }
@@ -5207,9 +5302,9 @@ status_t
 
     if (src->error_app_tag) {
         if (dest->error_app_tag) {
-            m__free(dest->error_app_tag);
+            m__free(instance, dest->error_app_tag);
         }
-        dest->error_app_tag = xml_strdup(src->error_app_tag);
+        dest->error_app_tag = xml_strdup(instance, src->error_app_tag);
         if (!dest->error_app_tag) {
             return ERR_INTERNAL_MEM;
         }
@@ -5217,9 +5312,9 @@ status_t
 
     if (src->error_message) {
         if (dest->error_message) {
-            m__free(dest->error_message);
+            m__free(instance, dest->error_message);
         }
-        dest->error_message = xml_strdup(src->error_message);
+        dest->error_message = xml_strdup(instance, src->error_message);
         if (!dest->error_message) {
             return ERR_INTERNAL_MEM;
         }
@@ -5249,7 +5344,8 @@ status_t
  * \return malloced buffer containing possibly expanded full filespec
  */
 xmlChar *
-    ncx_get_source_ex (const xmlChar *fspec,
+    ncx_get_source_ex (ncx_instance_t *instance,
+                       const xmlChar *fspec,
                        boolean expand_cwd,
                        status_t *res)
 {
@@ -5276,7 +5372,7 @@ xmlChar *
 
     if (*p == NCXMOD_PSCHAR) {
         /* absolute path */
-        buff = xml_strdup(fspec);
+        buff = xml_strdup(instance, fspec);
         if (!buff) {
             *res = ERR_INTERNAL_MEM;
         }
@@ -5290,16 +5386,17 @@ xmlChar *
                 p++;
             }
             userlen = (uint32)(p-start);
-            user = ncxmod_get_userhome(start, userlen);
+            user = ncxmod_get_userhome(instance, start, userlen);
         } else {
             /* implied current user */
             p++;   /* skip ~ char */
             /* get current user home dir */
-            user = ncxmod_get_userhome(NULL, 0);
+            user = ncxmod_get_userhome(instance, NULL, 0);
         }
 
         if (user == NULL) {
-            log_error("\nError: invalid user name in path string (%s)",
+            log_error(instance,
+                      "\nError: invalid user name in path string (%s)",
                       fspec);
             *res = ERR_NCX_INVALID_VALUE;
             return NULL;
@@ -5308,16 +5405,16 @@ xmlChar *
         /* string pointer 'p' stopped on the PSCHAR to start the
          * rest of the path string
          */
-        len = xml_strlen(user) + xml_strlen(p);
-        buff = m__getMem(len+1);
+        len = xml_strlen(instance, user) + xml_strlen(instance, p);
+        buff = m__getMem(instance, len+1);
         if (buff == NULL) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
 
         bp = buff;
-        bp += xml_strcpy(bp, user);
-        xml_strcpy(bp, p);
+        bp += xml_strcpy(instance, bp, user);
+        xml_strcpy(instance, bp, p);
     } else if (*p == NCXMOD_ENVCHAR) {
         /* should start with $ENVVAR/some/path */
         start = ++p;  /* skip dollar sign */
@@ -5326,7 +5423,7 @@ xmlChar *
         }
         userlen = (uint32)(p-start);
         if (userlen) {
-            user = ncxmod_get_envvar(start, userlen);
+            user = ncxmod_get_envvar(instance, start, userlen);
         }
 
         len = 0;
@@ -5335,20 +5432,21 @@ xmlChar *
              * could be something like $DESTDIR/usr/share
              */
             if (LOGDEBUG) {
-                log_debug("\nEnvironment variable not "
+                log_debug(instance,
+                          "\nEnvironment variable not "
                           "found in path string (%s)",
                           fspec);
             }
         } else {
-            len = xml_strlen(user);
+            len = xml_strlen(instance, user);
         }
 
         /* string pointer 'p' stopped on the PSCHAR to start the
          * rest of the path string
          */
-        len += xml_strlen(p);
+        len += xml_strlen(instance, p);
 
-        buff = m__getMem(len+1);
+        buff = m__getMem(instance, len+1);
         if (buff == NULL) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
@@ -5356,9 +5454,9 @@ xmlChar *
 
         bp = buff;
         if (user) {
-            bp += xml_strcpy(bp, user);
+            bp += xml_strcpy(instance, bp, user);
         }
-        xml_strcpy(bp, p);
+        xml_strcpy(instance, bp, p);
     } else if ((*p == NCXMOD_DOTCHAR && p[1] == NCXMOD_PSCHAR) ||
                (*p != NCXMOD_DOTCHAR && expand_cwd)) {
 
@@ -5370,33 +5468,33 @@ xmlChar *
 	}
 
         /* prepend string with current directory */
-        buff = m__getMem(DIRBUFF_SIZE);
+        buff = m__getMem(instance, DIRBUFF_SIZE);
         if (buff == NULL) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
 
         if (!getcwd((char *)buff, DIRBUFF_SIZE)) {
-            SET_ERROR(ERR_BUFF_OVFL);
-            m__free(buff);
+            SET_ERROR(instance, ERR_BUFF_OVFL);
+            m__free(instance, buff);
             return NULL;
         }
             
-        bufflen = xml_strlen(buff);
+        bufflen = xml_strlen(instance, buff);
 
-        if ((bufflen + xml_strlen(p) + 2) >= DIRBUFF_SIZE) {
+        if ((bufflen + xml_strlen(instance, p) + 2) >= DIRBUFF_SIZE) {
             *res = ERR_BUFF_OVFL;
-            m__free(buff);
+            m__free(instance, buff);
             return NULL;
         }
 
         if (!with_dot) {
             buff[bufflen++] = NCXMOD_PSCHAR;
         }
-        xml_strcpy(&buff[bufflen], p);
+        xml_strcpy(instance, &buff[bufflen], p);
     } else {
         /* probably contains ../ and that is not handled yet */
-        buff = xml_strdup(fspec);
+        buff = xml_strdup(instance, fspec);
         if (buff == NULL) {
             *res = ERR_INTERNAL_MEM;
         }
@@ -5435,10 +5533,11 @@ xmlChar *
 *   malloced buffer containing possibly expanded full filespec
 *********************************************************************/
 xmlChar *
-    ncx_get_source (const xmlChar *fspec,
+    ncx_get_source (ncx_instance_t *instance,
+                    const xmlChar *fspec,
                     status_t *res)
 {
-    return ncx_get_source_ex(fspec, TRUE, res);
+    return ncx_get_source_ex(instance, fspec, TRUE, res);
 }  /* ncx_get_source */
 
 
@@ -5452,10 +5551,10 @@ xmlChar *
 *    que == Q of ncx_module_t to use
 *********************************************************************/
 void
-    ncx_set_cur_modQ (dlq_hdr_t *que)
+    ncx_set_cur_modQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     assert ( que && " param que is NULL");
-    ncx_curQ = que;
+    instance->ncx_curQ = que;
 
 }  /* ncx_set_cur_modQ */
 
@@ -5467,9 +5566,9 @@ void
 *
 *********************************************************************/
 void
-    ncx_reset_modQ (void)
+    ncx_reset_modQ (ncx_instance_t *instance)
 {
-    ncx_curQ = &ncx_modQ;
+    instance->ncx_curQ = &instance->ncx_modQ;
 
 }  /* ncx_reset_modQ */
 
@@ -5490,10 +5589,10 @@ void
 *    que == Q of ncx_module_t to use
 *********************************************************************/
 void
-    ncx_set_session_modQ (dlq_hdr_t *que)
+    ncx_set_session_modQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     assert ( que && " param que is NULL");
-    ncx_sesmodQ = que;
+    instance->ncx_sesmodQ = que;
 
 }  /* ncx_set_sesion_modQ */
 
@@ -5511,10 +5610,10 @@ void
 *
 *********************************************************************/
 void
-    ncx_clear_session_modQ (void)
+    ncx_clear_session_modQ (ncx_instance_t *instance)
 {
 
-    ncx_sesmodQ = NULL;
+    instance->ncx_sesmodQ = NULL;
 
 }  /* ncx_clear_sesion_modQ */
 
@@ -5529,10 +5628,10 @@ void
 *
 *********************************************************************/
 void
-    ncx_set_load_callback (ncx_load_cbfn_t cbfn)
+    ncx_set_load_callback (ncx_instance_t *instance, ncx_load_cbfn_t cbfn)
 {
 
-    mod_load_callback = cbfn;
+    instance->mod_load_callback = cbfn;
 
 }  /* ncx_set_load_callback */
 
@@ -5552,7 +5651,8 @@ void
 *   FALSE if prefix1 and prefix2 reference the same modules
 *********************************************************************/
 boolean
-    ncx_prefix_different (const xmlChar *prefix1,
+    ncx_prefix_different (ncx_instance_t *instance,
+                          const xmlChar *prefix1,
                           const xmlChar *prefix2,
                           const xmlChar *modprefix)
 {
@@ -5568,7 +5668,7 @@ boolean
     if (prefix1 == NULL || prefix2 == NULL) {
         return TRUE;
     }
-    return (xml_strcmp(prefix1, prefix2)) ? TRUE : FALSE;
+    return (xml_strcmp(instance, prefix1, prefix2)) ? TRUE : FALSE;
 
 }  /* ncx_prefix_different */
 
@@ -5586,17 +5686,17 @@ boolean
 *   NCX_BAD_DATA_NONE if an error
 *********************************************************************/
 ncx_bad_data_t
-    ncx_get_baddata_enum (const xmlChar *valstr)
+    ncx_get_baddata_enum (ncx_instance_t *instance, const xmlChar *valstr)
 {
     assert ( valstr && " param valstr is NULL");
 
-    if (!xml_strcmp(valstr, E_BAD_DATA_IGNORE)) {
+    if (!xml_strcmp(instance, valstr, E_BAD_DATA_IGNORE)) {
         return NCX_BAD_DATA_IGNORE;
-    } else if (!xml_strcmp(valstr, E_BAD_DATA_WARN)) {
+    } else if (!xml_strcmp(instance, valstr, E_BAD_DATA_WARN)) {
         return NCX_BAD_DATA_WARN;
-    } else if (!xml_strcmp(valstr, E_BAD_DATA_CHECK)) {
+    } else if (!xml_strcmp(instance, valstr, E_BAD_DATA_CHECK)) {
         return NCX_BAD_DATA_CHECK;
-    } else if (!xml_strcmp(valstr, E_BAD_DATA_ERROR)) {
+    } else if (!xml_strcmp(instance, valstr, E_BAD_DATA_ERROR)) {
         return NCX_BAD_DATA_ERROR;
     } else {
         return NCX_BAD_DATA_NONE;
@@ -5619,7 +5719,7 @@ ncx_bad_data_t
 *   NULL if an error
 *********************************************************************/
 const xmlChar *
-    ncx_get_baddata_string (ncx_bad_data_t baddata)
+    ncx_get_baddata_string (ncx_instance_t *instance, ncx_bad_data_t baddata)
 {
     switch (baddata) {
     case NCX_BAD_DATA_NONE:
@@ -5633,7 +5733,7 @@ const xmlChar *
     case NCX_BAD_DATA_ERROR:
         return E_BAD_DATA_ERROR;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
@@ -5653,7 +5753,7 @@ const xmlChar *
 *   NULL if an error
 *********************************************************************/
 const xmlChar *
-    ncx_get_withdefaults_string (ncx_withdefaults_t withdef)
+    ncx_get_withdefaults_string (ncx_instance_t *instance, ncx_withdefaults_t withdef)
 {
     switch (withdef) {
     case NCX_WITHDEF_NONE:
@@ -5667,7 +5767,7 @@ const xmlChar *
     case NCX_WITHDEF_EXPLICIT:
         return NCX_EL_EXPLICIT;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
@@ -5687,17 +5787,17 @@ const xmlChar *
 *   NCX_WITHDEF_NONE if invalid value
 *********************************************************************/
 ncx_withdefaults_t
-    ncx_get_withdefaults_enum (const xmlChar *withdefstr)
+    ncx_get_withdefaults_enum (ncx_instance_t *instance, const xmlChar *withdefstr)
 {
     assert ( withdefstr && " param withdefstr is NULL");
 
-    if (!xml_strcmp(withdefstr, NCX_EL_REPORT_ALL)) {
+    if (!xml_strcmp(instance, withdefstr, NCX_EL_REPORT_ALL)) {
         return NCX_WITHDEF_REPORT_ALL;
-    } else if (!xml_strcmp(withdefstr, NCX_EL_REPORT_ALL_TAGGED)) {
+    } else if (!xml_strcmp(instance, withdefstr, NCX_EL_REPORT_ALL_TAGGED)) {
         return NCX_WITHDEF_REPORT_ALL_TAGGED;
-    } else if (!xml_strcmp(withdefstr, NCX_EL_TRIM)) {
+    } else if (!xml_strcmp(instance, withdefstr, NCX_EL_TRIM)) {
         return NCX_WITHDEF_TRIM;
-    } else if (!xml_strcmp(withdefstr, NCX_EL_EXPLICIT)) {
+    } else if (!xml_strcmp(instance, withdefstr, NCX_EL_EXPLICIT)) {
         return NCX_WITHDEF_EXPLICIT;
     } else {
         return NCX_WITHDEF_NONE;
@@ -5764,21 +5864,21 @@ const xmlChar *
 *   NCX_DISPLAY_MODE_NONE if invalid value
 *********************************************************************/
 ncx_display_mode_t
-    ncx_get_display_mode_enum (const xmlChar *dmstr)
+    ncx_get_display_mode_enum (ncx_instance_t *instance, const xmlChar *dmstr)
 {
     assert ( dmstr && " param dmstr is NULL" );
 
-    if (!xml_strcmp(dmstr, NCX_EL_PLAIN)) {
+    if (!xml_strcmp(instance, dmstr, NCX_EL_PLAIN)) {
         return NCX_DISPLAY_MODE_PLAIN;
-    } else if (!xml_strcmp(dmstr, NCX_EL_PREFIX)) {
+    } else if (!xml_strcmp(instance, dmstr, NCX_EL_PREFIX)) {
         return NCX_DISPLAY_MODE_PREFIX;
-    } else if (!xml_strcmp(dmstr, NCX_EL_MODULE)) {
+    } else if (!xml_strcmp(instance, dmstr, NCX_EL_MODULE)) {
         return NCX_DISPLAY_MODE_MODULE;
-    } else if (!xml_strcmp(dmstr, NCX_EL_XML)) {
+    } else if (!xml_strcmp(instance, dmstr, NCX_EL_XML)) {
         return NCX_DISPLAY_MODE_XML;
-    } else if (!xml_strcmp(dmstr, NCX_EL_XML_NONS)) {
+    } else if (!xml_strcmp(instance, dmstr, NCX_EL_XML_NONS)) {
         return NCX_DISPLAY_MODE_XML_NONS;
-    } else if (!xml_strcmp(dmstr, NCX_EL_JSON)) {
+    } else if (!xml_strcmp(instance, dmstr, NCX_EL_JSON)) {
         return NCX_DISPLAY_MODE_JSON;
     } else {
         return NCX_DISPLAY_MODE_NONE;
@@ -5834,9 +5934,9 @@ const xmlChar *
 *
 *********************************************************************/
 void
-    ncx_set_warn_idlen (uint32 warnlen)
+    ncx_set_warn_idlen (ncx_instance_t *instance, uint32 warnlen)
 {
-    warn_idlen = warnlen;
+    instance->warn_idlen = warnlen;
 
 }  /* ncx_set_warn_idlen */
 
@@ -5850,9 +5950,9 @@ void
 *   warning length to use
 *********************************************************************/
 uint32
-    ncx_get_warn_idlen (void)
+    ncx_get_warn_idlen (ncx_instance_t *instance)
 {
-    return warn_idlen;
+    return instance->warn_idlen;
 
 }  /* ncx_get_warn_idlen */
 
@@ -5867,9 +5967,9 @@ uint32
 *
 *********************************************************************/
 void
-    ncx_set_warn_linelen (uint32 warnlen)
+    ncx_set_warn_linelen (ncx_instance_t *instance, uint32 warnlen)
 {
-    warn_linelen = warnlen;
+    instance->warn_linelen = warnlen;
 
 }  /* ncx_set_warn_linelen */
 
@@ -5884,9 +5984,9 @@ void
 *
 *********************************************************************/
 uint32
-    ncx_get_warn_linelen (void)
+    ncx_get_warn_linelen (ncx_instance_t *instance)
 {
-    return warn_linelen;
+    return instance->warn_linelen;
 
 }  /* ncx_get_warn_linelen */
 
@@ -5906,7 +6006,8 @@ uint32
 *    may generate log_warn ouput
 *********************************************************************/
 void
-    ncx_check_warn_idlen (tk_chain_t *tkc,
+    ncx_check_warn_idlen (ncx_instance_t *instance,
+                          tk_chain_t *tkc,
                           ncx_module_t *mod,
                           const xmlChar *id)
 {
@@ -5914,18 +6015,19 @@ void
 
     uint32   idlen;
 
-    if (!warn_idlen) {
+    if (!instance->warn_idlen) {
         return;
     }
 
-    idlen = xml_strlen(id);
-    if (idlen > warn_idlen) {
-        log_warn("\nWarning: identifier '%s' length is %u chars, "
+    idlen = xml_strlen(instance, id);
+    if (idlen > instance->warn_idlen) {
+        log_warn(instance,
+                 "\nWarning: identifier '%s' length is %u chars, "
                  "limit is %u chars",
                  id,
                  idlen,
-                 warn_idlen);
-        ncx_print_errormsg(tkc, mod, ERR_NCX_IDLEN_EXCEEDED);
+                 instance->warn_idlen);
+        ncx_print_errormsg(instance, tkc, mod, ERR_NCX_IDLEN_EXCEEDED);
     }
 
 } /* ncx_check_warn_idlen */
@@ -5946,16 +6048,19 @@ void
 *    may generate log_warn ouput
 *********************************************************************/
 void
-    ncx_check_warn_linelen (tk_chain_t *tkc,
+    ncx_check_warn_linelen (ncx_instance_t *instance,
+                            tk_chain_t *tkc,
                             ncx_module_t *mod,
                             const xmlChar *line)
 {
     assert ( line && " param line is NULL" );
+    (void)tkc;
+    (void)mod;
 
     const xmlChar   *str;
     uint32           len;
 
-    if (!warn_linelen) {
+    if (!instance->warn_linelen) {
         return;
     }
 
@@ -5977,12 +6082,15 @@ void
         str++;
     }
 
+    /*
+    Shut-up this warning.  RIFT 2014/03/17 - Tom Sidenberg
     if (len > warn_linelen) {
         log_warn("\nWarning: line is %u chars, limit is %u chars",
                  len,
                  warn_linelen);
         ncx_print_errormsg(tkc, mod, ERR_NCX_LINELEN_EXCEEDED);
     }
+    */
 
 } /* ncx_check_warn_linelen */
 
@@ -5999,12 +6107,12 @@ void
 *   status (duplicates are silently dropped)
 *********************************************************************/
 status_t
-    ncx_turn_off_warning (status_t res)
+    ncx_turn_off_warning (ncx_instance_t *instance, status_t res)
 {
     warnoff_t         *warnoff;
 
     if (res == NO_ERR) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (res < ERR_WARN_BASE) {
@@ -6012,21 +6120,21 @@ status_t
     }
 
     /* check if 'res' already entered */
-    for (warnoff = (warnoff_t *)dlq_firstEntry(&warnoffQ);
+    for (warnoff = (warnoff_t *)dlq_firstEntry(instance, &instance->warnoffQ);
          warnoff != NULL;
-         warnoff = (warnoff_t *)dlq_nextEntry(warnoff)) {
+         warnoff = (warnoff_t *)dlq_nextEntry(instance, warnoff)) {
         if (warnoff->res == res) {
             return NO_ERR;
         }
     }
 
-    warnoff = m__getObj(warnoff_t);
+    warnoff = m__getObj(instance, warnoff_t);
     if (!warnoff) {
         return ERR_INTERNAL_MEM;
     }
     memset(warnoff, 0x0, sizeof(warnoff_t));
     warnoff->res = res;
-    dlq_enque(warnoff, &warnoffQ);
+    dlq_enque(instance, warnoff, &instance->warnoffQ);
     return NO_ERR;
 
 } /* ncx_turn_off_warning */
@@ -6044,12 +6152,12 @@ status_t
 *   status (duplicates are silently dropped)
 *********************************************************************/
 status_t
-    ncx_turn_on_warning (status_t res)
+    ncx_turn_on_warning (ncx_instance_t *instance, status_t res)
 {
     warnoff_t         *warnoff;
 
     if (res == NO_ERR) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (res < ERR_WARN_BASE) {
@@ -6057,12 +6165,12 @@ status_t
     }
 
     /* check if 'res' exists and remove it if found */
-    for (warnoff = (warnoff_t *)dlq_firstEntry(&warnoffQ);
+    for (warnoff = (warnoff_t *)dlq_firstEntry(instance, &instance->warnoffQ);
          warnoff != NULL;
-         warnoff = (warnoff_t *)dlq_nextEntry(warnoff)) {
+         warnoff = (warnoff_t *)dlq_nextEntry(instance, warnoff)) {
         if (warnoff->res == res) {
-            dlq_remove(warnoff);
-            m__free(warnoff);
+            dlq_remove(instance, warnoff);
+            m__free(instance, warnoff);
             return NO_ERR;
         }
     }
@@ -6085,7 +6193,7 @@ status_t
 *   FALSE if warning is suppressed
 *********************************************************************/
 boolean
-    ncx_warning_enabled (status_t res)
+    ncx_warning_enabled (ncx_instance_t *instance, status_t res)
 {
     const warnoff_t   *warnoff;
 
@@ -6098,9 +6206,9 @@ boolean
     }
 
     /* check if 'res' already entered */
-    for (warnoff = (const warnoff_t *)dlq_firstEntry(&warnoffQ);
+    for (warnoff = (const warnoff_t *)dlq_firstEntry(instance, &instance->warnoffQ);
          warnoff != NULL;
-         warnoff = (const warnoff_t *)dlq_nextEntry(warnoff)) {
+         warnoff = (const warnoff_t *)dlq_nextEntry(instance, warnoff)) {
         if (warnoff->res == res) {
             return FALSE;
         }
@@ -6123,7 +6231,8 @@ boolean
 *   status
 *********************************************************************/
 status_t
-    ncx_get_version (xmlChar *buffer,
+    ncx_get_version (ncx_instance_t *instance,
+                     xmlChar *buffer,
                      uint32 buffsize)
 {
     xmlChar    *str;
@@ -6137,29 +6246,29 @@ status_t
 #ifdef RELEASE
     snprintf((char *)numbuff, sizeof(numbuff), "%d", RELEASE);
 
-    versionlen = xml_strlen(YUMA_VERSION) +
-        xml_strlen(numbuff) + 1;
+    versionlen = xml_strlen(instance, YUMA_VERSION) +
+        xml_strlen(instance, numbuff) + 1;
 
     if (versionlen >= buffsize) {
         return ERR_BUFF_OVFL;
     }
 
     str = buffer;
-    str += xml_strcpy(str, YUMA_VERSION);
+    str += xml_strcpy(instance, str, YUMA_VERSION);
     *str++ = '-';
-    xml_strcpy(str, numbuff);
+    xml_strcpy(instance, str, numbuff);
 #else
-    versionlen = xml_strlen(YUMA_VERSION) +
-        xml_strlen((const xmlChar *)SVNVERSION) + 1;
+    versionlen = xml_strlen(instance, YUMA_VERSION) +
+        xml_strlen(instance, (const xmlChar *)SVNVERSION) + 1;
 
     if (versionlen >= buffsize) {
         return ERR_BUFF_OVFL;
     }
 
     str = buffer;
-    str += xml_strcpy(str, YUMA_VERSION);
+    str += xml_strcpy(instance, str, YUMA_VERSION);
     *str++ = '.';
-    xml_strcpy(str, (const xmlChar *)SVNVERSION);
+    xml_strcpy(instance, str, (const xmlChar *)SVNVERSION);
 #endif
 
     return NO_ERR;
@@ -6183,7 +6292,8 @@ status_t
 *   or NULL if malloc error
 *********************************************************************/
 ncx_save_deviations_t *
-    ncx_new_save_deviations (const xmlChar *devmodule,
+    ncx_new_save_deviations (ncx_instance_t *instance,
+                             const xmlChar *devmodule,
                              const xmlChar *devrevision,
                              const xmlChar *devnamespace,
                              const xmlChar *devprefix)
@@ -6193,40 +6303,40 @@ ncx_save_deviations_t *
 
     ncx_save_deviations_t  *savedev;
 
-    savedev = m__getObj(ncx_save_deviations_t);
+    savedev = m__getObj(instance, ncx_save_deviations_t);
     if (savedev == NULL) {
         return NULL;
     }
 
     memset(savedev, 0x0, sizeof(ncx_save_deviations_t));
-    dlq_createSQue(&savedev->importQ);
-    dlq_createSQue(&savedev->deviationQ);
+    dlq_createSQue(instance, &savedev->importQ);
+    dlq_createSQue(instance, &savedev->deviationQ);
 
-    savedev->devmodule = xml_strdup(devmodule);
+    savedev->devmodule = xml_strdup(instance, devmodule);
     if (savedev->devmodule == NULL) {
-        ncx_free_save_deviations(savedev);
+        ncx_free_save_deviations(instance, savedev);
         return NULL;
     }
 
     if (devprefix) {
-        savedev->devprefix = xml_strdup(devprefix);
+        savedev->devprefix = xml_strdup(instance, devprefix);
         if (savedev->devprefix == NULL) {
-            ncx_free_save_deviations(savedev);
+            ncx_free_save_deviations(instance, savedev);
             return NULL;
         }
     }
 
     if (devrevision) {
-        savedev->devrevision = xml_strdup(devrevision);
+        savedev->devrevision = xml_strdup(instance, devrevision);
         if (savedev->devrevision == NULL) {
-            ncx_free_save_deviations(savedev);
+            ncx_free_save_deviations(instance, savedev);
             return NULL;
         }
     }
 
-    savedev->devnamespace = xml_strdup(devnamespace);
+    savedev->devnamespace = xml_strdup(instance, devnamespace);
     if (savedev->devnamespace == NULL) {
-        ncx_free_save_deviations(savedev);
+        ncx_free_save_deviations(instance, savedev);
         return NULL;
     }
     
@@ -6244,42 +6354,42 @@ ncx_save_deviations_t *
 *    savedev == struct to clean and delete
 *********************************************************************/
 void
-    ncx_free_save_deviations (ncx_save_deviations_t *savedev)
+    ncx_free_save_deviations (ncx_instance_t *instance, ncx_save_deviations_t *savedev)
 {
     assert ( savedev && " param savedev is NULL" );
 
     ncx_import_t      *import;
     obj_deviation_t   *deviation;
 
-    while (!dlq_empty(&savedev->importQ)) {
+    while (!dlq_empty(instance, &savedev->importQ)) {
         import = (ncx_import_t *)
-            dlq_deque(&savedev->importQ);
-        ncx_free_import(import);
+            dlq_deque(instance, &savedev->importQ);
+        ncx_free_import(instance, import);
     }
 
-    while (!dlq_empty(&savedev->deviationQ)) {
+    while (!dlq_empty(instance, &savedev->deviationQ)) {
         deviation = (obj_deviation_t *)
-            dlq_deque(&savedev->deviationQ);
-        obj_free_deviation(deviation);
+            dlq_deque(instance, &savedev->deviationQ);
+        obj_free_deviation(instance, deviation);
     }
 
     if (savedev->devmodule) {
-        m__free(savedev->devmodule);
+        m__free(instance, savedev->devmodule);
     }
 
     if (savedev->devrevision) {
-        m__free(savedev->devrevision);
+        m__free(instance, savedev->devrevision);
     }
 
     if (savedev->devnamespace) {
-        m__free(savedev->devnamespace);
+        m__free(instance, savedev->devnamespace);
     }
 
     if (savedev->devprefix) {
-        m__free(savedev->devprefix);
+        m__free(instance, savedev->devprefix);
     }
 
-    m__free(savedev);
+    m__free(instance, savedev);
 
 }  /* ncx_free_save_deviations */
 
@@ -6293,13 +6403,13 @@ void
 *    savedevQ == Q of ncx_save_deviations_t to clean
 *********************************************************************/
 void
-    ncx_clean_save_deviationsQ (dlq_hdr_t *savedevQ)
+    ncx_clean_save_deviationsQ (ncx_instance_t *instance, dlq_hdr_t *savedevQ)
 {
     ncx_save_deviations_t *savedev;
 
-    while (!dlq_empty(savedevQ)) {
-        savedev = (ncx_save_deviations_t *)dlq_deque(savedevQ);
-        ncx_free_save_deviations(savedev);
+    while (!dlq_empty(instance, savedevQ)) {
+        savedev = (ncx_save_deviations_t *)dlq_deque(instance, savedevQ);
+        ncx_free_save_deviations(instance, savedev);
     }
 } /* ncx_clean_save_deviationsQ */
 
@@ -6343,10 +6453,10 @@ void ncx_set_error( ncx_error_t *tkerr,
 *
 *********************************************************************/
 void
-    ncx_set_temp_modQ (dlq_hdr_t *modQ)
+    ncx_set_temp_modQ (ncx_instance_t *instance, dlq_hdr_t *modQ)
 {
     assert ( modQ && " param modQ is NULL" );
-    temp_modQ = modQ;
+    instance->temp_modQ = modQ;
 
 }  /* ncx_set_temp_modQ */
 
@@ -6360,9 +6470,9 @@ void
 *   pointer to the temp modQ, if set
 *********************************************************************/
 dlq_hdr_t *
-    ncx_get_temp_modQ (void)
+    ncx_get_temp_modQ (ncx_instance_t *instance)
 {
-    return temp_modQ;
+    return instance->temp_modQ;
 
 }  /* ncx_get_temp_modQ */
 
@@ -6374,9 +6484,9 @@ dlq_hdr_t *
 *
 *********************************************************************/
 void
-    ncx_clear_temp_modQ (void)
+    ncx_clear_temp_modQ (ncx_instance_t *instance)
 {
-    temp_modQ = NULL;
+    instance->temp_modQ = NULL;
 
 }  /* ncx_clear_temp_modQ */
 
@@ -6390,9 +6500,9 @@ void
 *  the current dispay mode enumeration
 *********************************************************************/
 ncx_display_mode_t
-    ncx_get_display_mode (void)
+    ncx_get_display_mode (ncx_instance_t *instance)
 {
-    return display_mode;
+    return instance->display_mode;
 
 }  /* ncx_get_display_mode */
 
@@ -6445,16 +6555,16 @@ const xmlChar *
 *   count of modules that have this name (exact match)
 *********************************************************************/
 uint32
-    ncx_mod_revision_count (const xmlChar *modname)
+    ncx_mod_revision_count (ncx_instance_t *instance, const xmlChar *modname)
 {
     assert ( modname && " param modname is NULL" );
 
     uint32        count;
 
-    if (ncx_sesmodQ != NULL) {
-        count = ncx_mod_revision_count_que(ncx_sesmodQ, modname);
+    if (instance->ncx_sesmodQ != NULL) {
+        count = ncx_mod_revision_count_que(instance, instance->ncx_sesmodQ, modname);
     } else {
-        count = ncx_mod_revision_count_que(ncx_curQ, modname);
+        count = ncx_mod_revision_count_que(instance, instance->ncx_curQ, modname);
     }
 
     return count;
@@ -6476,7 +6586,8 @@ uint32
 *   count of modules that have this name (exact match)
 *********************************************************************/
 uint32
-    ncx_mod_revision_count_que (dlq_hdr_t *modQ,
+    ncx_mod_revision_count_que (ncx_instance_t *instance,
+                                dlq_hdr_t *modQ,
                                 const xmlChar *modname)
 {
     assert ( modQ && " param modQ is NULL" );
@@ -6487,11 +6598,11 @@ uint32
     int32         retval;
 
     count = 0;
-    for (mod = (ncx_module_t *)dlq_firstEntry(modQ);
+    for (mod = (ncx_module_t *)dlq_firstEntry(instance, modQ);
          mod != NULL;
-         mod = (ncx_module_t *)dlq_nextEntry(mod)) {
+         mod = (ncx_module_t *)dlq_nextEntry(instance, mod)) {
 
-        retval = xml_strcmp(modname, mod->name);
+        retval = xml_strcmp(instance, modname, mod->name);
         if (retval == 0) {
             count++;
         }
@@ -6610,7 +6721,8 @@ uint32
 *   -1, 0 or 1
 *********************************************************************/
 int32
-    ncx_compare_base_uris (const xmlChar *str1,
+    ncx_compare_base_uris (ncx_instance_t *instance,
+                           const xmlChar *str1,
                            const xmlChar *str2)
 { 
     assert ( str1 && " param str1 is NULL" );
@@ -6639,7 +6751,7 @@ int32
         return 0;
     }
 
-    return xml_strncmp(str1, str2, len1);
+    return xml_strncmp(instance, str1, str2, len1);
 
 }   /* ncx_compare_base_uris */
 
@@ -6654,9 +6766,9 @@ int32
 *   FALSE if XML messages should use default namespace (no prefix)
 *********************************************************************/
 boolean
-    ncx_get_useprefix (void)
+    ncx_get_useprefix (ncx_instance_t *instance)
 {
-    return use_prefix;
+    return instance->use_prefix;
 
 }   /* ncx_get_useprefix */
 
@@ -6672,9 +6784,9 @@ boolean
 *      FALSE if XML messages should use default namespace (no prefix)
 *********************************************************************/
 void
-    ncx_set_useprefix (boolean val)
+    ncx_set_useprefix (ncx_instance_t *instance, boolean val)
 {
-    use_prefix = val;
+    instance->use_prefix = val;
 
 }   /* ncx_set_useprefix */
 
@@ -6689,9 +6801,9 @@ void
 *   FALSE if system ordered objects should not be sorted
 *********************************************************************/
 boolean
-    ncx_get_system_sorted (void)
+    ncx_get_system_sorted (ncx_instance_t *instance)
 {
-    return system_sorted;
+    return instance->system_sorted;
 
 }   /* ncx_get_system_sorted */
 
@@ -6707,9 +6819,9 @@ boolean
 *     FALSE if system ordered objects should not be sorted
 *********************************************************************/
 void
-    ncx_set_system_sorted (boolean val)
+    ncx_set_system_sorted (ncx_instance_t *instance, boolean val)
 {
-    system_sorted = val;
+    instance->system_sorted = val;
 
 }   /* ncx_set_system_sorted */
 
@@ -6743,9 +6855,9 @@ void
 *   FALSE if ncxmod should not search for modules in subdirs of the CWD
 *********************************************************************/
 boolean
-    ncx_get_cwd_subdirs (void)
+    ncx_get_cwd_subdirs (ncx_instance_t *instance)
 {
-    return cwd_subdirs;
+    return instance->cwd_subdirs;
 }   /* ncx_get_cwd_subdirs */
 
 
@@ -6759,18 +6871,18 @@ boolean
 *   FALSE if protocol not enabled or error
 *********************************************************************/
 boolean
-    ncx_protocol_enabled (ncx_protocol_t proto)
+    ncx_protocol_enabled (ncx_instance_t *instance, ncx_protocol_t proto)
 {
     boolean ret = FALSE;
     switch (proto) {
     case NCX_PROTO_NETCONF10:
-        ret = (protocols_enabled & NCX_FL_PROTO_NETCONF10) ? TRUE : FALSE;
+        ret = (instance->protocols_enabled & NCX_FL_PROTO_NETCONF10) ? TRUE : FALSE;
         break;
     case NCX_PROTO_NETCONF11:
-        ret = (protocols_enabled & NCX_FL_PROTO_NETCONF11) ? TRUE : FALSE;
+        ret = (instance->protocols_enabled & NCX_FL_PROTO_NETCONF11) ? TRUE : FALSE;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     return ret;
 
@@ -6786,17 +6898,17 @@ boolean
 *   proto == protocol version to enable
 *********************************************************************/
 void
-    ncx_set_protocol_enabled (ncx_protocol_t proto)
+    ncx_set_protocol_enabled (ncx_instance_t *instance, ncx_protocol_t proto)
 {
     switch (proto) {
     case NCX_PROTO_NETCONF10:
-        protocols_enabled |= NCX_FL_PROTO_NETCONF10;
+        instance->protocols_enabled |= NCX_FL_PROTO_NETCONF10;
         break;
     case NCX_PROTO_NETCONF11:
-        protocols_enabled |= NCX_FL_PROTO_NETCONF11;
+        instance->protocols_enabled |= NCX_FL_PROTO_NETCONF11;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 }   /* ncx_set_protocol_enabled */
@@ -6809,9 +6921,9 @@ void
 *
 *********************************************************************/
 void
-    ncx_set_use_deadmodQ (void)
+    ncx_set_use_deadmodQ (ncx_instance_t *instance)
 {
-    usedeadmodQ = TRUE;
+    instance->usedeadmodQ = TRUE;
 
 }   /* ncx_set_use_deadmodQ */
 
@@ -6823,15 +6935,15 @@ void
 * 
 *********************************************************************/
 void
-    ncx_delete_all_obsolete_objects (void)
+    ncx_delete_all_obsolete_objects (ncx_instance_t *instance)
 {
     ncx_module_t   *mod;
 
-    for (mod = ncx_get_first_module();
+    for (mod = ncx_get_first_module(instance);
          mod != NULL;
-         mod = ncx_get_next_module(mod)) {
+         mod = ncx_get_next_module(instance, mod)) {
 
-        ncx_delete_mod_obsolete_objects(mod);
+        ncx_delete_mod_obsolete_objects(instance, mod);
     }
 
 }  /* ncx_delete_all_obsolete_objects */
@@ -6846,26 +6958,26 @@ void
 *    mod == module to check
 *********************************************************************/
 void
-    ncx_delete_mod_obsolete_objects (ncx_module_t *mod)
+    ncx_delete_mod_obsolete_objects (ncx_instance_t *instance, ncx_module_t *mod)
 {
     yang_node_t    *node;
 
-    obj_delete_obsolete(&mod->datadefQ);
+    obj_delete_obsolete(instance, &mod->datadefQ);
 
     if (!mod->ismod) {
         return;
     }
 
-    for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         if (node->submod == NULL) {
-            SET_ERROR(ERR_INTERNAL_PTR);
+            SET_ERROR(instance, ERR_INTERNAL_PTR);
             continue;
         }
 
-        obj_delete_obsolete(&node->submod->datadefQ);
+        obj_delete_obsolete(instance, &node->submod->datadefQ);
     }
 
 }  /* ncx_delete_mod_obsolete_objects */
@@ -6883,21 +6995,21 @@ void
 *   enum value
 *********************************************************************/
 ncx_name_match_t
-    ncx_get_name_match_enum (const xmlChar *str)
+    ncx_get_name_match_enum (ncx_instance_t *instance, const xmlChar *str)
 {
     assert ( str && " param str is NULL" );
 
-    if (!xml_strcmp(NCX_EL_EXACT, str)) {
+    if (!xml_strcmp(instance, NCX_EL_EXACT, str)) {
         return NCX_MATCH_EXACT;
-    } else if (!xml_strcmp(NCX_EL_EXACT_NOCASE, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_EXACT_NOCASE, str)) {
         return NCX_MATCH_EXACT_NOCASE;
-    } else if (!xml_strcmp(NCX_EL_ONE, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_ONE, str)) {
         return NCX_MATCH_ONE;
-    } else if (!xml_strcmp(NCX_EL_ONE_NOCASE, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_ONE_NOCASE, str)) {
         return NCX_MATCH_ONE_NOCASE;
-    } else if (!xml_strcmp(NCX_EL_FIRST, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_FIRST, str)) {
         return NCX_MATCH_FIRST;
-    } else if (!xml_strcmp(NCX_EL_FIRST_NOCASE, str)) {
+    } else if (!xml_strcmp(instance, NCX_EL_FIRST_NOCASE, str)) {
         return NCX_MATCH_FIRST_NOCASE;
     } else {
         return NCX_MATCH_NONE;
@@ -6919,7 +7031,7 @@ ncx_name_match_t
 *   string value
 *********************************************************************/
 const xmlChar *
-    ncx_get_name_match_string (ncx_name_match_t match)
+    ncx_get_name_match_string (ncx_instance_t *instance, ncx_name_match_t match)
 {
     switch (match) {
     case NCX_MATCH_NONE:
@@ -6937,7 +7049,7 @@ const xmlChar *
     case NCX_MATCH_FIRST_NOCASE:
         return NCX_EL_FIRST_NOCASE;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_EL_NONE;
     }
     /*NOTREACHED*/
@@ -6955,13 +7067,13 @@ const xmlChar *
 *   count == number of chars to write
 *********************************************************************/
 void
-    ncx_write_tracefile (const char *buff, uint32 count)
+    ncx_write_tracefile (ncx_instance_t *instance, const char *buff, uint32 count)
 {
     uint32 i;
 
-    if (tracefile != NULL) {
+    if (instance->tracefile != NULL) {
         for (i = 0; i < count; i++) {
-            fputc((int)buff[i], tracefile);
+            fputc((int)buff[i], instance->tracefile);
         }
     }
 }  /* ncx_write_tracefile */
@@ -6977,9 +7089,9 @@ void
 *   allowed == value to set T: to allow; F: to disallow
 *********************************************************************/
 void
-    ncx_set_top_mandatory_allowed (boolean allowed)
+    ncx_set_top_mandatory_allowed (ncx_instance_t *instance, boolean allowed)
 {
-    allow_top_mandatory = allowed;
+    instance->allow_top_mandatory = allowed;
 }
 
 /********************************************************************
@@ -6991,9 +7103,9 @@ void
 *   T: allowed; F: disallowed
 *********************************************************************/
 boolean
-    ncx_get_top_mandatory_allowed (void)
+    ncx_get_top_mandatory_allowed (ncx_instance_t *instance)
 {
-    return allow_top_mandatory;
+    return instance->allow_top_mandatory;
 }
 
 

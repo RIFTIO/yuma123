@@ -76,7 +76,8 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t
-    do_list (server_cb_t *server_cb,
+    do_list (struct ncx_instance_t_ *instance,
+	     server_cb_t *server_cb,
 	     obj_template_t *rpc,
 	     const xmlChar *line,
 	     uint32  len);

@@ -52,6 +52,8 @@ date	     init     comment
 extern "C" {
 #endif
 
+struct ncx_instance_t_;
+
 /********************************************************************
 *								    *
 *			 C O N S T A N T S			    *
@@ -80,7 +82,8 @@ extern "C" {
  * RETURNS:
  *   none
  */
-typedef void (*top_handler_t) (ses_cb_t   *scb,
+typedef void (*top_handler_t) (struct ncx_instance_t_ *instance,
+			       ses_cb_t   *scb,
 			       xml_node_t *top);
 
 
@@ -98,7 +101,7 @@ typedef void (*top_handler_t) (ses_cb_t   *scb,
 * 
 *********************************************************************/
 extern void
-    top_init (void);
+    top_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -107,7 +110,7 @@ extern void
 *  cleanup Top Element Handler
 *********************************************************************/
 extern void 
-    top_cleanup (void);
+    top_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -123,7 +126,8 @@ extern void
 *  status
 *********************************************************************/
 extern status_t 
-    top_register_node (const xmlChar *owner,
+    top_register_node (struct ncx_instance_t_ *instance,
+		       const xmlChar *owner,
 		       const xmlChar *elname,
 		       top_handler_t handler);
 
@@ -143,7 +147,8 @@ extern status_t
 *   none
 *********************************************************************/
 extern void
-    top_unregister_node (const xmlChar *owner,
+    top_unregister_node (struct ncx_instance_t_ *instance,
+			 const xmlChar *owner,
 			 const xmlChar *elname);
 
 
@@ -160,7 +165,8 @@ extern void
 *  pointer to top_handler or NULL if not found
 *********************************************************************/
 extern top_handler_t
-    top_find_handler (const xmlChar *owner,
+    top_find_handler (struct ncx_instance_t_ *instance,
+		      const xmlChar *owner,
 		      const xmlChar *elname);
 
 #ifdef __cplusplus

@@ -132,7 +132,7 @@ typedef boolean (*xml_msg_authfn_t) (xml_msg_hdr_t *msg,
 *   none
 *********************************************************************/
 extern void
-    xml_msg_init_hdr (xml_msg_hdr_t *msg);
+    xml_msg_init_hdr (struct ncx_instance_t_ *instance, xml_msg_hdr_t *msg);
 
 
 /********************************************************************
@@ -147,7 +147,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_msg_clean_hdr (xml_msg_hdr_t *msg);
+    xml_msg_clean_hdr (struct ncx_instance_t_ *instance, xml_msg_hdr_t *msg);
 
 
 /********************************************************************
@@ -171,7 +171,8 @@ extern void
 *   pointer to prefix if found, else NULL if not found
 *********************************************************************/
 extern const xmlChar *
-    xml_msg_get_prefix (xml_msg_hdr_t *msg,
+    xml_msg_get_prefix (struct ncx_instance_t_ *instance,
+			xml_msg_hdr_t *msg,
 			xmlns_id_t parent_nsid,
 			xmlns_id_t nsid,
 			val_value_t *curelem,
@@ -199,7 +200,8 @@ extern const xmlChar *
 *   pointer to prefix if found, else NULL if not found
 *********************************************************************/
 extern const xmlChar *
-    xml_msg_get_prefix_xpath (xml_msg_hdr_t *msg,
+    xml_msg_get_prefix_xpath (struct ncx_instance_t_ *instance,
+			      xml_msg_hdr_t *msg,
 			      xmlns_id_t nsid);
 
 
@@ -218,7 +220,8 @@ extern const xmlChar *
 *   pointer to prefix if found, else NULL if not found
 *********************************************************************/
 extern const xmlChar *
-    xml_msg_get_prefix_start_tag (xml_msg_hdr_t *msg,
+    xml_msg_get_prefix_start_tag (struct ncx_instance_t_ *instance,
+				  xml_msg_hdr_t *msg,
 				  xmlns_id_t nsid);
 
 
@@ -240,7 +243,8 @@ extern const xmlChar *
 *    status
 *********************************************************************/
 extern status_t 
-    xml_msg_gen_new_prefix (xml_msg_hdr_t *msg,
+    xml_msg_gen_new_prefix (struct ncx_instance_t_ *instance,
+			    xml_msg_hdr_t *msg,
 			    xmlns_id_t  nsid,
 			    xmlChar **retbuff,
 			    uint32 buffsize);
@@ -271,7 +275,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xml_msg_build_prefix_map (xml_msg_hdr_t *msg,
+    xml_msg_build_prefix_map (struct ncx_instance_t_ *instance,
+			      xml_msg_hdr_t *msg,
 			      xml_attrs_t *attrs,
 			      boolean addncid,
 			      boolean addncxid);
@@ -293,7 +298,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xml_msg_finish_prefix_map (xml_msg_hdr_t *msg,
+    xml_msg_finish_prefix_map (struct ncx_instance_t_ *instance,
+                               xml_msg_hdr_t *msg,
                                xml_attrs_t *attrs);
 
 
@@ -319,7 +325,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xml_msg_check_xmlns_attr (xml_msg_hdr_t *msg, 
+    xml_msg_check_xmlns_attr (struct ncx_instance_t_ *instance, 
+			      xml_msg_hdr_t *msg, 
 			      xmlns_id_t nsid,
 			      const xmlChar *badns,
 			      xml_attrs_t  *attrs);
@@ -345,7 +352,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xml_msg_gen_xmlns_attrs (xml_msg_hdr_t *msg, 
+    xml_msg_gen_xmlns_attrs (struct ncx_instance_t_ *instance, 
+			     xml_msg_hdr_t *msg, 
 			     xml_attrs_t *attrs,
                              boolean addncx);
 
@@ -365,7 +373,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xml_msg_clean_defns_attr (xml_attrs_t *attrs);
+    xml_msg_clean_defns_attr (struct ncx_instance_t_ *instance, xml_attrs_t *attrs);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

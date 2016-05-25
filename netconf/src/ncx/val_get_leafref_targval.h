@@ -7,4 +7,4 @@
 #include "ncxtypes.h"
 #include "status.h"
 
-val_value_t* val_get_leafref_targval(val_value_t *leafref_val, val_value_t *root_val);
+val_value_t* val_get_leafref_targval(struct ncx_instance_t_ *instance, val_value_t *leafref_val, val_value_t *root_val);

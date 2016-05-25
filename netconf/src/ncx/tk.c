@@ -102,7 +102,7 @@ typedef struct tk_btyp_t_ {
  *  !! MAKE SURE THIS TABLE ORDER MATCHES THE ORDER OF tk_type_t 
  * The lengths in this table do not include the terminating zero
  */
-static tk_ent_t tlist [] = {
+static const tk_ent_t tlist [] = {
     /* align array with token enumeration values, skip 0 */
     { TK_TT_NONE, 0, NULL, "none", 0 }, 
     
@@ -180,7 +180,7 @@ static tk_ent_t tlist [] = {
  * TBD: change to runtime strlen evaluation 
  * instead of hardwire lengths.
  */
-static tk_btyp_t blist [] = {
+static const tk_btyp_t blist [] = {
     { NCX_BT_NONE, 4, (const xmlChar *)"NONE", 0 },
     { NCX_BT_ANY, 6, NCX_EL_ANYXML, 0 },   /* anyxml */
     { NCX_BT_BITS, 4, NCX_EL_BITS, FL_YANG },
@@ -227,13 +227,14 @@ static tk_btyp_t blist [] = {
 *   new token or NULL if some error
 *********************************************************************/
 static tk_origstr_t *
-    new_origstr (tk_type_t ttyp, 
+    new_origstr (ncx_instance_t *instance, 
+                tk_type_t ttyp, 
                 boolean newline,
                 xmlChar *strval)
 {
     tk_origstr_t  *origstr;
 
-    origstr = m__getObj(tk_origstr_t);
+    origstr = m__getObj(instance, tk_origstr_t);
     if (origstr == NULL) {
         return NULL;
     }
@@ -245,8 +246,8 @@ static tk_origstr_t *
         origstr->origtyp = ((newline) 
                             ? TK_ORIGSTR_SQUOTE_NL : TK_ORIGSTR_SQUOTE);
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
-        m__free(origstr);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
+        m__free(instance, origstr);
         return NULL;
     }
     origstr->str = strval;  /* hand off memory here */
@@ -264,12 +265,12 @@ static tk_origstr_t *
 *  origstr == original token string struct to delete
 *********************************************************************/
 static void
-    free_origstr (tk_origstr_t *origstr)
+    free_origstr (ncx_instance_t *instance, tk_origstr_t *origstr)
 {
     if (origstr->str != NULL) {
-        m__free(origstr->str);
+        m__free(instance, origstr->str);
     }
-    m__free(origstr);
+    m__free(instance, origstr);
 
 }  /* free_origstr */
 
@@ -287,12 +288,13 @@ static void
 *   new token pointer struct or NULL if some error
 *********************************************************************/
 static tk_token_ptr_t *
-    new_token_ptr (tk_token_t *tk, 
+    new_token_ptr (ncx_instance_t *instance, 
+                   tk_token_t *tk, 
                    const void *field)
 {
     tk_token_ptr_t  *tkptr;
 
-    tkptr = m__getObj(tk_token_ptr_t);
+    tkptr = m__getObj(instance, tk_token_ptr_t);
     if (!tkptr) {
         return NULL;
     }
@@ -313,9 +315,9 @@ static tk_token_ptr_t *
 *  tkptr == token pointer to free
 *********************************************************************/
 static void
-    free_token_ptr (tk_token_ptr_t *tkptr)
+    free_token_ptr (ncx_instance_t *instance, tk_token_ptr_t *tkptr)
 {
-    m__free(tkptr);
+    m__free(instance, tkptr);
 } /* free_token_ptr */
 
 
@@ -333,13 +335,14 @@ static void
 *   new token or NULL if some error
 *********************************************************************/
 static tk_token_t *
-    new_token (tk_type_t ttyp, 
+    new_token (ncx_instance_t *instance, 
+               tk_type_t ttyp, 
                const xmlChar *tval,
                uint32  tlen)
 {
     tk_token_t  *tk;
 
-    tk = m__getObj(tk_token_t);
+    tk = m__getObj(instance, tk_token_t);
     if (!tk) {
         return NULL;
     }
@@ -347,23 +350,23 @@ static tk_token_t *
     tk->typ = ttyp;
     if (tval) {
         tk->len = tlen;
-        tk->val = xml_strndup(tval, tlen);
+        tk->val = xml_strndup(instance, tval, tlen);
         if (!tk->val) {
-            m__free(tk);
+            m__free(instance, tk);
             return NULL;
         }
     }
-    dlq_createSQue(&tk->origstrQ);
+    dlq_createSQue(instance, &tk->origstrQ);
 
 #ifdef TK_DEBUG
     if (LOGDEBUG4) {
-        log_debug4("\ntk: new token (%s) ", tk_get_token_name(ttyp));
+        log_debug4(instance, "\ntk: new token (%s) ", tk_get_token_name(ttyp));
         if (tval) {
             while (tlen--) {
-                log_debug4("%c", *tval++);
+                log_debug4(instance, "%c", *tval++);
             }
         } else {
-            log_debug4("%s", tk_get_token_sym(ttyp));
+            log_debug4(instance, "%s", tk_get_token_sym(ttyp));
         }
     }
 #endif
@@ -387,32 +390,33 @@ static tk_token_t *
 *   new token or NULL if some error
 *********************************************************************/
 static tk_token_t *
-    new_mtoken (tk_type_t ttyp, 
+    new_mtoken (ncx_instance_t *instance, 
+               tk_type_t ttyp, 
                xmlChar *tval)
 {
     tk_token_t  *tk;
 
-    tk = m__getObj(tk_token_t);
+    tk = m__getObj(instance, tk_token_t);
     if (!tk) {
         return NULL;
     }
     memset(tk, 0x0, sizeof(tk_token_t));
     tk->typ = ttyp;
     if (tval) {
-        tk->len = xml_strlen(tval);
+        tk->len = xml_strlen(instance, tval);
         tk->val = tval;
     }
-    dlq_createSQue(&tk->origstrQ);
+    dlq_createSQue(instance, &tk->origstrQ);
 
 #ifdef TK_DEBUG
     if (LOGDEBUG4) {
-        log_debug4("\ntk: new mtoken (%s) ", tk_get_token_name(ttyp));
+        log_debug4(instance, "\ntk: new mtoken (%s) ", tk_get_token_name(ttyp));
         if (tval) {
             while (tlen--) {
-                log_debug4("%c", *tval++);
+                log_debug4(instance, "%c", *tval++);
             }
         } else {
-            log_debug4("%s", tk_get_token_sym(ttyp));
+            log_debug4(instance, "%s", tk_get_token_sym(ttyp));
         }
     }
 #endif
@@ -431,35 +435,35 @@ static tk_token_t *
 *  none
 *********************************************************************/
 static void 
-    free_token (tk_token_t *tk)
+    free_token (ncx_instance_t *instance, tk_token_t *tk)
 {
     tk_origstr_t  *origstr;
 
 #ifdef TK_DEBUG
     if (LOGDEBUG4) {
-        log_debug4("\ntk: free_token: (%s)", tk_get_token_name(tk->typ));
+        log_debug4(instance, "\ntk: free_token: (%s)", tk_get_token_name(tk->typ));
         if (tk->val) {
-            log_debug4(" val=(%s) ", tk->val);
+            log_debug4(instance, " val=(%s) ", tk->val);
         }
     }
 #endif
 
     if (tk->mod) {
-        m__free(tk->mod);
+        m__free(instance, tk->mod);
     }
     if (tk->val) {
-        m__free(tk->val);
+        m__free(instance, tk->val);
     }
     if (tk->origval) {
-        m__free(tk->origval);
+        m__free(instance, tk->origval);
     }
 
-    while (!dlq_empty(&tk->origstrQ)) {
-        origstr = (tk_origstr_t *)dlq_deque(&tk->origstrQ);
-        free_origstr(origstr);
+    while (!dlq_empty(instance, &tk->origstrQ)) {
+        origstr = (tk_origstr_t *)dlq_deque(instance, &tk->origstrQ);
+        free_origstr(instance, origstr);
     }
 
-    m__free(tk);
+    m__free(instance, tk);
 
 } /* free_token */
 
@@ -482,7 +486,8 @@ static void
 *   new token or NULL if some error
 *********************************************************************/
 static tk_token_t *
-    new_token_wmod (tk_type_t ttyp, 
+    new_token_wmod (ncx_instance_t *instance, 
+                       tk_type_t ttyp, 
                        const xmlChar *mod,
                        uint32 modlen,
                        const xmlChar *tval, 
@@ -490,21 +495,21 @@ static tk_token_t *
 {
     tk_token_t  *ret;
 
-    ret = new_token(ttyp, tval, tlen);
+    ret = new_token(instance, ttyp, tval, tlen);
     if (ret) {
         ret->modlen = modlen;
-        ret->mod = xml_strndup(mod, modlen);
+        ret->mod = xml_strndup(instance, mod, modlen);
         if (!ret->mod) {
-            free_token(ret);
+            free_token(instance, ret);
             return NULL;
         }
     }
 
 #ifdef TK_DEBUG
     if (LOGDEBUG3) {
-        log_debug3("  mod: ");
+        log_debug3(instance, "  mod: ");
         while (modlen--) {
-            log_debug3("%c", *mod++);
+            log_debug3(instance, "%c", *mod++);
         }
     }
 #endif
@@ -536,7 +541,8 @@ static tk_token_t *
 *    status
 *********************************************************************/
 static status_t
-    add_new_token (tk_chain_t *tkc,
+    add_new_token (ncx_instance_t *instance,
+                   tk_chain_t *tkc,
                    tk_type_t ttyp,
                    const xmlChar *str,
                    uint32 startpos)
@@ -551,17 +557,17 @@ static status_t
         return ERR_NCX_LEN_EXCEEDED;
     } else if (total == 0) {
         /* zero length value strings are allowed */
-        tk = new_token(ttyp, NULL, 0);
+        tk = new_token(instance, ttyp, NULL, 0);
     } else {
         /* normal case string -- non-zero length */
-        tk = new_token(ttyp, tkc->bptr, total);
+        tk = new_token(instance, ttyp, tkc->bptr, total);
     }
     if (!tk) {
         return ERR_INTERNAL_MEM;
     }
     tk->linenum = tkc->linenum;
     tk->linepos = startpos;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     return NO_ERR;
 
@@ -888,7 +894,8 @@ static void
 *    status
 *********************************************************************/
 static status_t
-    add_new_qtoken ( tk_chain_t *tkc,
+    add_new_qtoken (ncx_instance_t *instance,
+                      tk_chain_t *tkc,
                      boolean isdouble,
                      xmlChar *tkbuff,
                      const xmlChar *endstr,
@@ -905,15 +912,15 @@ static status_t
 
     if (total == 0) {
         /* zero length value strings are allowed */
-        tk = (isdouble) ? new_token( TK_TT_QSTRING,  NULL, 0) 
-                        : new_token( TK_TT_SQSTRING, NULL, 0);
+        tk = (isdouble) ? new_token(instance,   TK_TT_QSTRING,  NULL, 0) 
+                        : new_token(instance,  TK_TT_SQSTRING, NULL, 0);
     } else if (!isdouble) {
         /* single quote string */
-        tk = new_token( TK_TT_SQSTRING, tkbuff, total );
+        tk = new_token(instance,  TK_TT_SQSTRING, tkbuff, total );
     } else {
         /* double quote normal case -- non-zero length QSTRING fill the buffer, 
          * while converting escaped chars */
-        xmlChar *buff = (xmlChar *)m__getMem(total+1);
+        xmlChar *buff = (xmlChar *)m__getMem(instance, total+1);
         if (!buff) {
             return ERR_INTERNAL_MEM;
         }
@@ -925,16 +932,16 @@ static status_t
          * quoted string needs to be saved unaltered according to the 
          * YANG spec */
         if (TK_DOCMODE(tkc)) {
-            origbuff = xml_strndup(tkbuff, total);
+            origbuff = xml_strndup(instance, tkbuff, total);
             if ( !origbuff ) {
                 return ERR_INTERNAL_MEM;
             }
         }
 
-        tk = new_mtoken(TK_TT_QSTRING, buff);
+        tk = new_mtoken(instance, TK_TT_QSTRING, buff);
         if ( !tk ) {
-            m__free(buff);
-            m__free(origbuff);
+            m__free(instance, buff);
+            m__free(instance, origbuff);
         }
     }
 
@@ -945,7 +952,7 @@ static status_t
     tk->linenum = startline;
     tk->linepos = startpos;
     tk->origval = origbuff;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     return NO_ERR;
 }  /* add_new_qtoken */
@@ -967,7 +974,8 @@ static status_t
 *   token type found or TK_TT_NONE if no match
 *********************************************************************/
 static tk_type_t 
-    get_token_id (const xmlChar *buff, 
+    get_token_id (ncx_instance_t *instance, 
+                  const xmlChar *buff, 
                   uint32 len,
                   tk_source_t srctyp)
 {
@@ -989,7 +997,7 @@ static tk_type_t
         flags = FL_REDO;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return TK_TT_NONE;
     }
 
@@ -1011,7 +1019,7 @@ static tk_type_t
         }
     } else if (len==2) {
         for (t=TK_TT_RANGESEP; t <= TK_TT_GEQUAL; t++) {
-            if (!xml_strncmp(buff, (const xmlChar *)tlist[t].tid, 2) &&
+            if (!xml_strncmp(instance, buff, (const xmlChar *)tlist[t].tid, 2) &&
                 (tlist[t].flags & flags)) {
                 return tlist[t].ttyp;
             }
@@ -1040,7 +1048,7 @@ static tk_type_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    tokenize_qstring (tk_chain_t *tkc)
+    tokenize_qstring (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     xmlChar      *str, *tempbuff, *outstr;
     uint32        total, startline, startpos, linelen;
@@ -1099,7 +1107,8 @@ static status_t
 
     if (*str == NCX_QSTRING_CH) {
         /* easy case, a quoted string on 1 line */
-        res = add_new_qtoken(tkc, 
+        res = add_new_qtoken(instance, 
+                             tkc, 
                              TRUE, 
                              tkc->bptr, 
                              str, 
@@ -1120,7 +1129,7 @@ static status_t
     /* FILE input, keep reading lines looking for QUOTE_CH 
      * need to get a temp buffer to store all the lines 
      */
-    tempbuff = (xmlChar *)m__getMem(NCX_MAX_Q_STRLEN+1);
+    tempbuff = (xmlChar *)m__getMem(instance, NCX_MAX_Q_STRLEN+1);
     if (!tempbuff) {
         return ERR_INTERNAL_MEM;
     }
@@ -1129,7 +1138,7 @@ static status_t
 
     /* check total bytes parsed, and copy into temp buff if any */
     if (total) {
-        outstr += xml_strcpy(outstr, tkc->bptr);
+        outstr += xml_strcpy(instance, outstr, tkc->bptr);
     } else {
         outstr[0] = 0;
     }
@@ -1144,7 +1153,7 @@ static status_t
     while (!done) {
         if (!fgets((char *)tkc->buff, TK_BUFF_SIZE, tkc->fp)) {
             /* read line failed -- assume EOF */
-            m__free(tempbuff);
+            m__free(instance, tempbuff);
             return ERR_NCX_UNENDED_QSTRING;
         } else {
             tkc->linenum++;
@@ -1154,11 +1163,12 @@ static status_t
 
 #ifdef TK_RDLN_DEBUG
         if (LOGDEBUG3) {
-            if (xml_strlen(tkc->buff) < 128) {
-                log_debug3("\nNCX Parse: read line (%s)", tkc->buff);
+            if (xml_strlen(instance, tkc->buff) < 128) {
+                log_debug3(instance, "\nNCX Parse: read line (%s)", tkc->buff);
             } else {
-                log_debug3("\nNCX Parse: read line len  (%u)", 
-                           xml_strlen(tkc->buff));
+                log_debug3(instance, 
+                           "\nNCX Parse: read line len  (%u)", 
+                           xml_strlen(instance, tkc->buff));
             }
         }
 #endif
@@ -1185,23 +1195,24 @@ static status_t
 
         if (linelen + total < NCX_MAX_Q_STRLEN) {
             /* copy this line to tempbuff */
-            outstr += xml_strncpy(outstr, tkc->bptr, linelen);
+            outstr += xml_strncpy(instance, outstr, tkc->bptr, linelen);
             total += linelen;
             tkc->bptr = str+1;
         } else {
             /* would be a buffer overflow */
-            m__free(tempbuff);
+            m__free(instance, tempbuff);
             return ERR_NCX_LEN_EXCEEDED;
         }
     }
 
-    res = add_new_qtoken(tkc, 
+    res = add_new_qtoken(instance, 
+                         tkc, 
                          TRUE, 
                          tempbuff, 
                          outstr, 
                          startline, 
                          startpos);
-    m__free(tempbuff);
+    m__free(instance, tempbuff);
     return res;
 
 }  /* tokenize_qstring */
@@ -1218,7 +1229,7 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    tokenize_sqstring (tk_chain_t *tkc)
+    tokenize_sqstring (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     xmlChar      *str, *tempbuff, *outstr;
     uint32        total, startline, startpos, linelen;
@@ -1243,7 +1254,7 @@ static status_t
 
     if (*str == NCX_SQSTRING_CH) {
         /* easy case, a quoted string on 1 line; */
-        res = add_new_token(tkc, TK_TT_SQSTRING, str, startpos);
+        res = add_new_token(instance, tkc, TK_TT_SQSTRING, str, startpos);
         tkc->bptr = str+1;
         tkc->linepos += total+2;
         return NO_ERR;
@@ -1260,7 +1271,7 @@ static status_t
     /* FILE input, keep reading lines looking for QUOTE_CH 
      * need to get a temp buffer to store all the lines 
      */
-    tempbuff = (xmlChar *)m__getMem(NCX_MAX_Q_STRLEN+1);
+    tempbuff = (xmlChar *)m__getMem(instance, NCX_MAX_Q_STRLEN+1);
     if (!tempbuff) {
         return ERR_INTERNAL_MEM;
     }
@@ -1270,7 +1281,7 @@ static status_t
     /* check total bytes parsed, and copy into temp buff if any */
     total = (uint32)(str - tkc->bptr);
     if (total) {
-        outstr += xml_strcpy(outstr, tkc->bptr);
+        outstr += xml_strcpy(instance, outstr, tkc->bptr);
     } else {
         outstr[0] = 0;
     }
@@ -1280,7 +1291,7 @@ static status_t
     while (!done) {
         if (!fgets((char *)tkc->buff, TK_BUFF_SIZE, tkc->fp)) {
             /* read line failed -- assume EOF */
-            m__free(tempbuff);
+            m__free(instance, tempbuff);
             return ERR_NCX_UNENDED_QSTRING;
         } else {
             tkc->linenum++;
@@ -1290,11 +1301,12 @@ static status_t
 
 #ifdef TK_RDLN_DEBUG
         if (LOGDEBUG3) {
-            if (xml_strlen(tkc->buff) < 128) {
-                log_debug3("\nNCX Parse: read line (%s)", tkc->buff);
+            if (xml_strlen(instance, tkc->buff) < 128) {
+                log_debug3(instance, "\nNCX Parse: read line (%s)", tkc->buff);
             } else {
-                log_debug3("\nNCX Parse: read line len  (%u)", 
-                           xml_strlen(tkc->buff));
+                log_debug3(instance, 
+                           "\nNCX Parse: read line len  (%u)", 
+                           xml_strlen(instance, tkc->buff));
             }
         }
 #endif
@@ -1312,22 +1324,23 @@ static status_t
         }
 
         if (linelen + total < NCX_MAX_Q_STRLEN) {
-            outstr += xml_strncpy(outstr, tkc->bptr, linelen);
+            outstr += xml_strncpy(instance, outstr, tkc->bptr, linelen);
             total += linelen;
         } else {
-            m__free(tempbuff);
+            m__free(instance, tempbuff);
             return ERR_NCX_LEN_EXCEEDED;
         }
     }
 
     /* get a token and save the SQSTRING */
-    res = add_new_qtoken(tkc, 
+    res = add_new_qtoken(instance, 
+                         tkc, 
                          FALSE, 
                          tempbuff,
                          outstr, 
                          startline, 
                          startpos);
-    m__free(tempbuff);
+    m__free(instance, tempbuff);
     return res;
 
 }  /* tokenize_sqstring */
@@ -1346,10 +1359,11 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    skip_yang_cstring (tk_chain_t *tkc)
+    skip_yang_cstring (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     xmlChar   *str;
     boolean    done;
+    (void)instance;
 
     /* the bptr is pointing at the comment char which
      * indicates the start of a C style comment
@@ -1396,11 +1410,12 @@ static status_t
 
 #ifdef TK_RDLN_DEBUG
         if (LOGDEBUG3) {
-            if (xml_strlen(tkc->buff) < 128) {
-                log_debug3("\nNCX Parse: read line (%s)", tkc->buff);
+            if (xml_strlen(instance, tkc->buff) < 128) {
+                log_debug3(instance, "\nNCX Parse: read line (%s)", tkc->buff);
             } else {
-                log_debug3("\nNCX Parse: read line len  (%u)", 
-                           xml_strlen(tkc->buff));
+                log_debug3(instance, 
+                           "\nNCX Parse: read line len  (%u)", 
+                           xml_strlen(instance, tkc->buff));
             }
         }
 #endif
@@ -1438,7 +1453,7 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    tokenize_number (tk_chain_t *tkc)
+    tokenize_number (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     xmlChar      *str;
     uint32        startpos, total;
@@ -1470,7 +1485,7 @@ static status_t
             return ERR_NCX_INVALID_HEXNUM;
         }
 
-        res = add_new_token(tkc, TK_TT_HNUM, str, startpos);
+        res = add_new_token(instance, tkc, TK_TT_HNUM, str, startpos);
         tkc->bptr = str;
         tkc->linepos += total;
         return res;
@@ -1501,7 +1516,7 @@ static status_t
             return ERR_NCX_INVALID_REALNUM;
         }
         
-        res = add_new_token(tkc, TK_TT_RNUM, str, startpos);
+        res = add_new_token(instance, tkc, TK_TT_RNUM, str, startpos);
         tkc->bptr = str;
         tkc->linepos += total;
         return res;
@@ -1515,7 +1530,7 @@ static status_t
         return ERR_NCX_INVALID_NUM;
     }
 
-    res = add_new_token(tkc, TK_TT_DNUM, str, startpos);
+    res = add_new_token(instance, tkc, TK_TT_DNUM, str, startpos);
     tkc->bptr = str;
     tkc->linepos += total;
     return res;
@@ -1578,7 +1593,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    finish_string (tk_chain_t  *tkc,
+    finish_string (ncx_instance_t *instance,
+                   tk_chain_t  *tkc,
                    xmlChar *str)
 {
     boolean      done;
@@ -1595,7 +1611,7 @@ static status_t
         } else if (xml_isspace(*str) || *str=='\n') {
             done = TRUE;
         } else if (tkc->source == TK_SOURCE_YANG) {
-            ttyp = get_token_id(str, 1, tkc->source);
+            ttyp = get_token_id(instance, str, 1, tkc->source);
             switch (ttyp) {
             case TK_TT_SEMICOL:
             case TK_TT_LBRACE:
@@ -1605,7 +1621,7 @@ static status_t
             default:
                 ;
             }
-        } else if (get_token_id(str, 1, tkc->source) != TK_TT_NONE) {
+        } else if (get_token_id(instance, str, 1, tkc->source) != TK_TT_NONE) {
             done = TRUE;
         }
 
@@ -1624,7 +1640,7 @@ static status_t
         return ERR_NCX_LEN_EXCEEDED;
     }
 
-    res = add_new_token(tkc, TK_TT_STRING, str, startpos);
+    res = add_new_token(instance, tkc, TK_TT_STRING, str, startpos);
     tkc->bptr = str;    /* advance the buffer pointer */
     return res;
 
@@ -1643,7 +1659,7 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    tokenize_varbind_string (tk_chain_t *tkc)
+    tokenize_varbind_string (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     xmlChar        *str;
     const xmlChar  *prefix, *name, *item;
@@ -1666,7 +1682,7 @@ static status_t
     /* check reasonable length for a QName */
     len = (uint32)(str - name);
     if (!len || len > NCX_MAX_NLEN) {
-        return finish_string(tkc, str);
+        return finish_string(instance, tkc, str);
     }
 
     /* else got a string fragment that could be a valid ID format */
@@ -1685,7 +1701,7 @@ static status_t
          */
         res = get_name_comp(str, &len);
         if (res != NO_ERR) {
-            return finish_string(tkc, str);
+            return finish_string(instance, tkc, str);
         }
         str += len;
         /* drop through -- either we stopped on a scope char or
@@ -1695,14 +1711,15 @@ static status_t
 
     if (prefix) {
         /* XPath $prefix:identifier */
-        tk = new_token_wmod(TK_TT_QVARBIND,
+        tk = new_token_wmod(instance,
+                            TK_TT_QVARBIND,
                             prefix, 
                             prelen, 
                             item, 
                             (uint32)(str - item));
     } else {
         /* XPath $identifier */
-        tk = new_token(TK_TT_VARBIND,  tkc->bptr+1, len);
+        tk = new_token(instance,  TK_TT_VARBIND,  tkc->bptr+1, len);
     }
 
     if (!tk) {
@@ -1710,7 +1727,7 @@ static status_t
     }
     tk->linenum = tkc->linenum;
     tk->linepos = tkc->linepos;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     len = (uint32)(str - tkc->bptr);
     tkc->bptr = str;    /* advance the buffer pointer */
@@ -1731,7 +1748,7 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    tokenize_id_string (tk_chain_t *tkc)
+    tokenize_id_string (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     xmlChar        *str;
     const xmlChar  *prefix, *item;
@@ -1778,14 +1795,14 @@ static status_t
          * followed by a milti-char token without any 
          * whitespace in between.
          */
-        return finish_string(tkc, str);
+        return finish_string(instance, tkc, str);
     }
 
     /* check YANG parser stopped on proper end of ID */
     if (tkc->source == TK_SOURCE_YANG && 
         !(*str=='{' || *str==';' || *str == '/' || *str==':'
           || xml_isspace(*str))) {
-        return finish_string(tkc, str);
+        return finish_string(instance, tkc, str);
     }
 
     /* else got a string fragment that could be a valid ID format */
@@ -1807,12 +1824,12 @@ static status_t
              */
             res = get_name_comp(str, &len);
             if (res != NO_ERR) {
-                return finish_string(tkc, str);
+                return finish_string(instance, tkc, str);
             }
 
             /* if we stopped on a colon char then treat this as a URI */
             if (str[len] == ':') {
-                return finish_string(tkc, str);
+                return finish_string(instance, tkc, str);
             }
 
             /* drop through -- either we stopped on a scope char or
@@ -1829,7 +1846,7 @@ static status_t
         while (*str == NCX_SCOPE_CH) {
             res = get_name_comp(++str, &len);
             if (res != NO_ERR) {
-                return finish_string(tkc, str);
+                return finish_string(instance, tkc, str);
             }
             scoped = TRUE;
             str += len;
@@ -1837,7 +1854,7 @@ static status_t
 
         /* for Xpath purposes in YANG, treat scoped ID as a string now */
         if (scoped && tkc->source==TK_SOURCE_YANG) {
-            return finish_string(tkc, str);
+            return finish_string(instance, tkc, str);
         }
 
         /* done with the string; create a token and save it */
@@ -1845,7 +1862,8 @@ static status_t
             if ((str - item) > NCX_MAX_Q_STRLEN) {
                 return ERR_NCX_LEN_EXCEEDED;
             }
-            tk = new_token_wmod(scoped ? TK_TT_MSSTRING : TK_TT_MSTRING,
+            tk = new_token_wmod(instance,
+                                scoped ? TK_TT_MSSTRING : TK_TT_MSTRING,
                                 prefix, 
                                 prelen, 
                                 item, 
@@ -1854,17 +1872,19 @@ static status_t
             if ((str - tkc->bptr) > NCX_MAX_Q_STRLEN) {
                 return ERR_NCX_LEN_EXCEEDED;
             }
-            tk = new_token(scoped ? TK_TT_SSTRING : TK_TT_TSTRING,
+            tk = new_token(instance,
+                           scoped ? TK_TT_SSTRING : TK_TT_TSTRING,
                            tkc->bptr, 
                            (uint32)(str - tkc->bptr));
         }
     } else if (prefix) {
         if (namestar) {
             /* XPath 'prefix:*'  */
-            tk = new_token(TK_TT_NCNAME_STAR,  prefix, prelen);
+            tk = new_token(instance,  TK_TT_NCNAME_STAR,  prefix, prelen);
         } else {
             /* XPath prefix:identifier */
-            tk = new_token_wmod(TK_TT_MSTRING,
+            tk = new_token_wmod(instance,
+                                TK_TT_MSTRING,
                                 prefix, 
                                 prelen, 
                                 item, 
@@ -1872,7 +1892,8 @@ static status_t
         }
     } else {
         /* XPath identifier */
-        tk = new_token(TK_TT_TSTRING,  
+        tk = new_token(instance,  
+                       TK_TT_TSTRING,  
                        tkc->bptr, 
                        (uint32)(str - tkc->bptr));
     }
@@ -1882,7 +1903,7 @@ static status_t
     }
     tk->linenum = tkc->linenum;
     tk->linepos = tkc->linepos;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     len = (uint32)(str - tkc->bptr);
     tkc->bptr = str;    /* advance the buffer pointer */
@@ -1903,7 +1924,7 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    tokenize_string (tk_chain_t *tkc)
+    tokenize_string (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     xmlChar  *str;
 
@@ -1917,7 +1938,7 @@ static status_t
      * clause, where the content is irrelevant to the parser.
      */
     str = tkc->bptr+1;
-    return finish_string(tkc, str);
+    return finish_string(instance, tkc, str);
 
 }  /* tokenize_string */
 
@@ -1942,7 +1963,7 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t
-    concat_qstrings (tk_chain_t *tkc)
+    concat_qstrings (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     tk_token_t  *first, *plus, *prev, *next, *last;
     xmlChar     *buff, *str;
@@ -1956,12 +1977,12 @@ static status_t
      *
      *  "string1" + "string2" + 'string3' ...
      */
-    first = (tk_token_t *)dlq_firstEntry(&tkc->tkQ);
+    first = (tk_token_t *)dlq_firstEntry(instance, &tkc->tkQ);
     while (first) {
         /* check if 'first' is a quoted string */
         if (!(first->typ==TK_TT_QSTRING ||
               first->typ==TK_TT_SQSTRING)) {
-            first = (tk_token_t *)dlq_nextEntry(first);
+            first = (tk_token_t *)dlq_nextEntry(instance, first);
             continue;
         }
 
@@ -1971,7 +1992,7 @@ static status_t
          * in the "str1" + "str2" + "strn" sequence
          */
         last = NULL;
-        next = (tk_token_t *)dlq_nextEntry(first);
+        next = (tk_token_t *)dlq_nextEntry(instance, first);
         bufflen = first->len;
         done = FALSE;
         while (!done) {
@@ -1981,7 +2002,7 @@ static status_t
             } else {
                 /* found '+', should find another string next */
                 plus = next;
-                next = (tk_token_t *)dlq_nextEntry(next);
+                next = (tk_token_t *)dlq_nextEntry(instance, next);
                 if (!next || !(next->typ==TK_TT_QSTRING ||
                                next->typ==TK_TT_SQSTRING)) {
                     /* error, missing or wrong token */
@@ -1991,9 +2012,9 @@ static status_t
                     /* OK, get rid of '+' and setup next loop */
                     last = next;
                     bufflen += last->len;
-                    dlq_remove(plus);
-                    free_token(plus);
-                    next = (tk_token_t *)dlq_nextEntry(next);
+                    dlq_remove(instance, plus);
+                    free_token(instance, plus);
+                    next = (tk_token_t *)dlq_nextEntry(instance, next);
                 }
             }
         }
@@ -2011,7 +2032,7 @@ static status_t
             /* else fixup the consecutive strings
              * get a buffer to store the result
              */
-            buff = (xmlChar *)m__getMem(bufflen+1);
+            buff = (xmlChar *)m__getMem(instance, bufflen+1);
             if (!buff) {
                 tkc->cur = first;
                 return ERR_INTERNAL_MEM;
@@ -2022,11 +2043,11 @@ static status_t
             next = first;
             done = FALSE;
             while (!done) {
-                str += xml_strcpy(str, next->val);
+                str += xml_strcpy(instance, str, next->val);
                 if (next == last) {
                     done = TRUE;
                 } else {
-                    next = (tk_token_t *)dlq_nextEntry(next);
+                    next = (tk_token_t *)dlq_nextEntry(instance, next);
                 }
             }
 
@@ -2052,12 +2073,13 @@ static status_t
                         }
 
                         newline = (prev->linenum != next->linenum);
-                        origstr = new_origstr(next->typ,
+                        origstr = new_origstr(instance,
+                                              next->typ,
                                               newline,
                                               usestr);
                         if (origstr == NULL) {
                             tkc->cur = first;
-                            m__free(buff);
+                            m__free(instance, buff);
                             return ERR_INTERNAL_MEM;
                         }
 
@@ -2069,13 +2091,13 @@ static status_t
                         } else {
                             next->val = NULL;
                         }
-                        dlq_enque(origstr, &first->origstrQ);
+                        dlq_enque(instance, origstr, &first->origstrQ);
                     }
                     if (next == last) {
                         done = TRUE;
                     } else {
                         prev = next;
-                        next = (tk_token_t *)dlq_nextEntry(next);
+                        next = (tk_token_t *)dlq_nextEntry(instance, next);
                     }
                 }
             }
@@ -2093,23 +2115,23 @@ static status_t
                  * like an SQSTRING; just toss it as origval copy is
                  * already set before the conversion was done
                  */
-                m__free(first->val);
+                m__free(instance, first->val);
             }
             first->val = buff;
         
             /* remove the 2nd through the 'last' token */
             done = FALSE;
             while (!done) {
-                next = (tk_token_t *)dlq_nextEntry(first);
-                dlq_remove(next);
+                next = (tk_token_t *)dlq_nextEntry(instance, first);
+                dlq_remove(instance, next);
                 if (next == last) {
                     done = TRUE;
                 }
-                free_token(next);
+                free_token(instance, next);
             }
 
             /* setup the next search for a 'first' string */
-            first = (tk_token_t *)dlq_nextEntry(first);
+            first = (tk_token_t *)dlq_nextEntry(instance, first);
         } else {
             /* did not find a string concat, continue search */
             first = next;
@@ -2133,18 +2155,18 @@ static status_t
 *  new parse chain or NULL if memory error
 *********************************************************************/
 tk_chain_t * 
-    tk_new_chain (void)
+    tk_new_chain (ncx_instance_t *instance)
 {
     tk_chain_t  *tkc;
 
-    tkc = m__getObj(tk_chain_t);
+    tkc = m__getObj(instance, tk_chain_t);
     if (!tkc) {
         return NULL;
     }
     memset(tkc, 0x0, sizeof(tk_chain_t));
-    dlq_createSQue(&tkc->tkQ);
+    dlq_createSQue(instance, &tkc->tkQ);
     tkc->cur = (tk_token_t *)&tkc->tkQ;
-    dlq_createSQue(&tkc->tkptrQ);
+    dlq_createSQue(instance, &tkc->tkptrQ);
     return tkc;
            
 } /* tk_new_chain */
@@ -2161,13 +2183,14 @@ tk_chain_t *
 *    filename == source filespec
 *********************************************************************/
 void
-    tk_setup_chain_conf (tk_chain_t *tkc,
+    tk_setup_chain_conf (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          FILE *fp,
                          const xmlChar *filename)
 {
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2191,13 +2214,14 @@ void
 *    filename == source filespec
 *********************************************************************/
 void
-    tk_setup_chain_yang (tk_chain_t *tkc,
+    tk_setup_chain_yang (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          FILE *fp,
                          const xmlChar *filename)
 {
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2220,12 +2244,13 @@ void
 *    filename == source filespec
 *********************************************************************/
 void
-    tk_setup_chain_yin (tk_chain_t *tkc,
+    tk_setup_chain_yin (ncx_instance_t *instance,
+                        tk_chain_t *tkc,
                         const xmlChar *filename)
 {
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2246,11 +2271,11 @@ void
 *    tkc == token chain to setup
 *********************************************************************/
 void
-    tk_setup_chain_docmode (tk_chain_t *tkc)
+    tk_setup_chain_docmode (ncx_instance_t *instance, tk_chain_t *tkc)
 {
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2270,34 +2295,34 @@ void
 *  none
 *********************************************************************/
 void 
-    tk_free_chain (tk_chain_t *tkc)
+    tk_free_chain (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     tk_token_t      *tk;
     tk_token_ptr_t  *tkptr;
 
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
-    while (!dlq_empty(&tkc->tkQ)) {
-        tk = (tk_token_t *)dlq_deque(&tkc->tkQ);
-        free_token(tk);
+    while (!dlq_empty(instance, &tkc->tkQ)) {
+        tk = (tk_token_t *)dlq_deque(instance, &tkc->tkQ);
+        free_token(instance, tk);
     }
-    while (!dlq_empty(&tkc->tkptrQ)) {
-        tkptr = (tk_token_ptr_t *)dlq_deque(&tkc->tkptrQ);
-        free_token_ptr(tkptr);
+    while (!dlq_empty(instance, &tkc->tkptrQ)) {
+        tkptr = (tk_token_ptr_t *)dlq_deque(instance, &tkc->tkptrQ);
+        free_token_ptr(instance, tkptr);
     }
     if ((tkc->flags & TK_FL_MALLOC) && tkc->buff) {
-        m__free(tkc->buff);
+        m__free(instance, tkc->buff);
     }
-    m__free(tkc);
+    m__free(instance, tkc);
     
 } /* tk_free_chain */
 
@@ -2315,31 +2340,32 @@ void
 *   btype found or NCX_BT_NONE if no match
 *********************************************************************/
 ncx_btype_t 
-    tk_get_yang_btype_id (const xmlChar *buff, 
+    tk_get_yang_btype_id (ncx_instance_t *instance, 
+                          const xmlChar *buff, 
                           uint32 len)
 {
     uint32 i;
 
 #ifdef DEBUG
     if (!buff) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_BT_NONE;
     }
     if (!len) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_BT_NONE;
     }
 #endif
 
     /* hack first because of NCX_BT_ENUM */
-    if (len==11 && !xml_strncmp(buff, NCX_EL_ENUMERATION, 11)) {
+    if (len==11 && !xml_strncmp(instance, buff, NCX_EL_ENUMERATION, 11)) {
         return NCX_BT_ENUM;
     }
 
     /* look in the blist for the specified type name */
     for (i=1; blist[i].btyp != NCX_BT_NONE; i++) {
         if ((blist[i].blen == len) &&
-            !xml_strncmp(blist[i].bid, buff, len)) {
+            !xml_strncmp(instance, blist[i].bid, buff, len)) {
             if (blist[i].flags & FL_YANG) {
                 return blist[i].btyp;
             } else {
@@ -2432,13 +2458,13 @@ const char *
 *   token type
 *********************************************************************/
 tk_type_t
-    tk_next_typ (tk_chain_t *tkc)
+    tk_next_typ (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     tk_token_t *tk;
 
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return TK_TT_NONE;
     }
 #endif
@@ -2447,7 +2473,7 @@ tk_type_t
         /* hit EOF in token chain already */
         return TK_TT_NONE;
     }
-    tk = (tk_token_t *)dlq_nextEntry(tkc->cur);
+    tk = (tk_token_t *)dlq_nextEntry(instance, tkc->cur);
     return  (tk) ? tk->typ : TK_TT_NONE;
 
 } /* tk_next_typ */
@@ -2464,13 +2490,13 @@ tk_type_t
 *   token type
 *********************************************************************/
 tk_type_t
-    tk_next_typ2 (tk_chain_t *tkc)
+    tk_next_typ2 (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     tk_token_t *tk;
 
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return TK_TT_NONE;
     }
 #endif
@@ -2479,9 +2505,9 @@ tk_type_t
         return TK_TT_NONE;
     }
 
-    tk = (tk_token_t *)dlq_nextEntry(tkc->cur);
+    tk = (tk_token_t *)dlq_nextEntry(instance, tkc->cur);
     if (tk) {
-        tk = (tk_token_t *)dlq_nextEntry(tk);
+        tk = (tk_token_t *)dlq_nextEntry(instance, tk);
         return  (tk) ? tk->typ : TK_TT_NONE;
     } else {
         return TK_TT_NONE;
@@ -2501,18 +2527,18 @@ tk_type_t
 *   token type
 *********************************************************************/
 const xmlChar *
-    tk_next_val (tk_chain_t *tkc)
+    tk_next_val (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     tk_token_t *tk;
 
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    tk = (tk_token_t *)dlq_nextEntry(tkc->cur);
+    tk = (tk_token_t *)dlq_nextEntry(instance, tkc->cur);
     return  (tk) ? (const xmlChar *)tk->val : NULL;
 
 } /* tk_next_val */
@@ -2529,11 +2555,11 @@ const xmlChar *
 *
 *********************************************************************/
 void
-    tk_dump_token (const tk_token_t *tk)
+    tk_dump_token (ncx_instance_t *instance, const tk_token_t *tk)
 {
 #ifdef DEBUG
     if (!tk) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2542,15 +2568,16 @@ void
         return;
     }
 
-    log_debug2("\nline(%u.%u), typ(%s)",
+    log_debug2(instance,
+               "\nline(%u.%u), typ(%s)",
                tk->linenum, 
                tk->linepos, 
                tk_get_token_name(tk->typ));
     if (tk->val) {
-        if (xml_strlen(tk->val) > 40) {
-            log_debug2("\n");
+        if (xml_strlen(instance, tk->val) > 40) {
+            log_debug2(instance, "\n");
         }
-        log_debug2("  val(%s)", (const char *)tk->val);
+        log_debug2(instance, "  val(%s)", (const char *)tk->val);
     }
 
 } /* tk_dump_token */
@@ -2569,14 +2596,14 @@ void
 *   none
 *********************************************************************/
 void
-    tk_dump_chain (const tk_chain_t *tkc)
+    tk_dump_chain (ncx_instance_t *instance, const tk_chain_t *tkc)
 {
     const tk_token_t *tk;
     int               i;
 
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2586,20 +2613,21 @@ void
     }
 
     i = 0;
-    for (tk = (tk_token_t *)dlq_firstEntry(&tkc->tkQ);
+    for (tk = (tk_token_t *)dlq_firstEntry(instance, &tkc->tkQ);
          tk != NULL;
-         tk = (tk_token_t *)dlq_nextEntry(tk)) {
-        log_debug3("\n%s line(%u.%u), tk(%d), typ(%s)",
+         tk = (tk_token_t *)dlq_nextEntry(instance, tk)) {
+        log_debug3(instance,
+                   "\n%s line(%u.%u), tk(%d), typ(%s)",
                    (tk==tkc->cur) ? "*cur*" : "",
                    tk->linenum, 
                    tk->linepos, 
                    ++i, 
                    tk_get_token_name(tk->typ));
         if (tk->val) {
-            if (xml_strlen(tk->val) > 40) {
-                log_debug3("\n");
+            if (xml_strlen(instance, tk->val) > 40) {
+                log_debug3(instance, "\n");
             }
-            log_debug3("  val(%s)", (const char *)tk->val);
+            log_debug3(instance, "  val(%s)", (const char *)tk->val);
         }
     }
 
@@ -2619,13 +2647,13 @@ void
 *    FALSE if not a string or no whitespace in the string
 *********************************************************************/
 boolean
-    tk_is_wsp_string (const tk_token_t *tk)
+    tk_is_wsp_string (ncx_instance_t *instance, const tk_token_t *tk)
 {
     const xmlChar *str;
 
 #ifdef DEBUG
     if (!tk) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -2678,7 +2706,8 @@ boolean
 *   status of the operation
 *********************************************************************/
 status_t 
-    tk_tokenize_input (tk_chain_t *tkc,
+    tk_tokenize_input (ncx_instance_t *instance,
+                       tk_chain_t *tkc,
                        ncx_module_t *mod)
 {
     status_t      res;
@@ -2688,23 +2717,23 @@ status_t
 
 #ifdef DEBUG
     if (!tkc) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* check if a temp buffer is needed */
     if (tkc->flags & TK_FL_MALLOC) {
-        tkc->buff = m__getMem(TK_BUFF_SIZE);
+        tkc->buff = m__getMem(instance, TK_BUFF_SIZE);
         if (!tkc->buff) {
             res = ERR_INTERNAL_MEM;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         } else {
             memset(tkc->buff, 0x0, TK_BUFF_SIZE);
         }
     } else if (tkc->buff == NULL) {
         /* tkc->buff expected to be setup already */
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* setup buffer for parsing */
@@ -2728,7 +2757,7 @@ status_t
             } else {
                 /* save newline token for conf file only */
                 if (tkc->source == TK_SOURCE_CONF) {
-                    tk = new_token(TK_TT_NEWLINE, NULL, 0);
+                    tk = new_token(instance, TK_TT_NEWLINE, NULL, 0);
                     if (!tk) {
                         res = ERR_INTERNAL_MEM;
                         done = TRUE;
@@ -2736,7 +2765,7 @@ status_t
                     } 
                     tk->linenum = tkc->linenum;
                     tk->linepos = tkc->linepos;
-                    dlq_enque(tk, &tkc->tkQ);
+                    dlq_enque(instance, tk, &tkc->tkQ);
                 }
                 tkc->linenum++;
                 tkc->linepos = 1;
@@ -2747,15 +2776,16 @@ status_t
 
 #ifdef TK_RDLN_DEBUG
             if (LOGDEBUG3) {
-                if (xml_strlen(tkc->buff) < 80) {
-                    log_debug3("\ntk_tokenize: read line (%s)", tkc->buff);
+                if (xml_strlen(instance, tkc->buff) < 80) {
+                    log_debug3(instance, "\ntk_tokenize: read line (%s)", tkc->buff);
                 } else {
-                    log_debug3("\ntk_tokenize: read line len  (%d)", 
-                               xml_strlen(tkc->buff));
+                    log_debug3(instance, 
+                               "\ntk_tokenize: read line len  (%d)", 
+                               xml_strlen(instance, tkc->buff));
                 }
             }
 #endif
-            ncx_check_warn_linelen(tkc, mod, tkc->buff);
+            ncx_check_warn_linelen(instance, tkc, mod, tkc->buff);
         }
 
         /* Have some sort of input in the buffer (tkc->buff) */
@@ -2778,7 +2808,7 @@ status_t
             } else if (*tkc->bptr == '\n') {
                 /* save newline token for conf file only */
                 if (tkc->source == TK_SOURCE_CONF) {
-                    tk = new_token(TK_TT_NEWLINE, NULL, 0);
+                    tk = new_token(instance, TK_TT_NEWLINE, NULL, 0);
                     if (!tk) {
                         res = ERR_INTERNAL_MEM;
                         done = TRUE;
@@ -2786,7 +2816,7 @@ status_t
                     } 
                     tk->linenum = tkc->linenum;
                     tk->linepos = ++tkc->linepos;
-                    dlq_enque(tk, &tkc->tkQ);
+                    dlq_enque(instance, tk, &tkc->tkQ);
                 }
                 tkc->bptr++;
             } else if ((tkc->source == TK_SOURCE_CONF &&
@@ -2805,19 +2835,19 @@ status_t
             } else if (tkc->source == TK_SOURCE_YANG &&
                        *tkc->bptr == '/' && tkc->bptr[1] == '*') {
                 /* found start of a C-style YANG comment */
-                res = skip_yang_cstring(tkc);
+                res = skip_yang_cstring(instance, tkc);
             } else if (*tkc->bptr == NCX_QSTRING_CH) {
                 /* get a dbl-quoted string which may span multiple lines */
-                res = tokenize_qstring(tkc);
+                res = tokenize_qstring(instance, tkc);
             } else if (*tkc->bptr == NCX_SQSTRING_CH) {
                 /* get a single-quoted string which may span multiple lines */
-                res = tokenize_sqstring(tkc);
+                res = tokenize_sqstring(instance, tkc);
             } else if (tkc->source == TK_SOURCE_XPATH &&
                        *tkc->bptr == NCX_VARBIND_CH) {
-                res = tokenize_varbind_string(tkc);
+                res = tokenize_varbind_string(instance, tkc);
             } else if (ncx_valid_fname_ch(*tkc->bptr)) {
                 /* get some some of unquoted ID string or regular string */
-                res = tokenize_id_string(tkc);
+                res = tokenize_id_string(instance, tkc);
             } else if ((*tkc->bptr=='+' || *tkc->bptr=='-') &&
                        isdigit(*(tkc->bptr+1)) &&
                        (tkc->source != TK_SOURCE_YANG) &&
@@ -2830,15 +2860,16 @@ status_t
                  * strings use the tk_retokenize_cur_string fn
                  * to break up the string into more tokens
                  */
-                res = tokenize_number(tkc);
+                res = tokenize_number(instance, tkc);
             } else if (isdigit(*tkc->bptr) &&
                        (tkc->source != TK_SOURCE_YANG)) {
-                res = tokenize_number(tkc);
+                res = tokenize_number(instance, tkc);
             } else {
                 /* check for a 2 char token before 1 char token */
-                ttyp = get_token_id(tkc->bptr, 2, tkc->source);
+                ttyp = get_token_id(instance, tkc->bptr, 2, tkc->source);
                 if (ttyp != TK_TT_NONE) {
-                    res = add_new_token(tkc, 
+                    res = add_new_token(instance, 
+                                        tkc, 
                                         ttyp, 
                                         tkc->bptr+2, 
                                         tkc->linepos);
@@ -2846,10 +2877,11 @@ status_t
                     tkc->linepos += 2;
                 } else {
                     /* not a 2-char, check for a 1-char token */
-                    ttyp = get_token_id(tkc->bptr, 1, tkc->source);
+                    ttyp = get_token_id(instance, tkc->bptr, 1, tkc->source);
                     if (ttyp != TK_TT_NONE) {
                         /* got a 1 char token */
-                        res = add_new_token(tkc, 
+                        res = add_new_token(instance, 
+                                            tkc, 
                                             ttyp, 
                                             tkc->bptr+1, 
                                             tkc->linepos);
@@ -2859,7 +2891,7 @@ status_t
                         /* ran out of token type choices 
                          * call it a string 
                          */
-                        res = tokenize_string(tkc);
+                        res = tokenize_string(instance, tkc);
                     }
                 }
             }
@@ -2872,14 +2904,14 @@ status_t
     }
 
     if (res == NO_ERR && tkc->source != TK_SOURCE_XPATH) {
-        res = concat_qstrings(tkc);
+        res = concat_qstrings(instance, tkc);
     }
 
     if (res == NO_ERR) {
         /* setup the token queue current pointer */
         tkc->cur = (tk_token_t *)&tkc->tkQ;
     } else {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
     }
 
     return res;
@@ -2903,7 +2935,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    tk_retokenize_cur_string (tk_chain_t *tkc,
+    tk_retokenize_cur_string (ncx_instance_t *instance,
+                              tk_chain_t *tkc,
                               ncx_module_t *mod)
 {
     tk_chain_t *tkctest;
@@ -2912,7 +2945,7 @@ status_t
 
 #ifdef DEBUG
     if (!tkc || !tkc->cur) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }   
 #endif
 
@@ -2921,13 +2954,13 @@ status_t
     }
 
     /* create a test chain and parse the string */
-    tkctest = tk_new_chain();
+    tkctest = tk_new_chain(instance);
     if (!tkctest) {
         return ERR_INTERNAL_MEM;
     }
     tkctest->source = TK_SOURCE_REDO;
     tkctest->bptr = tkctest->buff = TK_CUR_VAL(tkc);
-    res = tk_tokenize_input(tkctest, mod);
+    res = tk_tokenize_input(instance, tkctest, mod);
 
     /* check if the token parse was different
      * if more than 1 token, then it was changed
@@ -2935,23 +2968,23 @@ status_t
      */
     if (res == NO_ERR) {
         /* redo token line info for these expanded tokens */
-        for (p = (tk_token_t *)dlq_firstEntry(&tkctest->tkQ); 
+        for (p = (tk_token_t *)dlq_firstEntry(instance, &tkctest->tkQ); 
              p != NULL;
-             p = (tk_token_t *)dlq_nextEntry(p)) {
+             p = (tk_token_t *)dlq_nextEntry(instance, p)) {
             p->linenum = tkc->cur->linenum;
             p->linepos = tkc->cur->linepos;
         }
 
-        dlq_block_insertAfter(&tkctest->tkQ, tkc->cur);
+        dlq_block_insertAfter(instance, &tkctest->tkQ, tkc->cur);
 
         /* get rid of the original string and reset the cur token */
-        p = (tk_token_t *)dlq_nextEntry(tkc->cur);
-        dlq_remove(tkc->cur);
-        free_token(tkc->cur);
+        p = (tk_token_t *)dlq_nextEntry(instance, tkc->cur);
+        dlq_remove(instance, tkc->cur);
+        free_token(instance, tkc->cur);
         tkc->cur = p;
     }
 
-    tk_free_chain(tkctest);
+    tk_free_chain(instance, tkctest);
 
     return res;
 
@@ -2976,7 +3009,8 @@ status_t
 *   pointer to malloced and filled in token chain
 *   ready to be traversed; always check *res for valid syntax
 *********************************************************************/
-tk_chain_t * tk_tokenize_metadata_string ( ncx_module_t *mod,
+tk_chain_t * tk_tokenize_metadata_string (ncx_instance_t *instance,
+                                            ncx_module_t *mod,
                                            xmlChar *str,
                                            status_t *res )
 {
@@ -2986,14 +3020,14 @@ tk_chain_t * tk_tokenize_metadata_string ( ncx_module_t *mod,
     assert( res && " res is NULL" );
 
     /* create a new chain and parse the string */
-    tkc = tk_new_chain();
+    tkc = tk_new_chain(instance);
     if (!tkc) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
     tkc->source = TK_SOURCE_YANG;
     tkc->bptr = tkc->buff = str;
-    *res = tk_tokenize_input(tkc, mod);
+    *res = tk_tokenize_input(instance, tkc, mod);
     return tkc;
 } /* tk_tokenize_metadata_string */
 
@@ -3018,7 +3052,8 @@ tk_chain_t * tk_tokenize_metadata_string ( ncx_module_t *mod,
 *   ready to be traversed; always check *res for valid syntax
 *********************************************************************/
 tk_chain_t *
-    tk_tokenize_xpath_string (ncx_module_t *mod,
+    tk_tokenize_xpath_string (ncx_instance_t *instance,
+                              ncx_module_t *mod,
                               xmlChar *str,
                               uint32 curlinenum,
                               uint32 curlinepos,
@@ -3028,13 +3063,13 @@ tk_chain_t *
 
 #ifdef DEBUG
     if (!str || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }   
 #endif
 
     /* create a new chain and parse the string */
-    tkc = tk_new_chain();
+    tkc = tk_new_chain(instance);
     if (!tkc) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -3043,7 +3078,7 @@ tk_chain_t *
     tkc->bptr = tkc->buff = str;
     tkc->linenum = curlinenum;
     tkc->linepos = curlinepos;
-    *res = tk_tokenize_input(tkc, mod);
+    *res = tk_tokenize_input(instance, tkc, mod);
     return tkc;
 
 } /* tk_tokenize_xpath_string */
@@ -3061,22 +3096,22 @@ tk_chain_t *
 *   number of tokens in the queue
 *********************************************************************/
 uint32
-    tk_token_count (const tk_chain_t *tkc) 
+    tk_token_count (ncx_instance_t *instance, const tk_chain_t *tkc) 
 {
     const tk_token_t *tk;
     uint32  cnt;
 
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }   
 #endif
 
     cnt = 0;
-    for (tk = (const tk_token_t *)dlq_firstEntry(&tkc->tkQ);
+    for (tk = (const tk_token_t *)dlq_firstEntry(instance, &tkc->tkQ);
          tk != NULL;
-         tk = (const tk_token_t *)dlq_nextEntry(tk)) {
+         tk = (const tk_token_t *)dlq_nextEntry(instance, tk)) {
         cnt++;
     }
     return cnt;
@@ -3094,11 +3129,11 @@ uint32
 *
 *********************************************************************/
 void
-    tk_reset_chain (tk_chain_t *tkc) 
+    tk_reset_chain (ncx_instance_t *instance, tk_chain_t *tkc) 
 {
 #ifdef DEBUG
     if (!tkc) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }   
 #endif
@@ -3120,7 +3155,7 @@ void
 *    new cloned parse chain or NULL if memory error
 *********************************************************************/
 tk_chain_t * 
-    tk_clone_chain (tk_chain_t *oldtkc)
+    tk_clone_chain (ncx_instance_t *instance, tk_chain_t *oldtkc)
 {
     tk_chain_t  *tkc;
     tk_token_t  *token, *oldtoken;
@@ -3128,12 +3163,12 @@ tk_chain_t *
 
 #ifdef DEBUG
     if (oldtkc == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    tkc = tk_new_chain();
+    tkc = tk_new_chain(instance);
     if (!tkc) {
         return NULL;
     }
@@ -3144,24 +3179,26 @@ tk_chain_t *
     tkc->source = oldtkc->source;
 
     res = NO_ERR;
-    for (oldtoken = (tk_token_t *)dlq_firstEntry(&oldtkc->tkQ);
+    for (oldtoken = (tk_token_t *)dlq_firstEntry(instance, &oldtkc->tkQ);
          oldtoken != NULL && res == NO_ERR;
-         oldtoken = (tk_token_t *)dlq_nextEntry(oldtoken)) {
+         oldtoken = (tk_token_t *)dlq_nextEntry(instance, oldtoken)) {
 
-        token = new_token(oldtoken->typ,
+        token = new_token(instance,
+                          oldtoken->typ,
                           oldtoken->val,
                           oldtoken->len);
         if (!token) {
-            tk_free_chain(tkc);
+            tk_free_chain(instance, tkc);
             return NULL;
         }
 
         if (oldtoken->mod) {
-            token->mod = xml_strndup(oldtoken->mod,
+            token->mod = xml_strndup(instance,
+                                     oldtoken->mod,
                                      oldtoken->modlen);
             if (!token->mod) {
-                free_token(token);
-                tk_free_chain(tkc);
+                free_token(instance, token);
+                tk_free_chain(instance, tkc);
                 return NULL;
             }
             token->modlen = oldtoken->modlen;
@@ -3170,7 +3207,7 @@ tk_chain_t *
         token->linenum = oldtoken->linenum;
         token->linepos = oldtoken->linepos;
         token->nsid = oldtoken->nsid;
-        dlq_enque(token, &tkc->tkQ);
+        dlq_enque(instance, token, &tkc->tkQ);
     }
 
     return tkc;
@@ -3191,25 +3228,27 @@ tk_chain_t *
 *    status
 *********************************************************************/
 status_t 
-    tk_add_id_token (tk_chain_t *tkc,
+    tk_add_id_token (ncx_instance_t *instance,
+                     tk_chain_t *tkc,
                      const xmlChar *valstr)
 {
     tk_token_t   *tk;
 
     if ( !tkc ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 
     /* hack for YIN input, no XML line numbers */
     tkc->linenum++;
 
     if ( !valstr ) {
-        tk = new_token(TK_TT_TSTRING, NULL, 0);
+        tk = new_token(instance, TK_TT_TSTRING, NULL, 0);
     } else {
         /* normal case string -- non-zero length */
-        tk = new_token(TK_TT_TSTRING,
+        tk = new_token(instance,
+                       TK_TT_TSTRING,
                        valstr, 
-                       xml_strlen(valstr));
+                       xml_strlen(instance, valstr));
     }
     if (!tk) {
         return ERR_INTERNAL_MEM;
@@ -3217,7 +3256,7 @@ status_t
 
     tk->linenum = tkc->linenum;
     tk->linepos = 1;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     return NO_ERR;
 }  /* tk_add_id_token */
@@ -3239,7 +3278,8 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    tk_add_pid_token (tk_chain_t *tkc,
+    tk_add_pid_token (ncx_instance_t *instance,
+                      tk_chain_t *tkc,
                       const xmlChar *prefix,
                       uint32 prefixlen,
                       const xmlChar *valstr)
@@ -3248,18 +3288,19 @@ status_t
 
 #ifdef DEBUG
     if (tkc == NULL || prefix == NULL || valstr == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* hack for YIN input, no XML line numbers */
     tkc->linenum++;
 
-    tk = new_token_wmod(TK_TT_MSTRING,
+    tk = new_token_wmod(instance,
+                        TK_TT_MSTRING,
                         prefix, 
                         prefixlen, 
                         valstr,
-                        xml_strlen(valstr));
+                        xml_strlen(instance, valstr));
 
     if (tk == NULL) {
         return ERR_INTERNAL_MEM;
@@ -3267,7 +3308,7 @@ status_t
 
     tk->linenum = tkc->linenum;
     tk->linepos = 1;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     return NO_ERR;
     
@@ -3287,25 +3328,26 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    tk_add_string_token (tk_chain_t *tkc,
+    tk_add_string_token (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          const xmlChar *valstr)
 {
     tk_token_t   *tk;
     tk_type_t     tktyp;
 
     if ( !tkc ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 
     /* hack for YIN input, no XML line numbers */
     tkc->linenum++;
 
     if ( !valstr ) {
-        tk = new_token(TK_TT_QSTRING, NULL, 0);
+        tk = new_token(instance, TK_TT_QSTRING, NULL, 0);
     } else {
-        uint32 tklen = xml_strlen(valstr);
+        uint32 tklen = xml_strlen(instance, valstr);
 
-        if (val_need_quotes(valstr)) {
+        if (val_need_quotes(instance, valstr)) {
             tktyp = TK_TT_QSTRING;
         } else if (ncx_valid_name(valstr, tklen)) {
             tktyp = TK_TT_TSTRING;
@@ -3314,7 +3356,7 @@ status_t
         }
 
         /* normal case string -- non-zero length */
-        tk = new_token(tktyp, valstr, tklen);
+        tk = new_token(instance, tktyp, valstr, tklen);
     }
     if (!tk) {
         return ERR_INTERNAL_MEM;
@@ -3322,7 +3364,7 @@ status_t
 
     tk->linenum = tkc->linenum;
     tk->linepos = 1;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     return NO_ERR;
     
@@ -3341,20 +3383,21 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    tk_add_lbrace_token (tk_chain_t *tkc)
+    tk_add_lbrace_token (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     tk_token_t   *tk;
 
 #ifdef DEBUG
     if (tkc == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* hack for YIN input, no XML line numbers */
     tkc->linenum++;
 
-    tk = new_token(TK_TT_LBRACE,
+    tk = new_token(instance,
+                   TK_TT_LBRACE,
                    (const xmlChar *)"{",
                    1);
     if (!tk) {
@@ -3363,7 +3406,7 @@ status_t
 
     tk->linenum = tkc->linenum;
     tk->linepos = 1;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     return NO_ERR;
     
@@ -3382,20 +3425,21 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    tk_add_rbrace_token (tk_chain_t *tkc)
+    tk_add_rbrace_token (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     tk_token_t   *tk;
 
 #ifdef DEBUG
     if (tkc == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* hack for YIN input, no XML line numbers */
     tkc->linenum++;
 
-    tk = new_token(TK_TT_RBRACE,
+    tk = new_token(instance,
+                   TK_TT_RBRACE,
                    (const xmlChar *)"}",
                    1);
     if (!tk) {
@@ -3404,7 +3448,7 @@ status_t
 
     tk->linenum = tkc->linenum;
     tk->linepos = 1;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     return NO_ERR;
     
@@ -3423,20 +3467,21 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    tk_add_semicol_token (tk_chain_t *tkc)
+    tk_add_semicol_token (ncx_instance_t *instance, tk_chain_t *tkc)
 {
     tk_token_t   *tk;
 
 #ifdef DEBUG
     if (tkc == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* hack for YIN input, no XML line numbers */
     tkc->linenum++;
 
-    tk = new_token(TK_TT_SEMICOL,
+    tk = new_token(instance,
+                   TK_TT_SEMICOL,
                    (const xmlChar *)";",
                    1);
     if (!tk) {
@@ -3445,7 +3490,7 @@ status_t
 
     tk->linenum = tkc->linenum;
     tk->linepos = 1;
-    dlq_enque(tk, &tkc->tkQ);
+    dlq_enque(instance, tk, &tkc->tkQ);
 
     return NO_ERR;
     
@@ -3467,7 +3512,8 @@ status_t
 *    status; ERR_INTERNAL_MEM if entry cannot be malloced
 *********************************************************************/
 status_t
-    tk_check_save_origstr (tk_chain_t  *tkc,
+    tk_check_save_origstr (ncx_instance_t *instance,
+                           tk_chain_t  *tkc,
                            tk_token_t *tk,
                            const void *field)
 {
@@ -3475,7 +3521,7 @@ status_t
 
 #ifdef DEBUG
     if (tkc == NULL || tk == NULL || field == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3490,11 +3536,11 @@ status_t
     /* save all string tokens, not just the ones that
      * have multi-part format, needed for original quotes
      */
-    tkptr = new_token_ptr(tk, field);
+    tkptr = new_token_ptr(instance, tk, field);
     if (tkptr == NULL) {
         return ERR_INTERNAL_MEM;
     }
-    dlq_enque(tkptr, &tkc->tkptrQ);
+    dlq_enque(instance, tkptr, &tkc->tkptrQ);
 
     return NO_ERR;
 
@@ -3520,7 +3566,8 @@ status_t
 *   pointer to the first string fragment
 *********************************************************************/
 const xmlChar *
-    tk_get_first_origstr (const tk_token_ptr_t  *tkptr,
+    tk_get_first_origstr (ncx_instance_t *instance,
+                          const tk_token_ptr_t  *tkptr,
                           boolean *dquote,
                           boolean *morestr)
 
@@ -3532,14 +3579,14 @@ const xmlChar *
         tkptr->tk == NULL || 
         dquote == NULL || 
         morestr == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     tk = tkptr->tk;
 
-    *morestr = !dlq_empty(&tk->origstrQ);
+    *morestr = !dlq_empty(instance, &tk->origstrQ);
     *dquote = (tk->typ == TK_TT_QSTRING) ? TRUE : FALSE;
     if (tk->origval) {
         return tk->origval;
@@ -3560,19 +3607,19 @@ const xmlChar *
 *   pointer to the first original string record
 *********************************************************************/
 const tk_origstr_t *
-    tk_first_origstr_rec (const tk_token_ptr_t  *tkptr)
+    tk_first_origstr_rec (ncx_instance_t *instance, const tk_token_ptr_t  *tkptr)
 {
     const tk_token_t  *tk;
 
 #ifdef DEBUG
     if (tkptr == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     tk = tkptr->tk;
-    return (const tk_origstr_t *)dlq_firstEntry(&tk->origstrQ);
+    return (const tk_origstr_t *)dlq_firstEntry(instance, &tk->origstrQ);
 
 }  /* tk_first_origstr_rec */
 
@@ -3589,16 +3636,16 @@ const tk_origstr_t *
 *   pointer to the next original string record
 *********************************************************************/
 const tk_origstr_t *
-    tk_next_origstr_rec (const tk_origstr_t  *origstr)
+    tk_next_origstr_rec (ncx_instance_t *instance, const tk_origstr_t  *origstr)
 {
 #ifdef DEBUG
     if (origstr == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (const tk_origstr_t *)dlq_nextEntry(origstr);
+    return (const tk_origstr_t *)dlq_nextEntry(instance, origstr);
 
 }  /* tk_next_origstr_rec */
 
@@ -3622,14 +3669,15 @@ const tk_origstr_t *
 *   pointer to the string fragment
 *********************************************************************/
 const xmlChar *
-    tk_get_origstr_parts (const tk_origstr_t  *origstr,
+    tk_get_origstr_parts (ncx_instance_t *instance,
+                          const tk_origstr_t  *origstr,
                           boolean *dquote,
                           boolean *newline)
 
 {
 #ifdef DEBUG
     if (origstr == NULL || dquote == NULL || newline == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3656,23 +3704,24 @@ const xmlChar *
 *   pointer to the token pointer record or NULL if not found
 *********************************************************************/
 const tk_token_ptr_t *
-    tk_find_tkptr (const tk_chain_t  *tkc,
+    tk_find_tkptr (ncx_instance_t *instance,
+                   const tk_chain_t  *tkc,
                    const void *field)
 {
     const tk_token_ptr_t *tkptr;
 
 #ifdef DEBUG
     if (tkc == NULL || field == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     for (tkptr = (const tk_token_ptr_t *)
-             dlq_firstEntry(&tkc->tkptrQ);
+             dlq_firstEntry(instance, &tkc->tkptrQ);
          tkptr != NULL;
          tkptr = (const tk_token_ptr_t *)
-             dlq_nextEntry(tkptr)) {
+             dlq_nextEntry(instance, tkptr)) {
 
         if (field == tkptr->field) {
             return tkptr;
@@ -3697,12 +3746,12 @@ const tk_token_ptr_t *
 *   number of quotes used in first string
 *********************************************************************/
 uint32
-    tk_tkptr_quotes (const tk_token_ptr_t  *tkptr)
+    tk_tkptr_quotes (ncx_instance_t *instance, const tk_token_ptr_t  *tkptr)
 {
 
 #ifdef DEBUG
     if (tkptr == NULL || tkptr->tk == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif

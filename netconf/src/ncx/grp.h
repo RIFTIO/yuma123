@@ -87,6 +87,7 @@ typedef struct grp_template_t_ {
     boolean          istop;
     boolean          expand_done;
     ncx_status_t     status;
+    uint32           objtag;
     uint32           grpindex;         /* used for XSD generation */
     dlq_hdr_t        typedefQ;             /* Q of typ_template_t */
     dlq_hdr_t        groupingQ;            /* Q of grp_template_t */
@@ -113,7 +114,7 @@ typedef struct grp_template_t_ {
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern grp_template_t *
-    grp_new_template (void);
+    grp_new_template (struct ncx_instance_t_ *instance, uint32 objtag);
 
 
 /********************************************************************
@@ -128,7 +129,7 @@ extern grp_template_t *
 *    grp == grp_template_t data structure to free
 *********************************************************************/
 extern void 
-    grp_free_template (grp_template_t *grp);
+    grp_free_template (struct ncx_instance_t_ *instance, grp_template_t *grp);
 
 
 /********************************************************************
@@ -140,7 +141,7 @@ extern void
 *    que == Q of grp_template_t data structures to free
 *********************************************************************/
 extern void
-    grp_clean_groupingQ (dlq_hdr_t *que);
+    grp_clean_groupingQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -156,7 +157,7 @@ extern void
 *    FALSE if no embedded typedefs
 *********************************************************************/
 extern boolean
-    grp_has_typedefs (const grp_template_t *grp);
+    grp_has_typedefs (struct ncx_instance_t_ *instance, const grp_template_t *grp);
 
 
 /********************************************************************
@@ -171,7 +172,7 @@ extern boolean
 *    const pointer to module name
 *********************************************************************/
 extern const xmlChar *
-    grp_get_mod_name (const grp_template_t *grp);
+    grp_get_mod_name (struct ncx_instance_t_ *instance, const grp_template_t *grp);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

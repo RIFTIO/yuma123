@@ -62,6 +62,8 @@ date         init     comment
 #include  "yangconst.h"
 #endif
 
+#include  "ncxtypes.h"
+
 
 /********************************************************************
 * FUNCTION op_method_name
@@ -158,39 +160,39 @@ const xmlChar *
 *    the op_editop_t enumeration value for the string
 *********************************************************************/
 op_editop_t 
-    op_editop_id (const xmlChar *opstr)
+    op_editop_id (ncx_instance_t *instance, const xmlChar *opstr)
 {
 #ifdef DEBUG
     if (!opstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return OP_EDITOP_NONE;
     }
 #endif
 
-    if (!xml_strcmp(opstr, NCX_EL_MERGE)) {
+    if (!xml_strcmp(instance, opstr, NCX_EL_MERGE)) {
         return OP_EDITOP_MERGE;
     }
-    if (!xml_strcmp(opstr, NCX_EL_REPLACE)) {
+    if (!xml_strcmp(instance, opstr, NCX_EL_REPLACE)) {
         return OP_EDITOP_REPLACE;
     }
-    if (!xml_strcmp(opstr, NCX_EL_CREATE)) {
+    if (!xml_strcmp(instance, opstr, NCX_EL_CREATE)) {
         return OP_EDITOP_CREATE;
     }
-    if (!xml_strcmp(opstr, NCX_EL_DELETE)) {
+    if (!xml_strcmp(instance, opstr, NCX_EL_DELETE)) {
         return OP_EDITOP_DELETE;
     }
-    if (!xml_strcmp(opstr, NCX_EL_REMOVE)) {
+    if (!xml_strcmp(instance, opstr, NCX_EL_REMOVE)) {
         return OP_EDITOP_REMOVE;
     }
-    if (!xml_strcmp(opstr, NCX_EL_NONE)) {
+    if (!xml_strcmp(instance, opstr, NCX_EL_NONE)) {
         return OP_EDITOP_NONE;
     }
 
     /* internal extensions, should not be used in NETCONF PDU */
-    if (!xml_strcmp(opstr, NCX_EL_LOAD)) {
+    if (!xml_strcmp(instance, opstr, NCX_EL_LOAD)) {
         return OP_EDITOP_LOAD;
     }
-    if (!xml_strcmp(opstr, NCX_EL_COMMIT)) {
+    if (!xml_strcmp(instance, opstr, NCX_EL_COMMIT)) {
         return OP_EDITOP_COMMIT;
     }
 
@@ -241,25 +243,25 @@ const xmlChar *
 *    the op_insertop_t enumeration value for the string
 *********************************************************************/
 op_insertop_t 
-    op_insertop_id (const xmlChar *opstr)
+    op_insertop_id (ncx_instance_t *instance, const xmlChar *opstr)
 {
 #ifdef DEBUG
     if (!opstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return OP_INSOP_NONE;
     }
 #endif
 
-    if (!xml_strcmp(opstr, YANG_K_FIRST)) {
+    if (!xml_strcmp(instance, opstr, YANG_K_FIRST)) {
         return OP_INSOP_FIRST;
     }
-    if (!xml_strcmp(opstr, YANG_K_LAST)) {
+    if (!xml_strcmp(instance, opstr, YANG_K_LAST)) {
         return OP_INSOP_LAST;
     }
-    if (!xml_strcmp(opstr, YANG_K_BEFORE)) {
+    if (!xml_strcmp(instance, opstr, YANG_K_BEFORE)) {
         return OP_INSOP_BEFORE;
     }
-    if (!xml_strcmp(opstr, YANG_K_AFTER)) {
+    if (!xml_strcmp(instance, opstr, YANG_K_AFTER)) {
         return OP_INSOP_AFTER;
     }
     return OP_INSOP_NONE;
@@ -278,19 +280,19 @@ op_insertop_t
 *    the op_filtertyp_t enumeration value for the string
 *********************************************************************/
 op_filtertyp_t 
-    op_filtertyp_id (const xmlChar *filstr)
+    op_filtertyp_id (ncx_instance_t *instance, const xmlChar *filstr)
 {
 #ifdef DEBUG
     if (!filstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return OP_FILTER_NONE;
     }
 #endif
 
-    if (!xml_strcmp(filstr, NCX_EL_SUBTREE)) {
+    if (!xml_strcmp(instance, filstr, NCX_EL_SUBTREE)) {
         return OP_FILTER_SUBTREE;
     }
-    if (!xml_strcmp(filstr, NCX_EL_XPATH)) {
+    if (!xml_strcmp(instance, filstr, NCX_EL_XPATH)) {
         return OP_FILTER_XPATH;
     }
 
@@ -340,22 +342,22 @@ const xmlChar *
 *    the op_editop_t enumeration value for the string
 *********************************************************************/
 op_editop_t 
-    op_defop_id (const xmlChar *defstr)
+    op_defop_id (ncx_instance_t *instance, const xmlChar *defstr)
 {
 #ifdef DEBUG
     if (!defstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return OP_EDITOP_NONE;
     }
 #endif
 
-    if (!xml_strcmp(defstr, NCX_EL_MERGE)) {
+    if (!xml_strcmp(instance, defstr, NCX_EL_MERGE)) {
         return OP_EDITOP_MERGE;
     }
-    if (!xml_strcmp(defstr, NCX_EL_REPLACE)) {
+    if (!xml_strcmp(instance, defstr, NCX_EL_REPLACE)) {
         return OP_EDITOP_REPLACE;
     }
-    if (!xml_strcmp(defstr, NCX_EL_NONE)) {
+    if (!xml_strcmp(instance, defstr, NCX_EL_NONE)) {
         return OP_EDITOP_NONE;
     }
     return OP_EDITOP_NONE;
@@ -403,13 +405,13 @@ const xmlChar *
 *    
 *********************************************************************/
 op_testop_t
-    op_testop_enum (const xmlChar *teststr)
+    op_testop_enum (ncx_instance_t *instance, const xmlChar *teststr)
 {
-    if (!xml_strcmp(teststr, NCX_EL_TESTONLY)) {
+    if (!xml_strcmp(instance, teststr, NCX_EL_TESTONLY)) {
         return OP_TESTOP_TESTONLY;
-    } else if (!xml_strcmp(teststr, NCX_EL_TESTTHENSET)) {
+    } else if (!xml_strcmp(instance, teststr, NCX_EL_TESTTHENSET)) {
         return OP_TESTOP_TESTTHENSET;
-    } else if (!xml_strcmp(teststr, NCX_EL_SET)) {
+    } else if (!xml_strcmp(instance, teststr, NCX_EL_SET)) {
         return OP_TESTOP_SET;
     } else {
         return OP_TESTOP_NONE;
@@ -456,22 +458,22 @@ const xmlChar *
 *    the op_errop_t enumeration value for the string
 *********************************************************************/
 op_errop_t 
-    op_errop_id (const xmlChar *errstr)
+    op_errop_id (ncx_instance_t *instance, const xmlChar *errstr)
 {
 #ifdef DEBUG
     if (!errstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return OP_ERROP_NONE;
     }
 #endif
 
-    if (!xml_strcmp(errstr, NCX_EL_STOP_ON_ERROR)) {
+    if (!xml_strcmp(instance, errstr, NCX_EL_STOP_ON_ERROR)) {
         return OP_ERROP_STOP;
     }
-    if (!xml_strcmp(errstr, NCX_EL_CONTINUE_ON_ERROR)) {
+    if (!xml_strcmp(instance, errstr, NCX_EL_CONTINUE_ON_ERROR)) {
         return OP_ERROP_CONTINUE;
     }
-    if (!xml_strcmp(errstr, NCX_EL_ROLLBACK_ON_ERROR)) {
+    if (!xml_strcmp(instance, errstr, NCX_EL_ROLLBACK_ON_ERROR)) {
         return OP_ERROP_ROLLBACK;
     }
     return OP_ERROP_NONE;
@@ -491,25 +493,25 @@ op_errop_t
 *    the op_defop_t enumeration value for the string
 *********************************************************************/
 op_defop_t 
-    op_defop_id2 (const xmlChar *defstr)
+    op_defop_id2 (ncx_instance_t *instance, const xmlChar *defstr)
 {
 #ifdef DEBUG
     if (!defstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return OP_DEFOP_NOT_SET;
     }
 #endif
 
-    if (!xml_strcmp(defstr, NCX_EL_NONE)) {
+    if (!xml_strcmp(instance, defstr, NCX_EL_NONE)) {
         return OP_DEFOP_NONE;
     }
-    if (!xml_strcmp(defstr, NCX_EL_MERGE)) {
+    if (!xml_strcmp(instance, defstr, NCX_EL_MERGE)) {
         return OP_DEFOP_MERGE;
     }
-    if (!xml_strcmp(defstr, NCX_EL_REPLACE)) {
+    if (!xml_strcmp(instance, defstr, NCX_EL_REPLACE)) {
         return OP_DEFOP_REPLACE;
     }
-    if (!xml_strcmp(defstr, NCX_EL_NOT_USED)) {
+    if (!xml_strcmp(instance, defstr, NCX_EL_NOT_USED)) {
         return OP_DEFOP_NOT_USED;
     }
     return OP_DEFOP_NOT_SET;

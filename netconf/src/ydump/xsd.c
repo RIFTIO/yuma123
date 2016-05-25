@@ -98,7 +98,8 @@ date         init     comment
 *   status
 *********************************************************************/
 static status_t
-    add_one_prefix (yang_pcb_t *pcb,
+    add_one_prefix (ncx_instance_t *instance,
+                    yang_pcb_t *pcb,
                     const xmlChar *modname,
                     const xmlChar *revision,
                     xml_attrs_t *top_attrs)
@@ -112,26 +113,26 @@ static status_t
     res = NO_ERR;
             
     /* don't use the NCX XSD module, use XSD directly */
-    if (!xml_strcmp(modname, (const xmlChar *)"xsd")) {
+    if (!xml_strcmp(instance, modname, (const xmlChar *)"xsd")) {
         return NO_ERR;
     }
 
     /* first load the module to get the NS ID 
      * It will probably be loaded anyway to find external names.
      */
-    immod = ncx_find_module(modname, revision);
+    immod = ncx_find_module(instance, modname, revision);
     if (!immod) {
-        res = ncxmod_load_module(modname, revision, pcb->savedevQ, &immod);
+        res = ncxmod_load_module(instance, modname, revision, pcb->savedevQ, &immod);
     }
     if (!immod) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* make sure this NS has not already been added */
     found = FALSE;
-    for (test = xml_first_attr(top_attrs);
+    for (test = xml_first_attr(instance, top_attrs);
          test != NULL && !found;
-         test = xml_next_attr(test)) {
+         test = xml_next_attr(instance, test)) {
         if (immod->nsid == test->attr_xmlns_ns) {
             /* the xmlns_ns field is only set when the attr
              * is an xmlns declaration
@@ -141,8 +142,8 @@ static status_t
     }
 
     if (!found) {
-        cstr = xmlns_get_ns_prefix(immod->nsid);
-        res = xml_add_xmlns_attr(top_attrs, immod->nsid, cstr);
+        cstr = xmlns_get_ns_prefix(instance, immod->nsid);
+        res = xml_add_xmlns_attr(instance, top_attrs, immod->nsid, cstr);
     }
 
     return res;
@@ -166,13 +167,14 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    add_module_defs (ncx_module_t *mod,
+    add_module_defs (ncx_instance_t *instance,
+                     ncx_module_t *mod,
                      val_value_t *val)
 {
     status_t           res;
 
     /* convert NCX/YANG types to XSD types */
-    res = xsd_add_types(mod, val);
+    res = xsd_add_types(instance, mod, val);
     if (res != NO_ERR) {
         return res;
     }
@@ -181,25 +183,25 @@ static status_t
      * after this fn call, there might be malloced data in the
      * mod->typnameQ that has to be freed before exiting
      */
-    res = xsd_load_typenameQ(mod);
+    res = xsd_load_typenameQ(instance, mod);
     if (res != NO_ERR) {
         return res;
     }
 
     /* convert YANG local types to XSD types */
-    res = xsd_add_local_types(mod, val);
+    res = xsd_add_local_types(instance, mod, val);
     if (res != NO_ERR) {
         return res;
     }
 
     /* convert YANG groupings to XSD groups */
-    res = xsd_add_groupings(mod, val);
+    res = xsd_add_groupings(instance, mod, val);
     if (res != NO_ERR) {
         return res;
     }
 
     /* convert YANG Objects to XSD elements */
-    res = xsd_add_objects(mod, val);
+    res = xsd_add_objects(instance, mod, val);
     if (res != NO_ERR) {
         return res;
     }
@@ -239,7 +241,8 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    xsd_convert_module (yang_pcb_t *pcb,
+    xsd_convert_module (ncx_instance_t *instance,
+                        yang_pcb_t *pcb,
                         ncx_module_t *mod,
                         yangdump_cvtparms_t *cp,
                         val_value_t **retval,
@@ -255,21 +258,21 @@ status_t
     xmlns_id_t         xsd_id, ncx_id, xsi_id, nc_id, ncn_id;
     boolean            needed;
 
-    xsd_id = xmlns_xs_id();
+    xsd_id = xmlns_xs_id(instance);
     *retval = NULL;
     needed = FALSE;
 
     /* create a struct named 'schema' to hold the entire result */
-    val = xml_val_new_struct(XSD_SCHEMA, xsd_id);
+    val = xml_val_new_struct(instance, XSD_SCHEMA, xsd_id);
     if (!val) {
         return ERR_INTERNAL_MEM;
     }
 
     /* set the XSD NS for schema */
-    cstr = xmlns_get_ns_prefix(xsd_id);
-    res = xml_add_xmlns_attr(top_attrs, xsd_id, cstr);
+    cstr = xmlns_get_ns_prefix(instance, xsd_id);
+    res = xml_add_xmlns_attr(instance, top_attrs, xsd_id, cstr);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
@@ -281,73 +284,73 @@ status_t
      * !!! is set to the target namespace
      */
     if (mod->nsid) {
-        res = xml_add_xmlns_attr(top_attrs, mod->nsid, NULL);
+        res = xml_add_xmlns_attr(instance, top_attrs, mod->nsid, NULL);
     } else {
-        res = xml_add_xmlns_attr_string(top_attrs, cstr, NULL);
+        res = xml_add_xmlns_attr_string(instance, top_attrs, cstr, NULL);
     }
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
     /* set the target namespace */
-    res = xml_add_attr(top_attrs, 0, XSD_TARG_NS, cstr);
+    res = xml_add_attr(instance, top_attrs, 0, XSD_TARG_NS, cstr);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
     if (cp->schemaloc) {
         /* set the XSI NS (for schemaLocation) */
-        xsi_id = xmlns_xsi_id();
-        cstr = xmlns_get_ns_prefix(xsi_id);
-        res = xml_add_xmlns_attr(top_attrs, xsi_id, cstr);
+        xsi_id = xmlns_xsi_id(instance);
+        cstr = xmlns_get_ns_prefix(instance, xsi_id);
+        res = xml_add_xmlns_attr(instance, top_attrs, xsi_id, cstr);
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return res;
         }
 
         /* set the schema location */
-        str = xsd_make_schema_location(mod, cp->schemaloc, cp->versionnames);
+        str = xsd_make_schema_location(instance, mod, cp->schemaloc, false, cp->versionnames);
         if (str) {
-            res = xml_add_attr(top_attrs, xsi_id, XSD_LOC, str);
-            m__free(str);
+            res = xml_add_attr(instance, top_attrs, xsi_id, XSD_LOC, str);
+            m__free(instance, str);
             if (res != NO_ERR) {
-                val_free_value(val);
+                val_free_value(instance, val);
                 return res;
             }
         } else {
-            val_free_value(val);
+            val_free_value(instance, val);
             return ERR_INTERNAL_MEM;
         }
     }
 
     /* set the elementFormDefault */
-    res = xml_add_attr(top_attrs, 0, XSD_EF_DEF, XSD_QUAL);
+    res = xml_add_attr(instance, top_attrs, 0, XSD_EF_DEF, XSD_QUAL);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
     /* set the attributeFormDefault */
-    res = xml_add_attr(top_attrs, 0, XSD_AF_DEF, XSD_UNQUAL);
+    res = xml_add_attr(instance, top_attrs, 0, XSD_AF_DEF, XSD_UNQUAL);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
     /* set the language attribute */
-    res = xml_add_attr(top_attrs, 0, XSD_LANG, XSD_EN);
+    res = xml_add_attr(instance, top_attrs, 0, XSD_LANG, XSD_EN);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
     /* set the version attribute */
     if (mod->version) {
-        res = xml_add_attr(top_attrs, 0, NCX_EL_VERSION, mod->version);
+        res = xml_add_attr(instance, top_attrs, 0, NCX_EL_VERSION, mod->version);
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return res;
         }
     }
@@ -355,35 +358,35 @@ status_t
     /* Add the NCX namespace for appinfo stuff;
      * not sure if it will get used
      */
-    ncx_id = xmlns_ncx_id();
+    ncx_id = xmlns_ncx_id(instance);
     if (ncx_id != mod->nsid) {
-        res = xml_add_xmlns_attr(top_attrs, ncx_id, 
-                                 xmlns_get_ns_prefix(ncx_id));
+        res = xml_add_xmlns_attr(instance, top_attrs, ncx_id, 
+                                 xmlns_get_ns_prefix(instance, ncx_id));
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return res;
         }
     }
 
     /* add the NETCONF NS if any RPC or OBJECT definitions */
-    nc_id = xmlns_nc_id();
-    if (!dlq_empty(&mod->datadefQ)) {
-        res = xml_add_xmlns_attr(top_attrs, nc_id, 
-                                 xmlns_get_ns_prefix(nc_id));
+    nc_id = xmlns_nc_id(instance);
+    if (!dlq_empty(instance, &mod->datadefQ)) {
+        res = xml_add_xmlns_attr(instance, top_attrs, nc_id, 
+                                 xmlns_get_ns_prefix(instance, nc_id));
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return res;
         }
     }
 
     /* add the NETCONF Notification NS if any Notification definitions */
-    if (obj_any_notifs(&mod->datadefQ)) {
+    if (obj_any_notifs(instance, &mod->datadefQ)) {
         needed = TRUE;
     } else if (cp->unified && mod->ismod) {
-        for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
-            if (obj_any_notifs(&node->submod->datadefQ)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
+            if (obj_any_notifs(instance, &node->submod->datadefQ)) {
                 needed = TRUE;
             }
         }
@@ -391,13 +394,14 @@ status_t
         needed = FALSE;
     }
     if (needed) {
-        ncn_id = xmlns_ncn_id();
+        ncn_id = xmlns_ncn_id(instance);
         if (mod->nsid != ncn_id) {
-            res = xml_add_xmlns_attr(top_attrs, 
+            res = xml_add_xmlns_attr(instance, 
+                                     top_attrs, 
                                      ncn_id, 
-                                     xmlns_get_ns_prefix(ncn_id));
+                                     xmlns_get_ns_prefix(instance, ncn_id));
             if (res != NO_ERR) {
-                val_free_value(val);
+                val_free_value(instance, val);
                 return res;
             }
         }
@@ -405,25 +409,25 @@ status_t
 
     /* add xmlns declarations for all the imported modules */
     if (cp->unified && mod->ismod) {
-        for (impptr = (yang_import_ptr_t *)dlq_firstEntry(&mod->saveimpQ);
+        for (impptr = (yang_import_ptr_t *)dlq_firstEntry(instance, &mod->saveimpQ);
              impptr != NULL;
-             impptr = (yang_import_ptr_t *)dlq_nextEntry(impptr)) {
-            res = add_one_prefix(pcb, impptr->modname, impptr->revision, 
+             impptr = (yang_import_ptr_t *)dlq_nextEntry(instance, impptr)) {
+            res = add_one_prefix(instance, pcb, impptr->modname, impptr->revision, 
                                  top_attrs);
             if (res != NO_ERR) {
-                val_free_value(val);
+                val_free_value(instance, val);
                 return res;
             }
         }
     } else {
-        for (import = (ncx_import_t *)dlq_firstEntry(&mod->importQ);
+        for (import = (ncx_import_t *)dlq_firstEntry(instance, &mod->importQ);
              import != NULL;
-             import = (ncx_import_t *)dlq_nextEntry(import)) {
+             import = (ncx_import_t *)dlq_nextEntry(instance, import)) {
 
-            res = add_one_prefix(pcb, import->module, import->revision, 
+            res = add_one_prefix(instance, pcb, import->module, import->revision, 
                                  top_attrs);
             if (res != NO_ERR) {
-                val_free_value(val);
+                val_free_value(instance, val);
                 return res;
             }
         }
@@ -434,53 +438,53 @@ status_t
      * There will always be at least one auto-generated
      * documentation element
      */
-    annot = xml_val_new_struct(XSD_ANNOTATION, xsd_id);
+    annot = xml_val_new_struct(instance, XSD_ANNOTATION, xsd_id);
     if (!annot) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return ERR_INTERNAL_MEM;
     } else {
-        val_add_child(annot, val);
+        val_add_child(instance, annot, val);
     }
 
     /* generate all the module meta-data for the XSD schema element */
-    res = xsd_add_mod_documentation(mod, annot);
+    res = xsd_add_mod_documentation(instance, mod, annot);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
     /* convert YANG imports to XSD imports */
     if (cp->schemaloc) {
-        res = xsd_add_imports(pcb, mod, cp, val);
+        res = xsd_add_imports(instance, pcb, mod, cp, val);
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return res;
         }
     }
 
     if (!cp->unified) {
         /* convert YANG includes to XSD includes */
-        res = xsd_add_includes(mod, cp, val);
+        res = xsd_add_includes(instance, mod, cp, val);
         if (res != NO_ERR) {
-            val_free_value(val);
+            val_free_value(instance, val);
             return res;
         }
     }
 
-    res = add_module_defs(mod, val);
+    res = add_module_defs(instance, mod, val);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
     if (cp->unified && mod->ismod) {
-        for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
             if (node->submod) {
-                res = add_module_defs(node->submod, val);
+                res = add_module_defs(instance, node->submod, val);
                 if (res != NO_ERR) {
-                    val_free_value(val);
+                    val_free_value(instance, val);
                     return res;
                 }
             }
@@ -509,7 +513,7 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xsd_load_typenameQ (ncx_module_t *mod)
+    xsd_load_typenameQ (ncx_instance_t *instance, ncx_module_t *mod)
 {
     yang_node_t   *node;
     status_t       res;
@@ -520,17 +524,19 @@ status_t
      * after this fn call, there might be malloced data in the
      * mod->typnameQ that has to be freed before exiting
      */
-    for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
          node != NULL && res==NO_ERR;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
-        res = xsd_do_typedefs_groupingQ(node->submod,
+        res = xsd_do_typedefs_groupingQ(instance,
+                                        node->submod,
                                         &node->submod->groupingQ,
                                         &mod->typnameQ);
 
         /* setup the local typedefs in all objects */
         if (res == NO_ERR) {
-            res = xsd_do_typedefs_datadefQ(node->submod,
+            res = xsd_do_typedefs_datadefQ(instance,
+                                           node->submod,
                                            &node->submod->datadefQ,
                                            &mod->typnameQ);
         }
@@ -538,11 +544,11 @@ status_t
 
     /* setup the local typedefs in all objects */
     if (res == NO_ERR) {
-        res = xsd_do_typedefs_datadefQ(mod, &mod->datadefQ, &mod->typnameQ);
+        res = xsd_do_typedefs_datadefQ(instance, mod, &mod->datadefQ, &mod->typnameQ);
     }
 
     if (res == NO_ERR) {
-        res = xsd_do_typedefs_groupingQ(mod, &mod->groupingQ, &mod->typnameQ);
+        res = xsd_do_typedefs_groupingQ(instance, mod, &mod->groupingQ, &mod->typnameQ);
     }
 
     return res;

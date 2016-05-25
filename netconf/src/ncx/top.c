@@ -107,8 +107,6 @@ typedef struct top_entry_t_ {
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-static boolean top_init_done = FALSE;
-static dlq_hdr_t topQ;
 
 
 /********************************************************************
@@ -123,16 +121,17 @@ static dlq_hdr_t topQ;
 *  pointer to top_entry_t if found, NULL if not found
 *********************************************************************/
 static top_entry_t *
-    find_entry (const xmlChar *owner,
+    find_entry (ncx_instance_t *instance,
+                const xmlChar *owner,
                 const xmlChar *elname)
 {
     top_entry_t *en;
 
-    for (en = (top_entry_t *)dlq_firstEntry(&topQ);
+    for (en = (top_entry_t *)dlq_firstEntry(instance, &instance->topQ);
          en != NULL;
-         en = (top_entry_t *)dlq_nextEntry(en)) {
-        if (!xml_strcmp(en->owner, owner) &&
-            !xml_strcmp(en->elname, elname)) {
+         en = (top_entry_t *)dlq_nextEntry(instance, en)) {
+        if (!xml_strcmp(instance, en->owner, owner) &&
+            !xml_strcmp(instance, en->elname, elname)) {
             return en;
         }
     }
@@ -151,11 +150,11 @@ static top_entry_t *
 * 
 *********************************************************************/
 void
-    top_init (void)
+    top_init (ncx_instance_t *instance)
 {
-    if (!top_init_done) {
-        dlq_createSQue(&topQ);
-        top_init_done = TRUE;
+    if (!instance->top_init_done) {
+        dlq_createSQue(instance, &instance->topQ);
+        instance->top_init_done = TRUE;
     }
 }  /* top_init */
 
@@ -166,17 +165,17 @@ void
 *  cleanup Top Element Handler
 *********************************************************************/
 void
-    top_cleanup (void)
+    top_cleanup (ncx_instance_t *instance)
 {
     top_entry_t *en;
 
-    if (top_init_done) {
-        while (!dlq_empty(&topQ)) {
-            en = (top_entry_t *)dlq_deque(&topQ);
-            m__free(en);
+    if (instance->top_init_done) {
+        while (!dlq_empty(instance, &instance->topQ)) {
+            en = (top_entry_t *)dlq_deque(instance, &instance->topQ);
+            m__free(instance, en);
         }
-        memset(&topQ, 0x0, sizeof(dlq_hdr_t));
-        top_init_done = FALSE;
+        memset(&instance->topQ, 0x0, sizeof(dlq_hdr_t));
+        instance->top_init_done = FALSE;
     }
 }   /* top_cleanup */
 
@@ -194,49 +193,50 @@ void
 *  status
 *********************************************************************/
 status_t 
-    top_register_node (const xmlChar *owner,
+    top_register_node (ncx_instance_t *instance,
+                       const xmlChar *owner,
                        const xmlChar *elname,
                        top_handler_t handler)
 {
     top_entry_t *en;
 
     /* validate the parameters */
-    if (!top_init_done) {
-        top_init();
+    if (!instance->top_init_done) {
+        top_init(instance);
     }
     if (!owner || !elname || !handler) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
-    if (!ncx_valid_name(owner, xml_strlen(owner)) ||
-        !ncx_valid_name(elname, xml_strlen(elname))) {
-        return SET_ERROR(ERR_NCX_INVALID_NAME);
+    if (!ncx_valid_name(owner, xml_strlen(instance, owner)) ||
+        !ncx_valid_name(elname, xml_strlen(instance, elname))) {
+        return SET_ERROR(instance, ERR_NCX_INVALID_NAME);
     }
-    if (find_entry(owner, elname)) {
-        return SET_ERROR(ERR_NCX_DUP_ENTRY);
+    if (find_entry(instance, owner, elname)) {
+        return SET_ERROR(instance, ERR_NCX_DUP_ENTRY);
     }
 
     /* add the new entry */
-    en = m__getObj(top_entry_t);
+    en = m__getObj(instance, top_entry_t);
     if (!en) {
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
     memset(en, 0x0, sizeof(top_entry_t));
 
-    en->owner = xml_strdup(owner);
+    en->owner = xml_strdup(instance, owner);
     if (!en->owner) {
-        m__free(en);
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        m__free(instance, en);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
 
-    en->elname = xml_strdup(elname);
+    en->elname = xml_strdup(instance, elname);
     if (!en->elname) {
-        m__free(en->owner);
-        m__free(en);
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        m__free(instance, en->owner);
+        m__free(instance, en);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
 
     en->handler = handler;
-    dlq_enque(en, &topQ);
+    dlq_enque(instance, en, &instance->topQ);
     return NO_ERR;
 
 } /* top_register_node */
@@ -257,36 +257,37 @@ status_t
 *   none
 *********************************************************************/
 void
-    top_unregister_node (const xmlChar *owner,
+    top_unregister_node (ncx_instance_t *instance,
+                             const xmlChar *owner,
                              const xmlChar *elname)
 {
     top_entry_t *en;
 
-    if (!top_init_done) {
-        top_init();
-        SET_ERROR(ERR_NCX_NOT_FOUND);
+    if (!instance->top_init_done) {
+        top_init(instance);
+        SET_ERROR(instance, ERR_NCX_NOT_FOUND);
         return;
     }
     if (!owner || !elname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
     
-    en = find_entry(owner, elname);
+    en = find_entry(instance, owner, elname);
     if (!en) {
-        SET_ERROR(ERR_NCX_NOT_FOUND);
+        SET_ERROR(instance, ERR_NCX_NOT_FOUND);
         return;
     }
 
-    dlq_remove(en);
+    dlq_remove(instance, en);
 
     if (en->owner) {
-        m__free(en->owner);
+        m__free(instance, en->owner);
     }
     if (en->elname) {
-        m__free(en->elname);
+        m__free(instance, en->elname);
     }
-    m__free(en);
+    m__free(instance, en);
 
 } /* top_unregister_node */
 
@@ -304,12 +305,13 @@ void
 *  pointer to top_handler or NULL if not found
 *********************************************************************/
 top_handler_t
-    top_find_handler (const xmlChar *owner,
+    top_find_handler (ncx_instance_t *instance,
+                      const xmlChar *owner,
                       const xmlChar *elname)
 {
     top_entry_t *en;
 
-    en = find_entry(owner, elname);
+    en = find_entry(instance, owner, elname);
     return (en) ? en-> handler : NULL;
 
 }  /* top_find_handler */

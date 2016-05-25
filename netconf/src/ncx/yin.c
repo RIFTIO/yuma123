@@ -44,6 +44,8 @@ date         init     comment
 #include "yin.h"
 #endif
 
+#include "ncxtypes.h"
+
 
 /********************************************************************
 *                                                                   *
@@ -64,7 +66,7 @@ date         init     comment
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-static yin_mapping_t yinmap[] = {
+static const yin_mapping_t yinmap[] = {
     { YANG_K_ANYXML, YANG_K_NAME, FALSE },
     { YANG_K_ARGUMENT, YANG_K_NAME, FALSE }, 
     { YANG_K_AUGMENT, YANG_K_TARGET_NODE, FALSE },
@@ -146,7 +148,7 @@ static yin_mapping_t yinmap[] = {
 *   pointer to found entry, NULL if none found
 *********************************************************************/
 const yin_mapping_t *
-    yin_find_mapping (const xmlChar *name)
+    yin_find_mapping (ncx_instance_t *instance, const xmlChar *name)
 {
     const yin_mapping_t  *mapping;
     int                   i;
@@ -155,7 +157,7 @@ const yin_mapping_t *
     for (mapping = &yinmap[i];
          mapping != NULL && mapping->keyword != NULL;
          mapping = &yinmap[++i]) {
-        if (!xml_strcmp(name, mapping->keyword)) {
+        if (!xml_strcmp(instance, name, mapping->keyword)) {
             return mapping;
         }
     }

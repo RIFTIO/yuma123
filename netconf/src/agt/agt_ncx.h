@@ -71,7 +71,7 @@ extern "C" {
 *   status of the initialization procedure
 *********************************************************************/
 extern status_t 
-    agt_ncx_init (void);
+    agt_ncx_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -81,7 +81,7 @@ extern status_t
 * 
 *********************************************************************/
 extern void 
-    agt_ncx_cleanup (void);
+    agt_ncx_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -107,7 +107,8 @@ extern void
 *    overall status; may be the last of multiple error conditions
 *********************************************************************/
 extern status_t
-    agt_ncx_cfg_load (cfg_template_t *cfg,
+    agt_ncx_cfg_load (struct ncx_instance_t_ *instance,
+		      cfg_template_t *cfg,
 		      cfg_location_t cfgloc,
 		      const xmlChar *cfgparm);
 
@@ -127,7 +128,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    agt_ncx_cfg_save (cfg_template_t *cfg,
+    agt_ncx_cfg_save (struct ncx_instance_t_ *instance,
+		      cfg_template_t *cfg,
 		      boolean bkup);
 
 /********************************************************************
@@ -162,7 +164,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    agt_ncx_load_backup (const xmlChar *filespec,
+    agt_ncx_load_backup (struct ncx_instance_t_ *instance,
+                         const xmlChar *filespec,
                          cfg_template_t *cfg,
                          ses_id_t  use_sid);
 
@@ -224,7 +227,7 @@ extern const xmlChar *
 *
 *********************************************************************/
 extern void
-    agt_ncx_check_cc_timeout (void);
+    agt_ncx_check_cc_timeout (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -239,7 +242,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_ncx_cancel_confirmed_commit (ses_cb_t *scb,
+    agt_ncx_cancel_confirmed_commit (struct ncx_instance_t_ *instance,
+                                     ses_cb_t *scb,
                                      ncx_confirm_event_t event);
 
 #ifdef __cplusplus

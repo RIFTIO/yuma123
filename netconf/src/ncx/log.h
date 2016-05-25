@@ -47,13 +47,13 @@ extern "C" {
 *********************************************************************/
 
 /* macros to check the debug level */
-#define LOGERROR   (log_get_debug_level() >= LOG_DEBUG_ERROR)
-#define LOGWARN    (log_get_debug_level() >= LOG_DEBUG_WARN)
-#define LOGINFO    (log_get_debug_level() >= LOG_DEBUG_INFO)
-#define LOGDEBUG   (log_get_debug_level() >= LOG_DEBUG_DEBUG)
-#define LOGDEBUG2  (log_get_debug_level() >= LOG_DEBUG_DEBUG2)
-#define LOGDEBUG3  (log_get_debug_level() >= LOG_DEBUG_DEBUG3)
-#define LOGDEBUG4  (log_get_debug_level() >= LOG_DEBUG_DEBUG4)
+#define LOGERROR   (log_get_debug_level(instance) >= LOG_DEBUG_ERROR)
+#define LOGWARN    (log_get_debug_level(instance) >= LOG_DEBUG_WARN)
+#define LOGINFO    (log_get_debug_level(instance) >= LOG_DEBUG_INFO)
+#define LOGDEBUG   (log_get_debug_level(instance) >= LOG_DEBUG_DEBUG)
+#define LOGDEBUG2  (log_get_debug_level(instance) >= LOG_DEBUG_DEBUG2)
+#define LOGDEBUG3  (log_get_debug_level(instance) >= LOG_DEBUG_DEBUG3)
+#define LOGDEBUG4  (log_get_debug_level(instance) >= LOG_DEBUG_DEBUG4)
 
 
 #define LOG_DEBUG_STR_OFF     (const xmlChar *)"off"
@@ -88,7 +88,7 @@ typedef enum log_debug_t_ {
 /* logging function template to switch between
  * log_stdout and log_write
  */
-typedef void (*logfn_t) (const char *fstr, ...);
+typedef void (*logfn_t) (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 
@@ -118,7 +118,8 @@ typedef void (*logfn_t) (const char *fstr, ...);
 *    status
 *********************************************************************/
 extern status_t
-    log_open (const char *fname,
+    log_open (struct ncx_instance_t_ *instance,
+	      const char *fname,
 	      boolean append,
 	      boolean tstamps);
 
@@ -132,7 +133,7 @@ extern status_t
 *    none
 *********************************************************************/
 extern void
-    log_close (void);
+    log_close (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -154,7 +155,8 @@ extern void
 *    status
 *********************************************************************/
 extern status_t
-    log_audit_open (const char *fname,
+    log_audit_open (struct ncx_instance_t_ *instance,
+                    const char *fname,
                     boolean append,
                     boolean tstamps);
 
@@ -168,7 +170,7 @@ extern status_t
 *    none
 *********************************************************************/
 extern void
-    log_audit_close (void);
+    log_audit_close (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -180,7 +182,7 @@ extern void
 *   TRUE if audit log is open; FALSE if not
 *********************************************************************/
 extern boolean
-    log_audit_is_open (void);
+    log_audit_is_open (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -197,7 +199,7 @@ extern boolean
 *    status
 *********************************************************************/
 extern status_t
-    log_alt_open (const char *fname);
+    log_alt_open (struct ncx_instance_t_ *instance, const char *fname);
 
 
 /********************************************************************
@@ -209,7 +211,7 @@ extern status_t
 *    none
 *********************************************************************/
 extern void
-    log_alt_close (void);
+    log_alt_close (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -225,7 +227,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_stdout (const char *fstr, ...);
+    log_stdout (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -239,7 +241,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_write (const char *fstr, ...);
+    log_write (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -253,7 +255,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_audit_write (const char *fstr, ...);
+    log_audit_write (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -267,7 +269,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_alt_write (const char *fstr, ...);
+    log_alt_write (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -281,7 +283,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    log_alt_indent (int32 indentcnt);
+    log_alt_indent (struct ncx_instance_t_ *instance, int32 indentcnt);
 
 
 /********************************************************************
@@ -294,7 +296,7 @@ extern void
 *   ... == any additional arguments for printf
 *
 *********************************************************************/
-extern void log_error (const char *fstr, ...);
+extern void log_error (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 /********************************************************************
 * FUNCTION log_error
@@ -306,7 +308,7 @@ extern void log_error (const char *fstr, ...);
 *   args == any additional arguments for printf
 *
 *********************************************************************/
-extern void vlog_error (const char *fstr, va_list args );
+extern void vlog_error (struct ncx_instance_t_ *instance, const char *fstr, va_list args );
 
 /********************************************************************
 * FUNCTION log_warn
@@ -319,7 +321,7 @@ extern void vlog_error (const char *fstr, va_list args );
 *
 *********************************************************************/
 extern void 
-    log_warn (const char *fstr, ...);
+    log_warn (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -333,7 +335,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_info (const char *fstr, ...);
+    log_info (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -347,7 +349,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_debug (const char *fstr, ...);
+    log_debug (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -361,7 +363,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_debug2 (const char *fstr, ...);
+    log_debug2 (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -375,7 +377,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_debug3 (const char *fstr, ...);
+    log_debug3 (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -389,7 +391,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_debug4 (const char *fstr, ...);
+    log_debug4 (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -404,7 +406,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    log_noop (const char *fstr, ...);
+    log_noop (struct ncx_instance_t_ *instance, const char *fstr, ...);
 
 
 /********************************************************************
@@ -417,7 +419,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    log_set_debug_level (log_debug_t dlevel);
+    log_set_debug_level (struct ncx_instance_t_ *instance, log_debug_t dlevel);
 
 
 /********************************************************************
@@ -429,7 +431,7 @@ extern void
 *   the global debug level
 *********************************************************************/
 extern log_debug_t
-    log_get_debug_level (void);
+    log_get_debug_level (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -444,7 +446,7 @@ extern log_debug_t
 *   the corresponding enum for the specified debug level
 *********************************************************************/
 extern log_debug_t
-    log_get_debug_level_enum (const char *str);
+    log_get_debug_level_enum (struct ncx_instance_t_ *instance, const char *str);
 
 
 /********************************************************************
@@ -460,7 +462,7 @@ extern log_debug_t
 
 *********************************************************************/
 extern const xmlChar *
-    log_get_debug_level_string (log_debug_t level);
+    log_get_debug_level_string (struct ncx_instance_t_ *instance, log_debug_t level);
 
 
 /********************************************************************
@@ -472,7 +474,7 @@ extern const xmlChar *
 *   TRUE if logfile open, FALSE otherwise
 *********************************************************************/
 extern boolean
-    log_is_open (void);
+    log_is_open (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -485,7 +487,7 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    log_indent (int32 indentcnt);
+    log_indent (struct ncx_instance_t_ *instance, int32 indentcnt);
 
 
 /********************************************************************
@@ -498,7 +500,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    log_stdout_indent (int32 indentcnt);
+    log_stdout_indent (struct ncx_instance_t_ *instance, int32 indentcnt);
 
 
 /********************************************************************
@@ -512,7 +514,7 @@ extern void
 *   NULL if no open logfile
 *********************************************************************/
 extern FILE *
-    log_get_logfile (void);
+    log_get_logfile (struct ncx_instance_t_ *instance);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

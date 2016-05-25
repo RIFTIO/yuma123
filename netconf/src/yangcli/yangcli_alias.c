@@ -59,12 +59,13 @@ date         init     comment
  *   pointer to alias record or NULL if none
  *********************************************************************/
 static alias_cb_t *
-    get_first_alias (void)
+    get_first_alias (ncx_instance_t *instance)
 {
     dlq_hdr_t  *aliasQ = get_aliasQ();
+    (void)instance;
 
     if (aliasQ) {
-        return (alias_cb_t *)dlq_firstEntry(aliasQ);
+        return (alias_cb_t *)dlq_firstEntry(instance, aliasQ);
     }
     return NULL;
 
@@ -80,10 +81,11 @@ static alias_cb_t *
  *   pointer to alias record or NULL if none
  *********************************************************************/
 static alias_cb_t *
-    get_next_alias (alias_cb_t *curalias)
+    get_next_alias (ncx_instance_t *instance, alias_cb_t *curalias)
 {
+    (void)instance;
     if (curalias) {
-        return (alias_cb_t *)dlq_nextEntry(curalias);
+        return (alias_cb_t *)dlq_nextEntry(instance, curalias);
     }
     return NULL;
 
@@ -99,18 +101,18 @@ static alias_cb_t *
  *   alias == pointer to alias record to free
  *********************************************************************/
 static void
-    free_alias (alias_cb_t *alias)
+    free_alias (ncx_instance_t *instance, alias_cb_t *alias)
 {
     if (alias == NULL) {
         return;
     }
     if (alias->name != NULL) {
-        m__free(alias->name);
+        m__free(instance, alias->name);
     }
     if (alias->value != NULL) {
-        m__free(alias->value);
+        m__free(instance, alias->value);
     }
-    m__free(alias);
+    m__free(instance, alias);
 
 }  /* free_alias */
 
@@ -128,24 +130,25 @@ static void
  *   pointer to alias record or NULL if none
  *********************************************************************/
 static alias_cb_t *
-    new_alias (const xmlChar *name,
+    new_alias (ncx_instance_t *instance,
+               const xmlChar *name,
                uint32 namelen)
 {
     alias_cb_t  *alias;
 
     if (namelen == 0) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
-    alias = m__getObj(alias_cb_t);
+    alias = m__getObj(instance, alias_cb_t);
     if (alias == NULL) {
         return NULL;
     }
     memset(alias, 0x0, sizeof(alias_cb_t));
-    alias->name = xml_strndup(name, namelen);
+    alias->name = xml_strndup(instance, name, namelen);
     if (alias->name == NULL) {
-        free_alias(alias);
+        free_alias(instance, alias);
         return NULL;
     }
     return alias;
@@ -165,35 +168,35 @@ static alias_cb_t *
  *   status
  *********************************************************************/
 static status_t
-    add_alias (alias_cb_t *alias)
+    add_alias (ncx_instance_t *instance, alias_cb_t *alias)
 {
     dlq_hdr_t  *aliasQ = get_aliasQ();
     alias_cb_t *curalias;
     int         ret;
 
     if (aliasQ == NULL) {
-        SET_ERROR(ERR_INTERNAL_VAL);
-        free_alias(alias);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
+        free_alias(instance, alias);
         return ERR_INTERNAL_VAL;
     }
 
-    for (curalias = (alias_cb_t *)dlq_firstEntry(aliasQ);
+    for (curalias = (alias_cb_t *)dlq_firstEntry(instance, aliasQ);
          curalias != NULL;
-         curalias = (alias_cb_t *)dlq_nextEntry(curalias)) {
+         curalias = (alias_cb_t *)dlq_nextEntry(instance, curalias)) {
 
-        ret = xml_strcmp(curalias->name, alias->name);
+        ret = xml_strcmp(instance, curalias->name, alias->name);
         if (ret == 0) {
-            SET_ERROR(ERR_NCX_DUP_ENTRY);
-            free_alias(alias);
+            SET_ERROR(instance, ERR_NCX_DUP_ENTRY);
+            free_alias(instance, alias);
             return ERR_NCX_DUP_ENTRY;
         } else if (ret > 0) {
-            dlq_insertAhead(alias, curalias);
+            dlq_insertAhead(instance, alias, curalias);
             return NO_ERR;
         }
     }
 
     /* new last entry */
-    dlq_enque(alias, aliasQ);
+    dlq_enque(instance, alias, aliasQ);
     return NO_ERR;
 
 }  /* add_alias */
@@ -211,23 +214,24 @@ static status_t
  *   alias record; NULL if not found
  *********************************************************************/
 static alias_cb_t *
-    find_alias (const xmlChar *name,
+    find_alias (ncx_instance_t *instance,
+                const xmlChar *name,
                 uint32 namelen)
 {
     dlq_hdr_t  *aliasQ = get_aliasQ();
     alias_cb_t *curalias;
 
     if (aliasQ == NULL) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
-    for (curalias = (alias_cb_t *)dlq_firstEntry(aliasQ);
+    for (curalias = (alias_cb_t *)dlq_firstEntry(instance, aliasQ);
          curalias != NULL;
-         curalias = (alias_cb_t *)dlq_nextEntry(curalias)) {
+         curalias = (alias_cb_t *)dlq_nextEntry(instance, curalias)) {
 
-        uint32 curlen = xml_strlen(curalias->name);
-        int ret = xml_strncmp(curalias->name, name, namelen);
+        uint32 curlen = xml_strlen(instance, curalias->name);
+        int ret = xml_strncmp(instance, curalias->name, name, namelen);
 
         if (ret == 0) {
             if (curlen == namelen) {
@@ -253,7 +257,7 @@ static alias_cb_t *
  *    alias == alias record to show
  *********************************************************************/
 static void
-    show_alias_ptr (const alias_cb_t *alias)
+    show_alias_ptr (ncx_instance_t *instance, const alias_cb_t *alias)
 {
     const xmlChar *qchar = NULL;
     switch (alias->quotes) {
@@ -267,11 +271,11 @@ static void
         qchar = (const xmlChar *)"\"";
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
-    log_write("\n%s=%s%s%s", alias->name, qchar,
+    log_write(instance, "\n%s=%s%s%s", alias->name, qchar,
               (alias->value) ? alias->value : EMPTY_STRING, qchar);
 
 }  /* show_alias_ptr */
@@ -287,7 +291,8 @@ static void
  *    alias == alias record to write
  *********************************************************************/
 static void
-    write_alias (FILE *fp,
+    write_alias (ncx_instance_t *instance,
+                 FILE *fp,
                  const alias_cb_t *alias)
 {
     const xmlChar *qchar = NULL;
@@ -302,7 +307,7 @@ static void
         qchar = (const xmlChar *)"\"";
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
@@ -322,21 +327,22 @@ static void
  *    namelen == length of name
  *********************************************************************/
 static void
-    show_alias_name (const xmlChar *name,
+    show_alias_name (ncx_instance_t *instance,
+                     const xmlChar *name,
                      uint32 namelen)
 {
-    alias_cb_t *alias = find_alias(name, namelen);
+    alias_cb_t *alias = find_alias(instance, name, namelen);
 
     if (alias) {
-        show_alias_ptr(alias);
-        log_write("\n");
+        show_alias_ptr(instance, alias);
+        log_write(instance, "\n");
     } else {
         uint32 i;
-        log_error("\nError: alias '");
+        log_error(instance, "\nError: alias '");
         for (i = 0; i < namelen; i++) {
-            log_error("%c", name[i]);
+            log_error(instance, "%c", name[i]);
         }
-        log_error("' not found\n");
+        log_error(instance, "' not found\n");
     }
 
 }  /* show_alias_name */
@@ -425,13 +431,14 @@ static status_t
  *    status
  *********************************************************************/
 static status_t
-    set_alias (alias_cb_t *alias,
+    set_alias (ncx_instance_t *instance,
+               alias_cb_t *alias,
                const xmlChar *valstr)
 {
     status_t  res = NO_ERR;
 
     if (alias->value) {
-        m__free(alias->value);
+        m__free(instance, alias->value);
         alias->value = NULL;
     }
     alias->quotes = 0;
@@ -441,12 +448,12 @@ static status_t
             alias->quotes = (*valstr == '"') ? 2 : 1;
 
             /* check trim quoted string */
-            uint32 len = xml_strlen(valstr);
+            uint32 len = xml_strlen(instance, valstr);
             if (len > 2) {
                 const xmlChar *endstr = &valstr[len-1];
                 if (*endstr == *valstr) {
                     /* remove paired quotes */
-                    alias->value = xml_strndup(valstr+1, len-2);
+                    alias->value = xml_strndup(instance, valstr+1, len-2);
                     if (alias->value == NULL) {
                         res = ERR_INTERNAL_MEM;
                     }
@@ -459,7 +466,7 @@ static status_t
                 res = ERR_NCX_INVALID_VALUE;
             }
         } else {
-            alias->value = xml_strdup(valstr);
+            alias->value = xml_strdup(instance, valstr);
             if (alias->value == NULL) {
                 res = ERR_INTERNAL_MEM;
             }
@@ -489,7 +496,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    handle_alias_parm (const xmlChar *varstr,
+    handle_alias_parm (ncx_instance_t *instance,
+                       const xmlChar *varstr,
                        boolean setonly,
                        boolean loginfo)
 {
@@ -501,10 +509,11 @@ static status_t
     if (res == NO_ERR) {
         if (valptr) {
             /* setting an alias */
-            alias_cb_t *alias = find_alias(varstr, nlen);
+            alias_cb_t *alias = find_alias(instance, varstr, nlen);
             if (alias) {
                 if (LOGDEBUG3) {
-                    log_debug3("\nAbout to replace alias '%s'"
+                    log_debug3(instance,
+                               "\nAbout to replace alias '%s'"
                                "\n  old value: '%s'"
                                "\n  new value: '%s'",
                                alias->name, 
@@ -512,53 +521,56 @@ static status_t
                                valptr);
                 }
                 /* modify an existing alias */
-                res = set_alias(alias, valptr);
+                res = set_alias(instance, alias, valptr);
                 if (res == NO_ERR) {
                     if (loginfo) {
-                        log_info("\nUpdated alias '%s'\n", alias->name);
+                        log_info(instance, "\nUpdated alias '%s'\n", alias->name);
                     } else {
-                        log_debug2("\nUpdated alias '%s'", alias->name);
+                        log_debug2(instance, "\nUpdated alias '%s'", alias->name);
                     }
                 } else {
-                    log_error("\nError: invalid alias value '%s'\n",
+                    log_error(instance,
+                              "\nError: invalid alias value '%s'\n",
                               valptr);
                 }
             } else {
                 /* create a new alias */
-                alias = new_alias(varstr, nlen);
+                alias = new_alias(instance, varstr, nlen);
                 if (alias == NULL) {
                     res = ERR_INTERNAL_MEM;
                 } else {
-                    res = set_alias(alias, valptr);
+                    res = set_alias(instance, alias, valptr);
                     if (res == NO_ERR) {
-                        res = add_alias(alias);
+                        res = add_alias(instance, alias);
                         if (res == NO_ERR) {
                             if (loginfo) {
-                                log_info("\nAdded alias '%s'\n", alias->name);
+                                log_info(instance, "\nAdded alias '%s'\n", alias->name);
                             } else {
-                                log_debug2("\nAdded alias '%s'", alias->name);
+                                log_debug2(instance, "\nAdded alias '%s'", alias->name);
                             }
                         } else {
-                            log_error("\nError: alias was not added '%s'\n",
+                            log_error(instance,
+                                      "\nError: alias was not added '%s'\n",
                                       get_error_string(res));
                         }
                     } else {
-                        log_error("\nError: invalid alias value '%s'\n",
+                        log_error(instance,
+                                  "\nError: invalid alias value '%s'\n",
                                   valptr);
-                        free_alias(alias);
+                        free_alias(instance, alias);
                     }
                 }
             }
         } else if (!setonly) {
             /* just provided a name; show alias */
-            show_alias_name(varstr, nlen);
+            show_alias_name(instance, varstr, nlen);
         } else if (LOGDEBUG) {
-            log_debug("\nSkipping alias '%s' because no value set", varstr);
+            log_debug(instance, "\nSkipping alias '%s' because no value set", varstr);
         }
     } else if (res == ERR_NCX_INVALID_NAME) {
-        log_error("\nError: invalid alias (%s)", get_error_string(res));
+        log_error(instance, "\nError: invalid alias (%s)", get_error_string(res));
     } else {
-        log_error("\nError: invalid alias '%s' (%s)", varstr,
+        log_error(instance, "\nError: invalid alias '%s' (%s)", varstr,
                   get_error_string(res));
     }
     return res;
@@ -588,7 +600,8 @@ static status_t
  *   status
  *********************************************************************/
 status_t
-    do_alias (server_cb_t *server_cb,
+    do_alias (ncx_instance_t *instance,
+              server_cb_t *server_cb,
               obj_template_t *rpc,
               const xmlChar *line,
               uint32  len)
@@ -596,21 +609,21 @@ status_t
     val_value_t        *valset, *parm;
     status_t            res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     if (res == NO_ERR && valset) {
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_VAR);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_VAR);
         if (parm) {
             const xmlChar *varstr = VAL_STR(parm);
-            res = handle_alias_parm(varstr, FALSE, TRUE);
+            res = handle_alias_parm(instance, varstr, FALSE, TRUE);
         } else {
             /* no parameter; show all aliases */
-            show_aliases();
+            show_aliases(instance);
         }
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -639,7 +652,8 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_aliases (server_cb_t *server_cb,
+    do_aliases (ncx_instance_t *instance,
+              server_cb_t *server_cb,
               obj_template_t *rpc,
               const xmlChar *line,
               uint32  len)
@@ -647,7 +661,7 @@ status_t
     val_value_t   *valset;
     status_t       res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     if (res == NO_ERR && valset) {
         /* get the 1 of N 'alias-action' choice */
@@ -656,22 +670,22 @@ status_t
         boolean done = FALSE;
         
         /* aliases show */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_SHOW);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_SHOW);
         if (parm) {
-            show_aliases();
+            show_aliases(instance);
             done = TRUE;
         }
 
         /* aliases clear */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_CLEAR);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_CLEAR);
             if (parm) {
                 dlq_hdr_t *aliasQ = get_aliasQ();
-                if (!dlq_empty(aliasQ)) {
-                    free_aliases();
-                    log_info("\nDeleted all aliases from memory\n");
+                if (!dlq_empty(instance, aliasQ)) {
+                    free_aliases(instance);
+                    log_info(instance, "\nDeleted all aliases from memory\n");
                 }else {
-                    log_info("\nNo aliases found\n");
+                    log_info(instance, "\nNo aliases found\n");
                 }
                 done = TRUE;
             }
@@ -679,18 +693,19 @@ status_t
 
         /* aliases load */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_LOAD);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_LOAD);
             if (parm) {
-                if (xml_strlen(VAL_STR(parm))) {
+                if (xml_strlen(instance, VAL_STR(parm))) {
                     parmval = VAL_STR(parm);
                 } else {
                     parmval = get_aliases_file();
                 }
-                res = load_aliases(parmval);
+                res = load_aliases(instance, parmval);
                 if (res == NO_ERR) {
-                    log_info("\nLoaded aliases OK from '%s'\n", parmval);
+                    log_info(instance, "\nLoaded aliases OK from '%s'\n", parmval);
                 } else {
-                    log_error("\nLoad aliases from '%s' failed (%s)\n", 
+                    log_error(instance, 
+                              "\nLoad aliases from '%s' failed (%s)\n", 
                               parmval, get_error_string(res));
                 }
                 done = TRUE;
@@ -699,18 +714,19 @@ status_t
 
         /* aliases save */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_SAVE);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_SAVE);
             if (parm) {
-                if (xml_strlen(VAL_STR(parm))) {
+                if (xml_strlen(instance, VAL_STR(parm))) {
                     parmval = VAL_STR(parm);
                 } else {
                     parmval = get_aliases_file();
                 }
-                res = save_aliases(parmval);
+                res = save_aliases(instance, parmval);
                 if (res == NO_ERR) {
-                    log_info("\nSaved aliases OK to '%s'\n", parmval);
+                    log_info(instance, "\nSaved aliases OK to '%s'\n", parmval);
                 } else {
-                    log_error("\nSave aliases to '%s' failed (%s)\n", 
+                    log_error(instance, 
+                              "\nSave aliases to '%s' failed (%s)\n", 
                               parmval, get_error_string(res));
                 }
                 done = TRUE;
@@ -719,12 +735,12 @@ status_t
 
         if (!done) {
             /* no parameters; show all aliases */
-            show_aliases();
+            show_aliases(instance);
         }
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -749,7 +765,8 @@ status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_unset (server_cb_t *server_cb,
+    do_unset (ncx_instance_t *instance,
+              server_cb_t *server_cb,
               obj_template_t *rpc,
               const xmlChar *line,
               uint32  len)
@@ -757,26 +774,26 @@ extern status_t
     val_value_t        *valset, *parm;
     status_t            res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     if (res == NO_ERR && valset) {
-        parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_NAME);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_NAME);
         if (parm) {
             const xmlChar *varstr = VAL_STR(parm);
-            alias_cb_t *alias = find_alias(varstr, xml_strlen(varstr));
+            alias_cb_t *alias = find_alias(instance, varstr, xml_strlen(instance, varstr));
             if (alias) {
-                dlq_remove(alias);
-                free_alias(alias);
-                log_info("\nDeleted alias '%s'\n", varstr);
+                dlq_remove(instance, alias);
+                free_alias(instance, alias);
+                log_info(instance, "\nDeleted alias '%s'\n", varstr);
             } else {
                 res = ERR_NCX_INVALID_VALUE;
-                log_error("\nError: unknown alias '%s'\n", varstr);
+                log_error(instance, "\nError: unknown alias '%s'\n", varstr);
             }
         }  /* else missing parameter already reported */
     } /* else no valset already reported */
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -791,19 +808,19 @@ extern status_t
  *
  *********************************************************************/
 void
-    show_aliases (void)
+    show_aliases (ncx_instance_t *instance)
 {
     alias_cb_t  *alias;
     boolean      anyout = FALSE;
 
-    for (alias = get_first_alias();
+    for (alias = get_first_alias(instance);
          alias != NULL;
-         alias = get_next_alias(alias)) {
-        show_alias_ptr(alias);
+         alias = get_next_alias(instance, alias)) {
+        show_alias_ptr(instance, alias);
         anyout = TRUE;
     }
     if (anyout) {
-        log_write("\n");
+        log_write(instance, "\n");
     }
 
 }  /* show_aliases */
@@ -818,9 +835,9 @@ void
  *    name == name of alias to show
  *********************************************************************/
 void
-    show_alias (const xmlChar *name)
+    show_alias (ncx_instance_t *instance, const xmlChar *name)
 {
-    show_alias_name(name, xml_strlen(name));
+    show_alias_name(instance, name, xml_strlen(instance, name));
 
 }  /* show_alias */
 
@@ -832,14 +849,14 @@ void
  *
  *********************************************************************/
 void
-    free_aliases (void)
+    free_aliases (ncx_instance_t *instance)
 {
     dlq_hdr_t   *aliasQ = get_aliasQ();
     alias_cb_t  *alias;
 
-    while (!dlq_empty(aliasQ)) {
-        alias = (alias_cb_t *)dlq_deque(aliasQ);
-        free_alias(alias);
+    while (!dlq_empty(instance, aliasQ)) {
+        alias = (alias_cb_t *)dlq_deque(instance, aliasQ);
+        free_alias(instance, alias);
     }
 
 }  /* free_aliases */
@@ -857,15 +874,15 @@ void
  *   status
  *********************************************************************/
 status_t
-    load_aliases (const xmlChar *fspec)
+    load_aliases (ncx_instance_t *instance, const xmlChar *fspec)
 {
     FILE      *fp;
     xmlChar   *fullspec, *buffer;
     status_t   res = NO_ERR;
     
-    buffer = m__getMem(NCX_MAX_LINELEN+1);
+    buffer = m__getMem(instance, NCX_MAX_LINELEN+1);
     if (buffer == NULL) {
-        log_error("\nError: malloc failed\n");
+        log_error(instance, "\nError: malloc failed\n");
         return ERR_INTERNAL_MEM;
     }
 
@@ -873,7 +890,7 @@ status_t
         fspec = get_aliases_file();
     }
 
-    fullspec = ncx_get_source(fspec, &res);
+    fullspec = ncx_get_source(instance, fspec, &res);
     if (res == NO_ERR && fullspec) {
         fp = fopen((const char *)fullspec, "r");
         if (fp) {
@@ -883,16 +900,16 @@ status_t
             while (!done) {
                 char *retstr = fgets((char *)buffer, NCX_MAX_LINELEN+1, fp);
                 if (retstr) {
-                    uint32 len = xml_strlen(buffer);
+                    uint32 len = xml_strlen(instance, buffer);
                     if (len) {
                         if (*buffer != '#' && *buffer != '\n') {
                             if (buffer[len-1] == '\n') {
                                 buffer[len-1] = 0;
                             } 
-                            res = handle_alias_parm(buffer, TRUE, FALSE);
+                            res = handle_alias_parm(instance, buffer, TRUE, FALSE);
                             if (res != NO_ERR) {
                                 if (++errorcnt == MAX_ALIAS_ERRORS) {
-                                    log_error("\nError: skipping aliases; "
+                                    log_error(instance, "\nError: skipping aliases; "
                                               "too many errors\n");
                                     done = TRUE;
                                 }
@@ -905,19 +922,20 @@ status_t
             }
             fclose(fp);
         } else if (LOGDEBUG) {
-            log_debug("\nAliases file '%s' could not be opened\n", fullspec);
+            log_debug(instance, "\nAliases file '%s' could not be opened\n", fullspec);
         }
     } else {
-        log_error("\nError: Expand source '%s' failed (%s)",
+        log_error(instance,
+                  "\nError: Expand source '%s' failed (%s)",
                   fspec, get_error_string(res));
     }
 
     if (fullspec) {
-        m__free(fullspec);
+        m__free(instance, fullspec);
     }
 
     if (buffer) {
-        m__free(buffer);
+        m__free(instance, buffer);
     }
     return res;
 
@@ -936,7 +954,7 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    save_aliases (const xmlChar *fspec)
+    save_aliases (ncx_instance_t *instance, const xmlChar *fspec)
 {
     xmlChar     *fullspec;
     FILE        *fp = NULL;
@@ -946,30 +964,32 @@ status_t
         fspec = get_aliases_file();
     }
 
-    fullspec = ncx_get_source(fspec, &res);
+    fullspec = ncx_get_source(instance, fspec, &res);
     if (res == NO_ERR && fullspec) {
         fp = fopen((const char *)fullspec, "w");
         if (fp) {
             /* this will truncate the file if there are no aliases */
             alias_cb_t  *alias;
-            for (alias = get_first_alias();
+            for (alias = get_first_alias(instance);
                  alias != NULL;
-                 alias = get_next_alias(alias)) {
-                write_alias(fp, alias);
+                 alias = get_next_alias(instance, alias)) {
+                write_alias(instance, fp, alias);
             }
             fclose(fp);
         } else {
             res = errno_to_status();
-            log_error("\nError: Open aliases file '%s' failed (%s)\n",
+            log_error(instance,
+                      "\nError: Open aliases file '%s' failed (%s)\n",
                       fullspec, get_error_string(res));
         }
     } else {
-        log_error("\nError: Expand source '%s' failed (%s)\n",
+        log_error(instance,
+                  "\nError: Expand source '%s' failed (%s)\n",
                   fspec, get_error_string(res));
     }
 
     if (fullspec) {
-        m__free(fullspec);
+        m__free(instance, fullspec);
     }
 
     return res;
@@ -995,7 +1015,8 @@ status_t
  *   NULL if *res==ERR_NCX_SKIPPED or some real error
  *********************************************************************/
 xmlChar *
-    expand_alias (xmlChar *line,
+    expand_alias (ncx_instance_t *instance,
+                  xmlChar *line,
                   status_t *res)
 {
     xmlChar  *start, *p = line, *newline;
@@ -1031,7 +1052,7 @@ xmlChar *
 
     /* look for the alias */
     namelen = (uint32)(p - start);
-    alias = find_alias(start, namelen);
+    alias = find_alias(instance, start, namelen);
     if (alias == NULL) {
         *res = ERR_NCX_SKIPPED;
         return NULL;
@@ -1039,23 +1060,24 @@ xmlChar *
 
     /* replace the alias name with its contents and make a new string */
     if (alias->value) {
-        newlen = xml_strlen(p) + xml_strlen(alias->value);
+        newlen = xml_strlen(instance, p) + xml_strlen(instance, alias->value);
     } else {
-        newlen = xml_strlen(p);
+        newlen = xml_strlen(instance, p);
     }
-    newline = m__getMem(newlen + 1);
+    newline = m__getMem(instance, newlen + 1);
     if (newline == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
     start = newline;
     if (alias->value) {
-        start += xml_strcpy(start, alias->value);
+        start += xml_strcpy(instance, start, alias->value);
     }
-    xml_strcpy(start, p);
+    xml_strcpy(instance, start, p);
 
     if (LOGDEBUG2) {
-        log_debug2("\nExpanded alias '%s'; new line: '%s'",
+        log_debug2(instance,
+                   "\nExpanded alias '%s'; new line: '%s'",
                    alias->name, newline);
     }
 

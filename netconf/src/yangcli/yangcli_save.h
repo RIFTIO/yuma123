@@ -64,7 +64,7 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t
-    do_save (server_cb_t *server_cb);
+    do_save (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 
 /********************************************************************
@@ -80,7 +80,7 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    finish_save (server_cb_t *server_cb);
+    finish_save (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

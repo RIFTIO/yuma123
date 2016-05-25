@@ -83,35 +83,6 @@ typedef enum search_type_t_ {
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-static boolean ncxmod_init_done = FALSE;
-
-static const xmlChar *ncxmod_yuma_home;
-
-static xmlChar *ncxmod_home_cli;
-
-static xmlChar *ncxmod_yuma_home_cli;
-
-static xmlChar *ncxmod_yumadir_path;
-
-static const xmlChar *ncxmod_env_install;
-
-static const xmlChar *ncxmod_home;
-
-static const xmlChar *ncxmod_mod_path = NULL;
-
-static xmlChar *ncxmod_mod_path_cli;
-
-static const xmlChar *ncxmod_alt_path;
-
-static const xmlChar *ncxmod_data_path;
-
-static xmlChar *ncxmod_data_path_cli;
-
-static const xmlChar *ncxmod_run_path;
-
-static xmlChar *ncxmod_run_path_cli;
-
-static boolean ncxmod_subdirs;
 
 
 /********************************************************************
@@ -127,12 +98,12 @@ static boolean ncxmod_subdirs;
 *   FALSE otherwise
 *********************************************************************/
 static boolean
-    is_yang_file (const xmlChar *buff)
+    is_yang_file (ncx_instance_t *instance, const xmlChar *buff)
 {
     const xmlChar    *str;
     uint32            count;
 
-    count = xml_strlen(buff);
+    count = xml_strlen(instance, buff);
     if (count < 6) {
         return FALSE;
     }
@@ -142,7 +113,7 @@ static boolean
     }
 
     str = &buff[count-4];
-    return (xml_strcmp(str, YANG_SUFFIX)) ? FALSE : TRUE;
+    return (xml_strcmp(instance, str, YANG_SUFFIX)) ? FALSE : TRUE;
 
 } /* is_yang_file */
 
@@ -160,12 +131,12 @@ static boolean
 *   FALSE otherwise
 *********************************************************************/
 static boolean
-    is_yin_file (const xmlChar *buff)
+    is_yin_file (ncx_instance_t *instance, const xmlChar *buff)
 {
     const xmlChar    *str;
     uint32            count;
 
-    count = xml_strlen(buff);
+    count = xml_strlen(instance, buff);
     if (count < 5) {
         return FALSE;
     }
@@ -176,7 +147,7 @@ static boolean
 
     str = &buff[count-3];
 
-    return (xml_strcmp(str, YIN_SUFFIX)) ? FALSE : TRUE;
+    return (xml_strcmp(instance, str, YIN_SUFFIX)) ? FALSE : TRUE;
 
 } /* is_yin_file */
 
@@ -203,7 +174,8 @@ static boolean
 *   status
 *********************************************************************/
 static status_t
-    prep_dirpath (xmlChar *buff, 
+    prep_dirpath (ncx_instance_t *instance, 
+                  xmlChar *buff, 
                   uint32 bufflen,
                   const xmlChar *path, 
                   const xmlChar *path2,
@@ -221,7 +193,7 @@ static status_t
         return NO_ERR;
     }
         
-    pathlen = xml_strlen(path);
+    pathlen = xml_strlen(instance, path);
     if (pathlen) {
         pathsep = (uint32)(path[pathlen-1] == NCXMOD_PSCHAR);
     } else {
@@ -229,7 +201,7 @@ static status_t
     }
 
     if (path2) {
-        path2len = xml_strlen(path2);
+        path2len = xml_strlen(instance, path2);
         path2sep = (uint32)(path2len && path2[path2len-1]==NCXMOD_PSCHAR);
     } else {
         path2len = 0;
@@ -242,7 +214,7 @@ static status_t
             needslash = TRUE;
             total++;
         } else if (path2 == NULL &&
-                   !(is_yang_file(path) || is_yin_file(path))) {
+                   !(is_yang_file(instance, path) || is_yin_file(instance, path))) {
             needslash = TRUE;
             total++;
         }
@@ -253,15 +225,16 @@ static status_t
     }
 
     if (*path == NCXMOD_HMCHAR && path[1] == NCXMOD_PSCHAR) {
-        if (!ncxmod_home) {
+        if (!instance->ncxmod_home) {
             return ERR_FIL_BAD_FILENAME;
         } else {
-            total += (xml_strlen(ncxmod_home) - 1);
+            total += (xml_strlen(instance, instance->ncxmod_home) - 1);
         }
     }
 
     if (total >= bufflen) {
-        log_error("\nncxmod: Path spec too long error. Max: %d Got %u\n",
+        log_error(instance,
+                  "\nncxmod: Path spec too long error. Max: %d Got %u\n",
                   bufflen, total);
         return ERR_BUFF_OVFL;
     }
@@ -269,10 +242,10 @@ static status_t
     str = buff;
 
     if (*path == NCXMOD_HMCHAR && path[1] == NCXMOD_PSCHAR) {
-        str += xml_strcpy(str, ncxmod_home);
-        str += xml_strcpy(str, &path[1]);
+        str += xml_strcpy(instance, str, instance->ncxmod_home);
+        str += xml_strcpy(instance, str, &path[1]);
     } else {
-        str += xml_strcpy(str, path);
+        str += xml_strcpy(instance, str, path);
     }
 
     if (needslash) {
@@ -280,7 +253,7 @@ static status_t
     }
 
     if (path2 && path2len) {
-        str += xml_strcpy(str, path2);
+        str += xml_strcpy(instance, str, path2);
         if (!path2sep) {
             *str++ = NCXMOD_PSCHAR;
         }
@@ -341,7 +314,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    try_module (xmlChar *buff, 
+    try_module (ncx_instance_t *instance, 
+                xmlChar *buff, 
                 uint32 bufflen,
                 const xmlChar *path, 
                 const xmlChar *path2,
@@ -381,7 +355,7 @@ static status_t
         break;
     default:
         *done = TRUE;
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     
     if (usebuff) {
@@ -389,54 +363,56 @@ static status_t
             /* add module name and maybe revision to end of buffer, 
              * if no overflow 
              */
-            pathlen = xml_strlen(buff);
+            pathlen = xml_strlen(instance, buff);
             total =  pathlen + 
-                xml_strlen(modname) + 
-                ((revision) ? xml_strlen(revision) + 1 : 0) +
-                xml_strlen(suffix) + 1;
+                xml_strlen(instance, modname) + 
+                ((revision) ? xml_strlen(instance, revision) + 1 : 0) +
+                xml_strlen(instance, suffix) + 1;
             if (total >= bufflen) {
                 *done = TRUE;
-                log_error("\nncxmod: Filename too long error. Max: %d Got %u\n",
+                log_error(instance,
+                          "\nncxmod: Filename too long error. Max: %d Got %u\n",
                           bufflen,
                           total);
                 return ERR_BUFF_OVFL;
             }
             
             p = buff+pathlen;
-            p += xml_strcpy(p, modname);
+            p += xml_strcpy(instance, p, modname);
             if (revision) {
                 *p++ = YANG_FILE_SEPCHAR;
-                p += xml_strcpy(p, revision);
+                p += xml_strcpy(instance, p, revision);
             }
             if (*suffix) {
                 *p++ = '.';
-                xml_strcpy(p, suffix);
+                xml_strcpy(instance, p, suffix);
             }
         }
     } else {
-        res = prep_dirpath(buff, bufflen, path, path2, &total);
+        res = prep_dirpath(instance, buff, bufflen, path, path2, &total);
         if (res != NO_ERR) {
             *done = TRUE;
             return res;
         }
 
         if (modname) {
-            modlen = xml_strlen(modname);
+            modlen = xml_strlen(instance, modname);
 
             /* construct an complete module filespec 
              * <buff><modname>[@<revision>].<suffix>
              */
             if (*suffix) {
-                pathlen = xml_strlen(suffix) + 1;
+                pathlen = xml_strlen(instance, suffix) + 1;
             } else {
                 pathlen = 0;
             }
             if (revision) {
-                pathlen += (xml_strlen(revision) + 1);
+                pathlen += (xml_strlen(instance, revision) + 1);
             }
 
             if (total + pathlen + modlen >= bufflen) {
-                log_info("\nncxmod: Filename too long "
+                log_info(instance,
+                         "\nncxmod: Filename too long "
                          "error. Max: %d Got %u",
                          bufflen,
                          total + pathlen + modlen);
@@ -445,20 +421,20 @@ static status_t
 
             /* add module name and suffix */
             p = &buff[total];
-            p += xml_strcpy(p, modname);
+            p += xml_strcpy(instance, p, modname);
             if (revision) {
                 *p++ = YANG_FILE_SEPCHAR;
-                p += xml_strcpy(p, revision);
+                p += xml_strcpy(instance, p, revision);
             }
             if (*suffix) {
                 *p++ = '.';
-                xml_strcpy(p, suffix);
+                xml_strcpy(instance, p, suffix);
             }
         }
     }
 
     /* attempt to load this filespec as a YANG module */
-    res = yang_parse_from_filespec(buff, pcb, ptyp, isyang);
+    res = yang_parse_from_filespec(instance, buff, pcb, ptyp, isyang);
     switch (res) {
     case ERR_XML_READER_START_FAILED:
     case ERR_NCX_MISSING_FILE:
@@ -495,7 +471,8 @@ static status_t
 *    FALSE if file-not-found-error
 *********************************************************************/
 static boolean
-    test_file (xmlChar *buff, 
+    test_file (ncx_instance_t *instance, 
+               xmlChar *buff, 
                uint32 bufflen,
                const xmlChar *path, 
                const xmlChar *path2,
@@ -507,21 +484,22 @@ static boolean
     status_t    res;
     struct stat statbuf;
 
-    res = prep_dirpath(buff, bufflen, path, path2, &total);
+    res = prep_dirpath(instance, buff, bufflen, path, path2, &total);
     if (res != NO_ERR) {
         return FALSE;
     }
 
-    flen = xml_strlen(filename);
+    flen = xml_strlen(instance, filename);
     if (flen+total >= bufflen) {
-        log_error("\nError: Filename too long error. Max: %d Got %u\n",
+        log_error(instance,
+                  "\nError: Filename too long error. Max: %d Got %u\n",
                   NCXMOD_MAX_FSPEC_LEN, 
                   flen+total);
         return FALSE;
     }
 
     p = &buff[total];
-    p += xml_strcpy(p, filename);
+    p += xml_strcpy(instance, p, filename);
 
     memset(&statbuf, 0x0, sizeof(statbuf));
     ret = stat((const char *)buff, &statbuf);
@@ -548,7 +526,8 @@ static boolean
 *    NO_ERR if directory found OK and buffer constructed OK
 *********************************************************************/
 static status_t
-    test_file_make (xmlChar *buff, 
+    test_file_make (ncx_instance_t *instance, 
+                    xmlChar *buff, 
                     uint32 bufflen,
                     const xmlChar *path, 
                     const xmlChar *path2,
@@ -559,14 +538,15 @@ static status_t
     status_t    res;
     struct stat statbuf;
 
-    res = prep_dirpath(buff, bufflen, path, path2, &total);
+    res = prep_dirpath(instance, buff, bufflen, path, path2, &total);
     if (res != NO_ERR) {
         return res;
     }
 
-    flen = xml_strlen(filename);
+    flen = xml_strlen(instance, filename);
     if (flen+total >= bufflen) {
-        log_error("\nError: Filename too long error. Max: %d Got %u\n",
+        log_error(instance,
+                  "\nError: Filename too long error. Max: %d Got %u\n",
                   NCXMOD_MAX_FSPEC_LEN, 
                   flen+total);
         return ERR_BUFF_OVFL;
@@ -576,13 +556,13 @@ static status_t
         ret = stat((const char *)buff, &statbuf);
 
         if (ret == 0 && S_ISDIR(statbuf.st_mode)) {
-            xml_strcpy(&buff[total], filename);
+            xml_strcpy(instance, &buff[total], filename);
             return NO_ERR;
         } else {
             return ERR_NCX_DEF_NOT_FOUND;
         }
     } else {
-        xml_strcpy(buff, filename);
+        xml_strcpy(instance, buff, filename);
         return NO_ERR;
     }
 
@@ -616,7 +596,8 @@ static status_t
 *    FALSE if file-not-found-error
 *********************************************************************/
 static boolean
-    test_pathlist (const xmlChar *pathlist,
+    test_pathlist (ncx_instance_t *instance,
+                   const xmlChar *pathlist,
                    xmlChar *buff,
                    uint32 bufflen,
                    const xmlChar *modname,
@@ -627,8 +608,8 @@ static boolean
     int            ret;
     struct stat    statbuf;
 
-    mlen = xml_strlen(modname);
-    slen = (modsuffix) ? xml_strlen(modsuffix) : 0;
+    mlen = xml_strlen(instance, modname);
+    slen = (modsuffix) ? xml_strlen(instance, modsuffix) : 0;
     dot = (uint32)((slen) ? 1 : 0);
 
     /* go through the path list and check each string */
@@ -641,17 +622,17 @@ static boolean
         }
         len = (uint32)(p-str);
         if (len >= bufflen) {
-            SET_ERROR(ERR_BUFF_OVFL);
+            SET_ERROR(instance, ERR_BUFF_OVFL);
             return FALSE;
         }
 
         /* copy the next string into buff */
-        xml_strncpy(buff, str, len);
+        xml_strncpy(instance, buff, str, len);
 
         /* make sure string ends with path sep char */
         if (buff[len-1] != NCXMOD_PSCHAR) {
             if (len+1 >= bufflen) {
-                SET_ERROR(ERR_BUFF_OVFL);
+                SET_ERROR(instance, ERR_BUFF_OVFL);
                 return FALSE;
             } else {
                 buff[len++] = NCXMOD_PSCHAR;
@@ -660,14 +641,14 @@ static boolean
 
         /* add the module name and suffix */
         if (len+mlen+dot+slen >= bufflen) {
-            SET_ERROR(ERR_BUFF_OVFL);
+            SET_ERROR(instance, ERR_BUFF_OVFL);
             return FALSE;
         }
 
-        xml_strcpy(&buff[len], modname);
+        xml_strcpy(instance, &buff[len], modname);
         if (modsuffix) {
             buff[len+mlen] = '.';
-            xml_strcpy(&buff[len+mlen+1], modsuffix);
+            xml_strcpy(instance, &buff[len+mlen+1], modsuffix);
         }
                 
         /* check if the file exists and is readable */
@@ -718,7 +699,8 @@ static boolean
 *    FALSE otherwise
 *********************************************************************/
 static boolean
-    test_pathlist_make (const xmlChar *pathlist,
+    test_pathlist_make (ncx_instance_t *instance,
+                        const xmlChar *pathlist,
                         xmlChar *buff,
                         uint32 bufflen)
 {
@@ -737,12 +719,12 @@ static boolean
         }
         len = (uint32)(p-str);
         if (len >= bufflen) {
-            SET_ERROR(ERR_BUFF_OVFL);
+            SET_ERROR(instance, ERR_BUFF_OVFL);
             return FALSE;
         }
 
         /* copy the next string into buff */
-        xml_strncpy(buff, str, len);
+        xml_strncpy(instance, buff, str, len);
 
         /* check if this is a directory */
         ret = stat((const char *)buff, &statbuf);
@@ -752,7 +734,7 @@ static boolean
                 /* make sure string ends with path sep char */
                 if (buff[len-1] != NCXMOD_PSCHAR) {
                     if (len+1 >= bufflen) {
-                        SET_ERROR(ERR_BUFF_OVFL);
+                        SET_ERROR(instance, ERR_BUFF_OVFL);
                         return FALSE;
                     } else {
                         buff[len++] = NCXMOD_PSCHAR;
@@ -803,7 +785,8 @@ static boolean
 *    OR some error if not found or buffer overflow
 *********************************************************************/
 static status_t
-    check_module_in_dir (xmlChar *buff, 
+    check_module_in_dir (ncx_instance_t *instance, 
+                         xmlChar *buff, 
                          uint32 bufflen,
                          uint32 pathlen,
                          const xmlChar *modname,
@@ -822,7 +805,7 @@ static status_t
     buffleft = bufflen - pathlen;
 
     /* try YANG first */
-    res = yang_copy_filename(modname, revision, &buff[pathlen], buffleft, TRUE);
+    res = yang_copy_filename(instance, modname, revision, &buff[pathlen], buffleft, TRUE);
     if (res != NO_ERR) {
         return res;
     }
@@ -840,7 +823,7 @@ static status_t
     buff[pathlen] = 0;
 
     /* try YIN next */
-    res = yang_copy_filename(modname, revision, &buff[pathlen], buffleft,
+    res = yang_copy_filename(instance, modname, revision, &buff[pathlen], buffleft,
                              FALSE);
     if (res != NO_ERR) {
         return res;
@@ -900,7 +883,8 @@ static status_t
 *    OR some error if not found or buffer overflow
 *********************************************************************/
 static status_t
-    search_subdirs (xmlChar *buff, 
+    search_subdirs (ncx_instance_t *instance, 
+                    xmlChar *buff, 
                     uint32 bufflen,
                     const xmlChar *modname,
                     const xmlChar *revision,
@@ -914,10 +898,10 @@ static status_t
 
     /* init locals and return done flag */
     *done = FALSE;
-    pathlen = xml_strlen(buff);
-    modnamelen = xml_strlen(modname);
+    pathlen = xml_strlen(instance, buff);
+    modnamelen = xml_strlen(instance, modname);
     if (revision != NULL) {
-        revisionlen = xml_strlen(revision);
+        revisionlen = xml_strlen(instance, revision);
     } else {
         revisionlen = 0;
     }
@@ -935,7 +919,7 @@ static status_t
         buff[pathlen] = 0;
     }
 
-    res = check_module_in_dir(buff, bufflen, pathlen, modname, revision, done);
+    res = check_module_in_dir(instance, buff, bufflen, pathlen, modname, revision, done);
     if (*done || res != NO_ERR) {
         return res;
     }
@@ -963,7 +947,7 @@ static status_t
          * Always skip any directory or file that starts with
          * the dot-char or is named CVS
          */
-        dentlen = xml_strlen((const xmlChar *)ep->d_name); 
+        dentlen = xml_strlen(instance, (const xmlChar *)ep->d_name); 
 
         /* this dive-first behavior is not really what is desired
          * but do not have a 'stat' function for partial filenames
@@ -976,9 +960,10 @@ static status_t
                     *done = TRUE;
                     dirdone = TRUE;
                 } else {
-                    xml_strcpy(&buff[pathlen], 
+                    xml_strcpy(instance, 
+                               &buff[pathlen], 
                                (const xmlChar *)ep->d_name);
-                    res = search_subdirs(buff, bufflen, modname, revision, 
+                    res = search_subdirs(instance, buff, bufflen, modname, revision, 
                                          done);
                     if (*done) {
                         dirdone = TRUE;
@@ -992,7 +977,8 @@ static status_t
         } 
 
         if (ep->d_type == DT_REG || ep->d_type == DT_UNKNOWN) {
-            if (!xml_strncmp(modname, 
+            if (!xml_strncmp(instance, 
+                             modname, 
                              (const xmlChar *)ep->d_name,
                              modnamelen)) {
                 /* filename is a partial match so check it out
@@ -1011,7 +997,8 @@ static status_t
 
                     /* check if the revision matches, if specified */
                     if (revision != NULL) {
-                        if (xml_strncmp((const xmlChar *)
+                        if (xml_strncmp(instance,
+                                        (const xmlChar *)
                                         &ep->d_name[modnamelen+1],
                                         revision, 
                                         revisionlen)) {
@@ -1025,10 +1012,12 @@ static status_t
                      * highest valued date string
                      * if the revision == NULL
                      */
-                    if (!xml_strcmp((const xmlChar *)
+                    if (!xml_strcmp(instance, 
+                                    (const xmlChar *)
                                     &ep->d_name[modnamelen+12], 
                                     YANG_SUFFIX) ||
-                        !xml_strcmp((const xmlChar *)
+                        !xml_strcmp(instance, 
+                                    (const xmlChar *)
                                     &ep->d_name[modnamelen+12], 
                                     YIN_SUFFIX)) {
                         dirdone = TRUE;
@@ -1037,7 +1026,8 @@ static status_t
                             res = ERR_BUFF_OVFL;
                         } else {
                             res = NO_ERR;
-                            xml_strcpy(&buff[pathlen], 
+                            xml_strcpy(instance, 
+                                       &buff[pathlen], 
                                        (const xmlChar *)ep->d_name);
                         }
                     }
@@ -1075,7 +1065,8 @@ static status_t
 *    OR some error if not found or buffer overflow
 *********************************************************************/
 static status_t
-    list_subdirs (xmlChar *buff,
+    list_subdirs (ncx_instance_t *instance,
+                  xmlChar *buff,
                   uint32 bufflen,
                   search_type_t searchtype,
                   help_mode_t helpmode,
@@ -1091,7 +1082,7 @@ static status_t
 
     res = NO_ERR;
     dentlen = 0;
-    pathlen = xml_strlen(buff);
+    pathlen = xml_strlen(instance, buff);
 
     /* try to open the buffer spec as a directory */
     dp = opendir((const char *)buff);
@@ -1119,8 +1110,8 @@ static status_t
                 continue;
             }
 
-            isyang = is_yang_file((const xmlChar *)ep->d_name);
-            isyin = is_yin_file((const xmlChar *)ep->d_name);
+            isyang = is_yang_file(instance, (const xmlChar *)ep->d_name);
+            isyin = is_yin_file(instance, (const xmlChar *)ep->d_name);
 
             /* check if this file needs to be listed */
             switch (searchtype) {
@@ -1138,27 +1129,27 @@ static status_t
             case SEARCH_TYPE_NONE:
             default:
                 dirdone = TRUE;
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
                 continue;
 
             }
 
             /* list the file */
             if (logstdout) {
-                log_stdout_indent(NCX_DEF_INDENT);
+                log_stdout_indent(instance, NCX_DEF_INDENT);
                 if (helpmode == HELP_MODE_FULL) {
-                    log_stdout((const char *)buff);
+                    log_stdout(instance, (const char *)buff);
                 }
-                log_stdout(ep->d_name);
+                log_stdout(instance, ep->d_name);
                 if (helpmode != HELP_MODE_BRIEF) {
                     ;
                 }
             } else {
-                log_indent(NCX_DEF_INDENT);
+                log_indent(instance, NCX_DEF_INDENT);
                 if (helpmode == HELP_MODE_FULL) {
-                    log_write((const char *)buff);
+                    log_write(instance, (const char *)buff);
                 }
-                log_write(ep->d_name);
+                log_write(instance, ep->d_name);
                 if (helpmode != HELP_MODE_BRIEF) {
                     ;
                 }
@@ -1197,7 +1188,7 @@ static status_t
          * Always skip any directory or file that starts with
          * the dot-char or is named CVS
          */
-        dentlen = xml_strlen((const xmlChar *)ep->d_name); 
+        dentlen = xml_strlen(instance, (const xmlChar *)ep->d_name); 
 
         /* this dive-first behavior is not really what is desired
          * but do not have a 'stat' function for partial filenames
@@ -1213,15 +1204,15 @@ static status_t
                     if (pathlen > 0 && buff[pathlen-1] != NCXMOD_PSCHAR) {
                         buff[pathlen] = NCXMOD_PSCHAR;
                         str = &buff[pathlen+1];
-                        str += xml_strcpy(str, (const xmlChar *)ep->d_name);
+                        str += xml_strcpy(instance, str, (const xmlChar *)ep->d_name);
                     } else {
                         str = &buff[pathlen];
-                        str += xml_strcpy(str, (const xmlChar *)ep->d_name);
+                        str += xml_strcpy(instance, str, (const xmlChar *)ep->d_name);
                     }
                     *str++ = NCXMOD_PSCHAR;
                     *str = '\0';
 
-                    res = list_subdirs(buff, bufflen, searchtype, helpmode,
+                    res = list_subdirs(instance, buff, bufflen, searchtype, helpmode,
                                        logstdout, TRUE);
                     /* erase the filename and keep trying */
                     buff[pathlen] = 0;
@@ -1257,7 +1248,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    list_pathlist (const xmlChar *pathlist,
+    list_pathlist (ncx_instance_t *instance,
+                   const xmlChar *pathlist,
                    xmlChar *buff,
                    uint32 bufflen,
                    search_type_t  searchtype,
@@ -1284,7 +1276,7 @@ static status_t
         }
 
         /* copy the next string into buff */
-        xml_strncpy(buff, str, len);
+        xml_strncpy(instance, buff, str, len);
 
         /* make sure string ends with path sep char */
         if (buff[len-1] != NCXMOD_PSCHAR) {
@@ -1296,7 +1288,7 @@ static status_t
         }
 
         /* list all the requested files in this path */
-        res = list_subdirs(buff, bufflen, searchtype, helpmode, logstdout,
+        res = list_subdirs(instance, buff, bufflen, searchtype, helpmode, logstdout,
                            FALSE);
 
         if (res != NO_ERR) {
@@ -1331,7 +1323,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t 
-    add_failed (const xmlChar *modname,
+    add_failed (ncx_instance_t *instance,
+                const xmlChar *modname,
                 const xmlChar *revision,
                 yang_pcb_t *pcb,
                 status_t res)
@@ -1345,21 +1338,21 @@ static status_t
         return NO_ERR;
     }
 
-    node = yang_new_node();
+    node = yang_new_node(instance);
     if (!node) {
         return ERR_INTERNAL_MEM;
     }
 
-    node->failed = xml_strdup(modname);
+    node->failed = xml_strdup(instance, modname);
     if (!node->failed) {
-        yang_free_node(node);
+        yang_free_node(instance, node);
         return ERR_INTERNAL_MEM;
     }
 
     if (revision) {
-        node->failedrev = xml_strdup(revision);
+        node->failedrev = xml_strdup(instance, revision);
         if (!node->failed) {
-            yang_free_node(node);
+            yang_free_node(instance, node);
             return ERR_INTERNAL_MEM;
         }
     }
@@ -1367,7 +1360,7 @@ static status_t
     node->name = node->failed;
     node->revision = node->failedrev;
     node->res = res;
-    dlq_enque(node, &pcb->failedQ);
+    dlq_enque(instance, node, &pcb->failedQ);
     return NO_ERR;
 
 } /* add_failed */
@@ -1398,7 +1391,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    check_module_path (const xmlChar *path,
+    check_module_path (ncx_instance_t *instance,
+                       const xmlChar *path,
                        xmlChar *buff,
                        uint32 bufflen,
                        const xmlChar *modname,
@@ -1420,30 +1414,31 @@ static status_t
      */
     path2 = (usepath) ? NULL : NCXMOD_DIR;
 
-    total = xml_strlen(path);
+    total = xml_strlen(instance, path);
     if (total >= bufflen) {
         *done = TRUE;
         return ERR_BUFF_OVFL;
     }
 
-    if (ncxmod_subdirs) {
-        res = prep_dirpath(buff, bufflen, path, path2, &total);
+    if (instance->ncxmod_subdirs) {
+        res = prep_dirpath(instance, buff, bufflen, path, path2, &total);
         if (res != NO_ERR) {
             *done = TRUE;
             return res;
         }
 
         /* try YANG or YIN file */
-        res = search_subdirs(buff, bufflen, modname, revision, done);
+        res = search_subdirs(instance, buff, bufflen, modname, revision, done);
         if (*done && res == NO_ERR) {
 
-            res = try_module(buff, 
+            res = try_module(instance, 
+                             buff, 
                              bufflen, 
                              NULL, 
                              NULL,
                              NULL, 
                              NULL,
-                             yang_fileext_is_yang(buff) ? 
+                             yang_fileext_is_yang(instance, buff) ? 
                              NCXMOD_MODE_FILEYANG : 
                              NCXMOD_MODE_FILEYIN,
                              TRUE, 
@@ -1451,7 +1446,8 @@ static status_t
                              pcb, 
                              ptyp);
             if (res != NO_ERR) {
-                res2 = add_failed(modname, 
+                res2 = add_failed(instance, 
+                                  modname, 
                                   revision,
                                   pcb, 
                                   res);
@@ -1463,7 +1459,8 @@ static status_t
     /* else subdir searches not allowed
      * check for YANG file in the current path
      */
-    res = try_module(buff,
+    res = try_module(instance,
+                     buff,
                      bufflen, 
                      path,
                      path2,
@@ -1477,7 +1474,8 @@ static status_t
 
     if (!*done && res == NO_ERR) {
         /* check for YIN file in the current path */
-        res = try_module(buff,
+        res = try_module(instance,
+                         buff,
                          bufflen, 
                          path,
                          path2,
@@ -1491,7 +1489,8 @@ static status_t
     }
 
     if (*done && res != NO_ERR) {
-        res2 = add_failed(modname,
+        res2 = add_failed(instance,
+                          modname,
                           revision,
                           pcb,
                           res);
@@ -1527,7 +1526,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    check_module_pathlist (const xmlChar *pathlist,
+    check_module_pathlist (ncx_instance_t *instance,
+                           const xmlChar *pathlist,
                            xmlChar *buff,
                            uint32 bufflen,
                            const xmlChar *modname,
@@ -1542,7 +1542,7 @@ static status_t
     status_t        res;
 
     pathbufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    pathbuff = m__getMem(pathbufflen);
+    pathbuff = m__getMem(instance, pathbufflen);
     if (!pathbuff) {
         *done = TRUE;
         return ERR_INTERNAL_MEM;
@@ -1560,13 +1560,14 @@ static status_t
         pathlen = (uint32)(p-str);
         if (pathlen >= pathbufflen) {
             *done = TRUE;
-            m__free(pathbuff);
+            m__free(instance, pathbuff);
             return ERR_BUFF_OVFL;
         }
 
         /* copy the next string into the path buffer */
-        xml_strncpy(pathbuff, str, pathlen);
-        res = check_module_path(pathbuff, 
+        xml_strncpy(instance, pathbuff, str, pathlen);
+        res = check_module_path(instance, 
+                                pathbuff, 
                                 buff,
                                 bufflen,
                                 modname, 
@@ -1576,7 +1577,7 @@ static status_t
                                 TRUE,
                                 done);
         if (*done) {
-            m__free(pathbuff);
+            m__free(instance, pathbuff);
             return res;
         }
     
@@ -1588,7 +1589,7 @@ static status_t
         }
     }
 
-    m__free(pathbuff);
+    m__free(instance, pathbuff);
     *done = FALSE;
     return NO_ERR;
 
@@ -1612,7 +1613,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    search_module_path (const xmlChar *path,
+    search_module_path (ncx_instance_t *instance,
+                        const xmlChar *path,
                         xmlChar *buff,
                         uint32 bufflen,
                         ncxmod_callback_fn_t callback,
@@ -1625,9 +1627,10 @@ static status_t
     uint32          total;
 
     total = 0;
-    res = prep_dirpath(buff, bufflen, path, NCXMOD_DIR, &total);
+    res = prep_dirpath(instance, buff, bufflen, path, NCXMOD_DIR, &total);
     if (res == NO_ERR) {
-        res = ncxmod_process_subtree((const char *)buff, 
+        res = ncxmod_process_subtree(instance, 
+                                     (const char *)buff, 
                                      callback, 
                                      cookie);
     }
@@ -1652,7 +1655,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    search_module_pathlist (const xmlChar *pathlist,
+    search_module_pathlist (ncx_instance_t *instance,
+                            const xmlChar *pathlist,
                             ncxmod_callback_fn_t callback,
                             void *cookie)
 
@@ -1663,7 +1667,7 @@ static status_t
     status_t        res;
 
     pathbufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    pathbuff = m__getMem(pathbufflen);
+    pathbuff = m__getMem(instance, pathbufflen);
     if (!pathbuff) {
         return ERR_INTERNAL_MEM;
     }
@@ -1681,18 +1685,19 @@ static status_t
 
         pathlen = (uint32)(p-str);
         if (pathlen >= pathbufflen) {
-            m__free(pathbuff);
+            m__free(instance, pathbuff);
             return ERR_BUFF_OVFL;
         }
 
         /* copy the next string into the path buffer */
-        xml_strncpy(pathbuff, str, pathlen);
+        xml_strncpy(instance, pathbuff, str, pathlen);
 
-        res = ncxmod_process_subtree((const char *)pathbuff, 
+        res = ncxmod_process_subtree(instance, 
+                                     (const char *)pathbuff, 
                                      callback, 
                                      cookie);
         if (res != NO_ERR) {
-            m__free(pathbuff);
+            m__free(instance, pathbuff);
             return res;
         }
     
@@ -1704,7 +1709,7 @@ static status_t
         }
     }
 
-    m__free(pathbuff);
+    m__free(instance, pathbuff);
     return NO_ERR;
 
 }  /* search_module_pathlist */
@@ -1765,7 +1770,8 @@ static boolean
 *
 *********************************************************************/
 static ncxmod_mode_t
-    determine_mode( const xmlChar* modname, 
+    determine_mode(ncx_instance_t *instance, 
+                     const xmlChar* modname, 
                     const uint32 modlen )
 {
     ncxmod_mode_t   mode = NCXMOD_MODE_NONE;
@@ -1783,9 +1789,9 @@ static ncxmod_mode_t
          * only treat this string with a dot in it as a file if
          * it has a YANG file extension
          */
-        if (!xml_strcmp(str+1, YANG_SUFFIX)) {
+        if (!xml_strcmp(instance, str+1, YANG_SUFFIX)) {
             mode = NCXMOD_MODE_FILEYANG;
-        } else if (!xml_strcmp(str+1, YIN_SUFFIX)) {
+        } else if (!xml_strcmp(instance, str+1, YIN_SUFFIX)) {
             mode = NCXMOD_MODE_FILEYIN;
         }
     }
@@ -1814,7 +1820,8 @@ static ncxmod_mode_t
 *
 *********************************************************************/
 static status_t
-    try_module_filespec( const ncxmod_mode_t  mode,
+    try_module_filespec(ncx_instance_t *instance,
+                          const ncxmod_mode_t  mode,
                          const xmlChar       *modname,
                          const uint32         modlen,
                          yang_pcb_t          *pcb,
@@ -1828,21 +1835,21 @@ static status_t
     /* the try_module function expects the first parm to be a writable 
      * buffer, even though in this case there will be nothing altered in the
      * module name string.  Need to copy it instead of pass it directly :-( */
-    buff = xml_strdup(modname);
+    buff = xml_strdup(instance, modname);
     if ( !buff ) {
         return ERR_INTERNAL_MEM;
     }
 
-    res = try_module( buff, modlen, NULL, NULL, NULL, NULL, 
+    res = try_module(instance,  buff, modlen, NULL, NULL, NULL, NULL, 
                       mode, TRUE, &done, pcb, ptyp);
 
     if ( ERR_NCX_MISSING_FILE == res ) {
-        log_error("\nError: file not found (%s)\n", modname);
+        log_error(instance, "\nError: file not found (%s)\n", modname);
     } else if ( res == NO_ERR && retmod ) {
         *retmod = pcb->top;
     }
 
-    m__free(buff);
+    m__free(instance, buff);
     return res;
 }
  
@@ -1854,12 +1861,14 @@ static status_t
 *
 * Module Search order:
 *   1) filespec == try that only and exit
-*   2) current directory
-*   3) YUMA_MODPATH environment var (or set by modpath CLI var)
-*   4) HOME/modules directory
-*   5) YUMA_HOME/modules directory
-*   6) YUMA_INSTALL/modules directory OR
-*   7) default install module location, which is '/usr/share/yuma/modules'
+*   2)IF
+*       YUMA_MODPATH environment var (or set by modpath CLI var)
+*     ELSE
+*     a) current directory
+*     b) HOME/modules directory
+*     c) YUMA_HOME/modules directory
+*     d) YUMA_INSTALL/modules directory OR
+*     e) default install module location, which is '/usr/share/yuma/modules'
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -1876,7 +1885,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t 
-    load_module (const xmlChar *modname,
+    load_module (ncx_instance_t *instance,
+                 const xmlChar *modname,
                  const xmlChar *revision,
                  yang_pcb_t *pcb,
                  yang_parsetype_t ptyp,
@@ -1895,33 +1905,33 @@ static status_t
     }
 
     if (LOGDEBUG2) {
-        log_debug2("\nAttempting to load module '%s'", modname);
+        log_debug2(instance, "\nAttempting to load module '%s'", modname);
         if (revision) {
-            log_debug2(" r:%s", revision);
+            log_debug2(instance, " r:%s", revision);
         }
     } else if (LOGDEBUG) {
-        log_debug("\nload_module called for '%s'", modname);
+        log_debug(instance, "\nload_module called for '%s'", modname);
     }
 
-    modlen = xml_strlen(modname);
+    modlen = xml_strlen(instance, modname);
 
     if (retmod) {
         *retmod = NULL;
     }
 
     /* find the start of the file name extension, expecting .yang or .yin */
-    mode = determine_mode( modname, modlen );
+    mode = determine_mode(instance,  modname, modlen );
     if ( NCXMOD_MODE_FILEYANG == mode || NCXMOD_MODE_FILEYIN == mode ) {
         /* 1) if parameter is a filespec, then try it and exit if it does not 
          * work, instead of trying other directories */
-        return try_module_filespec( mode, modname, modlen, pcb, ptyp, retmod );
+        return try_module_filespec(instance,  mode, modname, modlen, pcb, ptyp, retmod );
     }
 
     /* the module name is not a file; the revision may be relevant now;
      * make sure the module name is valid */
     if ( !ncx_valid_name( modname, modlen ) ) {
-        log_error("\nError: Invalid module name (%s)\n", modname);
-        res = add_failed(modname, revision, pcb, res);
+        log_error(instance, "\nError: Invalid module name (%s)\n", modname);
+        res = add_failed(instance, modname, revision, pcb, res);
         if ( NO_ERR != res ) {
             return res;
         } else {
@@ -1937,9 +1947,9 @@ static status_t
         !(pcb->savetkc && pcb->tkc == NULL)) {
         ncx_module_t   *testmod;
 
-        testmod = ncx_find_module(modname, revision);
+        testmod = ncx_find_module(instance, modname, revision);
         if (testmod) {
-            log_debug2( "\nncxmod: Using module '%s' already loaded", modname );
+            log_debug2(instance,  "\nncxmod: Using module '%s' already loaded", modname );
             if (!pcb->top) {
                 pcb->top = testmod;
                 pcb->topfound = TRUE;
@@ -1950,12 +1960,12 @@ static status_t
             return testmod->status;
         } else {
             /*** hack for now, check if this is ietf-netconf ***/
-            if (!xml_strcmp(modname, NCXMOD_IETF_NETCONF)) {
+            if (!xml_strcmp(instance, modname, NCXMOD_IETF_NETCONF)) {
                 /* check if yuma-netconf already loaded */
-                testmod = ncx_find_module(NCXMOD_YUMA_NETCONF, NULL);
+                testmod = ncx_find_module(instance, NCXMOD_YUMA_NETCONF, NULL);
                 if (testmod) {
                     /* use yuma-netconf instead of ietf-netconf */
-                    log_debug( "\nncxmod: cannot load 'ietf-netconf'; "
+                    log_debug(instance,  "\nncxmod: cannot load 'ietf-netconf'; "
                                "'yuma-netconf' already loaded" );
                     if (!pcb->top) {
                         pcb->top = testmod;
@@ -1972,75 +1982,75 @@ static status_t
 
     /* get a temp buffer to construct filespecs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         return ERR_INTERNAL_MEM;
     } else {
         *buff = 0;
     }
 
-    /* 2) try alt_path variable if set; used by yangdiff */
-    if ( ncxmod_alt_path) {
-        res = check_module_path( ncxmod_alt_path, buff, bufflen, modname, 
-                                 revision, pcb, ptyp, TRUE, &done );
-    }
-
-    if (ncx_get_cwd_subdirs()) {
-        /* CHECK THE CURRENT DIR AND ANY SUBDIRS
-         * 3) try cur working directory and subdirs if the subdirs parameter
-         *    is true
-         * check before the modpath, which can cause the wrong version to be 
-         * picked, depending * on the CWD used by the application.  */
-        if (!done) {
-            res = check_module_pathlist( (const xmlChar *)".", buff, bufflen,
-                                         modname, revision, pcb, ptyp, &done );
-        }
+    if (instance->ncxmod_mod_path) {
+      /* try YUMA_MODPATH environment variable if set */
+        res = check_module_pathlist(instance, instance->ncxmod_mod_path, buff, bufflen, modname,
+                                    revision, pcb, ptyp, &done );
     } else {
-        /* CHECK THE CURRENT DIR BUT NOT ANY SUBDIRS
-         * 3a) try as module in current dir, YANG format */
-        if (!done) {
-            res = try_module( buff, bufflen, NULL, NULL, modname, revision, 
+      /* 1) try alt_path variable if set; used by yangdiff */
+      if ( instance->ncxmod_alt_path) {
+          res = check_module_path(instance,  instance->ncxmod_alt_path, buff, bufflen, modname, 
+                                  revision, pcb, ptyp, TRUE, &done );
+      }
+
+      if (ncx_get_cwd_subdirs(instance)) {
+          /* CHECK THE CURRENT DIR AND ANY SUBDIRS
+          * 2) try cur working directory and subdirs if the subdirs parameter
+          *    is true
+          * check before the modpath, which can cause the wrong version to be 
+          * picked, depending * on the CWD used by the application.  */
+          if (!done) {
+              res = check_module_pathlist(instance,  (const xmlChar *)".", buff, bufflen,
+                                         modname, revision, pcb, ptyp, &done );
+          }
+      } else {
+          /* CHECK THE CURRENT DIR BUT NOT ANY SUBDIRS
+           * 2a) try as module in current dir, YANG format */
+          if (!done) {
+              res = try_module(instance,  buff, bufflen, NULL, NULL, modname, revision, 
                               NCXMOD_MODE_YANG, FALSE, &done, pcb, ptyp );
-        }
+          }
 
-        /* 3b) try as module in current dir, YIN format  */
-        if (!done) {
-            res = try_module( buff, bufflen, NULL, NULL, modname, revision,
+          /* 2b) try as module in current dir, YIN format  */
+          if (!done) {
+              res = try_module(instance,  buff, bufflen, NULL, NULL, modname, revision,
                               NCXMOD_MODE_YIN, FALSE, &done, pcb, ptyp);
-        }
-    }
+          }
+      }
 
-    /* 4) try YUMA_MODPATH environment variable if set */
-    if (!done && ncxmod_mod_path) {
-        res = check_module_pathlist( ncxmod_mod_path, buff, bufflen, modname, 
-                                     revision, pcb, ptyp, &done );
-    }
-
-    /* 5) HOME/modules directory */
-    if (!done && ncxmod_home) {
-        res = check_module_path( ncxmod_home, buff, bufflen, modname,
+      /* 4) HOME/modules directory */
+      if (!done && instance->ncxmod_home) {
+          res = check_module_path(instance,  instance->ncxmod_home, buff, bufflen, modname,
                                  revision, pcb, ptyp, FALSE, &done );
-    }
+      } 
 
-    /* 6) YUMA_HOME/modules directory */
-    if (!done && ncxmod_yuma_home) {
-        res = check_module_path( ncxmod_yuma_home, buff, bufflen, modname, 
+      /* 5) YUMA_HOME/modules directory */
+      if (!done && instance->ncxmod_yuma_home) {
+          res = check_module_path(instance,  instance->ncxmod_yuma_home, buff, bufflen, modname, 
                                  revision, pcb, ptyp, FALSE, &done );
-    }
+      }
 
-    /* 7) YUMA_INSTALL/modules directory or default install path
-     *    If this envvar is set then the default install path will not
-     *    be tried
-     */
-    if (!done) {
-        if (ncxmod_env_install) {
-            res = check_module_path( ncxmod_env_install, buff, bufflen, modname,
+      /* 6) YUMA_INSTALL/modules directory or default install path
+       *    If this envvar is set then the default install path will not
+       *    be tried
+       */
+      if (!done) {
+          if (instance->ncxmod_env_install) {
+              res = check_module_path(instance,  instance->ncxmod_env_install, buff, bufflen, modname,
                                      revision, pcb, ptyp, FALSE, &done );
-        } else {
-            res = check_module_path( NCXMOD_DEFAULT_INSTALL, buff, bufflen, 
+          } else {
+              res = check_module_path(instance,  NCXMOD_DEFAULT_INSTALL, buff, bufflen, 
                                      modname, revision, pcb, ptyp, FALSE, 
                                      &done );
-        }
+          }
+      }
     }
 
     if (res != NO_ERR || !done) {
@@ -2048,10 +2058,10 @@ static status_t
             res = ERR_NCX_MOD_NOT_FOUND;
         }
 
-        ( void ) add_failed(modname, revision, pcb, res);
+        ( void ) add_failed(instance, modname, revision, pcb, res);
     }
 
-    m__free(buff);
+    m__free(instance, buff);
 
     if (done) {
         if ( ( res == NO_ERR || ptyp == YANG_PT_INCLUDE ) && retmod ) {
@@ -2060,12 +2070,13 @@ static status_t
             } else if (ptyp == YANG_PT_TOP) {
                 *retmod = pcb->top;
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         } else if (res != NO_ERR && pcb->retmod) {
-            log_debug( "\nFree retmod import %p (%s)", 
+            log_debug(instance, 
+                        "\nFree retmod import %p (%s)", 
                        pcb->retmod, pcb->retmod->name);
-            ncx_free_module(pcb->retmod);
+            ncx_free_module(instance, pcb->retmod);
             pcb->retmod = NULL;
         } /* else pcb->top will get deleted in yang_free_pcb */
     }
@@ -2139,7 +2150,8 @@ static boolean
 *    OR some error if not found or buffer overflow
 *********************************************************************/
 static status_t
-    process_subtree (char *buff, 
+    process_subtree (ncx_instance_t *instance, 
+                     char *buff, 
                      uint32 bufflen,
                      ncxmod_callback_fn_t callback,
                      void *cookie)
@@ -2153,14 +2165,14 @@ static status_t
 
     res = NO_ERR;
 
-    pathlen = xml_strlen((const xmlChar *)buff);
+    pathlen = xml_strlen(instance, (const xmlChar *)buff);
     if (!pathlen) {
         return NO_ERR;
     }
 
     /* make sure a min-length YANG file can be added (x.yang) */
     if ((pathlen + 8) >= bufflen) {
-        log_error("\nError: pathspec too long '%s'\n", buff);
+        log_error(instance, "\nError: pathspec too long '%s'\n", buff);
         return ERR_BUFF_OVFL;
     } 
 
@@ -2174,7 +2186,7 @@ static status_t
     dp = opendir(buff);
     if (!dp) {
 #if 0
-        log_error("\nError: open directory '%s' failed\n", buff);
+        log_error(instance, "\nError: open directory '%s' failed\n", buff);
         return ERR_OPEN_DIR_FAILED;
 #else
         return NO_ERR;
@@ -2198,11 +2210,11 @@ static status_t
         if (ep->d_type == DT_DIR || ep->d_type == DT_UNKNOWN) {
             if ((*ep->d_name != '.') && strcmp(ep->d_name, "CVS")) {
                 if ((pathlen + 
-                     xml_strlen((const xmlChar *)ep->d_name)) >=  bufflen) {
+                     xml_strlen(instance, (const xmlChar *)ep->d_name)) >=  bufflen) {
                     res = ERR_BUFF_OVFL;
                 } else {
                     strncpy(&buff[pathlen], ep->d_name, bufflen-pathlen);
-                    res = process_subtree(buff, bufflen, callback, cookie);
+                    res = process_subtree(instance, buff, bufflen, callback, cookie);
                     buff[pathlen] = 0;
                 }
             }
@@ -2211,11 +2223,11 @@ static status_t
         if (ep->d_type == DT_REG || ep->d_type == DT_UNKNOWN) {
             if ((*ep->d_name != '.') && has_mod_ext(ep->d_name)) {
                 if ((pathlen + 
-                     xml_strlen((const xmlChar *)ep->d_name)) >=  bufflen) {
+                     xml_strlen(instance, (const xmlChar *)ep->d_name)) >=  bufflen) {
                     res = ERR_BUFF_OVFL;
                 } else {
                     strncpy(&buff[pathlen], ep->d_name, bufflen-pathlen);
-                    res = (*callback)(buff, cookie);
+                    res = (*callback)(instance, buff, cookie);
                 }
             }
         }
@@ -2249,7 +2261,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t 
-    try_load_module (yang_pcb_t *pcb,
+    try_load_module (ncx_instance_t *instance,
+                     yang_pcb_t *pcb,
                      yang_parsetype_t ptyp,
                      const xmlChar *modname,
                      const xmlChar *revision,
@@ -2260,7 +2273,7 @@ static status_t
 
 #ifdef DEBUG
     if (!modname) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2271,12 +2284,12 @@ static status_t
      * does not get passed over for a generic foo.yang
      * later on in the search path
      */
-    res = load_module(modname, revision, pcb, ptyp, &testmod);
+    res = load_module(instance, modname, revision, pcb, ptyp, &testmod);
 
     if (res == ERR_NCX_MOD_NOT_FOUND) {
         if (revision && *revision) {
             /* try filenames without revision dates in them */
-            res = load_module(modname, NULL, pcb, ptyp, &testmod);
+            res = load_module(instance, modname, NULL, pcb, ptyp, &testmod);
             if (res == NO_ERR && testmod) {
                 if (testmod->version == NULL) {
                     /* asked for a specific revision; 
@@ -2284,7 +2297,8 @@ static status_t
                      * rejected!; return error
                      */
                     res = ERR_NCX_WRONG_VERSION;
-                } else if (yang_compare_revision_dates(revision,
+                } else if (yang_compare_revision_dates(instance,
+                                                       revision,
                                                        testmod->version)) {
                     /* error should already be reported */
                     res = ERR_NCX_WRONG_VERSION;
@@ -2294,11 +2308,12 @@ static status_t
     }
 
     if (res == NO_ERR && testmod && testmod->errors) {
-        log_debug("\nParser returned OK but module '%s' has errors",
+        log_debug(instance,
+                  "\nParser returned OK but module '%s' has errors",
                   testmod->name);
         res = ERR_NCX_OPERATION_FAILED;
         if (!testmod->ismod && (pcb->top != testmod)) {
-            ncx_free_module(testmod);
+            ncx_free_module(instance, testmod);
         }
     } else if (retmod) {
         *retmod = testmod;
@@ -2318,12 +2333,12 @@ static status_t
 *  malloced and initialized struct
 *********************************************************************/
 static ncxmod_temp_filcb_t *
-    new_temp_filcb (void)
+    new_temp_filcb (ncx_instance_t *instance)
 
 {
     ncxmod_temp_filcb_t *newcb;
 
-    newcb = m__getObj(ncxmod_temp_filcb_t);
+    newcb = m__getObj(instance, ncxmod_temp_filcb_t);
     if (newcb == NULL) {
         return NULL;
     }
@@ -2344,20 +2359,21 @@ static ncxmod_temp_filcb_t *
 *
 *********************************************************************/
 static void
-    free_temp_filcb (ncxmod_temp_filcb_t *filcb)
+    free_temp_filcb (ncx_instance_t *instance, ncxmod_temp_filcb_t *filcb)
 {
     int   retval;
 
     if (filcb->source) {
         retval = remove((const char *)filcb->source);
         if (retval < 0) {
-            log_error("\nError: could not delete temp file '%s' (%s)\n",
+            log_error(instance,
+                      "\nError: could not delete temp file '%s' (%s)\n",
                       filcb->source,
                       get_error_string(errno_to_status()));
         }
-        m__free(filcb->source);
+        m__free(instance, filcb->source);
     }
-    m__free(filcb);
+    m__free(instance, filcb);
 
 }  /* free_temp_filcb */
 
@@ -2371,18 +2387,18 @@ static void
 *  malloced and initialized struct
 *********************************************************************/
 static ncxmod_temp_sescb_t *
-    new_temp_sescb (void)
+    new_temp_sescb (ncx_instance_t *instance)
 
 {
     ncxmod_temp_sescb_t *newcb;
 
-    newcb = m__getObj(ncxmod_temp_sescb_t);
+    newcb = m__getObj(instance, ncxmod_temp_sescb_t);
     if (newcb == NULL) {
         return NULL;
     }
 
     memset(newcb, 0x0, sizeof(ncxmod_temp_sescb_t));
-    dlq_createSQue(&newcb->temp_filcbQ);
+    dlq_createSQue(instance, &newcb->temp_filcbQ);
     return newcb;
 
 }  /* new_temp_sescb */
@@ -2398,29 +2414,30 @@ static ncxmod_temp_sescb_t *
 *
 *********************************************************************/
 static void
-    free_temp_sescb (ncxmod_temp_sescb_t *sescb)
+    free_temp_sescb (ncx_instance_t *instance, ncxmod_temp_sescb_t *sescb)
 {
     ncxmod_temp_filcb_t *filcb;
     int                  retval;
 
-    while (!dlq_empty(&sescb->temp_filcbQ)) {
+    while (!dlq_empty(instance, &sescb->temp_filcbQ)) {
         filcb = (ncxmod_temp_filcb_t *)
-            dlq_deque(&sescb->temp_filcbQ);
-        free_temp_filcb(filcb);
+            dlq_deque(instance, &sescb->temp_filcbQ);
+        free_temp_filcb(instance, filcb);
     }
 
     if (sescb->source) {
         retval = rmdir((const char *)sescb->source);
         if (retval < 0) {
-            log_error("\nError: could not delete temp directory '%s' (%s)\n",
+            log_error(instance,
+                      "\nError: could not delete temp directory '%s' (%s)\n",
                       sescb->source,
                       get_error_string(errno_to_status()));
 
         }
-        m__free(sescb->source);
+        m__free(instance, sescb->source);
     }
 
-    m__free(sescb);
+    m__free(instance, sescb);
 
 }  /* free_temp_sescb */
 
@@ -2434,18 +2451,18 @@ static void
 *  malloced and initialized struct
 *********************************************************************/
 static ncxmod_temp_progcb_t *
-    new_temp_progcb (void)
+    new_temp_progcb (ncx_instance_t *instance)
 
 {
     ncxmod_temp_progcb_t *newcb;
 
-    newcb = m__getObj(ncxmod_temp_progcb_t);
+    newcb = m__getObj(instance, ncxmod_temp_progcb_t);
     if (newcb == NULL) {
         return NULL;
     }
 
     memset(newcb, 0x0, sizeof(ncxmod_temp_progcb_t));
-    dlq_createSQue(&newcb->temp_sescbQ);
+    dlq_createSQue(instance, &newcb->temp_sescbQ);
     return newcb;
 
 }  /* new_temp_progcb */
@@ -2461,29 +2478,30 @@ static ncxmod_temp_progcb_t *
 *
 *********************************************************************/
 static void
-    free_temp_progcb (ncxmod_temp_progcb_t *progcb)
+    free_temp_progcb (ncx_instance_t *instance, ncxmod_temp_progcb_t *progcb)
 {
     ncxmod_temp_sescb_t *sescb;
     int                  retval;
 
-    while (!dlq_empty(&progcb->temp_sescbQ)) {
+    while (!dlq_empty(instance, &progcb->temp_sescbQ)) {
         sescb = (ncxmod_temp_sescb_t *)
-            dlq_deque(&progcb->temp_sescbQ);
-        free_temp_sescb(sescb);
+            dlq_deque(instance, &progcb->temp_sescbQ);
+        free_temp_sescb(instance, sescb);
     }
 
     if (progcb->source) {
         retval = rmdir((const char *)progcb->source);
         if (retval < 0) {
-            log_error("\nError: could not delete temp directory '%s' (%s)\n",
+            log_error(instance,
+                      "\nError: could not delete temp directory '%s' (%s)\n",
                       progcb->source,
                       get_error_string(errno_to_status()));
 
         }
-        m__free(progcb->source);
+        m__free(instance, progcb->source);
     }
 
-    m__free(progcb);
+    m__free(instance, progcb);
 
 }  /* free_temp_progcb */
 
@@ -2506,12 +2524,13 @@ static void
 *   == NULL if any error preventing a search
 *********************************************************************/
 static ncxmod_search_result_t *
-    make_search_result (ncx_module_t *mod)
+    make_search_result (ncx_instance_t *instance, ncx_module_t *mod)
 {
     ncxmod_search_result_t   *searchresult;
 
     if (LOGDEBUG2) {
-        log_debug2("\nFound %smodule"
+        log_debug2(instance,
+                   "\nFound %smodule"
                    "\n   name:      '%s'"
                    "\n   revision:  '%s':"
                    "\n   namespace: '%s'"
@@ -2523,7 +2542,7 @@ static ncxmod_search_result_t *
                    (mod->source) ? mod->source : EMPTY_STRING);
     }
 
-    searchresult = ncxmod_new_search_result_ex(mod);
+    searchresult = ncxmod_new_search_result_ex(instance, mod);
     if (searchresult == NULL) {
         return NULL;
     }
@@ -2554,7 +2573,8 @@ static ncxmod_search_result_t *
 *    recoverable error, just log and move on
 *********************************************************************/
 static status_t
-    search_subtree_callback (const char *fullspec,
+    search_subtree_callback (ncx_instance_t *instance,
+                             const char *fullspec,
                              void *cookie)
 {
     dlq_hdr_t               *resultQ;
@@ -2566,10 +2586,10 @@ static status_t
     resultQ = (dlq_hdr_t *)cookie;
 
     if (resultQ == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    pcb = yang_new_pcb();
+    pcb = yang_new_pcb(instance);
     if (pcb == NULL) {
         return ERR_INTERNAL_MEM;
     } 
@@ -2578,27 +2598,28 @@ static status_t
     retmod = NULL;
     searchresult = NULL;
 
-    res = try_load_module(pcb, YANG_PT_TOP, (const xmlChar *)fullspec, 
+    res = try_load_module(instance, pcb, YANG_PT_TOP, (const xmlChar *)fullspec, 
                           NULL, &retmod);
 
     if (res != NO_ERR || retmod == NULL) {
         if (LOGDEBUG2) {
-            log_debug2("\nFind module '%s' failed (%s)",
+            log_debug2(instance,
+                       "\nFind module '%s' failed (%s)",
                        fullspec,
                        get_error_string(res));
         }
     } else {
-        searchresult = make_search_result(retmod);
+        searchresult = make_search_result(instance, retmod);
         if (searchresult != NULL) {
             /* hand off malloced memory here */
-            dlq_enque(searchresult, resultQ);
+            dlq_enque(instance, searchresult, resultQ);
         } else {
             res = ERR_INTERNAL_MEM;
         }
     }
 
     if (pcb) {
-        yang_free_pcb(pcb);
+        yang_free_pcb(instance, pcb);
     }
 
     return res;
@@ -2618,58 +2639,58 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    ncxmod_init (void)
+    ncxmod_init (ncx_instance_t *instance)
 {
     status_t   res = NO_ERR;
 
 #ifdef DEBUG
-    if (ncxmod_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+    if (instance->ncxmod_init_done) {
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 #endif
 
     /* try to get the YUMA_HOME environment variable */
-    ncxmod_yuma_home = (const xmlChar *)getenv(NCXMOD_HOME);
+    instance->ncxmod_yuma_home = (const xmlChar *)getenv(NCXMOD_HOME);
 
-    ncxmod_yuma_home_cli = NULL;
+    instance->ncxmod_yuma_home_cli = NULL;
 
     /* try to get the YUMA_INSTALL environment variable */
-    ncxmod_env_install = (const xmlChar *)getenv(NCXMOD_INSTALL);
+    instance->ncxmod_env_install = (const xmlChar *)getenv(NCXMOD_INSTALL);
 
     /* try to get the user HOME environment variable */
-    ncxmod_home = (const xmlChar *)getenv(USER_HOME);
+    instance->ncxmod_home = (const xmlChar *)getenv(USER_HOME);
 
-    ncxmod_home_cli = NULL;
+    instance->ncxmod_home_cli = NULL;
 
     /* try to get the module search path variable */
-    ncxmod_mod_path = (const xmlChar *)getenv(NCXMOD_MODPATH);
+    instance->ncxmod_mod_path = (const xmlChar *)getenv(NCXMOD_MODPATH);
 
-    if (ncxmod_home != NULL) {
-        ncxmod_yumadir_path = ncx_get_source(NCXMOD_YUMA_DIR, &res);
+    if (instance->ncxmod_home != NULL) {
+        instance->ncxmod_yumadir_path = ncx_get_source(instance, NCXMOD_YUMA_DIR, &res);
     } else {
-        ncxmod_yumadir_path = xml_strdup(NCXMOD_TEMP_YUMA_DIR);
-        if (ncxmod_yumadir_path == NULL) {
+        instance->ncxmod_yumadir_path = xml_strdup(instance, NCXMOD_TEMP_YUMA_DIR);
+        if (instance->ncxmod_yumadir_path == NULL) {
             res = ERR_INTERNAL_MEM;
         }
     }
 
-    ncxmod_mod_path_cli = NULL;
+    instance->ncxmod_mod_path_cli = NULL;
 
-    ncxmod_alt_path = NULL;
+    instance->ncxmod_alt_path = NULL;
 
     /* try to get the data search path variable */
-    ncxmod_data_path = (const xmlChar *)getenv(NCXMOD_DATAPATH);
+    instance->ncxmod_data_path = (const xmlChar *)getenv(NCXMOD_DATAPATH);
 
-    ncxmod_data_path_cli = NULL;
+    instance->ncxmod_data_path_cli = NULL;
 
     /* try to get the script search path variable */
-    ncxmod_run_path = (const xmlChar *)getenv(NCXMOD_RUNPATH);
+    instance->ncxmod_run_path = (const xmlChar *)getenv(NCXMOD_RUNPATH);
 
-    ncxmod_run_path_cli = NULL;
+    instance->ncxmod_run_path_cli = NULL;
 
-    ncxmod_subdirs = TRUE;
+    instance->ncxmod_subdirs = FALSE;
 
-    ncxmod_init_done = TRUE;
+    instance->ncxmod_init_done = TRUE;
 
     return res;
 
@@ -2683,47 +2704,47 @@ status_t
 *
 *********************************************************************/
 void
-    ncxmod_cleanup (void)
+    ncxmod_cleanup (ncx_instance_t *instance)
 {
 #ifdef DEBUG
-    if (!ncxmod_init_done) {
-        SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+    if (!instance->ncxmod_init_done) {
+        SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
         return;
     }
 #endif
      
-    ncxmod_yuma_home = NULL;
-    ncxmod_env_install = NULL;
-    ncxmod_home = NULL;
-    ncxmod_mod_path = NULL;
-    ncxmod_data_path = NULL;
-    ncxmod_run_path = NULL;
+    instance->ncxmod_yuma_home = NULL;
+    instance->ncxmod_env_install = NULL;
+    instance->ncxmod_home = NULL;
+    instance->ncxmod_mod_path = NULL;
+    instance->ncxmod_data_path = NULL;
+    instance->ncxmod_run_path = NULL;
 
-    if (ncxmod_home_cli) {
-        m__free(ncxmod_home_cli);
+    if (instance->ncxmod_home_cli) {
+        m__free(instance, instance->ncxmod_home_cli);
     }
 
-    if (ncxmod_yuma_home_cli) {
-        m__free(ncxmod_yuma_home_cli);
+    if (instance->ncxmod_yuma_home_cli) {
+        m__free(instance, instance->ncxmod_yuma_home_cli);
     }
 
-    if (ncxmod_yumadir_path) {
-        m__free(ncxmod_yumadir_path);
+    if (instance->ncxmod_yumadir_path) {
+        m__free(instance, instance->ncxmod_yumadir_path);
     }
 
-    if (ncxmod_mod_path_cli) {
-        m__free(ncxmod_mod_path_cli);
+    if (instance->ncxmod_mod_path_cli) {
+        m__free(instance, instance->ncxmod_mod_path_cli);
     }
 
-    if (ncxmod_data_path_cli) {
-        m__free(ncxmod_data_path_cli);
+    if (instance->ncxmod_data_path_cli) {
+        m__free(instance, instance->ncxmod_data_path_cli);
     }
 
-    if (ncxmod_run_path_cli) {
-        m__free(ncxmod_run_path_cli);
+    if (instance->ncxmod_run_path_cli) {
+        m__free(instance, instance->ncxmod_run_path_cli);
     }
 
-    ncxmod_init_done = FALSE;
+    instance->ncxmod_init_done = FALSE;
     
 }  /* ncxmod_cleanup */
 
@@ -2740,10 +2761,13 @@ void
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -2759,7 +2783,8 @@ void
 *   status
 *********************************************************************/
 status_t 
-    ncxmod_load_module (const xmlChar *modname,
+    ncxmod_load_module (ncx_instance_t *instance,
+                        const xmlChar *modname,
                         const xmlChar *revision,
                         dlq_hdr_t *savedevQ,
                         ncx_module_t **retmod)
@@ -2774,31 +2799,33 @@ status_t
     }
 
     status_t res = NO_ERR;
-    yang_pcb_t *pcb = yang_new_pcb();
+    yang_pcb_t *pcb = yang_new_pcb(instance);
     if (!pcb) {
         res = ERR_INTERNAL_MEM;
     } else {
         pcb->revision = revision;
         pcb->savedevQ = savedevQ;
 
-        res = try_load_module(pcb, YANG_PT_TOP, modname, revision, retmod);
+        res = try_load_module(instance, pcb, YANG_PT_TOP, modname, revision, retmod);
     }
 
     if (LOGINFO && res != NO_ERR) {
         if (revision) {
-            log_info("\nLoad module '%s', revision '%s' failed (%s)",
+            log_info(instance,
+                     "\nLoad module '%s', revision '%s' failed (%s)",
                      modname,
                      revision,
                      get_error_string(res));
         } else {
-            log_info("\nLoad module '%s' failed (%s)",
+            log_info(instance,
+                     "\nLoad module '%s' failed (%s)",
                      modname,
                      get_error_string(res));
         }
     }
 
     if (pcb) {
-        yang_free_pcb(pcb);
+        yang_free_pcb(instance, pcb);
     }
     return res;
 
@@ -2817,10 +2844,13 @@ status_t
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -2837,7 +2867,8 @@ status_t
 *   status
 *********************************************************************/
 status_t 
-    ncxmod_parse_module (const xmlChar *modname,
+    ncxmod_parse_module (ncx_instance_t *instance,
+                         const xmlChar *modname,
                          const xmlChar *revision,
                          dlq_hdr_t *savedevQ,
                          ncx_module_t **retmod)
@@ -2847,37 +2878,39 @@ status_t
 
 #ifdef DEBUG
     if (!modname) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
 
-    pcb = yang_new_pcb();
+    pcb = yang_new_pcb(instance);
     if (!pcb) {
         res = ERR_INTERNAL_MEM;
     } else {
         pcb->revision = revision;
         pcb->savedevQ = savedevQ;
         pcb->parsemode = TRUE;
-        res = try_load_module(pcb, YANG_PT_TOP, modname, revision, retmod);
+        res = try_load_module(instance, pcb, YANG_PT_TOP, modname, revision, retmod);
     }
 
     if (LOGINFO && res != NO_ERR) {
         if (revision) {
-            log_info("\nLoad module '%s', revision '%s' failed (%s)",
+            log_info(instance,
+                     "\nLoad module '%s', revision '%s' failed (%s)",
                      modname,
                      revision,
                      get_error_string(res));
         } else {
-            log_info("\nLoad module '%s' failed (%s)",
+            log_info(instance,
+                     "\nLoad module '%s' failed (%s)",
                      modname,
                      get_error_string(res));
         }
     }
 
     if (pcb) {
-        yang_free_pcb(pcb);
+        yang_free_pcb(instance, pcb);
     }
     return res;
 
@@ -2893,10 +2926,12 @@ status_t
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -2912,7 +2947,8 @@ status_t
 *   == NULL if any error preventing a search
 *********************************************************************/
 ncxmod_search_result_t *
-    ncxmod_find_module (const xmlChar *modname,
+    ncxmod_find_module (ncx_instance_t *instance,
+                        const xmlChar *modname,
                         const xmlChar *revision)
 {
     yang_pcb_t               *pcb;
@@ -2922,12 +2958,12 @@ ncxmod_search_result_t *
 
 #ifdef DEBUG
     if (!modname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    pcb = yang_new_pcb();
+    pcb = yang_new_pcb(instance);
     if (pcb == NULL) {
         return NULL;
     } 
@@ -2937,27 +2973,29 @@ ncxmod_search_result_t *
     retmod = NULL;
     searchresult = NULL;
 
-    res = try_load_module(pcb, YANG_PT_TOP, modname, revision, &retmod);
+    res = try_load_module(instance, pcb, YANG_PT_TOP, modname, revision, &retmod);
 
     if (res != NO_ERR || retmod == NULL) {
         if (LOGDEBUG2) {
             if (revision) {
-                log_debug2("\nFind module '%s', revision '%s' failed (%s)",
+                log_debug2(instance,
+                           "\nFind module '%s', revision '%s' failed (%s)",
                            modname,
                            revision,
                            get_error_string(res));
             } else {
-                log_debug2("\nFind module '%s' failed (%s)",
+                log_debug2(instance,
+                           "\nFind module '%s' failed (%s)",
                            modname,
                            get_error_string(res));
             }
         }
     } else {
-        searchresult = make_search_result(retmod);
+        searchresult = make_search_result(instance, retmod);
     }
 
     if (pcb) {
-        yang_free_pcb(pcb);
+        yang_free_pcb(instance, pcb);
     }
     
     return searchresult;
@@ -2979,10 +3017,13 @@ ncxmod_search_result_t *
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) HOME/modules directory
-* 3) YUMA_HOME/modules directory
-* 4) YUMA_INSTALL/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) HOME/modules directory
+* 2) YUMA_HOME/modules directory
+* 3) YUMA_INSTALL/modules directory
 *
 * INPUTS:
 *   resultQ == address of Q to stor malloced search results
@@ -2995,7 +3036,7 @@ ncxmod_search_result_t *
 *  status
 *********************************************************************/
 status_t 
-    ncxmod_find_all_modules (dlq_hdr_t *resultQ)
+    ncxmod_find_all_modules (ncx_instance_t *instance, dlq_hdr_t *resultQ)
 {
     xmlChar        *buff;
     uint32          bufflen;
@@ -3003,7 +3044,7 @@ status_t
 
 #ifdef DEBUG
     if (!resultQ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3011,7 +3052,7 @@ status_t
 
     /* get a temp buffer to construct filespecs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         return ERR_INTERNAL_MEM;
     } else {
@@ -3019,51 +3060,58 @@ status_t
     }
 
     /* 1) try YUMA_MODPATH environment variable if set */
-    if (ncxmod_mod_path) {
-        res = search_module_pathlist(ncxmod_mod_path,
+    if (instance->ncxmod_mod_path) {
+        res = search_module_pathlist(instance,
+                                     instance->ncxmod_mod_path,
                                      search_subtree_callback,
                                      resultQ);
-    }
+    } else {
 
-    /* 2) HOME/modules directory */
-    if (res == NO_ERR && ncxmod_home) {
-        res = search_module_path(ncxmod_home,
-                                 buff,
-                                 bufflen,
-                                 search_subtree_callback,
-                                 resultQ);
-    }
-
-    /* 3) YUMA_HOME/modules directory */
-    if (res == NO_ERR && ncxmod_yuma_home) {
-        res = search_module_path(ncxmod_yuma_home,
-                                 buff,
-                                 bufflen,
-                                 search_subtree_callback,
-                                 resultQ);
-    }
-
-    /* 4) YUMA_INSTALL/modules directory or default install path
-     *    If this envvar is set then the default install path will not
-     *    be tried
-     */
-    if (res == NO_ERR) {
-        if (ncxmod_env_install) {
-            res = search_module_path(ncxmod_env_install, 
-                                     buff,
-                                     bufflen,
-                                     search_subtree_callback,
-                                     resultQ);
-        } else {
-            res = search_module_path(NCXMOD_DEFAULT_INSTALL, 
-                                     buff,
-                                     bufflen,
-                                     search_subtree_callback,
-                                     resultQ);
+        /* 2) HOME/modules directory */
+        if (res == NO_ERR && instance->ncxmod_home) {
+            res = search_module_path(instance,
+                                    instance->ncxmod_home,
+                                    buff,
+                                    bufflen,
+                                    search_subtree_callback,
+                                    resultQ);
         }
+
+        /* 3) YUMA_HOME/modules directory */
+        if (res == NO_ERR && instance->ncxmod_yuma_home) {
+            res = search_module_path(instance,
+                                    instance->ncxmod_yuma_home,
+                                    buff,
+                                    bufflen,
+                                    search_subtree_callback,
+                                    resultQ);
+        }
+
+        /* 4) YUMA_INSTALL/modules directory or default install path
+         *    If this envvar is set then the default install path will not
+         *    be tried
+        */
+        if (res == NO_ERR) {
+            if (instance->ncxmod_env_install) {
+                res = search_module_path(instance, 
+                                        instance->ncxmod_env_install, 
+                                        buff,
+                                        bufflen,
+                                        search_subtree_callback,
+                                        resultQ);
+            } else {
+                res = search_module_path(instance, 
+                                        NCXMOD_DEFAULT_INSTALL, 
+                                        buff,
+                                        bufflen,
+                                        search_subtree_callback,
+                                        resultQ);
+            }
+        }
+
     }
 
-    m__free(buff);
+    m__free(instance, buff);
 
     return NO_ERR;  /* ignore any module errors found */
 }  /* ncxmod_find_all_modules */
@@ -3078,10 +3126,13 @@ status_t
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   devname == deviation module name with 
@@ -3097,7 +3148,8 @@ status_t
 *   status
 *********************************************************************/
 status_t 
-    ncxmod_load_deviation (const xmlChar *deviname,
+    ncxmod_load_deviation (ncx_instance_t *instance,
+                           const xmlChar *deviname,
                            dlq_hdr_t *deviationQ)
 {
     yang_pcb_t             *pcb;
@@ -3107,7 +3159,7 @@ status_t
 
 #ifdef DEBUG
     if (!deviname || !deviationQ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3119,39 +3171,41 @@ status_t
      * values with the same name (may not get checked)
      */
     for (savedev = (ncx_save_deviations_t *)
-             dlq_firstEntry(deviationQ);
+             dlq_firstEntry(instance, deviationQ);
          savedev != NULL;
          savedev = (ncx_save_deviations_t *)
-             dlq_nextEntry(savedev)) {
+             dlq_nextEntry(instance, savedev)) {
 
-        if (!xml_strcmp(deviname, savedev->devmodule)) {
+        if (!xml_strcmp(instance, deviname, savedev->devmodule)) {
             if (LOGDEBUG) {
-                log_debug("\nSkipping duplicate deviation module '%s'",
+                log_debug(instance,
+                          "\nSkipping duplicate deviation module '%s'",
                           deviname);
             }
             return NO_ERR;
         }
     }
 
-    pcb = yang_new_pcb();
+    pcb = yang_new_pcb(instance);
     if (!pcb) {
         res = ERR_INTERNAL_MEM;
     } else {
         pcb->deviationmode = TRUE;
         pcb->savedevQ = deviationQ;
-        res = try_load_module(pcb, YANG_PT_TOP, deviname, NULL, &retmod);
+        res = try_load_module(instance, pcb, YANG_PT_TOP, deviname, NULL, &retmod);
     }
 
     if (res != NO_ERR) {
-        log_error("\nError: Load deviation module '%s' failed (%s)\n",
+        log_error(instance,
+                  "\nError: Load deviation module '%s' failed (%s)\n",
                   deviname,
                   get_error_string(res));
     } else if (LOGDEBUG) {
-        log_debug("\nLoad deviation module '%s' OK", deviname);
+        log_debug(instance, "\nLoad deviation module '%s' OK", deviname);
     }
 
     if (pcb) {
-        yang_free_pcb(pcb);
+        yang_free_pcb(instance, pcb);
     }
     return res;
 
@@ -3169,10 +3223,13 @@ status_t
 *
 * Module Search order:
 *
-* 1) YUMA_MODPATH environment var (or set by modpath CLI var)
-* 2) current dir or absolute path
-* 3) YUMA_HOME/modules directory
-* 4) HOME/modules directory
+* IF
+*   YUMA_MODPATH environment var (or set by modpath CLI var)
+*   is set, search only that path.
+* ELSE
+* 1) current dir or absolute path
+* 2) YUMA_HOME/modules directory
+* 3) HOME/modules directory
 *
 * INPUTS:
 *   modname == module name with no path prefix or file extension
@@ -3190,7 +3247,8 @@ status_t
 *   status
 *********************************************************************/
 status_t 
-    ncxmod_load_imodule (const xmlChar *modname,
+    ncxmod_load_imodule (ncx_instance_t *instance,
+                         const xmlChar *modname,
                          const xmlChar *revision,
                          yang_pcb_t *pcb,
                          yang_parsetype_t ptyp,
@@ -3203,7 +3261,7 @@ status_t
 
 #ifdef DEBUG
     if (!modname || !pcb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3213,7 +3271,7 @@ status_t
     }
 
     /* see if [sub]module already tried and failed */
-    node = yang_find_node(&pcb->failedQ, modname, revision);
+    node = yang_find_node(instance, &pcb->failedQ, modname, revision);
     if (node) {
         return node->res;
     }
@@ -3222,7 +3280,7 @@ status_t
     pcb->revision = revision;
     pcb->parentparm = parent;
 
-    res = try_load_module(pcb, ptyp, modname, revision, retmod);
+    res = try_load_module(instance, pcb, ptyp, modname, revision, retmod);
 
     pcb->revision = savedrev;
 
@@ -3260,7 +3318,8 @@ status_t
 *   pointer to malloced parser control block, or NULL of none
 *********************************************************************/
 yang_pcb_t *
-    ncxmod_load_module_ex (const xmlChar *modname,
+    ncxmod_load_module_ex (ncx_instance_t *instance,
+                           const xmlChar *modname,
                            const xmlChar *revision,
                            boolean with_submods,
                            boolean savetkc,
@@ -3273,12 +3332,12 @@ yang_pcb_t *
 
 #ifdef DEBUG
     if (!modname || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    pcb = yang_new_pcb();
+    pcb = yang_new_pcb(instance);
     if (!pcb) {
         *res = ERR_INTERNAL_MEM;
     } else {
@@ -3288,7 +3347,7 @@ yang_pcb_t *
         pcb->with_submods = with_submods;
         pcb->savetkc = savetkc;
         pcb->docmode = docmode;
-        *res = try_load_module(pcb, YANG_PT_TOP, modname, revision, NULL);
+        *res = try_load_module(instance, pcb, YANG_PT_TOP, modname, revision, NULL);
     }
 
     return pcb;
@@ -3321,7 +3380,8 @@ yang_pcb_t *
 *   pointer to malloced parser control block, or NULL of none
 *********************************************************************/
 yang_pcb_t *
-    ncxmod_load_module_diff (const xmlChar *modname,
+    ncxmod_load_module_diff (ncx_instance_t *instance,
+                             const xmlChar *modname,
                              const xmlChar *revision,
                              boolean with_submods,
                              const xmlChar *modpath,
@@ -3332,12 +3392,12 @@ yang_pcb_t *
 
 #ifdef DEBUG
     if (!modname || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    pcb = yang_new_pcb();
+    pcb = yang_new_pcb(instance);
     if (!pcb) {
         *res = ERR_INTERNAL_MEM;
     } else {
@@ -3345,11 +3405,11 @@ yang_pcb_t *
         pcb->with_submods = with_submods;
         pcb->diffmode = TRUE;
         if (modpath) {
-            ncxmod_set_altpath(modpath);
+            ncxmod_set_altpath(instance, modpath);
         }
-        *res = try_load_module(pcb, YANG_PT_TOP, modname, revision, NULL);
+        *res = try_load_module(instance, pcb, YANG_PT_TOP, modname, revision, NULL);
         if (modpath) {
-            ncxmod_clear_altpath();
+            ncxmod_clear_altpath(instance);
         }
     }
 
@@ -3391,7 +3451,8 @@ yang_pcb_t *
 *   It must be freed after use!!!
 *********************************************************************/
 xmlChar *
-    ncxmod_find_data_file (const xmlChar *fname,
+    ncxmod_find_data_file (ncx_instance_t *instance,
+                           const xmlChar *fname,
                            boolean generrors,
                            status_t *res)
 {
@@ -3400,7 +3461,7 @@ xmlChar *
 
 #ifdef DEBUG
     if (!fname || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3408,11 +3469,12 @@ xmlChar *
     *res = NO_ERR;
 
     if (LOGDEBUG2) {
-        log_debug2("\nNcxmod: Finding data file (%s)", 
+        log_debug2(instance, 
+                   "\nNcxmod: Finding data file (%s)", 
                    fname);
     }
 
-    flen = xml_strlen(fname);
+    flen = xml_strlen(instance, fname);
     if (!flen || flen>NCX_MAX_NLEN) {
         *res = ERR_NCX_WRONG_LEN;
         return NULL;
@@ -3420,7 +3482,7 @@ xmlChar *
 
     /* get a buffer to construct filespacs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -3429,61 +3491,61 @@ xmlChar *
     /* 1) try the YUMA_DATAPATH environment variable
      * only if it is not an absolute path string
      */
-    if (ncxmod_data_path && (*fname != NCXMOD_PSCHAR)) {
-        if (test_pathlist(ncxmod_data_path, buff, bufflen, fname, NULL)) {
+    if (instance->ncxmod_data_path && (*fname != NCXMOD_PSCHAR)) {
+        if (test_pathlist(instance, instance->ncxmod_data_path, buff, bufflen, fname, NULL)) {
             return buff;
         }
     }
 
     /* 2) current directory or absolute path */
-    if (test_file(buff, bufflen, NULL, NULL, fname)) {
+    if (test_file(instance, buff, bufflen, NULL, NULL, fname)) {
         return buff;
     }
 
     /* 3) HOME/data directory */
-    if (ncxmod_home) {
-        if (test_file(buff, bufflen, ncxmod_home, NCXMOD_DATA_DIR, fname)) {
+    if (instance->ncxmod_home) {
+        if (test_file(instance, buff, bufflen, instance->ncxmod_home, NCXMOD_DATA_DIR, fname)) {
             return buff;
         }
     }
 
     /* 4) YUMA_HOME/data directory */
-    if (ncxmod_yuma_home) {
-        if (test_file(buff, bufflen, ncxmod_yuma_home, NCXMOD_DATA_DIR, 
+    if (instance->ncxmod_yuma_home) {
+        if (test_file(instance, buff, bufflen, instance->ncxmod_yuma_home, NCXMOD_DATA_DIR, 
                       fname)) {
             return buff;
         }
     }
 
     /* 5) HOME/.yuma directory */
-    if (ncxmod_home) {
-        if (test_file(buff, bufflen, ncxmod_home, NCXMOD_YUMA_DIRNAME, fname)) {
+    if (instance->ncxmod_home) {
+        if (test_file(instance, buff, bufflen, instance->ncxmod_home, NCXMOD_YUMA_DIRNAME, fname)) {
             return buff;
         }
     }
 
     /* 6a) YUMA_INSTALL/data directory */
-    if (ncxmod_env_install) {
-        if (test_file(buff, bufflen, ncxmod_env_install, NCXMOD_DATA_DIR, 
+    if (instance->ncxmod_env_install) {
+        if (test_file(instance, buff, bufflen, instance->ncxmod_env_install, NCXMOD_DATA_DIR, 
                       fname)) {
             return buff;
         }
-    } else if (test_file(buff, bufflen, NCXMOD_DEFAULT_INSTALL,
+    } else if (test_file(instance, buff, bufflen, NCXMOD_DEFAULT_INSTALL,
                          NCXMOD_DATA_DIR, fname)) {
         /* 6b) default YUMA_INSTALL data directory */
         return buff;
     }
 
     /* 7) default Yuma data directory */
-    if (test_file(buff, bufflen, NCXMOD_ETC_DATA, NULL, fname)) {
+    if (test_file(instance, buff, bufflen, NCXMOD_ETC_DATA, NULL, fname)) {
         return buff;
     }
 
     if (generrors) {
-        log_error("\nError: data file (%s) not found.\n", fname);
+        log_error(instance, "\nError: data file (%s) not found.\n", fname);
     }
 
-    m__free(buff);
+    m__free(instance, buff);
     *res = ERR_NCX_CFG_NOT_FOUND;
     return NULL;
 
@@ -3520,7 +3582,8 @@ xmlChar *
 *   It must be freed after use!!!
 *********************************************************************/
 xmlChar *
-    ncxmod_find_sil_file (const xmlChar *fname,
+    ncxmod_find_sil_file (ncx_instance_t *instance,
+                          const xmlChar *fname,
                           boolean generrors,
                           status_t *res)
 {
@@ -3529,7 +3592,7 @@ xmlChar *
 
 #ifdef DEBUG
     if (!fname || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3537,11 +3600,12 @@ xmlChar *
     *res = NO_ERR;
 
     if (LOGDEBUG2) {
-        log_debug2("\nNcxmod: Finding SIL file (%s)", 
+        log_debug2(instance, 
+                   "\nNcxmod: Finding SIL file (%s)", 
                    fname);
     }
 
-    flen = xml_strlen(fname);
+    flen = xml_strlen(instance, fname);
     if (!flen || flen>NCX_MAX_NLEN) {
         *res = ERR_NCX_WRONG_LEN;
         return NULL;
@@ -3549,17 +3613,18 @@ xmlChar *
 
     /* get a buffer to construct filespacs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
     /* 1) YUMA_HOME/target/lib directory */
-    if (ncxmod_yuma_home) {
-        if (test_file(buff, 
+    if (instance->ncxmod_yuma_home) {
+        if (test_file(instance, 
+                      buff, 
                       bufflen, 
-                      ncxmod_yuma_home,
+                      instance->ncxmod_yuma_home,
                       (const xmlChar *)"target/lib/",
                       fname)) {
             return buff;
@@ -3567,8 +3632,9 @@ xmlChar *
     }
 
     /* 2) try the YUMA_RUNPATH environment variable */
-    if (ncxmod_run_path) {
-        if (test_pathlist(ncxmod_run_path, 
+    if (instance->ncxmod_run_path) {
+        if (test_pathlist(instance, 
+                          instance->ncxmod_run_path, 
                           buff, 
                           bufflen, 
                           fname, 
@@ -3578,10 +3644,11 @@ xmlChar *
     }
 
     /* 3) YUMA_INSTALL/lib directory */
-    if (ncxmod_env_install) {
-        if (test_file(buff, 
+    if (instance->ncxmod_env_install) {
+        if (test_file(instance, 
+                      buff, 
                       bufflen, 
-                      ncxmod_env_install,
+                      instance->ncxmod_env_install,
                       (const xmlChar *)"lib",
                       fname)) {
             return buff;
@@ -3589,10 +3656,11 @@ xmlChar *
     }
 
     /* 4) YUMA_INSTALL/lib/yuma directory */
-    if (ncxmod_env_install) {
-        if (test_file(buff, 
+    if (instance->ncxmod_env_install) {
+        if (test_file(instance, 
+                      buff, 
                       bufflen, 
-                      ncxmod_env_install,
+                      instance->ncxmod_env_install,
                       (const xmlChar *)"lib/yuma",
                       fname)) {
             return buff;
@@ -3601,7 +3669,8 @@ xmlChar *
 
 #ifdef LIB64
     /* 5) /usr/lib64/yuma directory */
-    if (test_file(buff, 
+    if (test_file(instance, 
+                  buff, 
                   bufflen, 
                   NCXMOD_DEFAULT_YUMALIB64,
                   NULL,
@@ -3611,7 +3680,8 @@ xmlChar *
 #endif
 
     /* 5 or 6) /usr/lib/yuma directory */
-    if (test_file(buff, 
+    if (test_file(instance, 
+                  buff, 
                   bufflen, 
                   NCXMOD_DEFAULT_YUMALIB,
                   NULL,
@@ -3620,10 +3690,10 @@ xmlChar *
     }
 
     if (generrors) {
-        log_error("\nError: SIL file (%s) not found.\n", fname);
+        log_error(instance, "\nError: SIL file (%s) not found.\n", fname);
     }
 
-    m__free(buff);
+    m__free(instance, buff);
     *res = ERR_NCX_MOD_NOT_FOUND;
     return NULL;
 
@@ -3660,7 +3730,8 @@ xmlChar *
 *   It must be freed after use!!!
 *********************************************************************/
 xmlChar *
-    ncxmod_make_data_filespec (const xmlChar *fname,
+    ncxmod_make_data_filespec (ncx_instance_t *instance,
+                               const xmlChar *fname,
                                status_t *res)
 {
     xmlChar  *buff;
@@ -3668,14 +3739,14 @@ xmlChar *
 
 #ifdef DEBUG
     if (!fname || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     *res = NO_ERR;
 
-    flen = xml_strlen(fname);
+    flen = xml_strlen(instance, fname);
     if (!flen || flen > NCX_MAX_NLEN) {
         *res = ERR_NCX_WRONG_LEN;
         return NULL;
@@ -3683,71 +3754,72 @@ xmlChar *
 
     /* get a buffer to construct filespecs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
     /* 1) try the YUMA_DATAPATH environment variable */
-    if (ncxmod_data_path) {
-        if (test_pathlist_make(ncxmod_data_path, 
+    if (instance->ncxmod_data_path) {
+        if (test_pathlist_make(instance, 
+                               instance->ncxmod_data_path, 
                                buff, 
                                bufflen)) {
-            pathlen = xml_strlen(buff);
+            pathlen = xml_strlen(instance, buff);
             if ((pathlen + flen) < bufflen) {
-                xml_strcat(buff, fname);
+                xml_strcat(instance, buff, fname);
             } else {
                 *res = ERR_BUFF_OVFL;
-                m__free(buff);
+                m__free(instance, buff);
                 return NULL;
             }
         }
     }
 
     /* 2) HOME/data directory */
-    if (ncxmod_home) {
-        if (test_file_make(buff, bufflen, ncxmod_home, NCXMOD_DATA_DIR, 
+    if (instance->ncxmod_home) {
+        if (test_file_make(instance, buff, bufflen, instance->ncxmod_home, NCXMOD_DATA_DIR, 
                            fname) == NO_ERR) {
             return buff;
         }
     }
 
     /* 3) YUMA_HOME/data directory */
-    if (ncxmod_yuma_home) {
-        if (test_file_make(buff, bufflen, ncxmod_yuma_home, NCXMOD_DATA_DIR, 
+    if (instance->ncxmod_yuma_home) {
+        if (test_file_make(instance, buff, bufflen, instance->ncxmod_yuma_home, NCXMOD_DATA_DIR, 
                            fname) == NO_ERR) {
             return buff;
         }
     }
 
     /* 4) HOME/.yuma directory */
-    if (ncxmod_home) {
-        if (test_file_make(buff, bufflen, ncxmod_home, NCXMOD_YUMA_DIRNAME, 
+    if (instance->ncxmod_home) {
+        if (test_file_make(instance, buff, bufflen, instance->ncxmod_home, NCXMOD_YUMA_DIRNAME, 
                            fname) == NO_ERR) {
             return buff;
         }
     }
 
     /* 5) YUMA_INSTALL/data directory */
-    if (ncxmod_env_install) {
-        if (test_file_make(buff, bufflen, ncxmod_env_install, NCXMOD_DATA_DIR, 
+    if (instance->ncxmod_env_install) {
+        if (test_file_make(instance, buff, bufflen, instance->ncxmod_env_install, NCXMOD_DATA_DIR, 
                            fname) == NO_ERR) {
             return buff;
         }
     } else {
-        if (test_file_make(buff, bufflen, NCXMOD_DEFAULT_INSTALL,
+        if (test_file_make(instance, buff, bufflen, NCXMOD_DEFAULT_INSTALL,
                            NCXMOD_DATA_DIR, fname) == NO_ERR) {
             return buff;
         }
     }
 
     /* 6) current directory */
-    if (test_file_make(buff, bufflen, NULL, NULL, fname) == NO_ERR) {
+    if (test_file_make(instance, buff, bufflen, NULL, NULL, fname) == NO_ERR) {
         return buff;
     }
 
-    m__free(buff);
+    m__free(instance, buff);
     *res = ERR_NCX_MOD_NOT_FOUND;
     return NULL;
 
@@ -3776,7 +3848,8 @@ xmlChar *
 *   the complete filespec or NULL if some error occurred
 *********************************************************************/
 xmlChar *
-    ncxmod_make_data_filespec_from_src (const xmlChar *srcspec,
+    ncxmod_make_data_filespec_from_src (ncx_instance_t *instance,
+                                        const xmlChar *srcspec,
                                         const xmlChar *fname,
                                         status_t *res)
 {
@@ -3786,20 +3859,20 @@ xmlChar *
 
 #ifdef DEBUG
     if (!srcspec || !fname || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     *res = NO_ERR;
 
-    pathlen = xml_strlen(srcspec);
+    pathlen = xml_strlen(instance, srcspec);
     if (pathlen == 0) {
         *res = ERR_NCX_WRONG_LEN;
         return NULL;
     }
 
-    flen = xml_strlen(fname);
+    flen = xml_strlen(instance, fname);
     if (!flen || flen > NCX_MAX_NLEN) {
         *res = ERR_NCX_WRONG_LEN;
         return NULL;
@@ -3819,7 +3892,7 @@ xmlChar *
     }
 
     /* get a buffer to construct the filespec */
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -3827,9 +3900,9 @@ xmlChar *
 
     p = buff;
     if (copylen) {
-        p += xml_strncpy(p, srcspec, copylen);
+        p += xml_strncpy(instance, p, srcspec, copylen);
     }
-    xml_strcpy(p, fname);
+    xml_strcpy(instance, p, fname);
 
     return buff;
 
@@ -3864,7 +3937,8 @@ xmlChar *
 *   It must be freed after use!!!
 *********************************************************************/
 xmlChar *
-    ncxmod_find_script_file (const xmlChar *fname,
+    ncxmod_find_script_file (ncx_instance_t *instance,
+                             const xmlChar *fname,
                              status_t *res)
 {
     xmlChar  *buff;
@@ -3872,7 +3946,7 @@ xmlChar *
 
 #ifdef DEBUG
     if (!fname || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3880,11 +3954,12 @@ xmlChar *
     *res = NO_ERR;
 
     if (LOGDEBUG2) {
-        log_debug2("\nNcxmod: Finding script file (%s)", 
+        log_debug2(instance, 
+                   "\nNcxmod: Finding script file (%s)", 
                    fname);
     }
 
-    flen = xml_strlen(fname);
+    flen = xml_strlen(instance, fname);
     if (!flen || flen>NCX_MAX_NLEN) {
         *res = ERR_NCX_WRONG_LEN;
         return NULL;
@@ -3892,36 +3967,36 @@ xmlChar *
 
     /* get a buffer to construct filespacs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
     /* 1) try 'fname' as a current directory or absolute path */
-    if (test_file(buff, bufflen, NULL, NULL, fname)) {
+    if (test_file(instance, buff, bufflen, NULL, NULL, fname)) {
         return buff;
     }
 
     /* look for the script file  'fname'
      * 2) check YUMA_RUNPATH env-var or runpath CLI param 
      */
-    if (ncxmod_run_path) {
-        if (test_pathlist(ncxmod_run_path, buff, bufflen, fname, NULL)) {
+    if (instance->ncxmod_run_path) {
+        if (test_pathlist(instance, instance->ncxmod_run_path, buff, bufflen, fname, NULL)) {
             return buff;
         }
     }
 
     /* 3) try HOME/scripts/fname */
-    if (ncxmod_home) {
-        if (test_file(buff, bufflen, ncxmod_home, NCXMOD_SCRIPT_DIR, fname)) {
+    if (instance->ncxmod_home) {
+        if (test_file(instance, buff, bufflen, instance->ncxmod_home, NCXMOD_SCRIPT_DIR, fname)) {
             return buff;
         }
     }
 
     /* 4) try YUMA_HOME/scripts/fname */
-    if (ncxmod_yuma_home) {
-        if (test_file(buff, bufflen, ncxmod_yuma_home, NCXMOD_SCRIPT_DIR, 
+    if (instance->ncxmod_yuma_home) {
+        if (test_file(instance, buff, bufflen, instance->ncxmod_yuma_home, NCXMOD_SCRIPT_DIR, 
                       fname)) {
             return buff;
         }
@@ -3931,21 +4006,21 @@ xmlChar *
      *    If this envvar is set then the default install path will not
      *    be tried
      */
-    if (ncxmod_env_install) {
-        if (test_file(buff, bufflen, ncxmod_env_install, NCXMOD_SCRIPT_DIR, 
+    if (instance->ncxmod_env_install) {
+        if (test_file(instance, buff, bufflen, instance->ncxmod_env_install, NCXMOD_SCRIPT_DIR, 
                       fname)) {
             return buff;
         }
     } else {
-        if (test_file(buff, bufflen, NCXMOD_DEFAULT_INSTALL, NCXMOD_SCRIPT_DIR, 
+        if (test_file(instance, buff, bufflen, NCXMOD_DEFAULT_INSTALL, NCXMOD_SCRIPT_DIR, 
                       fname)) {
             return buff;
         }
     }
 
-    log_info("\nError: script file (%s) not found.", fname);
+    log_info(instance, "\nError: script file (%s) not found.", fname);
 
-    m__free(buff);
+    m__free(instance, buff);
     *res = ERR_NCX_MISSING_FILE;
     return NULL;
 
@@ -3965,55 +4040,57 @@ xmlChar *
 *        == NULL or empty string to disable
 *********************************************************************/
 void
-    ncxmod_set_home (const xmlChar *home)
+    ncxmod_set_home (ncx_instance_t *instance, const xmlChar *home)
 {
-    xmlChar    *savehome = ncxmod_home_cli;
-    xmlChar    *savepath = ncxmod_yumadir_path;
+    xmlChar    *savehome = instance->ncxmod_home_cli;
+    xmlChar    *savepath = instance->ncxmod_yumadir_path;
     status_t    res = NO_ERR;
 
     if (home && *home) {
         if (*home == '/') {
-            ncxmod_home_cli = xml_strdup(home);
-            if (ncxmod_home_cli == NULL) {
+            instance->ncxmod_home_cli = xml_strdup(instance, home);
+            if (instance->ncxmod_home_cli == NULL) {
                 res = ERR_INTERNAL_MEM;
             }
         } else {
-            ncxmod_home_cli = ncx_get_source(home, &res);            
+            instance->ncxmod_home_cli = ncx_get_source(instance, home, &res);            
         }
     } else {
-        log_error("\nError: cannot set 'home' to empty string\n");
+        log_error(instance, "\nError: cannot set 'home' to empty string\n");
         return;
     }
 
-    if (ncxmod_home_cli == NULL) {
-        log_error("\nError: set home to '%s' failed (%s)\n", 
+    if (instance->ncxmod_home_cli == NULL) {
+        log_error(instance, 
+                  "\nError: set home to '%s' failed (%s)\n", 
                   home, get_error_string(res));
-        ncxmod_home_cli = savehome;
+        instance->ncxmod_home_cli = savehome;
         return;
     }
         
-    ncxmod_home = ncxmod_home_cli;
+    instance->ncxmod_home = instance->ncxmod_home_cli;
     if (savehome) {
-        m__free(savehome);
+        m__free(instance, savehome);
     }
 
     /* reset the yumadir path if needed */
-    if (ncxmod_home != NULL) {
-        ncxmod_yumadir_path = ncx_get_source(NCXMOD_YUMA_DIR, &res);
+    if (instance->ncxmod_home != NULL) {
+        instance->ncxmod_yumadir_path = ncx_get_source(instance, NCXMOD_YUMA_DIR, &res);
     } else {
-        ncxmod_yumadir_path = xml_strdup(NCXMOD_TEMP_YUMA_DIR);
-        if (ncxmod_yumadir_path == NULL) {
+        instance->ncxmod_yumadir_path = xml_strdup(instance, NCXMOD_TEMP_YUMA_DIR);
+        if (instance->ncxmod_yumadir_path == NULL) {
             res = ERR_INTERNAL_MEM;
         }
     }
-    if (ncxmod_yumadir_path == NULL) {
-        log_error("\nError: set yumadir_path to '%s' failed (%s)\n", 
+    if (instance->ncxmod_yumadir_path == NULL) {
+        log_error(instance, 
+                  "\nError: set yumadir_path to '%s' failed (%s)\n", 
                   home, get_error_string(res));
-        ncxmod_yumadir_path = savepath;
+        instance->ncxmod_yumadir_path = savepath;
         return;
     }
     if (savepath) {
-        m__free(savepath);
+        m__free(instance, savepath);
     }
     
 }  /* ncxmod_set_home */
@@ -4029,9 +4106,9 @@ void
 *   const point to the home variable, or NULL if not set
 *********************************************************************/
 const xmlChar *
-    ncxmod_get_home (void)
+    ncxmod_get_home (ncx_instance_t *instance)
 {
-    return ncxmod_home;
+    return instance->ncxmod_home;
 
 }  /* ncxmod_get_home */
 
@@ -4048,32 +4125,33 @@ const xmlChar *
 *   yumahome == new YUMA_HOME value
 *********************************************************************/
 void
-    ncxmod_set_yuma_home (const xmlChar *yumahome)
+    ncxmod_set_yuma_home (ncx_instance_t *instance, const xmlChar *yumahome)
 {
-    xmlChar *savehome = ncxmod_yuma_home_cli;
+    xmlChar *savehome = instance->ncxmod_yuma_home_cli;
     status_t res = NO_ERR;
 
     if (yumahome && *yumahome) {
         if (*yumahome == '/') {
-            ncxmod_yuma_home_cli = xml_strdup(yumahome);
-            if (ncxmod_yuma_home_cli == NULL) {
+            instance->ncxmod_yuma_home_cli = xml_strdup(instance, yumahome);
+            if (instance->ncxmod_yuma_home_cli == NULL) {
                 res = ERR_INTERNAL_MEM;
             }
         } else {
-            ncxmod_yuma_home_cli = ncx_get_source(yumahome, &res);
+            instance->ncxmod_yuma_home_cli = ncx_get_source(instance, yumahome, &res);
         }
-        if (ncxmod_yuma_home_cli == NULL) {
-            log_error("\nError: set yuma home to '%s' failed (%s)",
+        if (instance->ncxmod_yuma_home_cli == NULL) {
+            log_error(instance,
+                      "\nError: set yuma home to '%s' failed (%s)",
                       yumahome, get_error_string(res));
             return;
         }
 
-        ncxmod_yuma_home = ncxmod_yuma_home_cli;
+        instance->ncxmod_yuma_home = instance->ncxmod_yuma_home_cli;
         if (savehome) {
-            m__free(savehome);
+            m__free(instance, savehome);
         }
     } else {
-        log_error("\nError: cannot set yuma home to empty string\n");
+        log_error(instance, "\nError: cannot set yuma home to empty string\n");
         return;
     }
     
@@ -4090,9 +4168,9 @@ void
 *   const point to the yuma_home variable, or NULL if not set
 *********************************************************************/
 const xmlChar *
-    ncxmod_get_yuma_home (void)
+    ncxmod_get_yuma_home (ncx_instance_t *instance)
 {
-    return ncxmod_yuma_home;
+    return instance->ncxmod_yuma_home;
 
 }  /* ncxmod_get_yuma_home */
 
@@ -4107,10 +4185,10 @@ const xmlChar *
 *   const point to the YUMA_INSTALL value
 *********************************************************************/
 const xmlChar *
-    ncxmod_get_yuma_install (void)
+    ncxmod_get_yuma_install (ncx_instance_t *instance)
 {
-    if (ncxmod_env_install) {
-        return ncxmod_env_install;
+    if (instance->ncxmod_env_install) {
+        return instance->ncxmod_env_install;
     } else {
         return NCXMOD_DEFAULT_INSTALL;
     }
@@ -4131,18 +4209,18 @@ const xmlChar *
 *           == NULL or empty string to disable
 *********************************************************************/
 void
-    ncxmod_set_modpath (const xmlChar *modpath)
+    ncxmod_set_modpath (ncx_instance_t *instance, const xmlChar *modpath)
 {
-    if (ncxmod_mod_path_cli) {
-        m__free(ncxmod_mod_path_cli);
-        ncxmod_mod_path_cli = NULL;
+    if (instance->ncxmod_mod_path_cli) {
+        m__free(instance, instance->ncxmod_mod_path_cli);
+        instance->ncxmod_mod_path_cli = NULL;
     }
 
     if (modpath && *modpath) {
         /* ignoring possible malloc failed!! */
-        ncxmod_mod_path_cli = xml_strdup(modpath);
+        instance->ncxmod_mod_path_cli = xml_strdup(instance, modpath);
     }
-    ncxmod_mod_path = ncxmod_mod_path_cli;
+    instance->ncxmod_mod_path = instance->ncxmod_mod_path_cli;
     
 }  /* ncxmod_set_modpath */
 
@@ -4158,18 +4236,18 @@ void
 *
 *********************************************************************/
 void
-    ncxmod_set_datapath (const xmlChar *datapath)
+    ncxmod_set_datapath (ncx_instance_t *instance, const xmlChar *datapath)
 {
-    if (ncxmod_data_path_cli) {
-        m__free(ncxmod_data_path_cli);
-        ncxmod_data_path_cli = NULL;
+    if (instance->ncxmod_data_path_cli) {
+        m__free(instance, instance->ncxmod_data_path_cli);
+        instance->ncxmod_data_path_cli = NULL;
     }
 
     if (datapath && *datapath) {
         /* ignoring possible malloc failed!! */
-        ncxmod_data_path_cli = xml_strdup(datapath);
+        instance->ncxmod_data_path_cli = xml_strdup(instance, datapath);
     }
-    ncxmod_data_path = ncxmod_data_path_cli;
+    instance->ncxmod_data_path = instance->ncxmod_data_path_cli;
 
 }  /* ncxmod_set_datapath */
 
@@ -4185,18 +4263,18 @@ void
 *
 *********************************************************************/
 void
-    ncxmod_set_runpath (const xmlChar *runpath)
+    ncxmod_set_runpath (ncx_instance_t *instance, const xmlChar *runpath)
 {
-    if (ncxmod_run_path_cli) {
-        m__free(ncxmod_run_path_cli);
-        ncxmod_run_path_cli = NULL;
+    if (instance->ncxmod_run_path_cli) {
+        m__free(instance, instance->ncxmod_run_path_cli);
+        instance->ncxmod_run_path_cli = NULL;
     }
 
     if (runpath && *runpath) {
         /* ignoring possible malloc failed!! */
-        ncxmod_run_path_cli = xml_strdup(runpath);
+        instance->ncxmod_run_path_cli = xml_strdup(instance, runpath);
     }
-    ncxmod_run_path = ncxmod_run_path_cli;
+    instance->ncxmod_run_path = instance->ncxmod_run_path_cli;
     
 }  /* ncxmod_set_runpath */
 
@@ -4211,9 +4289,9 @@ void
 *             == FALSE if subdir searches should not be done
 *********************************************************************/
 void
-    ncxmod_set_subdirs (boolean usesubdirs)
+    ncxmod_set_subdirs (ncx_instance_t *instance, boolean usesubdirs)
 {
-    ncxmod_subdirs = usesubdirs;
+    instance->ncxmod_subdirs = usesubdirs;
     
 }  /* ncxmod_set_subdirs */
 
@@ -4227,9 +4305,9 @@ void
 *   pointer to the yuma dir string
 *********************************************************************/
 const xmlChar *
-    ncxmod_get_yumadir (void)
+    ncxmod_get_yumadir (ncx_instance_t *instance)
 {
-    return ncxmod_yumadir_path;
+    return instance->ncxmod_yumadir_path;
     
 }  /* ncxmod_get_yumadir */
 
@@ -4254,7 +4332,8 @@ const xmlChar *
 *    OR some error if not found or buffer overflow
 *********************************************************************/
 status_t
-    ncxmod_process_subtree (const char *startspec, 
+    ncxmod_process_subtree (ncx_instance_t *instance, 
+                            const char *startspec, 
                             ncxmod_callback_fn_t callback,
                             void *cookie)
 {
@@ -4266,17 +4345,17 @@ status_t
 
 #ifdef DEBUG
     if (!startspec || !callback) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (strlen(startspec) >= NCXMOD_MAX_FSPEC_LEN) {
-        log_error("\nError: startspec too long '%s'\n", startspec);
+        log_error(instance, "\nError: startspec too long '%s'\n", startspec);
         return ERR_BUFF_OVFL;
     }
 
     res = NO_ERR;
-    sourcespec = ncx_get_source((const xmlChar *)startspec, &res);
+    sourcespec = ncx_get_source(instance, (const xmlChar *)startspec, &res);
     if (!sourcespec) {
         return res;
     }
@@ -4284,27 +4363,28 @@ status_t
     dp = opendir((const char *)sourcespec);
     if (!dp) {
         if (LOGDEBUG) {
-            log_debug("\nncxmod: could not open directory '%s'\n", 
+            log_debug(instance, 
+		      "\nncxmod: could not open directory '%s'\n", 
 		      startspec);
 	}
-        m__free(sourcespec);
+        m__free(instance, sourcespec);
         return NO_ERR;
     } else {
         (void)closedir(dp);
     }
 
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
-        m__free(sourcespec);
+        m__free(instance, sourcespec);
         return ERR_INTERNAL_MEM;
     }
 
     strncpy(buff, (const char *)sourcespec, bufflen);
-    res = process_subtree(buff, bufflen, callback, cookie);
+    res = process_subtree(instance, buff, bufflen, callback, cookie);
 
-    m__free(sourcespec);
-    m__free(buff);
+    m__free(instance, sourcespec);
+    m__free(instance, buff);
     return res;
 
 }  /* ncxmod_process_subtree */
@@ -4354,7 +4434,8 @@ boolean
 *    const pointer to the user home directory string
 *********************************************************************/
 const xmlChar *
-    ncxmod_get_userhome (const xmlChar *user,
+    ncxmod_get_userhome (ncx_instance_t *instance,
+                  const xmlChar *user,
                   uint32 userlen)
 {
     struct passwd  *pw;
@@ -4362,12 +4443,12 @@ const xmlChar *
 
     /* only support user names up to N chars in length */
     if (userlen > NCX_MAX_USERNAME_LEN) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
     if (!user) {
-        return (const xmlChar *)ncxmod_home;
+        return (const xmlChar *)instance->ncxmod_home;
     }
 
     strncpy(buff, (const char *)user, userlen);
@@ -4395,21 +4476,22 @@ const xmlChar *
 *    const pointer to the specified environment variable value
 *********************************************************************/
 const xmlChar *
-    ncxmod_get_envvar (const xmlChar *name,
+    ncxmod_get_envvar (ncx_instance_t *instance,
+                       const xmlChar *name,
                        uint32 namelen)
 {
     char            buff[NCX_MAX_USERNAME_LEN+1];
 
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     /* only support user names up to N chars in length */
     if (namelen > NCX_MAX_USERNAME_LEN) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
@@ -4432,16 +4514,16 @@ const xmlChar *
 *
 *********************************************************************/
 void
-    ncxmod_set_altpath (const xmlChar *altpath)
+    ncxmod_set_altpath (ncx_instance_t *instance, const xmlChar *altpath)
 {
 #ifdef DEBUG
     if (!altpath) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    ncxmod_alt_path = altpath;
+    instance->ncxmod_alt_path = altpath;
 
 }  /* ncxmod_set_altpath */
 
@@ -4453,9 +4535,9 @@ void
 *
 *********************************************************************/
 void
-    ncxmod_clear_altpath (void)
+    ncxmod_clear_altpath (ncx_instance_t *instance)
 {
-    ncxmod_alt_path = NULL;
+    instance->ncxmod_alt_path = NULL;
 
 }  /* ncxmod_clear_altpath */
 
@@ -4482,7 +4564,8 @@ void
 *   status of the operation
 *********************************************************************/
 status_t
-    ncxmod_list_data_files (help_mode_t helpmode,
+    ncxmod_list_data_files (ncx_instance_t *instance,
+                            help_mode_t helpmode,
                             boolean logstdout)
 {
     xmlChar     *buff, *p;
@@ -4492,117 +4575,122 @@ status_t
 
     /* get a buffer to construct filespacs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         return ERR_INTERNAL_MEM;
     }
 
     /* 1) current directory */
-    xml_strcpy(buff, (const xmlChar *)"./");
-    res = list_subdirs(buff, 
+    xml_strcpy(instance, buff, (const xmlChar *)"./");
+    res = list_subdirs(instance, 
+                       buff, 
                        bufflen,
                        SEARCH_TYPE_DATA,
                        helpmode,
                        logstdout,
                        FALSE);
     if (res != NO_ERR) {
-        m__free(buff);
+        m__free(instance, buff);
         return res;
     }
 
     /* 2) try the YUMA_DATAPATH environment variable */
-    if (ncxmod_data_path) {
-        res = list_pathlist(ncxmod_data_path, 
+    if (instance->ncxmod_data_path) {
+        res = list_pathlist(instance, 
+                            instance->ncxmod_data_path, 
                             buff,
                             bufflen,
                             SEARCH_TYPE_DATA,
                             helpmode,
                             logstdout);
         if (res != NO_ERR) {
-            m__free(buff);
+            m__free(instance, buff);
             return res;
         }
     }
 
     /* 3) HOME/data directory */
-    if (ncxmod_home) {
-        pathlen = xml_strlen(ncxmod_home);
+    if (instance->ncxmod_home) {
+        pathlen = xml_strlen(instance, instance->ncxmod_home);
         if (pathlen + 6 < bufflen) {
             p = buff;
-            p += xml_strcpy(p, ncxmod_home);
+            p += xml_strcpy(instance, p, instance->ncxmod_home);
             *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"data");
+            p += xml_strcpy(instance, p, (const xmlChar *)"data");
             *p++ = NCXMOD_PSCHAR;
             *p = '\0';
 
-            res = list_subdirs(buff, 
+            res = list_subdirs(instance, 
+                               buff, 
                                bufflen, 
                                SEARCH_TYPE_DATA,
                                helpmode,
                                logstdout,
                                TRUE);
             if (res != NO_ERR) {
-                m__free(buff);
+                m__free(instance, buff);
                 return res;
             }
         }
     }
 
     /* 4) YUMA_HOME/data directory */
-    if (ncxmod_yuma_home) {
-        pathlen = xml_strlen(ncxmod_yuma_home);;
+    if (instance->ncxmod_yuma_home) {
+        pathlen = xml_strlen(instance, instance->ncxmod_yuma_home);;
         if (pathlen + 6 < bufflen) {
             p = buff;
-            p += xml_strcpy(p, ncxmod_yuma_home);
+            p += xml_strcpy(instance, p, instance->ncxmod_yuma_home);
             *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"data");
+            p += xml_strcpy(instance, p, (const xmlChar *)"data");
             *p++ = NCXMOD_PSCHAR;
             *p = '\0';
 
-            res = list_subdirs(buff, 
+            res = list_subdirs(instance, 
+                               buff, 
                                bufflen, 
                                SEARCH_TYPE_DATA,
                                helpmode,
                                logstdout,
                                TRUE);
             if (res != NO_ERR) {
-                m__free(buff);
+                m__free(instance, buff);
                 return res;
             }
         }
     }
 
     /* 5) YUMA_INSTALL/data directory */
-    if (ncxmod_env_install) {
-        pathlen = xml_strlen(ncxmod_env_install);;
+    if (instance->ncxmod_env_install) {
+        pathlen = xml_strlen(instance, instance->ncxmod_env_install);;
         if (pathlen + 6 < bufflen) {
             p = buff;
-            p += xml_strcpy(p, ncxmod_env_install);
+            p += xml_strcpy(instance, p, instance->ncxmod_env_install);
             *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"data");
+            p += xml_strcpy(instance, p, (const xmlChar *)"data");
             *p++ = NCXMOD_PSCHAR;
             *p = '\0';
 
-            res = list_subdirs(buff, 
+            res = list_subdirs(instance, 
+                               buff, 
                                bufflen, 
                                SEARCH_TYPE_DATA,
                                helpmode,
                                logstdout,
                                TRUE);
             if (res != NO_ERR) {
-                m__free(buff);
+                m__free(instance, buff);
                 return res;
             }
         }
     }
 
     if (logstdout) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
     } else {
-        log_write("\n");
+        log_write(instance, "\n");
     }
 
-    m__free(buff);
+    m__free(instance, buff);
     return NO_ERR;
 
 }  /* ncxmod_list_data_files */
@@ -4630,7 +4718,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t
-    ncxmod_list_script_files (help_mode_t helpmode,
+    ncxmod_list_script_files (ncx_instance_t *instance,
+                              help_mode_t helpmode,
                               boolean logstdout)
 {
     xmlChar     *buff, *p;
@@ -4640,117 +4729,122 @@ status_t
 
     /* get a buffer to construct filespacs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         return ERR_INTERNAL_MEM;
     }
 
     /* 1) current directory */
-    xml_strcpy(buff, (const xmlChar *)"./");
-    res = list_subdirs(buff, 
+    xml_strcpy(instance, buff, (const xmlChar *)"./");
+    res = list_subdirs(instance, 
+                       buff, 
                        bufflen,
                        SEARCH_TYPE_SCRIPT,
                        helpmode,
                        logstdout,
                        FALSE);
     if (res != NO_ERR) {
-        m__free(buff);
+        m__free(instance, buff);
         return res;
     }
 
     /* 2) try the NCX_RUNPATH environment variable */
-    if (ncxmod_run_path) {
-        res = list_pathlist(ncxmod_run_path, 
+    if (instance->ncxmod_run_path) {
+        res = list_pathlist(instance, 
+                            instance->ncxmod_run_path, 
                             buff,
                             bufflen,
                             SEARCH_TYPE_SCRIPT,
                             helpmode,
                             logstdout);
         if (res != NO_ERR) {
-            m__free(buff);
+            m__free(instance, buff);
             return res;
         }
     }
 
     /* 3) HOME/scripts directory */
-    if (ncxmod_home) {
-        pathlen = xml_strlen(ncxmod_home);
+    if (instance->ncxmod_home) {
+        pathlen = xml_strlen(instance, instance->ncxmod_home);
         if (pathlen + 9 < bufflen) {
             p = buff;
-            p += xml_strcpy(p, ncxmod_home);
+            p += xml_strcpy(instance, p, instance->ncxmod_home);
             *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"scripts");
+            p += xml_strcpy(instance, p, (const xmlChar *)"scripts");
             *p++ = NCXMOD_PSCHAR;
             *p = '\0';
 
-            res = list_subdirs(buff, 
+            res = list_subdirs(instance, 
+                               buff, 
                                bufflen, 
                                SEARCH_TYPE_SCRIPT,
                                helpmode,
                                logstdout,
                                TRUE);
             if (res != NO_ERR) {
-                m__free(buff);
+                m__free(instance, buff);
                 return res;
             }
         }
     }
 
     /* 4) YUMA_HOME/scripts directory */
-    if (ncxmod_yuma_home) {
-        pathlen = xml_strlen(ncxmod_yuma_home);;
+    if (instance->ncxmod_yuma_home) {
+        pathlen = xml_strlen(instance, instance->ncxmod_yuma_home);;
         if (pathlen + 9 < bufflen) {
             p = buff;
-            p += xml_strcpy(p, ncxmod_yuma_home);
+            p += xml_strcpy(instance, p, instance->ncxmod_yuma_home);
             *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"scripts");
+            p += xml_strcpy(instance, p, (const xmlChar *)"scripts");
             *p++ = NCXMOD_PSCHAR;
             *p = '\0';
 
-            res = list_subdirs(buff, 
+            res = list_subdirs(instance, 
+                               buff, 
                                bufflen, 
                                SEARCH_TYPE_SCRIPT,
                                helpmode,
                                logstdout,
                                TRUE);
             if (res != NO_ERR) {
-                m__free(buff);
+                m__free(instance, buff);
                 return res;
             }
         }
     }
 
     /* 5) YUMA_INSTALL/scripts directory */
-    if (ncxmod_env_install) {
-        pathlen = xml_strlen(ncxmod_env_install);;
+    if (instance->ncxmod_env_install) {
+        pathlen = xml_strlen(instance, instance->ncxmod_env_install);;
         if (pathlen + 9 < bufflen) {
             p = buff;
-            p += xml_strcpy(p, ncxmod_env_install);
+            p += xml_strcpy(instance, p, instance->ncxmod_env_install);
             *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"scripts");
+            p += xml_strcpy(instance, p, (const xmlChar *)"scripts");
             *p++ = NCXMOD_PSCHAR;
             *p = '\0';
 
-            res = list_subdirs(buff, 
+            res = list_subdirs(instance, 
+                               buff, 
                                bufflen, 
                                SEARCH_TYPE_SCRIPT,
                                helpmode,
                                logstdout,
                                TRUE);
             if (res != NO_ERR) {
-                m__free(buff);
+                m__free(instance, buff);
                 return res;
             }
         }
     }
 
     if (logstdout) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
     } else {
-        log_write("\n");
+        log_write(instance, "\n");
     }
 
-    m__free(buff);
+    m__free(instance, buff);
     return NO_ERR;
 
 }  /* ncxmod_list_script_files */
@@ -4778,7 +4872,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t
-    ncxmod_list_yang_files (help_mode_t helpmode,
+    ncxmod_list_yang_files (ncx_instance_t *instance,
+                            help_mode_t helpmode,
                             boolean logstdout)
 {
     xmlChar     *buff, *p;
@@ -4787,117 +4882,122 @@ status_t
 
     /* get a buffer to construct filespacs */
     bufflen = NCXMOD_MAX_FSPEC_LEN+1;
-    buff = m__getMem(bufflen);
+    buff = m__getMem(instance, bufflen);
     if (!buff) {
         return ERR_INTERNAL_MEM;
     }
 
-    /* 1) current directory */
-    xml_strcpy(buff, (const xmlChar *)"./");
-    res = list_subdirs(buff, 
-                       bufflen,
-                       SEARCH_TYPE_MODULE,
-                       helpmode,
-                       logstdout,
-                       FALSE);
-    if (res != NO_ERR) {
-        m__free(buff);
-        return res;
-    }
-
-    /* 2) try the NCX_MODPATH environment variable */
-    if (ncxmod_mod_path) {
-        res = list_pathlist(ncxmod_mod_path, 
+    /* 1) try the NCX_MODPATH environment variable */
+    if (instance->ncxmod_mod_path) {
+        res = list_pathlist(instance, 
+                            instance->ncxmod_mod_path, 
                             buff,
                             bufflen,
                             SEARCH_TYPE_MODULE,
                             helpmode,
                             logstdout);
         if (res != NO_ERR) {
-            m__free(buff);
+            m__free(instance, buff);
             return res;
         }
-    }
+    } else {
+        /* 2) current directory */
+        xml_strcpy(instance, buff, (const xmlChar *)"./");
+        res = list_subdirs(instance,
+                           buff,
+                           bufflen,
+                           SEARCH_TYPE_MODULE,
+                           helpmode,
+                           logstdout,
+                           FALSE);
+        if (res != NO_ERR) {
+            m__free(instance, buff);
+            return res;
+        }
 
-    /* 3) HOME/modules directory */
-    if (ncxmod_home) {
-        pathlen = xml_strlen(ncxmod_home);
-        if (pathlen + 9 < bufflen) {
-            p = buff;
-            p += xml_strcpy(p, ncxmod_home);
-            *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"modules");
-            *p++ = NCXMOD_PSCHAR;
-            *p = '\0';
+        /* 3) HOME/modules directory */
+        if (instance->ncxmod_home) {
+            pathlen = xml_strlen(instance, instance->ncxmod_home);
+            if (pathlen + 9 < bufflen) {
+                p = buff;
+                p += xml_strcpy(instance, p, instance->ncxmod_home);
+                *p++ = NCXMOD_PSCHAR;
+                p += xml_strcpy(instance, p, (const xmlChar *)"modules");
+                *p++ = NCXMOD_PSCHAR;
+                *p = '\0';
 
-            res = list_subdirs(buff, 
-                               bufflen, 
-                               SEARCH_TYPE_MODULE,
-                               helpmode,
-                               logstdout,
-                               TRUE);
-            if (res != NO_ERR) {
-                m__free(buff);
-                return res;
+                res = list_subdirs(instance, 
+                                   buff, 
+                                   bufflen, 
+                                   SEARCH_TYPE_MODULE,
+                                   helpmode,
+                                   logstdout,
+                                   TRUE);
+                if (res != NO_ERR) {
+                    m__free(instance, buff);
+                    return res;
+                }
             }
         }
-    }
 
-    /* 4) YUMA_HOME/modules directory */
-    if (ncxmod_yuma_home) {
-        pathlen = xml_strlen(ncxmod_yuma_home);;
-        if (pathlen + 9 < bufflen) {
-            p = buff;
-            p += xml_strcpy(p, ncxmod_yuma_home);
-            *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"modules");
-            *p++ = NCXMOD_PSCHAR;
-            *p = '\0';
+        /* 4) YUMA_HOME/modules directory */
+        if (instance->ncxmod_yuma_home) {
+            pathlen = xml_strlen(instance, instance->ncxmod_yuma_home);;
+            if (pathlen + 9 < bufflen) {
+                p = buff;
+                p += xml_strcpy(instance, p, instance->ncxmod_yuma_home);
+                *p++ = NCXMOD_PSCHAR;
+                p += xml_strcpy(instance, p, (const xmlChar *)"modules");
+                *p++ = NCXMOD_PSCHAR;
+                *p = '\0';
 
-            res = list_subdirs(buff, 
-                               bufflen, 
-                               SEARCH_TYPE_MODULE,
-                               helpmode,
-                               logstdout,
-                               TRUE);
-            if (res != NO_ERR) {
-                m__free(buff);
-                return res;
+                res = list_subdirs(instance, 
+                                   buff, 
+                                   bufflen, 
+                                   SEARCH_TYPE_MODULE,
+                                   helpmode,
+                                   logstdout,
+                                   TRUE);
+                if (res != NO_ERR) {
+                    m__free(instance, buff);
+                    return res;
+                }
             }
         }
-    }
 
-    /* 5) YUMA_INSTALL/modules directory */
-    if (ncxmod_env_install) {
-        pathlen = xml_strlen(ncxmod_env_install);;
-        if (pathlen + 9 < bufflen) {
-            p = buff;
-            p += xml_strcpy(p, ncxmod_env_install);
-            *p++ = NCXMOD_PSCHAR;
-            p += xml_strcpy(p, (const xmlChar *)"modules");
-            *p++ = NCXMOD_PSCHAR;
-            *p = '\0';
+        /* 5) YUMA_INSTALL/modules directory */
+        if (instance->ncxmod_env_install) {
+            pathlen = xml_strlen(instance, instance->ncxmod_env_install);;
+            if (pathlen + 9 < bufflen) {
+                p = buff;
+                p += xml_strcpy(instance, p, instance->ncxmod_env_install);
+                *p++ = NCXMOD_PSCHAR;
+                p += xml_strcpy(instance, p, (const xmlChar *)"modules");
+                *p++ = NCXMOD_PSCHAR;
+                *p = '\0';
 
-            res = list_subdirs(buff, 
-                               bufflen, 
-                               SEARCH_TYPE_MODULE,
-                               helpmode,
-                               logstdout,
-                               TRUE);
-            if (res != NO_ERR) {
-                m__free(buff);
-                return res;
+                res = list_subdirs(instance, 
+                                   buff, 
+                                   bufflen, 
+                                   SEARCH_TYPE_MODULE,
+                                   helpmode,
+                                   logstdout,
+                                   TRUE);
+                if (res != NO_ERR) {
+                    m__free(instance, buff);
+                    return res;
+                }
             }
         }
     }
 
     if (logstdout) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
     } else {
-        log_write("\n");
+        log_write(instance, "\n");
     }
 
-    m__free(buff);
+    m__free(instance, buff);
     return NO_ERR;
 
 }  /* ncxmod_list_yang_files */
@@ -4912,7 +5012,7 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ncxmod_setup_yumadir (void)
+    ncxmod_setup_yumadir (ncx_instance_t *instance)
 {
     DIR           *dp;
     status_t       res;
@@ -4920,10 +5020,10 @@ status_t
 
     /* try to open yuma directory */
     res = NO_ERR;
-    dp = opendir((const char *)ncxmod_yumadir_path);
+    dp = opendir((const char *)instance->ncxmod_yumadir_path);
     if (dp == NULL) {
         /* create a yuma directory with 700 permissions */
-        retcode = mkdir((const char *)ncxmod_yumadir_path, S_IRWXU);
+        retcode = mkdir((const char *)instance->ncxmod_yumadir_path, S_IRWXU);
         if (retcode != 0) {
             res = errno_to_status();
         }
@@ -4933,7 +5033,7 @@ status_t
     }
 
     if (res != NO_ERR) {
-        log_error("\nError: Could not setup Yuma work directory\n");
+        log_error(instance, "\nError: Could not setup Yuma work directory\n");
     }
 
     return res;
@@ -4950,7 +5050,7 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ncxmod_setup_tempdir (void)
+    ncxmod_setup_tempdir (ncx_instance_t *instance)
 {
     const xmlChar *tmpdir = NCXMOD_TEMP_DIR;
     xmlChar       *tempdir_path, *str;
@@ -4962,14 +5062,14 @@ status_t
     res = NO_ERR;
 
     /* make the string to use for the yuma temp directory */
-    len = xml_strlen(ncxmod_yumadir_path) + xml_strlen(tmpdir) + 1;
-    tempdir_path = m__getMem(len);
+    len = xml_strlen(instance, instance->ncxmod_yumadir_path) + xml_strlen(instance, tmpdir) + 1;
+    tempdir_path = m__getMem(instance, len);
     if (tempdir_path == NULL) {
         return ERR_INTERNAL_MEM;
     }
     str = tempdir_path;
-    str += xml_strcpy(str, ncxmod_yumadir_path);
-    xml_strcpy(str, tmpdir);
+    str += xml_strcpy(instance, str, instance->ncxmod_yumadir_path);
+    xml_strcpy(instance, str, tmpdir);
 
     /* try to open yuma temp directory */
     dp = opendir((const char *)tempdir_path);
@@ -4984,7 +5084,7 @@ status_t
         (void)closedir(dp);
     }
 
-    m__free(tempdir_path);
+    m__free(instance, tempdir_path);
 
     return res;
 
@@ -5006,7 +5106,7 @@ status_t
 *   malloced tempdir_progcb_t record (if NO_ERR)
 *********************************************************************/
 ncxmod_temp_progcb_t *
-    ncxmod_new_program_tempdir (status_t *res)
+    ncxmod_new_program_tempdir (ncx_instance_t *instance, status_t *res)
 {
     xmlChar              *buffer, *tempdir_path, *p;
     DIR                  *dp;
@@ -5017,16 +5117,16 @@ ncxmod_temp_progcb_t *
     uint32                fixedlen, numlen;
 
     if (res == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 
     /* setup */
     *res = NO_ERR;
-    tstamp_datetime_dirname(datebuff);
+    tstamp_datetime_dirname(instance, datebuff);
 
-    fixedlen = xml_strlen(ncxmod_yumadir_path) +
-        xml_strlen(NCXMOD_TEMP_DIR);
+    fixedlen = xml_strlen(instance, instance->ncxmod_yumadir_path) +
+        xml_strlen(instance, NCXMOD_TEMP_DIR);
 
     /* get positive 5 digit random number (0 -- 64k) */
     randnum = rand();
@@ -5035,10 +5135,10 @@ ncxmod_temp_progcb_t *
     }
     randnum &= 0xffff;
     snprintf((char *)numbuff, NCX_MAX_NUMLEN, "%d", randnum);
-    numlen = xml_strlen(numbuff);
+    numlen = xml_strlen(instance, numbuff);
 
     /* get a buffer for the constructed directory name */
-    buffer = m__getMem(TSTAMP_MIN_SIZE+fixedlen+numlen+2);
+    buffer = m__getMem(instance, TSTAMP_MIN_SIZE+fixedlen+numlen+2);
     if (buffer == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -5047,15 +5147,15 @@ ncxmod_temp_progcb_t *
     /* construct the entire dir name string generate the default directory name
      * based on the current time + random number */
     p = buffer;
-    p += xml_strcpy(p, ncxmod_yumadir_path);
-    p += xml_strcpy(p, NCXMOD_TEMP_DIR);
+    p += xml_strcpy(instance, p, instance->ncxmod_yumadir_path);
+    p += xml_strcpy(instance, p, NCXMOD_TEMP_DIR);
     *p++ = NCXMOD_PSCHAR;
-    p += xml_strcpy(p, datebuff);
-    xml_strcpy(p, numbuff);
+    p += xml_strcpy(instance, p, datebuff);
+    xml_strcpy(instance, p, numbuff);
 
     /* covert this string to the expanded path name */
-    tempdir_path = ncx_get_source(buffer, res);
-    m__free(buffer);
+    tempdir_path = ncx_get_source(instance, buffer, res);
+    m__free(instance, buffer);
     if (tempdir_path == NULL) {
         return NULL;
     }
@@ -5075,7 +5175,7 @@ ncxmod_temp_progcb_t *
     }
 
     if (*res == NO_ERR) {
-        progcb = new_temp_progcb();
+        progcb = new_temp_progcb(instance);
         if (progcb == NULL) {
             *res = ERR_INTERNAL_MEM;
         } else {
@@ -5087,7 +5187,7 @@ ncxmod_temp_progcb_t *
 
     if (tempdir_path) {
         /* error exit */
-        m__free(tempdir_path);
+        m__free(instance, tempdir_path);
     }
 
     return progcb;
@@ -5105,16 +5205,16 @@ ncxmod_temp_progcb_t *
 *
 *********************************************************************/
 void
-    ncxmod_free_program_tempdir (ncxmod_temp_progcb_t *progcb)
+    ncxmod_free_program_tempdir (ncx_instance_t *instance, ncxmod_temp_progcb_t *progcb)
 {
 #ifdef DEBUG
     if (progcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    free_temp_progcb(progcb);
+    free_temp_progcb(instance, progcb);
 
 }  /* ncxmod_free_program_tempdir */
 
@@ -5136,7 +5236,8 @@ void
 *   malloced tempdir_sescb_t record
 *********************************************************************/
 ncxmod_temp_sescb_t *
-    ncxmod_new_session_tempdir (ncxmod_temp_progcb_t *progcb,
+    ncxmod_new_session_tempdir (ncx_instance_t *instance,
+                                ncxmod_temp_progcb_t *progcb,
                                 uint32 sidnum,
                                 status_t *res)
 {
@@ -5150,11 +5251,11 @@ ncxmod_temp_sescb_t *
 
 #ifdef DEBUG
     if (progcb == NULL || res == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (sidnum == 0 || progcb->source == NULL) {
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
@@ -5162,12 +5263,12 @@ ncxmod_temp_sescb_t *
     /* setup */
     *res = NO_ERR;
     sescb = NULL;
-    fixedlen = xml_strlen(progcb->source);
+    fixedlen = xml_strlen(instance, progcb->source);
     snprintf((char *)numbuff, NCX_MAX_NUMLEN, "%u", sidnum);
-    numlen = xml_strlen(numbuff);
+    numlen = xml_strlen(instance, numbuff);
 
     /* get a buffer for the constructed directory name */
-    buffer = m__getMem(fixedlen+numlen+2);
+    buffer = m__getMem(instance, fixedlen+numlen+2);
     if (buffer == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -5178,9 +5279,9 @@ ncxmod_temp_sescb_t *
      * based on the session number
      */
     p = buffer;
-    p += xml_strcpy(p, progcb->source);
+    p += xml_strcpy(instance, p, progcb->source);
     *p++ = NCXMOD_PSCHAR;
-    xml_strcpy(p, numbuff);
+    xml_strcpy(instance, p, numbuff);
 
     /* already in expanded path name format
      * try to open ~/.yuma/tmp/<progstr>/<sidnum> directory */
@@ -5198,7 +5299,7 @@ ncxmod_temp_sescb_t *
     }
 
     if (*res == NO_ERR) {
-        sescb = new_temp_sescb();
+        sescb = new_temp_sescb(instance);
         if (sescb == NULL) {
             *res = ERR_INTERNAL_MEM;
         } else {
@@ -5208,13 +5309,13 @@ ncxmod_temp_sescb_t *
             sescb->sidnum = sidnum;
 
             /* store pointer to the new session for cleanup */
-            dlq_enque(sescb, &progcb->temp_sescbQ);
+            dlq_enque(instance, sescb, &progcb->temp_sescbQ);
         }
     }
 
     if (buffer) {
         /* error exit */
-        m__free(buffer);
+        m__free(instance, buffer);
     }
 
     return sescb;
@@ -5233,36 +5334,37 @@ ncxmod_temp_sescb_t *
 *
 *********************************************************************/
 void
-    ncxmod_free_session_tempdir (ncxmod_temp_progcb_t *progcb,
+    ncxmod_free_session_tempdir (ncx_instance_t *instance,
+                                 ncxmod_temp_progcb_t *progcb,
                                  uint32 sidnum)
 {
     ncxmod_temp_sescb_t  *sescb;
 
 #ifdef DEBUG
     if (progcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
     if (sidnum == 0) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 #endif
 
     for (sescb = (ncxmod_temp_sescb_t *)
-             dlq_firstEntry(&progcb->temp_sescbQ);
+             dlq_firstEntry(instance, &progcb->temp_sescbQ);
          sescb != NULL;
-         sescb = (ncxmod_temp_sescb_t *)dlq_nextEntry(sescb)) {
+         sescb = (ncxmod_temp_sescb_t *)dlq_nextEntry(instance, sescb)) {
 
         if (sescb->sidnum == sidnum) {
-            dlq_remove(sescb);
-            free_temp_sescb(sescb);
+            dlq_remove(instance, sescb);
+            free_temp_sescb(instance, sescb);
             return;
         }
     }
 
     /* sid not found */
-    SET_ERROR(ERR_INTERNAL_VAL);    
+    SET_ERROR(instance, ERR_INTERNAL_VAL);    
 
 }  /* ncxmod_free_session_tempdir */
 
@@ -5284,7 +5386,8 @@ void
 *   malloced tempdir_sescb_t record
 *********************************************************************/
 ncxmod_temp_filcb_t *
-    ncxmod_new_session_tempfile (ncxmod_temp_sescb_t *sescb,
+    ncxmod_new_session_tempfile (ncx_instance_t *instance,
+                                 ncxmod_temp_sescb_t *sescb,
                                  const xmlChar *filename,
                                  status_t *res)
 {
@@ -5294,23 +5397,23 @@ ncxmod_temp_filcb_t *
 
 #ifdef DEBUG
     if (sescb == NULL || filename == NULL || res == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (sescb->source == NULL) {
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
     /* first check if the filename is already used */
     for (filcb = (ncxmod_temp_filcb_t *)
-             dlq_firstEntry(&sescb->temp_filcbQ);
+             dlq_firstEntry(instance, &sescb->temp_filcbQ);
          filcb != NULL;
-         filcb = (ncxmod_temp_filcb_t *)dlq_nextEntry(filcb)) {
+         filcb = (ncxmod_temp_filcb_t *)dlq_nextEntry(instance, filcb)) {
 
-        if (!xml_strcmp(filcb->filename, filename)) {
-            log_error("\nError: cannot create temp file '%s', "
+        if (!xml_strcmp(instance, filcb->filename, filename)) {
+            log_error(instance, "\nError: cannot create temp file '%s', "
                       "duplicate entry\n");
             *res = ERR_NCX_ENTRY_EXISTS;
             return NULL;
@@ -5319,24 +5422,24 @@ ncxmod_temp_filcb_t *
 
     /* setup */
     *res = NO_ERR;
-    fixedlen = xml_strlen(sescb->source);
-    filenamelen = xml_strlen(filename);
+    fixedlen = xml_strlen(instance, sescb->source);
+    filenamelen = xml_strlen(instance, filename);
 
     /* get a buffer for the constructed file name */
-    buffer = m__getMem(fixedlen+filenamelen+2);
+    buffer = m__getMem(instance, fixedlen+filenamelen+2);
     if (buffer == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
     p = buffer;
-    p += xml_strcpy(p, sescb->source);
+    p += xml_strcpy(instance, p, sescb->source);
     *p++ = NCXMOD_PSCHAR;
-    xml_strcpy(p, filename);
+    xml_strcpy(instance, p, filename);
 
     /* get a new file control block to return */
-    filcb = new_temp_filcb();
+    filcb = new_temp_filcb(instance);
     if (filcb == NULL) {
-        m__free(buffer);
+        m__free(instance, buffer);
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
@@ -5346,7 +5449,7 @@ ncxmod_temp_filcb_t *
     filcb->filename = p;
 
     /* store pointer to the new file for cleanup */
-    dlq_enque(filcb, &sescb->temp_filcbQ);
+    dlq_enque(instance, filcb, &sescb->temp_filcbQ);
 
     return filcb;
 
@@ -5363,18 +5466,18 @@ ncxmod_temp_filcb_t *
 *
 *********************************************************************/
 void
-    ncxmod_free_session_tempfile (ncxmod_temp_filcb_t *filcb)
+    ncxmod_free_session_tempfile (ncx_instance_t *instance, ncxmod_temp_filcb_t *filcb)
 {
 #ifdef DEBUG
     if (filcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     /* supposeds to be part of the sescb->temp_filcbQ !!! */
-    dlq_remove(filcb);
-    free_temp_filcb(filcb);
+    dlq_remove(instance, filcb);
+    free_temp_filcb(instance, filcb);
 
 }  /* ncxmod_free_session_tempfile */
 
@@ -5388,11 +5491,11 @@ void
 *   malloced and initialized struct, NULL if ERR_INTERNAL_MEM
 *********************************************************************/
 ncxmod_search_result_t *
-    ncxmod_new_search_result (void)
+    ncxmod_new_search_result (ncx_instance_t *instance)
 {
     ncxmod_search_result_t *searchresult;
 
-    searchresult = m__getObj(ncxmod_search_result_t);
+    searchresult = m__getObj(instance, ncxmod_search_result_t);
     if (searchresult == NULL) {
         return NULL;
     }
@@ -5415,42 +5518,42 @@ ncxmod_search_result_t *
 *   malloced and initialized struct, NULL if ERR_INTERNAL_MEM
 *********************************************************************/
 ncxmod_search_result_t *
-    ncxmod_new_search_result_ex (const ncx_module_t *mod)
+    ncxmod_new_search_result_ex (ncx_instance_t *instance, const ncx_module_t *mod)
 {
     ncxmod_search_result_t *searchresult;
     const xmlChar          *str;
 
 #ifdef DEBUG
     if (mod == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    searchresult = m__getObj(ncxmod_search_result_t);
+    searchresult = m__getObj(instance, ncxmod_search_result_t);
     if (searchresult == NULL) {
         return NULL;
     }
     memset(searchresult, 0x0, sizeof(ncxmod_search_result_t));
 
-    searchresult->module = xml_strdup(mod->name);
+    searchresult->module = xml_strdup(instance, mod->name);
     if (searchresult->module == NULL) {
-        ncxmod_free_search_result(searchresult);
+        ncxmod_free_search_result(instance, searchresult);
         return NULL;
     }
 
     if (mod->version) {
-        searchresult->revision = xml_strdup(mod->version);
+        searchresult->revision = xml_strdup(instance, mod->version);
         if (searchresult->revision == NULL) {
-            ncxmod_free_search_result(searchresult);
+            ncxmod_free_search_result(instance, searchresult);
             return NULL;
         }
     }
 
     if (mod->ns) {
-        searchresult->namespacestr = xml_strdup(mod->ns);
+        searchresult->namespacestr = xml_strdup(instance, mod->ns);
         if (searchresult->namespacestr == NULL) {
-            ncxmod_free_search_result(searchresult);
+            ncxmod_free_search_result(instance, searchresult);
             return NULL;
         }
         str = searchresult->namespacestr;
@@ -5462,17 +5565,17 @@ ncxmod_search_result_t *
     }
 
     if (mod->source) {
-        searchresult->source = xml_strdup(mod->source);
+        searchresult->source = xml_strdup(instance, mod->source);
         if (searchresult->source == NULL) {
-            ncxmod_free_search_result(searchresult);
+            ncxmod_free_search_result(instance, searchresult);
             return NULL;
         }
     }
 
     if (mod->belongs) {
-        searchresult->belongsto = xml_strdup(mod->belongs);
+        searchresult->belongsto = xml_strdup(instance, mod->belongs);
         if (searchresult->belongsto == NULL) {
-            ncxmod_free_search_result(searchresult);
+            ncxmod_free_search_result(instance, searchresult);
             return NULL;
         }
     }
@@ -5496,34 +5599,35 @@ ncxmod_search_result_t *
 *   malloced and initialized struct, NULL if ERR_INTERNAL_MEM
 *********************************************************************/
 ncxmod_search_result_t *
-    ncxmod_new_search_result_str (const xmlChar *modname,
+    ncxmod_new_search_result_str (ncx_instance_t *instance,
+                                  const xmlChar *modname,
                                   const xmlChar *revision)
 {
     ncxmod_search_result_t *searchresult;
 
 #ifdef DEBUG
     if (modname == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    searchresult = m__getObj(ncxmod_search_result_t);
+    searchresult = m__getObj(instance, ncxmod_search_result_t);
     if (searchresult == NULL) {
         return NULL;
     }
     memset(searchresult, 0x0, sizeof(ncxmod_search_result_t));
 
-    searchresult->module = xml_strdup(modname);
+    searchresult->module = xml_strdup(instance, modname);
     if (searchresult->module == NULL) {
-        ncxmod_free_search_result(searchresult);
+        ncxmod_free_search_result(instance, searchresult);
         return NULL;
     }
 
     if (revision) {
-        searchresult->revision = xml_strdup(revision);
+        searchresult->revision = xml_strdup(instance, revision);
         if (searchresult->revision == NULL) {
-            ncxmod_free_search_result(searchresult);
+            ncxmod_free_search_result(instance, searchresult);
             return NULL;
         }
     }
@@ -5542,31 +5646,31 @@ ncxmod_search_result_t *
 *    searchresult == struct to clean and free
 *********************************************************************/
 void
-    ncxmod_free_search_result (ncxmod_search_result_t *searchresult)
+    ncxmod_free_search_result (ncx_instance_t *instance, ncxmod_search_result_t *searchresult)
 {
 #ifdef DEBUG
     if (searchresult == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (searchresult->module) {
-        m__free(searchresult->module);
+        m__free(instance, searchresult->module);
     }
     if (searchresult->belongsto) {
-        m__free(searchresult->belongsto);
+        m__free(instance, searchresult->belongsto);
     }
     if (searchresult->revision) {
-        m__free(searchresult->revision);
+        m__free(instance, searchresult->revision);
     }
     if (searchresult->namespacestr) {
-        m__free(searchresult->namespacestr);
+        m__free(instance, searchresult->namespacestr);
     }
     if (searchresult->source) {
-        m__free(searchresult->source);
+        m__free(instance, searchresult->source);
     }
-    m__free(searchresult);
+    m__free(instance, searchresult);
 
 }  /* ncxmod_free_search_result */
 
@@ -5581,20 +5685,20 @@ void
 *    searchQ = Q of ncxmod_search_result_t to clean and free
 *********************************************************************/
 void
-    ncxmod_clean_search_result_queue (dlq_hdr_t *searchQ)
+    ncxmod_clean_search_result_queue (ncx_instance_t *instance, dlq_hdr_t *searchQ)
 {
     ncxmod_search_result_t *searchresult;
 
 #ifdef DEBUG
     if (searchQ == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    while (!dlq_empty(searchQ)) {
-        searchresult = (ncxmod_search_result_t *)dlq_deque(searchQ);
-        ncxmod_free_search_result(searchresult);
+    while (!dlq_empty(instance, searchQ)) {
+        searchresult = (ncxmod_search_result_t *)dlq_deque(instance, searchQ);
+        ncxmod_free_search_result(instance, searchresult);
     }
 
 }  /* ncxmod_clean_search_result_queue */
@@ -5617,7 +5721,8 @@ void
 *   pointer to first matching record; NULL if not found
 *********************************************************************/
 ncxmod_search_result_t *
-    ncxmod_find_search_result (dlq_hdr_t *searchQ,
+    ncxmod_find_search_result (ncx_instance_t *instance,
+                               dlq_hdr_t *searchQ,
                                const xmlChar *modname,
                                const xmlChar *revision,
                                const xmlChar *nsuri)
@@ -5628,23 +5733,23 @@ ncxmod_search_result_t *
 
 #ifdef DEBUG
     if (searchQ == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (sr = (ncxmod_search_result_t *)dlq_firstEntry(searchQ);
+    for (sr = (ncxmod_search_result_t *)dlq_firstEntry(instance, searchQ);
          sr != NULL;
-         sr = (ncxmod_search_result_t *)dlq_nextEntry(sr)) {
+         sr = (ncxmod_search_result_t *)dlq_nextEntry(instance, sr)) {
 
         if (modname) {
             if (sr->module == NULL ||
-                xml_strcmp(sr->module, modname)) {
+                xml_strcmp(instance, sr->module, modname)) {
                 continue;
             }
             if (revision) {
                 if (sr->revision == NULL || 
-                    xml_strcmp(sr->revision, revision)) {
+                    xml_strcmp(instance, sr->revision, revision)) {
                     continue;
                 }
             }
@@ -5665,12 +5770,12 @@ ncxmod_search_result_t *
             if (nslen != sr->nslen) {
                 continue;
             }
-            if (xml_strncmp(sr->namespacestr, nsuri, nslen)) {
+            if (xml_strncmp(instance, sr->namespacestr, nsuri, nslen)) {
                 continue;
             }
             return sr;
         } else {
-            SET_ERROR(ERR_INTERNAL_PTR);
+            SET_ERROR(instance, ERR_INTERNAL_PTR);
             return NULL;
         }
     }
@@ -5691,58 +5796,58 @@ ncxmod_search_result_t *
 *   pointer to malloced and filled in clone of sr
 *********************************************************************/
 ncxmod_search_result_t *
-    ncxmod_clone_search_result (const ncxmod_search_result_t *sr)
+    ncxmod_clone_search_result (ncx_instance_t *instance, const ncxmod_search_result_t *sr)
 {
     ncxmod_search_result_t *newsr;
 
 #ifdef DEBUG
     if (sr == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    newsr = ncxmod_new_search_result();
+    newsr = ncxmod_new_search_result(instance);
     if (newsr == NULL) {
         return NULL;
     }
 
     if (sr->module) {
-        newsr->module = xml_strdup(sr->module);
+        newsr->module = xml_strdup(instance, sr->module);
         if (newsr->module == NULL) {
-            ncxmod_free_search_result(newsr);
+            ncxmod_free_search_result(instance, newsr);
             return NULL;
         }
     }
 
     if (sr->belongsto) {
-        newsr->belongsto = xml_strdup(sr->belongsto);
+        newsr->belongsto = xml_strdup(instance, sr->belongsto);
         if (newsr->belongsto == NULL) {
-            ncxmod_free_search_result(newsr);
+            ncxmod_free_search_result(instance, newsr);
             return NULL;
         }
     }
 
     if (sr->revision) {
-        newsr->revision = xml_strdup(sr->revision);
+        newsr->revision = xml_strdup(instance, sr->revision);
         if (newsr->revision == NULL) {
-            ncxmod_free_search_result(newsr);
+            ncxmod_free_search_result(instance, newsr);
             return NULL;
         }
     }
 
     if (sr->namespacestr) {
-        newsr->namespacestr = xml_strdup(sr->namespacestr);
+        newsr->namespacestr = xml_strdup(instance, sr->namespacestr);
         if (newsr->namespacestr == NULL) {
-            ncxmod_free_search_result(newsr);
+            ncxmod_free_search_result(instance, newsr);
             return NULL;
         }
     }
 
     if (sr->source) {
-        newsr->source = xml_strdup(sr->source);
+        newsr->source = xml_strdup(instance, sr->source);
         if (newsr->source == NULL) {
-            ncxmod_free_search_result(newsr);
+            ncxmod_free_search_result(instance, newsr);
             return NULL;
         }
     }
@@ -5772,14 +5877,14 @@ ncxmod_search_result_t *
 *    FALSE otherwise
 *********************************************************************/
 boolean
-    ncxmod_test_filespec (const xmlChar *filespec)
+    ncxmod_test_filespec (ncx_instance_t *instance, const xmlChar *filespec)
 {
     int         ret;
     struct stat statbuf;
 
 #ifdef DEBUG
     if (filespec == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -5803,19 +5908,19 @@ boolean
 *    number of chars to keep for the path spec
 *********************************************************************/
 uint32
-    ncxmod_get_pathlen_from_filespec (const xmlChar *filespec)
+    ncxmod_get_pathlen_from_filespec (ncx_instance_t *instance, const xmlChar *filespec)
 {
     const xmlChar  *str;
     uint32          len;
     
 #ifdef DEBUG
     if (filespec == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
-    len = xml_strlen(filespec);
+    len = xml_strlen(instance, filespec);
     if (len == 0) {
         return 0;
     }

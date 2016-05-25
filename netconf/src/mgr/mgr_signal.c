@@ -96,6 +96,7 @@ static sighandler_t sh_int, sh_hup, sh_term, sh_pipe, sh_alarm, ctl_c;
 void
     mgr_signal_init (void)
 {
+// ATTN: Let the application be in charge of signals.
     if (!mgr_signal_init_done) {
         ctl_c = NULL;
 
@@ -151,17 +152,21 @@ void
         /* control-C */
         if (ctl_c) {
             (*ctl_c)(intr);
-        } else {
-            mgr_request_shutdown();
+        } else if (ncx_g_instance) {
+            mgr_request_shutdown(ncx_g_instance);
         }
         break;
     case SIGHUP:
         /* hang up treated as reset */
-        mgr_request_shutdown();
+        if (ncx_g_instance) {
+            mgr_request_shutdown(ncx_g_instance);
+        }
         break;
     case SIGTERM:
         /* kill -1 */
-        mgr_request_shutdown();
+        if (ncx_g_instance) {
+            mgr_request_shutdown(ncx_g_instance);
+        }
         break;
     case SIGPIPE:
         /* broken pipe ignored */
@@ -171,7 +176,7 @@ void
         /* mgr_timer_handler(); */
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(NULL /* ATTN */, ERR_INTERNAL_VAL);
     }
 
 } /* mgr_signal_handler */

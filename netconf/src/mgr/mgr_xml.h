@@ -120,19 +120,22 @@ extern "C" {
 *   Try to fail on fatal errors only
 *********************************************************************/
 extern status_t 
-    mgr_xml_consume_node (xmlTextReaderPtr reader,
+    mgr_xml_consume_node (struct ncx_instance_t_ *instance,
+			  xmlTextReaderPtr reader,
 			  xml_node_t       *node);
 
 /* consume node but do not generate namespace errors if seen 
  * needed to process subtree filters properly
  */
 extern status_t 
-    mgr_xml_consume_node_nons (xmlTextReaderPtr reader,
+    mgr_xml_consume_node_nons (struct ncx_instance_t_ *instance,
+			       xmlTextReaderPtr reader,
 			       xml_node_t      *node);
 
 /* re-get the current node */
 extern status_t 
-    mgr_xml_consume_node_noadv (xmlTextReaderPtr reader,
+    mgr_xml_consume_node_noadv (struct ncx_instance_t_ *instance,
+				xmlTextReaderPtr reader,
 				xml_node_t      *node);
 
 
@@ -155,7 +158,8 @@ extern status_t
 *   end node of the specified start node or a fatal error occurs
 *********************************************************************/
 extern status_t 
-    mgr_xml_skip_subtree (xmlTextReaderPtr reader,
+    mgr_xml_skip_subtree (struct ncx_instance_t_ *instance,
+			  xmlTextReaderPtr reader,
 			  const xml_node_t *startnode);
 
 #ifdef __cplusplus

@@ -73,7 +73,8 @@ extern "C" {
 *      1 if str1 is > str2
 *********************************************************************/
 extern int32
-    ncx_compare_strs (const ncx_str_t *str1,
+    ncx_compare_strs (struct ncx_instance_t_ *instance,
+		      const ncx_str_t *str1,
 		      const ncx_str_t *str2,
 		      ncx_btype_t  btyp);
 
@@ -99,7 +100,8 @@ extern int32
 *     status
 *********************************************************************/
 extern status_t
-    ncx_copy_str (const ncx_str_t *str1,
+    ncx_copy_str (struct ncx_instance_t_ *instance,
+		  const ncx_str_t *str1,
 		  ncx_str_t *str2,
 		  ncx_btype_t  btyp);
 
@@ -116,7 +118,7 @@ extern status_t
 *    str == ncx_str_t data structure to clean
 *********************************************************************/
 extern void 
-    ncx_clean_str (ncx_str_t *str);
+    ncx_clean_str (struct ncx_instance_t_ *instance, ncx_str_t *str);
 
 
 /********************************************************************

@@ -102,7 +102,8 @@ extern "C" {
 *     val;id info in the parameters 
 *********************************************************************/
 extern rpc_err_rec_t *
-    agt_rpcerr_gen_error (ncx_layer_t layer,
+    agt_rpcerr_gen_error (struct ncx_instance_t_ *instance,
+			  ncx_layer_t layer,
 			  status_t   interr,
 			  const xml_node_t *errnode,
 			  ncx_node_t parmtyp,
@@ -142,7 +143,8 @@ extern rpc_err_rec_t *
 *     val;id info in the parameters 
 *********************************************************************/
 extern rpc_err_rec_t *
-    agt_rpcerr_gen_error_errinfo (ncx_layer_t layer,
+    agt_rpcerr_gen_error_errinfo (struct ncx_instance_t_ *instance,
+				  ncx_layer_t layer,
 				  status_t   interr,
 				  const xml_node_t *errnode,
 				  ncx_node_t  parmtyp,
@@ -186,7 +188,8 @@ extern rpc_err_rec_t *
 *     val;id info in the parameters 
 *********************************************************************/
 extern rpc_err_rec_t *
-    agt_rpcerr_gen_error_ex (ncx_layer_t layer,
+    agt_rpcerr_gen_error_ex (struct ncx_instance_t_ *instance,
+                             ncx_layer_t layer,
                              status_t   interr,
                              const xml_node_t *errnode,
                              ncx_node_t  parmtyp,
@@ -220,7 +223,8 @@ extern rpc_err_rec_t *
 *     val;id info in the parameters 
 *********************************************************************/
 extern rpc_err_rec_t *
-    agt_rpcerr_gen_insert_error (ncx_layer_t layer,
+    agt_rpcerr_gen_insert_error (struct ncx_instance_t_ *instance,
+				 ncx_layer_t layer,
 				 status_t   interr,
 				 const val_value_t *errval,
 				 xmlChar *error_path);
@@ -252,7 +256,8 @@ extern rpc_err_rec_t *
 *     val;id info in the parameters 
 *********************************************************************/
 extern rpc_err_rec_t *
-    agt_rpcerr_gen_unique_error (xml_msg_hdr_t *msghdr,
+    agt_rpcerr_gen_unique_error (struct ncx_instance_t_ *instance,
+				 xml_msg_hdr_t *msghdr,
 				 ncx_layer_t layer,
 				 status_t   interr,
 				 const dlq_hdr_t *valuniqueQ,
@@ -282,7 +287,8 @@ extern rpc_err_rec_t *
 *     valid info in the parameters to generate an error report
 *********************************************************************/
 extern rpc_err_rec_t *
-    agt_rpcerr_gen_attr_error (ncx_layer_t layer,
+    agt_rpcerr_gen_attr_error (struct ncx_instance_t_ *instance,
+                               ncx_layer_t layer,
                                status_t   interr,
                                const xml_attr_t *attr,
                                const xml_node_t *errnode,

@@ -138,14 +138,15 @@ static boolean
 *   malloced and filled in string
 *********************************************************************/
 static xmlChar *
-    make_proc_varname (const char *varname,
+    make_proc_varname (ncx_instance_t *instance,
+                       const char *varname,
                        int varnamelen)
 {
     const char *str;
     xmlChar    *buff, *retbuff;
     int         count;
 
-    retbuff = (xmlChar *)m__getMem(varnamelen+1);
+    retbuff = (xmlChar *)m__getMem(instance, varnamelen+1);
     if (retbuff == NULL) {
         return NULL;
     }
@@ -182,7 +183,7 @@ static xmlChar *
 *   malloced and filled in string
 *********************************************************************/
 static xmlChar *
-    make_proc_value (const char *line)
+    make_proc_value (ncx_instance_t *instance, const char *line)
 
 {
     const char *str, *start;
@@ -205,7 +206,7 @@ static xmlChar *
         valuelen = (uint32)(str - start);
     }
         
-    return xml_strndup((const xmlChar *)start, valuelen);
+    return xml_strndup(instance, (const xmlChar *)start, valuelen);
     
 } /* make_proc_value */
 
@@ -228,7 +229,8 @@ static xmlChar *
 *   malloced and filled in leaf 
 *********************************************************************/
 static val_value_t *
-    make_proc_leaf (char *buffer,
+    make_proc_leaf (ncx_instance_t *instance,
+                    char *buffer,
                     obj_template_t *parentobj,
                     status_t *res)
 {
@@ -244,7 +246,7 @@ static val_value_t *
     if (colonchar == NULL) {
         /* skip this line, no colon char found */
         if (LOGDEBUG) {
-            log_debug("\nagt_proc: skipping line '%s'", buffer);
+            log_debug(instance, "\nagt_proc: skipping line '%s'", buffer);
         }
         return NULL;
     }
@@ -258,49 +260,51 @@ static val_value_t *
     if (str == buffer) {
         /* no keyword found */
         if (LOGDEBUG) {
-            log_debug("\nagt_proc: skipping line '%s'", buffer);
+            log_debug(instance, "\nagt_proc: skipping line '%s'", buffer);
         }
         return NULL;
     }
 
     /* get the converted parm name */
     parmnamelen = str-buffer+1;
-    parmname = make_proc_varname(buffer, parmnamelen);
+    parmname = make_proc_varname(instance, buffer, parmnamelen);
     if (parmname == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
     /* find the leaf for this parm name */
-    parmobj = obj_find_child(parentobj, proc_MOD, parmname);
+    parmobj = obj_find_child(instance, parentobj, proc_MOD, parmname);
 
-    m__free(parmname);
+    m__free(instance, parmname);
 
     if (parmobj == NULL) {
         /* no parameter to match this line */
         if (LOGDEBUG) {
-            log_debug("\nagt_proc: skipping <%s> line '%s'", 
-                      obj_get_name(parentobj),
+            log_debug(instance, 
+                      "\nagt_proc: skipping <%s> line '%s'", 
+                      obj_get_name(instance, parentobj),
                       buffer);
         }
         return NULL;
     }
 
     /* found the leaf, get the trimmed value string */
-    parmvalstr = make_proc_value(colonchar+1);
+    parmvalstr = make_proc_value(instance, colonchar+1);
     if (parmvalstr == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
     /* make the leaf value */
-    parmval = val_make_simval_obj(parmobj, parmvalstr, res);
+    parmval = val_make_simval_obj(instance, parmobj, parmvalstr, res);
 
-    m__free(parmvalstr);
+    m__free(instance, parmvalstr);
 
     if (parmval == NULL) {
-        log_error("\nError: make /proc leaf <%s> failed",
-                          obj_get_name(parmobj));
+        log_error(instance,
+                          "\nError: make /proc leaf <%s> failed",
+                          obj_get_name(instance, parmobj));
     }
 
     return parmval;
@@ -321,7 +325,7 @@ INPUTS:
 *   status
 *********************************************************************/
 static status_t
-    add_cpuinfo (val_value_t *procval)
+    add_cpuinfo (ncx_instance_t *instance, val_value_t *procval)
 {
     FILE                  *cpuinfofile;
     obj_template_t        *cpuinfoobj, *cpuobj;
@@ -331,7 +335,8 @@ static status_t
     status_t               res;
 
     /* find the cpuinfo object */
-    cpuinfoobj = obj_find_child(myprocobj,
+    cpuinfoobj = obj_find_child(instance,
+                                myprocobj,
                                 proc_MOD,
                                 proc_N_cpuinfo);
     if (cpuinfoobj == NULL) {
@@ -339,7 +344,8 @@ static status_t
     }
 
     /* find the cpu object */
-    cpuobj = obj_find_child(cpuinfoobj,
+    cpuobj = obj_find_child(instance,
+                            cpuinfoobj,
                             proc_MOD,
                             proc_N_cpu);
     if (cpuobj == NULL) {
@@ -353,23 +359,23 @@ static status_t
     }
 
     /* get a file read line buffer */
-    buffer = m__getMem(NCX_MAX_LINELEN);
+    buffer = m__getMem(instance, NCX_MAX_LINELEN);
     if (buffer == NULL) {
         fclose(cpuinfofile);
         return ERR_INTERNAL_MEM;
     }
 
     /* create cpuinfo container */
-    cpuinfoval = val_new_value();
+    cpuinfoval = val_new_value(instance);
     if (cpuinfoval == NULL) {
-        m__free(buffer);
+        m__free(instance, buffer);
         fclose(cpuinfofile);
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(cpuinfoval, cpuinfoobj);
+    val_init_from_template(instance, cpuinfoval, cpuinfoobj);
 
     /* hand off cpuinfoval memory here */
-    val_add_child(cpuinfoval, procval);
+    val_add_child(instance, cpuinfoval, procval);
 
     /* loop through the file until done */
     res = NO_ERR;
@@ -383,47 +389,48 @@ static status_t
         }
 
         if (cpuval == NULL) {
-            cpuval = val_new_value();
+            cpuval = val_new_value(instance);
             if (cpuval == NULL) {
                 res = ERR_INTERNAL_MEM;
                 done = TRUE;
                 continue;
             } else {
-                val_init_from_template(cpuval, cpuobj);
+                val_init_from_template(instance, cpuval, cpuobj);
                 /* hand off cpuval memory here */
-                val_add_child(cpuval, cpuinfoval);
+                val_add_child(instance, cpuval, cpuinfoval);
             }
         } /* else already have an active 'cpu' entry */
 
         if (strlen(buffer) == 1 && *buffer == '\n') {
             /* force a new CPU entry */
             if (cpuval) {
-                res = val_gen_index_chain(cpuobj, cpuval);
+                res = val_gen_index_chain(instance, cpuobj, cpuval);
                 if (res == NO_ERR) {
                     cpuval = NULL;
                 } else {
-                    log_error("\nError:val_gen_index failed (%s)",
+                    log_error(instance,
+                              "\nError:val_gen_index failed (%s)",
                               get_error_string(res));
                 }
                 /* else empty line in cpu entry, e.g. arm */
             }
         } else {
             res = NO_ERR;
-            parmval = make_proc_leaf(buffer, cpuobj, &res);
+            parmval = make_proc_leaf(instance, buffer, cpuobj, &res);
             if (parmval) {
-                val_add_child(parmval, cpuval);
+                val_add_child(instance, parmval, cpuval);
             }
         }
     }
 
     if (res == NO_ERR && cpuval) {
-        if (val_get_first_index(cpuval) == NULL) {
-            val_gen_index_chain(cpuobj, cpuval);
+        if (val_get_first_index(instance, cpuval) == NULL) {
+            val_gen_index_chain(instance, cpuobj, cpuval);
         }
     }
             
     fclose(cpuinfofile);
-    m__free(buffer);
+    m__free(instance, buffer);
 
     return res;
 
@@ -442,7 +449,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t 
-    get_meminfo (ses_cb_t *scb,
+    get_meminfo (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  getcb_mode_t cbmode,
                  val_value_t *virval,
                  val_value_t  *dstval)
@@ -470,7 +478,7 @@ static status_t
     }
 
     /* get a file read line buffer */
-    buffer = m__getMem(NCX_MAX_LINELEN);
+    buffer = m__getMem(instance, NCX_MAX_LINELEN);
     if (buffer == NULL) {
         fclose(meminfofile);
         return ERR_INTERNAL_MEM;
@@ -490,15 +498,15 @@ static status_t
             ;
         } else {
             res = NO_ERR;
-            parmval = make_proc_leaf(buffer, meminfoobj, &res);
+            parmval = make_proc_leaf(instance, buffer, meminfoobj, &res);
             if (parmval) {
-                val_add_child(parmval, dstval);
+                val_add_child(instance, parmval, dstval);
             }
         }
     }
 
     fclose(meminfofile);
-    m__free(buffer);
+    m__free(instance, buffer);
 
     return res;
 
@@ -518,13 +526,14 @@ INPUTS:
 *   status
 *********************************************************************/
 static status_t
-    add_meminfo (val_value_t *procval)
+    add_meminfo (ncx_instance_t *instance, val_value_t *procval)
 {
     obj_template_t        *meminfoobj;
     val_value_t           *meminfoval;
 
     /* find the meminfo object */
-    meminfoobj = obj_find_child(myprocobj,
+    meminfoobj = obj_find_child(instance,
+                                myprocobj,
                                 proc_MOD,
                                 proc_N_meminfo);
     if (meminfoobj == NULL) {
@@ -532,14 +541,14 @@ static status_t
     }
 
     /* create meminfo virtual NP container */
-    meminfoval = val_new_value();
+    meminfoval = val_new_value(instance);
     if (meminfoval == NULL) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_virtual(meminfoval, get_meminfo, meminfoobj);
+    val_init_virtual(instance, meminfoval, get_meminfo, meminfoobj);
 
     /* hand off meminfoval memory here */
-    val_add_child(meminfoval, procval);
+    val_add_child(instance, meminfoval, procval);
 
     return NO_ERR;
 
@@ -561,16 +570,16 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    agt_proc_init (void)
+    agt_proc_init (ncx_instance_t *instance)
 {
     agt_profile_t   *agt_profile;
     status_t         res;
 
     if (agt_proc_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
-    log_debug2("\nagt: Loading proc module");
+    log_debug2(instance, "\nagt: Loading proc module");
 
     agt_profile = agt_get_profile();
     procmod = NULL;
@@ -579,7 +588,8 @@ status_t
     agt_proc_init_done = TRUE;
 
     /* load the netconf-state module */
-    res = ncxmod_load_module(proc_MOD,
+    res = ncxmod_load_module(instance,
+                             proc_MOD,
                              proc_MOD_REV,
                              &agt_profile->agt_savedevQ,
                              &procmod);
@@ -602,13 +612,13 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    agt_proc_init2 (void)
+    agt_proc_init2 (ncx_instance_t *instance)
 {
     cfg_template_t        *runningcfg;
     status_t               res;
 
     if (!agt_proc_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
     res = NO_ERR;
@@ -616,38 +626,39 @@ status_t
     /* check if /proc file system supported */
     if (!is_proc_supported()) {
         if (LOGDEBUG) {
-            log_debug("\nagt_proc: no /proc support found");
+            log_debug(instance, "\nagt_proc: no /proc support found");
         }
         return NO_ERR;
     }
 
-    runningcfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+    runningcfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
     if (!runningcfg || !runningcfg->root) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* get all the object nodes first */
-    myprocobj = obj_find_template_top(procmod, 
+    myprocobj = obj_find_template_top(instance, 
+                                      procmod, 
                                       proc_MOD,
                                       proc_N_proc);
     if (!myprocobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* add /proc */
-    myprocval = val_new_value();
+    myprocval = val_new_value(instance);
     if (!myprocval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(myprocval, myprocobj);
+    val_init_from_template(instance, myprocval, myprocobj);
 
     /* handing off the malloced memory here */
-    val_add_child_sorted(myprocval, runningcfg->root);
+    val_add_child_sorted(instance, myprocval, runningcfg->root);
 
-    res = add_cpuinfo(myprocval);
+    res = add_cpuinfo(instance, myprocval);
 
     if (res == NO_ERR) {
-        res = add_meminfo(myprocval);
+        res = add_meminfo(instance, myprocval);
     }
 
     return res;

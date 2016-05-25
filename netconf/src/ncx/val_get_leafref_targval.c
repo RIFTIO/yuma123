@@ -22,24 +22,25 @@
 #include "xpath1.h"
 #include "xpath_yang.h"
 #include "yangconst.h"
+#include "val_get_leafref_targval.h"
 
-val_value_t* val_get_leafref_targval(val_value_t *leafref_val, val_value_t *root_val)
+val_value_t* val_get_leafref_targval(struct ncx_instance_t_ *instance, val_value_t *leafref_val, val_value_t *root_val)
 {
     status_t res;
     val_value_t* target_val =NULL;
 
     xpath_resnode_t *resnode;
     xpath_result_t *result =
-            xpath1_eval_expr(leafref_val->xpathpcb, leafref_val, root_val, FALSE /* logerrors */, FALSE /* non-configonly */, &res);
+            xpath1_eval_expr(instance, leafref_val->xpathpcb, leafref_val, root_val, FALSE /* logerrors */, FALSE /* non-configonly */, &res);
     assert(result);
-    for (resnode = (xpath_resnode_t *)dlq_firstEntry(&result->r.nodeQ);
+    for (resnode = (xpath_resnode_t *)dlq_firstEntry(instance, &result->r.nodeQ);
          resnode != NULL;
-         resnode = (xpath_resnode_t *)dlq_nextEntry(resnode)) {
+         resnode = (xpath_resnode_t *)dlq_nextEntry(instance, resnode)) {
         char* target_str;
         val_value_t* val;
         val = resnode->node.valptr;
-        target_str = val_make_sprintf_string(val);
-        if(0==strcmp(target_str,VAL_STRING(leafref_val))) {
+        target_str = (char *)val_make_sprintf_string(instance, val);
+        if(0==strcmp(target_str, (char *)VAL_STRING(leafref_val))) {
             free(target_str);
             target_val = val;
             break;

@@ -165,7 +165,8 @@ date         init     comment
 *    status
 *********************************************************************/
 static status_t
-    send_get_schema_to_server (server_cb_t *server_cb,
+    send_get_schema_to_server (ncx_instance_t *instance,
+                              server_cb_t *server_cb,
                               ses_cb_t *scb,
                               const xmlChar *module,
                               const xmlChar *revision)
@@ -182,82 +183,87 @@ static status_t
     res = NO_ERR;
     input = NULL;
     nsid = 0;
-    mod = ncx_find_module(NCXMOD_IETF_NETCONF_STATE, NULL);
+    mod = ncx_find_module(instance, NCXMOD_IETF_NETCONF_STATE, NULL);
     if (mod == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* get the <get-schema> input template */
-    rpc = ncx_find_rpc(mod,  NCX_EL_GET_SCHEMA);
+    rpc = ncx_find_rpc(instance,  mod,  NCX_EL_GET_SCHEMA);
     if (rpc) {
-        nsid = obj_get_nsid(rpc);
-        input = obj_find_child(rpc, NULL, YANG_K_INPUT);
+        nsid = obj_get_nsid(instance, rpc);
+        input = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     }
 
     if (!input) {
-        res = SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        res = SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     } else {
         /* construct a method + parameter tree */
-        reqdata = xml_val_new_struct(obj_get_name(rpc), 
+        reqdata = xml_val_new_struct(instance, 
+                                     obj_get_name(instance, rpc), 
                                      nsid);
         if (!reqdata) {
-            log_error("\nError allocating a new RPC request");
+            log_error(instance, "\nError allocating a new RPC request");
             res = ERR_INTERNAL_MEM;
         }
     }
 
     /* add /get-schema/input/identifier */
     if (res == NO_ERR) {
-        parmval = xml_val_new_cstring(NCX_EL_IDENTIFIER,
+        parmval = xml_val_new_cstring(instance,
+                                      NCX_EL_IDENTIFIER,
                                       nsid,
                                       module);
         if (parmval == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
-            val_add_child(parmval, reqdata);
+            val_add_child(instance, parmval, reqdata);
         }
     }
 
     /* add /get-schema/input/version */
     if (res == NO_ERR) {
-        parmval = xml_val_new_cstring(NCX_EL_VERSION,
+        parmval = xml_val_new_cstring(instance,
+                                      NCX_EL_VERSION,
                                       nsid,
                                       (revision) ? revision : EMPTY_STRING);
         if (parmval == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
-            val_add_child(parmval, reqdata);
+            val_add_child(instance, parmval, reqdata);
         }
     }
 
     /* add /get-schema/input/format */
     if (res == NO_ERR) {
-        parmobj = obj_find_child(input,
+        parmobj = obj_find_child(instance,
+                                 input,
                                  NCXMOD_IETF_NETCONF_STATE,
                                  NCX_EL_FORMAT);
         if (parmobj == NULL) {
-            res = SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+            res = SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
         } else {
-            parmval = val_make_simval_obj(parmobj,
+            parmval = val_make_simval_obj(instance,
+                                          parmobj,
                                           (const xmlChar *)"yang",
                                           &res);
             if (parmval != NULL) {
-                val_add_child(parmval, reqdata);
+                val_add_child(instance, parmval, reqdata);
             }
         }
     }
 
     /* check any errors so far */
     if (res != NO_ERR) {
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return res;
     }
 
     /* allocate an RPC request and send it */
-    req = mgr_rpc_new_request(scb);
+    req = mgr_rpc_new_request(instance, scb);
     if (!req) {
         res = ERR_INTERNAL_MEM;
-        log_error("\nError allocating a new RPC request");
+        log_error(instance, "\nError allocating a new RPC request");
     } else {
         req->data = reqdata;
         req->rpc = rpc;
@@ -266,13 +272,15 @@ static status_t
         
     if (res == NO_ERR) {
         if (LOGDEBUG) {
-            log_debug("\nSending autoload request for '%s', r'%s'",
+            log_debug(instance,
+                      "\nSending autoload request for '%s', r'%s'",
                       module,
                       (revision) ? revision : EMPTY_STRING);
         } 
         if (LOGDEBUG2) {
-            log_debug2("\nabout to send RPC request with reqdata:");
-            val_dump_value_max(reqdata, 
+            log_debug2(instance, "\nabout to send RPC request with reqdata:");
+            val_dump_value_max(instance, 
+                               reqdata, 
                                0,
                                server_cb->defindent,
                                DUMP_VAL_LOG,
@@ -282,14 +290,14 @@ static status_t
         }
 
         /* the request will be stored if this returns NO_ERR */
-        res = mgr_rpc_send_request(scb, req, yangcli_reply_handler);
+        res = mgr_rpc_send_request(instance, scb, req, (mgr_rpc_cbfn_t)yangcli_reply_handler);
     }
 
     if (res != NO_ERR) {
         if (req) {
-            mgr_rpc_free_request(req);
+            mgr_rpc_free_request(instance, req);
         } else if (reqdata) {
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
         }
     } else {
         server_cb->state = MGR_IO_ST_CONN_RPYWAIT;
@@ -317,7 +325,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    save_schema_file (server_cb_t *server_cb,
+    save_schema_file (ncx_instance_t *instance,
+                      server_cb_t *server_cb,
                       const xmlChar *module,
                       const xmlChar *revision,
                       const xmlChar *targetfile,
@@ -330,12 +339,14 @@ static status_t
     res = NO_ERR;
 
     if (LOGDEBUG) {
-        log_debug("\nGot autoload reply for '%s' r'%s'",
+        log_debug(instance,
+                  "\nGot autoload reply for '%s' r'%s'",
                   module,
                   (revision) ? revision : EMPTY_STRING);
     }
     if (LOGDEBUG2) {
-        log_debug2("\n*** output <get-schema> result "
+        log_debug2(instance,
+                   "\n*** output <get-schema> result "
                    "\n   module '%s'"
                    "\n   revision '%'s"
                    "\n   target '%s'",
@@ -347,15 +358,17 @@ static status_t
     /* see if file already exists */
     statresult = stat((const char *)targetfile, &statbuf);
     if (statresult == 0) {
-        log_error("\nError: temporary file '%s' already exists",
+        log_error(instance,
+                  "\nError: temporary file '%s' already exists",
                   targetfile);
         return ERR_NCX_DATA_EXISTS;
     }
     
     /* output in text format to the specified file */
-    res = log_alt_open((const char *)targetfile);
+    res = log_alt_open(instance, (const char *)targetfile);
     if (res != NO_ERR) {
-        log_error("\nError: temporary file '%s' could "
+        log_error(instance,
+                  "\nError: temporary file '%s' could "
                   "not be opened (%s)",
                   targetfile,
                   get_error_string(res));
@@ -363,13 +376,14 @@ static status_t
         /* do not use session display mode and other parameters
          * when saving a schema file; save as-is
          */
-        val_dump_alt_value(resultval, 0);
-        log_alt_close();
+        val_dump_alt_value(instance, resultval, 0);
+        log_alt_close(instance);
 
         /* copy the target filename into the search result */
-        server_cb->cursearchresult->source = xml_strdup(targetfile);
+        server_cb->cursearchresult->source = xml_strdup(instance, targetfile);
         if (server_cb->cursearchresult->source == NULL) {
-            log_error("\nError: malloc failed for temporary file '%s'",
+            log_error(instance,
+                      "\nError: malloc failed for temporary file '%s'",
                       targetfile);
             return ERR_INTERNAL_MEM;
         }
@@ -395,7 +409,8 @@ static status_t
 *    TRUE if processing should continue, FALSE if done
 *********************************************************************/
 static boolean
-    reset_feature (const ncx_module_t *mod,
+    reset_feature (ncx_instance_t *instance,
+                   const ncx_module_t *mod,
                    ncx_feature_t *feature,
                    void *cookie)
 {
@@ -405,7 +420,7 @@ static boolean
     feature_list = (const ncx_list_t *)cookie;
 
     feature->enabled = 
-        (ncx_string_in_list(feature->name, feature_list)) ?
+        (ncx_string_in_list(instance, feature->name, feature_list)) ?
         TRUE : FALSE;
 
     return TRUE;
@@ -435,7 +450,8 @@ static boolean
  *   NULL if some error (see *res)
  *********************************************************************/
 static ncxmod_temp_filcb_t *
-    get_new_temp_filcb (mgr_scb_t *mscb,
+    get_new_temp_filcb (ncx_instance_t *instance,
+                        mgr_scb_t *mscb,
                         const xmlChar *module,
                         const xmlChar *revision,
                         boolean isyang,
@@ -448,9 +464,9 @@ static ncxmod_temp_filcb_t *
     *res = NO_ERR;
 
     /* figure out how big the filename will be */
-    len_needed = xml_strlen(module);
+    len_needed = xml_strlen(instance, module);
     if (revision) {
-        len_needed += (xml_strlen(revision) + 1);
+        len_needed += (xml_strlen(instance, revision) + 1);
     }
     if (isyang) {
         len_needed += 5;   /* .yang */
@@ -458,7 +474,7 @@ static ncxmod_temp_filcb_t *
         len_needed += 4;   /* .yin */
     }
 
-    filebuffer = m__getMem(len_needed+1);
+    filebuffer = m__getMem(instance, len_needed+1);
     if (filebuffer == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -466,25 +482,26 @@ static ncxmod_temp_filcb_t *
 
     /* construct a file name for the target file */
     p = filebuffer;
-    p += xml_strcpy(p, module);
+    p += xml_strcpy(instance, p, module);
     if (revision) {
         *p++ = '@';
-        p += xml_strcpy(p, revision);
+        p += xml_strcpy(instance, p, revision);
     }
     if (isyang) {
-        p += xml_strcpy(p, (const xmlChar *)".yang");
+        p += xml_strcpy(instance, p, (const xmlChar *)".yang");
     } else {
-        p += xml_strcpy(p, (const xmlChar *)".yin");
+        p += xml_strcpy(instance, p, (const xmlChar *)".yin");
     }
 
     /* get a temp file control block
      * it will be stored in the session control block
      * so it is not a live malloced pointer
      */
-    temp_filcb = ncxmod_new_session_tempfile(mscb->temp_sescb,
+    temp_filcb = ncxmod_new_session_tempfile(instance,
+                                             mscb->temp_sescb,
                                              filebuffer,
                                              res);
-    m__free(filebuffer);
+    m__free(instance, filebuffer);
     return temp_filcb;
 
 }   /* get_new_temp_filcb */
@@ -505,7 +522,8 @@ static ncxmod_temp_filcb_t *
  *   status
  *********************************************************************/
 static status_t
-    copy_module_to_tempdir (mgr_scb_t *mscb,
+    copy_module_to_tempdir (ncx_instance_t *instance,
+                            mgr_scb_t *mscb,
                             const xmlChar *module,
                             const xmlChar *revision,
                             const xmlChar *source)
@@ -521,29 +539,30 @@ static status_t
     srcfile = NULL;
     destfile = NULL;
 
-    if (yang_fileext_is_yang(source)) {
+    if (yang_fileext_is_yang(instance, source)) {
         isyang = TRUE;
-    } else if (yang_fileext_is_yin(source)) {
+    } else if (yang_fileext_is_yin(instance, source)) {
         isyang = FALSE;
     } else {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    temp_filcb = get_new_temp_filcb(mscb, module, revision, isyang, &res);
+    temp_filcb = get_new_temp_filcb(instance, mscb, module, revision, isyang, &res);
     if (temp_filcb == NULL) {
         return res;
     }
 
     /* get a buffer for transferring lines */
-    linebuffer = m__getMem(NCX_MAX_LINELEN+1);;
+    linebuffer = m__getMem(instance, NCX_MAX_LINELEN+1);;
     if (linebuffer == NULL) {
-        ncxmod_free_session_tempfile(temp_filcb);
+        ncxmod_free_session_tempfile(instance, temp_filcb);
         return ERR_INTERNAL_MEM;
     }
 
 #ifdef YANGCLI_AUTOLOAD_DEBUG
     if (LOGDEBUG2) {
-        log_debug2("\nyangcli_autoload: Copying '%s' to '%s'",
+        log_debug2(instance,
+                   "\nyangcli_autoload: Copying '%s' to '%s'",
                    source,
                    temp_filcb->source);
     }
@@ -553,8 +572,8 @@ static status_t
     destfile = fopen((const char *)temp_filcb->source, "w");
     if (destfile == NULL) {
         res = errno_to_status();
-        ncxmod_free_session_tempfile(temp_filcb);
-        m__free(linebuffer);
+        ncxmod_free_session_tempfile(instance, temp_filcb);
+        m__free(instance, linebuffer);
         return res;
     }
 
@@ -563,8 +582,8 @@ static status_t
     if (srcfile == NULL) {
         res = errno_to_status();
         fclose(destfile);
-        ncxmod_free_session_tempfile(temp_filcb);
-        m__free(linebuffer);
+        ncxmod_free_session_tempfile(instance, temp_filcb);
+        m__free(instance, linebuffer);
         return res;
     }
 
@@ -577,7 +596,7 @@ static status_t
         }
 
         if (fputs((const char *)linebuffer, destfile) == EOF) {
-            log_error("\nError: copy to temp file failed");
+            log_error(instance, "\nError: copy to temp file failed");
             /*** keeping partial file around!!! ***/
             done = TRUE;
             res = ERR_FIL_WRITE;
@@ -586,7 +605,7 @@ static status_t
 
     fclose(srcfile);
     fclose(destfile);
-    m__free(linebuffer);
+    m__free(instance, linebuffer);
 
     return res;
 
@@ -606,12 +625,13 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    set_temp_ync_features (mgr_scb_t *mscb)
+    set_temp_ync_features (ncx_instance_t *instance, mgr_scb_t *mscb)
 {
     status_t    res;
 
     if (cap_std_set(&mscb->caplist, CAP_STDID_WRITE_RUNNING)) {
-        res = ncx_set_list(NCX_BT_STRING,
+        res = ncx_set_list(instance,
+                           NCX_BT_STRING,
                            NCX_EL_WRITABLE_RUNNING,
                            &mscb->temp_ync_features);
         if (res != NO_ERR) {
@@ -620,7 +640,8 @@ static status_t
     }
 
     if (cap_std_set(&mscb->caplist, CAP_STDID_CANDIDATE)) {
-        res = ncx_set_list(NCX_BT_STRING,
+        res = ncx_set_list(instance,
+                           NCX_BT_STRING,
                            NCX_EL_CANDIDATE,
                            &mscb->temp_ync_features);
         if (res != NO_ERR) {
@@ -629,7 +650,8 @@ static status_t
     }
 
     if (cap_std_set(&mscb->caplist, CAP_STDID_CONF_COMMIT)) {
-        res = ncx_set_list(NCX_BT_STRING,
+        res = ncx_set_list(instance,
+                           NCX_BT_STRING,
                            NCX_EL_CONFIRMED_COMMIT,
                            &mscb->temp_ync_features);
         if (res != NO_ERR) {
@@ -638,7 +660,8 @@ static status_t
     }
 
     if (cap_std_set(&mscb->caplist, CAP_STDID_ROLLBACK_ERR)) {
-        res = ncx_set_list(NCX_BT_STRING,
+        res = ncx_set_list(instance,
+                           NCX_BT_STRING,
                            NCX_EL_ROLLBACK_ON_ERROR,
                            &mscb->temp_ync_features);
         if (res != NO_ERR) {
@@ -647,7 +670,8 @@ static status_t
     }
 
     if (cap_std_set(&mscb->caplist, CAP_STDID_VALIDATE)) {
-        res = ncx_set_list(NCX_BT_STRING,
+        res = ncx_set_list(instance,
+                           NCX_BT_STRING,
                            NCX_EL_VALIDATE,
                            &mscb->temp_ync_features);
         if (res != NO_ERR) {
@@ -656,7 +680,8 @@ static status_t
     }
 
     if (cap_std_set(&mscb->caplist, CAP_STDID_STARTUP)) {
-        res = ncx_set_list(NCX_BT_STRING,
+        res = ncx_set_list(instance,
+                           NCX_BT_STRING,
                            NCX_EL_STARTUP,
                            &mscb->temp_ync_features);
         if (res != NO_ERR) {
@@ -665,7 +690,8 @@ static status_t
     }
 
     if (cap_std_set(&mscb->caplist, CAP_STDID_URL)) {
-        res = ncx_set_list(NCX_BT_STRING,
+        res = ncx_set_list(instance,
+                           NCX_BT_STRING,
                            NCX_EL_URL,
                            &mscb->temp_ync_features);
         if (res != NO_ERR) {
@@ -674,7 +700,8 @@ static status_t
     }
 
     if (cap_std_set(&mscb->caplist, CAP_STDID_XPATH)) {
-        res = ncx_set_list(NCX_BT_STRING,
+        res = ncx_set_list(instance,
+                           NCX_BT_STRING,
                            NCX_EL_XPATH,
                            &mscb->temp_ync_features);
         if (res != NO_ERR) {
@@ -705,7 +732,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    autoload_module (const xmlChar *modname,
+    autoload_module (ncx_instance_t *instance,
+                     const xmlChar *modname,
                      const xmlChar *revision,
                      ncx_list_t *devlist,
                      ncx_module_t **retmod)
@@ -716,25 +744,28 @@ static status_t
     log_debug_t             loglevel;
 
     if (LOGDEBUG2) {
-        log_debug2("\nStarting autoload for module '%s', "
+        log_debug2(instance,
+                   "\nStarting autoload for module '%s', "
                    "revision '%s'",
                    modname,
                    (revision) ? revision : EMPTY_STRING);
     }
 
     res = NO_ERR;
-    dlq_createSQue(&savedevQ);
+    dlq_createSQue(instance, &savedevQ);
 
     /* first load any deviations */
     if (devlist != NULL) {
-        for (listmember = ncx_first_lmem(devlist);
+        for (listmember = ncx_first_lmem(instance, devlist);
              listmember != NULL && res == NO_ERR;
-             listmember = (ncx_lmem_t *)dlq_nextEntry(listmember)) {
+             listmember = (ncx_lmem_t *)dlq_nextEntry(instance, listmember)) {
 
-            res = ncxmod_load_deviation(listmember->val.str,
+            res = ncxmod_load_deviation(instance,
+                                        listmember->val.str,
                                         &savedevQ);
             if (res != NO_ERR) {
-                log_error("\nError: Deviation module %s not loaded (%s)!!",
+                log_error(instance,
+                          "\nError: Deviation module %s not loaded (%s)!!",
                           listmember->val.str, 
                           get_error_string(res));
             }
@@ -746,16 +777,17 @@ static status_t
      */
     if (res == NO_ERR) {
         if (LOGDEBUG) {
-            res = ncxmod_parse_module(modname, revision, &savedevQ, retmod);
+            res = ncxmod_parse_module(instance, modname, revision, &savedevQ, retmod);
         } else {
             /* ignore parse warnings during autoload unless debug mode */
-            loglevel = log_get_debug_level();
-            log_set_debug_level(LOG_DEBUG_ERROR);
-            res = ncxmod_parse_module(modname, revision, &savedevQ, retmod);
-            log_set_debug_level(loglevel);
+            loglevel = log_get_debug_level(instance);
+            log_set_debug_level(instance, LOG_DEBUG_ERROR);
+            res = ncxmod_parse_module(instance, modname, revision, &savedevQ, retmod);
+            log_set_debug_level(instance, loglevel);
         }
         if (res != NO_ERR) {
-            log_error("\nError: Auto-load for module '%s' failed (%s)",
+            log_error(instance,
+                      "\nError: Auto-load for module '%s' failed (%s)",
                       modname, 
                       get_error_string(res));
         } else if (retmod != NULL && *retmod != NULL) {
@@ -763,7 +795,7 @@ static status_t
         }
     }
 
-    ncx_clean_save_deviationsQ(&savedevQ);
+    ncx_clean_save_deviationsQ(instance, &savedevQ);
 
     return res;
 
@@ -799,7 +831,8 @@ static status_t
 *    status
 *********************************************************************/
 status_t
-    autoload_setup_tempdir (server_cb_t *server_cb,
+    autoload_setup_tempdir (ncx_instance_t *instance,
+                            server_cb_t *server_cb,
                             ses_cb_t *scb)
 {
     mgr_scb_t               *mscb;
@@ -810,7 +843,7 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !scb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -825,10 +858,10 @@ status_t
 
     /* try to copy as many files as possible, even if some errors */
     for (searchresult = (ncxmod_search_result_t *)
-             dlq_firstEntry(&server_cb->searchresultQ);
+             dlq_firstEntry(instance, &server_cb->searchresultQ);
          searchresult != NULL;
          searchresult = (ncxmod_search_result_t *)
-             dlq_nextEntry(searchresult)) {
+             dlq_nextEntry(instance, searchresult)) {
 
         /* skip bad entries and not-found entries */
         if (searchresult->module == NULL ||
@@ -841,7 +874,7 @@ status_t
          * the module was found, so the source was set
          */
         if (!searchresult->capmatch) {
-            m__free(searchresult->source);
+            m__free(instance, searchresult->source);
             searchresult->source = NULL;
             continue;
         }
@@ -849,16 +882,20 @@ status_t
         /* check yuma-netconf hack; remove this code
          * when ietf-netconf is supported
          */
-        if (!xml_strcmp(searchresult->module, 
+        if (!xml_strcmp(instance, 
+                        searchresult->module, 
                         NCXMOD_NCX)) {
             need_ncx = FALSE;
-        } else if (!xml_strcmp(searchresult->module, 
+        } else if (!xml_strcmp(instance, 
+                               searchresult->module, 
                                NCXMOD_IETF_YANG_TYPES)) {
             need_yt = FALSE;
-        } else if (!xml_strcmp(searchresult->module, 
+        } else if (!xml_strcmp(instance,
+                               searchresult->module, 
                                NCXMOD_IETF_NETCONF_ACM)) {
             need_nacm = FALSE;
-        } else if (!xml_strcmp(searchresult->module, 
+        } else if (!xml_strcmp(instance, 
+                               searchresult->module, 
                                NCXMOD_YUMA_NETCONF)) {
             need_ync = FALSE;
         }
@@ -867,7 +904,8 @@ status_t
          * it will be found in an import, even if the
          * revision-date is missing from the import
          */
-        res = copy_module_to_tempdir(mscb,
+        res = copy_module_to_tempdir(instance,
+                                     mscb,
                                      searchresult->module,
                                      searchresult->revision,
                                      searchresult->source);
@@ -879,48 +917,53 @@ status_t
 
     if (retres == NO_ERR) {
         if (need_yt) {
-            testmod = ncx_find_module(NCXMOD_IETF_YANG_TYPES,
+            testmod = ncx_find_module(instance,
+                                      NCXMOD_IETF_YANG_TYPES,
                                       NULL);
             if (testmod != NULL) {
-                res = copy_module_to_tempdir(mscb,
+                res = copy_module_to_tempdir(instance,
+                                             mscb,
                                              testmod->name,
                                              testmod->version,
                                              testmod->source);
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         if (need_ncx) {
-            testmod = ncx_find_module(NCXMOD_NCX, NULL);
+            testmod = ncx_find_module(instance, NCXMOD_NCX, NULL);
             if (testmod != NULL) {
-                res = copy_module_to_tempdir(mscb,
+                res = copy_module_to_tempdir(instance,
+                                             mscb,
                                              testmod->name,
                                              testmod->version,
                                              testmod->source);
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         if (need_nacm) {
-            testmod = ncx_find_module(NCXMOD_IETF_NETCONF_ACM, NULL);
+            testmod = ncx_find_module(instance, NCXMOD_IETF_NETCONF_ACM, NULL);
             if (testmod != NULL) {
-                res = copy_module_to_tempdir(mscb,
+                res = copy_module_to_tempdir(instance,
+                                             mscb,
                                              testmod->name,
                                              testmod->version,
                                              testmod->source);
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         if (need_ync) {
-            testmod = ncx_find_module(NCXMOD_YUMA_NETCONF, NULL);
+            testmod = ncx_find_module(instance, NCXMOD_YUMA_NETCONF, NULL);
             if (testmod != NULL) {
-                res = copy_module_to_tempdir(mscb,
+                res = copy_module_to_tempdir(instance,
+                                             mscb,
                                              testmod->name,
                                              testmod->version,
                                              testmod->source);
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
     }
@@ -951,7 +994,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    autoload_start_get_modules (server_cb_t *server_cb,
+    autoload_start_get_modules (ncx_instance_t *instance,
+                                server_cb_t *server_cb,
                                 ses_cb_t *scb)
 {
     ncxmod_search_result_t  *searchresult;
@@ -960,7 +1004,7 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !scb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -969,10 +1013,10 @@ status_t
 
     /* find first file that needs to be retrieved with get-schema */
     for (searchresult = (ncxmod_search_result_t *)
-             dlq_firstEntry(&server_cb->searchresultQ);
+             dlq_firstEntry(instance, &server_cb->searchresultQ);
          searchresult != NULL && !done;
          searchresult = (ncxmod_search_result_t *)
-             dlq_nextEntry(searchresult)) {
+             dlq_nextEntry(instance, searchresult)) {
 
         /* skip found entries */
         if (searchresult->source != NULL) {
@@ -990,7 +1034,8 @@ status_t
          */
         done = TRUE;
 
-        res = send_get_schema_to_server(server_cb,
+        res = send_get_schema_to_server(instance,
+                                       server_cb,
                                        scb,
                                        searchresult->module,
                                        searchresult->revision);
@@ -1031,7 +1076,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    autoload_handle_rpc_reply (server_cb_t *server_cb,
+    autoload_handle_rpc_reply (ncx_instance_t *instance,
+                               server_cb_t *server_cb,
                                ses_cb_t *scb,
                                val_value_t *reply,
                                boolean anyerrors)
@@ -1046,7 +1092,7 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !scb || !reply) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1061,14 +1107,16 @@ status_t
         /* going to skip this module any try to
          * compile without it
          */
-        log_error("\nError: <get-schema> for module '%s', "
+        log_error(instance,
+                  "\nError: <get-schema> for module '%s', "
                   "revision '%s' failed",
                   module,
                   (revision) ? revision : EMPTY_STRING);
         if (!LOGDEBUG2) {
             /* the error was never printed */
             if (LOGINFO) {
-                val_dump_value_max(reply, 
+                val_dump_value_max(instance, 
+                                   reply, 
                                    0,
                                    server_cb->defindent,
                                    DUMP_VAL_LOG,
@@ -1082,14 +1130,15 @@ status_t
          * it contains the requested YANG module
          * in raw text form
          */
-        dataval = val_find_child(reply, NULL, NCX_EL_DATA);
+        dataval = val_find_child(instance, reply, NULL, NCX_EL_DATA);
         if (dataval == NULL) {
-            res = SET_ERROR(ERR_NCX_DATA_MISSING);
+            res = SET_ERROR(instance, ERR_NCX_DATA_MISSING);
         } else {
             /* get a file handle in the temp session
              * directory
              */
-            temp_filcb = get_new_temp_filcb(mscb,
+            temp_filcb = get_new_temp_filcb(instance,
+                                            mscb,
                                             module,
                                             revision,
                                             TRUE,   /* isyang */
@@ -1098,7 +1147,8 @@ status_t
                 /* copy the value node to the work directory
                  * as a YANG file
                  */
-                res = save_schema_file(server_cb,
+                res = save_schema_file(instance,
+                                       server_cb,
                                        module,
                                        revision,
                                        temp_filcb->source,
@@ -1107,7 +1157,8 @@ status_t
         }
 
         if (res != NO_ERR) {
-            log_error("\nError: save <get-schema> content "
+            log_error(instance,
+                      "\nError: save <get-schema> content "
                       " for module '%s' revision '%s' failed (%s)",
                       module,
                       (revision) ? revision : EMPTY_STRING,
@@ -1118,10 +1169,10 @@ status_t
 
     /* find next file that needs to be retrieved with get-schema */
     for (searchresult = (ncxmod_search_result_t *)
-             dlq_nextEntry(server_cb->cursearchresult);
+             dlq_nextEntry(instance, server_cb->cursearchresult);
          searchresult != NULL && !done;
          searchresult = (ncxmod_search_result_t *)
-             dlq_nextEntry(searchresult)) {
+             dlq_nextEntry(instance, searchresult)) {
 
         /* skip found entries */
         if (searchresult->source != NULL) {
@@ -1139,7 +1190,8 @@ status_t
         server_cb->cursearchresult = searchresult;
         done = TRUE;
 
-        res = send_get_schema_to_server(server_cb,
+        res = send_get_schema_to_server(instance,
+                                       server_cb,
                                        scb,
                                        searchresult->module,
                                        searchresult->revision);
@@ -1147,7 +1199,7 @@ status_t
 
     if (!done) {
         /* no search results left to get */
-        return autoload_compile_modules(server_cb, scb);
+        return autoload_compile_modules(instance, server_cb, scb);
     }
 
     return res;
@@ -1183,7 +1235,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    autoload_compile_modules (server_cb_t *server_cb,
+    autoload_compile_modules (ncx_instance_t *instance,
+                              server_cb_t *server_cb,
                               ses_cb_t *scb)
 {
     mgr_scb_t              *mscb;
@@ -1194,14 +1247,14 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !scb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* should not happen, but it is possible that the
      * server did not send any YANG module capabilities
      */
-    if (dlq_empty(&server_cb->searchresultQ)) {
+    if (dlq_empty(instance, &server_cb->searchresultQ)) {
         return NO_ERR;
     }
 
@@ -1216,18 +1269,19 @@ status_t
      * used instead of a random version that the
      * yangcli registry contains
      */
-    ncxmod_set_altpath(mscb->temp_sescb->source);
+    ncxmod_set_altpath(instance, mscb->temp_sescb->source);
 
     /* set the altername module Q so the imports
      * do not get re-compiled over and over
      */
-    ncx_set_cur_modQ(&mscb->temp_modQ);
+    ncx_set_cur_modQ(instance, &mscb->temp_modQ);
 
     /* !!! temp until the ietf-netconf.yang module
      * is fully supported.  The yuma-netconf.yang
      * module is pre-loaded as the first module
      */
-    res = autoload_module(NCXMOD_YUMA_NETCONF,
+    res = autoload_module(instance,
+                          NCXMOD_YUMA_NETCONF,
                           NULL,
                           NULL, 
                           &ncmod);
@@ -1236,16 +1290,17 @@ status_t
          * to the standard capabilities that were announced
          * by the server
          */
-        set_temp_ync_features(mscb);
+        set_temp_ync_features(instance, mscb);
 
-        modptr = new_modptr(ncmod, 
+        modptr = new_modptr(instance, 
+                            ncmod, 
                             &mscb->temp_ync_features,
                             NULL);
         if (modptr == NULL) {
             res = ERR_INTERNAL_MEM;
-            log_error("\nMalloc failure");
+            log_error(instance, "\nMalloc failure");
         } else {
-            dlq_enque(modptr, &server_cb->modptrQ);
+            dlq_enque(instance, modptr, &server_cb->modptrQ);
         }
     }
 
@@ -1254,10 +1309,10 @@ status_t
      * be preloaded into the session work directory
      */
     while (res == NO_ERR && 
-           !dlq_empty(&server_cb->searchresultQ)) {
+           !dlq_empty(instance, &server_cb->searchresultQ)) {
 
         searchresult = (ncxmod_search_result_t *)
-            dlq_deque(&server_cb->searchresultQ);
+            dlq_deque(instance, &server_cb->searchresultQ);
 
 	if (searchresult->res == ERR_NCX_MOD_NOT_FOUND){
             searchresult->res = NO_ERR;
@@ -1265,12 +1320,13 @@ status_t
 
         if (searchresult->res != NO_ERR ||
             searchresult->source == NULL) {
-            ncxmod_free_search_result(searchresult);
+            ncxmod_free_search_result(instance, searchresult);
             continue;
         }
 
         mod = NULL;
-        res = autoload_module(searchresult->module,
+        res = autoload_module(instance,
+                              searchresult->module,
                               searchresult->revision,
                               &searchresult->cap->cap_deviation_list,
                               &mod);
@@ -1278,10 +1334,12 @@ status_t
         if (res == NO_ERR) {
             if (mod == NULL) {
                 /* ??? not sure if this could happen ?? */
-                mod = ncx_find_module(searchresult->module,
+                mod = ncx_find_module(instance,
+                                      searchresult->module,
                                       searchresult->revision);
                 if (mod == NULL) {
-                    log_warn("\nWarning: no module parsed "
+                    log_warn(instance,
+                             "\nWarning: no module parsed "
                              "for module %s, rev %s",
                              searchresult->module,
                              (searchresult->revision) ?
@@ -1290,7 +1348,8 @@ status_t
             }
 
             /* make sure this module is not stored more than once */
-            modptr = find_modptr(&server_cb->modptrQ,
+            modptr = find_modptr(instance,
+                                 &server_cb->modptrQ,
                                  searchresult->module,
                                  searchresult->revision);
 
@@ -1298,43 +1357,45 @@ status_t
                 /* mod can be NULL if the module was already 
                  * in the temp_modQ 
                  */
-                modptr = new_modptr(mod, 
+                modptr = new_modptr(instance, 
+                                    mod, 
                                     &searchresult->cap->cap_feature_list,
                                     &searchresult->cap->cap_deviation_list);
                 if (modptr == NULL) {
-                    log_error("\nMalloc failure");
+                    log_error(instance, "\nMalloc failure");
                 } else {
-                    dlq_enque(modptr, &server_cb->modptrQ);
+                    dlq_enque(instance, modptr, &server_cb->modptrQ);
                 }
             }
         }
 
-        ncxmod_free_search_result(searchresult);
+        ncxmod_free_search_result(instance, searchresult);
     }
 
     /* undo the temporary MODPATH setting */
-    ncxmod_clear_altpath();
+    ncxmod_clear_altpath(instance);
 
     /* undo the temporary module Q */
-    ncx_reset_modQ();
+    ncx_reset_modQ(instance);
 
     /* set the session module Q so the val.c
      * functions will find the server modules
      * instead of the pre-loaded versions
      */
-    ncx_set_session_modQ(&mscb->temp_modQ);
+    ncx_set_session_modQ(instance, &mscb->temp_modQ);
 
     /* need to wait until all the modules are loaded to
      * go through the modptr list and enable/disable the features
      * to match what the server has reported
      */
     for (modptr = (modptr_t *)
-             dlq_firstEntry(&server_cb->modptrQ);
+             dlq_firstEntry(instance, &server_cb->modptrQ);
          modptr != NULL;
-         modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+         modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
         if (modptr->feature_list) {
-            ncx_for_all_features(modptr->mod,
+            ncx_for_all_features(instance,
+                                 modptr->mod,
                                  reset_feature,
                                  modptr->feature_list,
                                  FALSE);

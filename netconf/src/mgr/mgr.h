@@ -132,7 +132,7 @@ typedef struct mgr_scb_t_ {
 *   status of the initialization procedure
 *********************************************************************/
 extern status_t 
-    mgr_init (void);
+    mgr_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -142,7 +142,7 @@ extern status_t
 * 
 *********************************************************************/
 extern void 
-    mgr_cleanup (void);
+    mgr_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -154,7 +154,7 @@ extern void
 *   manager session control block struct or NULL if malloc error
 *********************************************************************/
 extern mgr_scb_t *
-    mgr_new_scb (void);
+    mgr_new_scb (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -167,7 +167,7 @@ extern mgr_scb_t *
 *
 *********************************************************************/
 extern void
-    mgr_init_scb (mgr_scb_t *mscb);
+    mgr_init_scb (struct ncx_instance_t_ *instance, mgr_scb_t *mscb);
 
 
 /********************************************************************
@@ -179,7 +179,7 @@ extern void
 *   mscb == manager session control block struct to free
 *********************************************************************/
 extern void
-    mgr_free_scb (mgr_scb_t *mscb);
+    mgr_free_scb (struct ncx_instance_t_ *instance, mgr_scb_t *mscb);
 
 
 /********************************************************************
@@ -191,7 +191,7 @@ extern void
 *   mscb == manager session control block struct to clean
 *********************************************************************/
 extern void
-    mgr_clean_scb (mgr_scb_t *mscb);
+    mgr_clean_scb (struct ncx_instance_t_ *instance, mgr_scb_t *mscb);
 
 
 /********************************************************************
@@ -201,7 +201,7 @@ extern void
 * 
 *********************************************************************/
 extern void
-    mgr_request_shutdown (void);
+    mgr_request_shutdown (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -230,7 +230,8 @@ extern boolean
 *   status
 *********************************************************************/
 extern status_t
-    mgr_set_getvar_fn (ses_id_t  sid,
+    mgr_set_getvar_fn (struct ncx_instance_t_ *instance,
+                       ses_id_t  sid,
                        xpath_getvar_fn_t getvar_fn);
 
 
@@ -244,7 +245,7 @@ extern status_t
 *   tolog == TRUE to print to log; FALSE to print to stdout
 *********************************************************************/
 extern void
-    mgr_print_libssh2_version (boolean tolog);
+    mgr_print_libssh2_version (struct ncx_instance_t_ *instance, boolean tolog);
 
 
 #ifdef __cplusplus

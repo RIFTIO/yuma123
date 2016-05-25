@@ -40,12 +40,12 @@ typedef status_t (*agt_commit_validate_cb_t)(ses_cb_t *scb, xml_msg_hdr_t *msghd
 /**
  * Initialise the callback commit module.
  */
-extern void agt_commit_validate_init( void );
+extern void agt_commit_validate_init( struct ncx_instance_t_ *instance );
 
 /**
  * Cleanup the callback commit module.
  */
-extern void agt_commit_validate_cleanup( void );
+extern void agt_commit_validate_cleanup( struct ncx_instance_t_ *instance );
 
 /**
  * Register a commit validate callback.
@@ -59,7 +59,8 @@ extern void agt_commit_validate_cleanup( void );
  * \param cb the commit complete function.
  * \return the status of the operation.
  */
-extern status_t agt_commit_validate_register( const xmlChar *modname,
+extern status_t agt_commit_validate_register(struct ncx_instance_t_ *instance,
+                                               const xmlChar *modname,
                                               agt_commit_validate_cb_t cb );
 
 /**
@@ -68,7 +69,7 @@ extern status_t agt_commit_validate_register( const xmlChar *modname,
  *
  * \param modname the name of the module unregistering the callback
  */
-extern void agt_commit_validate_unregister( const xmlChar *modname );
+extern void agt_commit_validate_unregister(struct ncx_instance_t_ *instance,  const xmlChar *modname );
 
 /**
  * Validate a commit operation.
@@ -79,7 +80,7 @@ extern void agt_commit_validate_unregister( const xmlChar *modname );
  *
  * \return the ERR_OK or the status of the first failing callback.
  */
-extern status_t agt_commit_validate( ses_cb_t *scb, xml_msg_hdr_t *msghdr, val_value_t *root );
+extern status_t agt_commit_validate(struct ncx_instance_t_ *instance,  ses_cb_t *scb, xml_msg_hdr_t *msghdr, val_value_t *root );
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

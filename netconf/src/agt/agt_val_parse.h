@@ -110,7 +110,8 @@ extern "C" {
 *    status
 *********************************************************************/
 extern status_t
-    agt_val_parse_nc (ses_cb_t  *scb,
+    agt_val_parse_nc (struct ncx_instance_t_ *instance,
+		      ses_cb_t  *scb,
 		      xml_msg_hdr_t *msg,
 		      obj_template_t *obj,
 		      const xml_node_t *startnode,
@@ -129,7 +130,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    agt_val_parse_test (const char *testfile);
+    agt_val_parse_test (struct ncx_instance_t_ *instance, const char *testfile);
 #endif
 
 #ifdef __cplusplus

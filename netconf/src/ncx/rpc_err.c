@@ -104,7 +104,7 @@ typedef struct rpc_err_map_t_ {
 *********************************************************************/
 
 /* error-tag names */
-static rpc_err_map_t  rpc_err_map[] = {
+static const rpc_err_map_t  rpc_err_map[] = {
     { RPC_ERR_NONE, (const xmlChar *)"none" },
     { RPC_ERR_IN_USE, (const xmlChar *)"in-use" },
     { RPC_ERR_INVALID_VALUE, (const xmlChar *)"invalid-value" },
@@ -130,10 +130,6 @@ static rpc_err_map_t  rpc_err_map[] = {
     { RPC_ERR_NONE, NULL }
 };
 
-static rpc_err_rec_t  staterr;
-
-static boolean        staterr_inuse = FALSE;
-
 
 /********************************************************************
 * FUNCTION dump_error_info
@@ -145,17 +141,19 @@ static boolean        staterr_inuse = FALSE;
 *
 *********************************************************************/
 static void
-    dump_error_info (const rpc_err_info_t  *errinfo)
+    dump_error_info (ncx_instance_t *instance, const rpc_err_info_t  *errinfo)
 {
     const xmlChar *prefix;
 
-    log_write("\n  error-info: %s T:%s = ", 
+    log_write(instance, 
+           "\n  error-info: %s T:%s = ", 
            (errinfo->name) ? (const char *)errinfo->name : "--",
            tk_get_btype_sym(errinfo->val_btype));
 
     if (errinfo->isqname) {
-        prefix = xmlns_get_ns_prefix(errinfo->val_nsid);
-        log_write("%s:%s", 
+        prefix = xmlns_get_ns_prefix(instance, errinfo->val_nsid);
+        log_write(instance, 
+                  "%s:%s", 
                   (prefix) ? prefix : (const xmlChar *)"--",
                   (errinfo->v.strval) ? 
                   (const char *)errinfo->v.strval : "--");
@@ -166,11 +164,11 @@ static void
     case NCX_BT_BINARY:
     case NCX_BT_STRING:
     case NCX_BT_INSTANCE_ID:
-        log_write("%s", (errinfo->v.strval) ? 
+        log_write(instance, "%s", (errinfo->v.strval) ? 
                (const char *)errinfo->v.strval : "--");
         break;
     case NCX_BT_BOOLEAN:
-        SET_ERROR(ERR_NCX_OPERATION_NOT_SUPPORTED);
+        SET_ERROR(instance, ERR_NCX_OPERATION_NOT_SUPPORTED);
         /***/
         break;
     case NCX_BT_INT8:
@@ -183,10 +181,11 @@ static void
     case NCX_BT_UINT64:
     case NCX_BT_DECIMAL64:
     case NCX_BT_FLOAT64:
-        ncx_printf_num(&errinfo->v.numval, errinfo->val_btype);
+        ncx_printf_num(instance, &errinfo->v.numval, errinfo->val_btype);
         break;
     default:
-        val_dump_value((val_value_t *)errinfo->v.cpxval,
+        val_dump_value(instance,
+                       (val_value_t *)errinfo->v.cpxval,
                        NCX_DEF_INDENT*2);
     }
 
@@ -203,34 +202,35 @@ static void
 *
 *********************************************************************/
 static void
-    dump_error (const rpc_err_rec_t  *err)
+    dump_error (ncx_instance_t *instance, const rpc_err_rec_t  *err)
 {
     const rpc_err_info_t  *errinfo;
 
-    log_write("\nrpc-error: (%u) %s L:%s S:%s ", 
+    log_write(instance, 
+              "\nrpc-error: (%u) %s L:%s S:%s ", 
               err->error_res,
               (err->error_tag) ? (const char *)err->error_tag : "--",
-              ncx_get_layer(err->error_type),
-              rpc_err_get_severity(err->error_severity));
+              ncx_get_layer(instance, err->error_type),
+              rpc_err_get_severity(instance, err->error_severity));
     if (err->error_app_tag) {
-        log_write("app-tag:%s ", err->error_app_tag);
+        log_write(instance, "app-tag:%s ", err->error_app_tag);
     }
     if (err->error_path) {
-        log_write("\n   path:%s ", err->error_path);
+        log_write(instance, "\n   path:%s ", err->error_path);
     }
     if (err->error_message_lang) {
-        log_write("lang:%s ", err->error_message_lang);
+        log_write(instance, "lang:%s ", err->error_message_lang);
     }
     if (err->error_message) {
-        log_write("\n  msg:%s ", err->error_message);
+        log_write(instance, "\n  msg:%s ", err->error_message);
     }
 
-    for (errinfo = (const rpc_err_info_t *)dlq_firstEntry(&err->error_info);
+    for (errinfo = (const rpc_err_info_t *)dlq_firstEntry(instance, &err->error_info);
          errinfo != NULL;
-         errinfo = (const rpc_err_info_t *)dlq_nextEntry(errinfo)) {
-        dump_error_info(errinfo);
+         errinfo = (const rpc_err_info_t *)dlq_nextEntry(instance, errinfo)) {
+        dump_error_info(instance, errinfo);
     }
-    log_write("\n");
+    log_write(instance, "\n");
 
 }  /* dump_error */
 
@@ -250,10 +250,10 @@ static void
 *   string for the specified error-tag enum
 *********************************************************************/
 const xmlChar *
-    rpc_err_get_errtag (rpc_err_t errid)
+    rpc_err_get_errtag (ncx_instance_t *instance, rpc_err_t errid)
 {
     if (errid > RPC_ERR_LAST_ERROR) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         errid = RPC_ERR_NONE;
     }
     return rpc_err_map[errid].errtag;
@@ -273,13 +273,13 @@ const xmlChar *
 *   enum for this error-tag
 *********************************************************************/
 rpc_err_t
-    rpc_err_get_errtag_enum (const xmlChar *errtag)
+    rpc_err_get_errtag_enum (ncx_instance_t *instance, const xmlChar *errtag)
 {
     rpc_err_t   errcode;
 
 #ifdef DEBUG
     if (!errtag) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return RPC_ERR_NONE;
     }
 #endif
@@ -288,7 +288,7 @@ rpc_err_t
          errcode <= RPC_ERR_LAST_ERROR;
          errcode++) {
 
-        if (!xml_strcmp(errtag, rpc_err_map[errcode].errtag)) {
+        if (!xml_strcmp(instance, errtag, rpc_err_map[errcode].errtag)) {
             return rpc_err_map[errcode].errid;
         }
     }
@@ -306,20 +306,19 @@ rpc_err_t
 *   malloced error record or NULL if memory error
 *********************************************************************/
 rpc_err_rec_t *
-    rpc_err_new_record (void)
+    rpc_err_new_record (ncx_instance_t *instance)
 {
-    rpc_err_rec_t *err;
-
-    err = m__getObj(rpc_err_rec_t);
+    // ATTN: This is odd - I think the idea is to have a way to record an error struct even when out of memory.
+    rpc_err_rec_t *err = m__getObj(instance, rpc_err_rec_t);
     if (!err) {
-        if (!staterr_inuse) {
-            err = &staterr;
-            staterr_inuse = TRUE;
+        if (!instance->staterr_inuse) {
+            err = instance->staterr;
+            instance->staterr_inuse = TRUE;
         } else {
             return NULL;
         }
     }
-    rpc_err_init_record(err);
+    rpc_err_init_record(instance, err);
     return err;
 
 } /* rpc_err_new_record */
@@ -336,17 +335,17 @@ rpc_err_rec_t *
 *   none
 *********************************************************************/
 void
-    rpc_err_init_record (rpc_err_rec_t *err)
+    rpc_err_init_record (ncx_instance_t *instance, rpc_err_rec_t *err)
 {
 #ifdef DEBUG
     if (!err) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     memset(err, 0x0, sizeof(rpc_err_rec_t));
-    dlq_createSQue(&err->error_info);
+    dlq_createSQue(instance, &err->error_info);
 
 } /* rpc_err_init_record */
 
@@ -362,21 +361,21 @@ void
 *   none
 *********************************************************************/
 void
-    rpc_err_free_record (rpc_err_rec_t *err)
+    rpc_err_free_record (ncx_instance_t *instance, rpc_err_rec_t *err)
 {
 #ifdef DEBUG
     if (!err) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    rpc_err_clean_record(err);
+    rpc_err_clean_record(instance, err);
     
-    if (err == &staterr) {
-        staterr_inuse = FALSE;
+    if (err == instance->staterr) {
+        instance->staterr_inuse = FALSE;
     } else {
-        m__free(err);
+        m__free(instance, err);
     }
 
 } /* rpc_err_free_record */
@@ -393,13 +392,13 @@ void
 *   none
 *********************************************************************/
 void
-    rpc_err_clean_record (rpc_err_rec_t  *err)
+    rpc_err_clean_record (ncx_instance_t *instance, rpc_err_rec_t  *err)
 {
     rpc_err_info_t  *errinfo;
 
 #ifdef DEBUG
     if (!err) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -411,17 +410,17 @@ void
     err->error_tag = NULL;
     err->error_app_tag = NULL;
     if (err->error_path) {
-        m__free(err->error_path);
+        m__free(instance, err->error_path);
         err->error_path = NULL;
     }
     if (err->error_message) {
-        m__free(err->error_message);
+        m__free(instance, err->error_message);
     }
     err->error_message_lang = NULL;
 
-    while (!dlq_empty(&err->error_info)) {
-        errinfo = (rpc_err_info_t *)dlq_deque(&err->error_info);
-        rpc_err_free_info(errinfo);
+    while (!dlq_empty(instance, &err->error_info)) {
+        errinfo = (rpc_err_info_t *)dlq_deque(instance, &err->error_info);
+        rpc_err_free_info(instance, errinfo);
     }
 
 }  /* rpc_err_clean_record */
@@ -436,11 +435,11 @@ void
 *   malloced error-info record, or NULL if memory error
 *********************************************************************/
 rpc_err_info_t *
-    rpc_err_new_info (void)
+    rpc_err_new_info (ncx_instance_t *instance)
 {
     rpc_err_info_t *errinfo;
 
-    errinfo = m__getObj(rpc_err_info_t);
+    errinfo = m__getObj(instance, rpc_err_info_t);
     if (!errinfo) {
         return NULL;
     }
@@ -461,23 +460,23 @@ rpc_err_info_t *
 *   none
 *********************************************************************/
 void
-    rpc_err_free_info (rpc_err_info_t *errinfo)
+    rpc_err_free_info (ncx_instance_t *instance, rpc_err_info_t *errinfo)
 {
 #ifdef DEBUG
     if (!errinfo) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (errinfo->badns) {
-        m__free(errinfo->badns);
+        m__free(instance, errinfo->badns);
     }
     if (errinfo->dname) {
-        m__free(errinfo->dname);
+        m__free(instance, errinfo->dname);
     }
     if (errinfo->dval) {
-        m__free(errinfo->dval);
+        m__free(instance, errinfo->dval);
     }
     switch (errinfo->val_btype) {
     case NCX_BT_ANY:
@@ -485,13 +484,13 @@ void
     case NCX_BT_CHOICE:
     case NCX_BT_LIST:
         if (errinfo->v.cpxval) {
-            val_free_value((val_value_t *)errinfo->v.cpxval);
+            val_free_value(instance, (val_value_t *)errinfo->v.cpxval);
         }
         break;
     default:
         ;
     }
-    m__free(errinfo);
+    m__free(instance, errinfo);
 
 } /* rpc_err_free_info */
     
@@ -506,21 +505,21 @@ void
 *
 *********************************************************************/
 void
-    rpc_err_dump_errors (const rpc_msg_t  *msg)
+    rpc_err_dump_errors (ncx_instance_t *instance, const rpc_msg_t  *msg)
 {
     const rpc_err_rec_t  *err;
 
 #ifdef DEBUG
     if (!msg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    for (err = (const rpc_err_rec_t *)dlq_firstEntry(&msg->mhdr.errQ);
+    for (err = (const rpc_err_rec_t *)dlq_firstEntry(instance, &msg->mhdr.errQ);
          err != NULL;
-         err = (const rpc_err_rec_t *)dlq_nextEntry(err)) {
-        dump_error(err);
+         err = (const rpc_err_rec_t *)dlq_nextEntry(instance, err)) {
+        dump_error(instance, err);
     }
 
 }  /* rpc_err_dump_errors */
@@ -538,7 +537,7 @@ void
 * const pointer to the enum string
 *********************************************************************/
 const xmlChar *
-    rpc_err_get_severity (rpc_err_sev_t  sev)
+    rpc_err_get_severity (ncx_instance_t *instance, rpc_err_sev_t  sev)
 {
     switch (sev) {
     case RPC_ERR_SEV_WARNING:
@@ -546,7 +545,7 @@ const xmlChar *
     case RPC_ERR_SEV_ERROR:
         return NCX_EL_ERROR;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return EMPTY_STRING;
     }
 }  /* rpc_err_get_severity */
@@ -563,21 +562,21 @@ const xmlChar *
 *   none
 *********************************************************************/
 void 
-    rpc_err_clean_errQ (dlq_hdr_t *errQ)
+    rpc_err_clean_errQ (ncx_instance_t *instance, dlq_hdr_t *errQ)
 {
     rpc_err_rec_t *err;
 
 #ifdef DEBUG
     if (!errQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     /* clean error queue */
-    while (!dlq_empty(errQ)) {
-        err = (rpc_err_rec_t *)dlq_deque(errQ);
-        rpc_err_free_record(err);
+    while (!dlq_empty(instance, errQ)) {
+        err = (rpc_err_rec_t *)dlq_deque(instance, errQ);
+        rpc_err_free_record(instance, err);
     }
 
 } /* rpc_err_clean_errQ */
@@ -595,17 +594,17 @@ void
 *   TRUE if any errors recorded; FALSE if none
 *********************************************************************/
 boolean
-    rpc_err_any_errors (const rpc_msg_t  *msg)
+    rpc_err_any_errors (ncx_instance_t *instance, const rpc_msg_t  *msg)
 {
 
 #ifdef DEBUG
     if (!msg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    return (dlq_empty(&msg->mhdr.errQ)) ? FALSE : TRUE;
+    return (dlq_empty(instance, &msg->mhdr.errQ)) ? FALSE : TRUE;
 
 }  /* rpc_err_any_errors */
 

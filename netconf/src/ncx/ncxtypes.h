@@ -1,12 +1,12 @@
 /*
  * Copyright (c) 2008 - 2012, Andy Bierman, All Rights Reserved.
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
- * under the License.    
+ * under the License.
  */
 #ifndef _H_ncxtypes
 #define _H_ncxtypes
@@ -19,7 +19,7 @@
 *********************************************************************
 
   Contains NCX typedefs
- 
+
 *********************************************************************
 *								    *
 *		   C H A N G E	 H I S T O R Y			    *
@@ -31,6 +31,8 @@ date	     init     comment
 14-nov-05    abb      Begun; split from ncx.h
 04-feb-06    abb      Move base/nc.h constants into this file
 10-nov-07    abb      Split out from ncxconst.h
+02Sep14      rajv     Support for unique tag ids
+
 */
 
 #include <xmlstring.h>
@@ -44,9 +46,15 @@ date	     init     comment
 #include "xmlns.h"
 #endif
 
+#ifndef _H_log
+#include "log.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct ncx_instance_t_;
 
 /********************************************************************
 *                                                                   *
@@ -54,14 +62,14 @@ extern "C" {
 *                                                                   *
 *********************************************************************/
 
-/* NCX Access Control 'max-access' enumeration values 
+/* NCX Access Control 'max-access' enumeration values
  * Note that access control is applied to the session
  * and the max-access applies to the user max-access,
  * not the agent max-access.  Only the agent may create
  * or write an object which is classified as 'read-only'.
  *
  * Access is grouped into the following catagories.
- *    
+ *
  *      none
  *      read-only
  *      read-write
@@ -84,9 +92,9 @@ extern "C" {
  *   Create and Delete are grouped together for access control
  *   purposes, and called 'read-create'
  *
- *   Obviously, the max-access of the ancestor nodes affect any 
+ *   Obviously, the max-access of the ancestor nodes affect any
  *   given nested node, but the enumerations are not purely hierarchical.
- *   
+ *
  *   Access      Nested Behavior
  *   -------------------------------
  *   [none]      Check the ancestor chain until an explicit value
@@ -106,7 +114,7 @@ extern "C" {
  *
  *   read-create User may have unrestricted access to this node and all
  *               child nodes, depending on the max-access of the child
- *               nodes. Any type of nested access may appear in any 
+ *               nodes. Any type of nested access may appear in any
  *               child nodes.
  */
 typedef enum ncx_access_t_ {
@@ -136,8 +144,8 @@ typedef enum ncx_data_class_t_ {
 } ncx_data_class_t;
 
 
-/* enumeration of the built-in NCX types 
- * These types cannot be overridden and cannot be imported 
+/* enumeration of the built-in NCX types
+ * These types cannot be overridden and cannot be imported
  */
 typedef enum ncx_btype_t_ {
     NCX_BT_NONE,
@@ -153,7 +161,7 @@ typedef enum ncx_btype_t_ {
     NCX_BT_UINT8,
     NCX_BT_UINT16,
     NCX_BT_UINT32,
-    NCX_BT_UINT64,   
+    NCX_BT_UINT64,
     NCX_BT_DECIMAL64,
     NCX_BT_FLOAT64,   /* hidden: just for XPath */
     NCX_BT_STRING,
@@ -181,7 +189,7 @@ typedef enum ncx_btype_t_ {
 
 /* Enumeration of the basic value type classifications */
 typedef enum ncx_tclass_t_ {
-    NCX_CL_NONE,               
+    NCX_CL_NONE,
     NCX_CL_BASE,                         /* a built-in base type */
     NCX_CL_SIMPLE,               /* a restriction of a base type */
     NCX_CL_COMPLEX,                            /* a complex type */
@@ -190,11 +198,11 @@ typedef enum ncx_tclass_t_ {
 } ncx_tclass_t;
 
 
-/* Enumeration of the different types of index components 
+/* Enumeration of the different types of index components
  * YANG ONLY SUPPORTS NCX_IT_LOCAL
  */
 typedef enum ncx_indextyp_t_ {
-    NCX_IT_NONE,               
+    NCX_IT_NONE,
     NCX_IT_INLINE,          /* index simple type declared inline */
     NCX_IT_NAMED,            /* index named type declared inline */
     NCX_IT_LOCAL,               /* local member within the table */
@@ -205,8 +213,8 @@ typedef enum ncx_indextyp_t_ {
 
 
 /* NCX Internal Node Types
- * 
- * nodes in the value trees can be different types 
+ *
+ * nodes in the value trees can be different types
  * These enums are used to generate instance IDs and
  * classify data passed to the agt_record_*error functions
  */
@@ -273,8 +281,8 @@ typedef enum ncx_strrest_t_ {
 typedef enum ncx_numfmt_t_ {
     NCX_NF_NONE,
     NCX_NF_OCTAL,
-    NCX_NF_DEC,  
-    NCX_NF_HEX, 
+    NCX_NF_DEC,
+    NCX_NF_HEX,
     NCX_NF_REAL
 }  ncx_numfmt_t;
 
@@ -282,8 +290,8 @@ typedef enum ncx_numfmt_t_ {
 /* Enumeration of NETCONF protocol layers */
 typedef enum ncx_layer_t_ {
     NCX_LAYER_NONE,
-    NCX_LAYER_TRANSPORT,  
-    NCX_LAYER_RPC, 
+    NCX_LAYER_TRANSPORT,
+    NCX_LAYER_RPC,
     NCX_LAYER_OPERATION,
     NCX_LAYER_CONTENT
 }  ncx_layer_t;
@@ -291,7 +299,7 @@ typedef enum ncx_layer_t_ {
 
 /* enum to identify the agent native target */
 typedef enum ncx_agttarg_t_ {
-    NCX_AGT_TARG_NONE,    
+    NCX_AGT_TARG_NONE,
     NCX_AGT_TARG_CANDIDATE,
     NCX_AGT_TARG_RUNNING,
     NCX_AGT_TARG_LOCAL,   /* TBD */
@@ -302,7 +310,7 @@ typedef enum ncx_agttarg_t_ {
 
 /* enum to identify the agent native startup mode */
 typedef enum ncx_agtstart_t_ {
-    NCX_AGT_START_NONE,    
+    NCX_AGT_START_NONE,
     NCX_AGT_START_MIRROR,
     NCX_AGT_START_DISTINCT
 } ncx_agtstart_t;
@@ -354,7 +362,7 @@ typedef enum ncx_status_t_ {
 } ncx_status_t;
 
 
-/* enumeration for CLI handling of bad input data 
+/* enumeration for CLI handling of bad input data
  * used by yangcli, all others use NCX_BAD_DATA_ERROR
  *
  * NCX_BAD_DATA_IGNORE to silently accept invalid input values
@@ -430,7 +438,7 @@ typedef union ncx_num_t_ {
     int64  l;                           /* NCX_BT_LONG */
     uint32 u;                           /* NCX_BT_UINT */
     uint64 ul;                         /* NCX_BT_ULONG */
-    
+
 #ifdef HAS_FLOAT             /* 'd' used only in XPath */
     double d;                         /* NCX_BT_DOUBLE */
 #else
@@ -441,7 +449,7 @@ typedef union ncx_num_t_ {
 
 
 /* string alias for data types:
- *  NCX_BT_STRING 
+ *  NCX_BT_STRING
  *  NCX_BT_OSTRING
  *  NCX_BT_ENAME
  */
@@ -494,7 +502,7 @@ typedef struct ncx_binary_t_ {
 } ncx_binary_t;
 
 
-/* struct to remember error info 
+/* struct to remember error info
  * tkc->cur_err will be checked before tkc->cur
  * for error information
  */
@@ -571,7 +579,7 @@ typedef struct ncx_feature_t_ {
     boolean             seen;          /* for yangdiff */
 } ncx_feature_t;
 
-/* struct for holding r/o pointer to generic internal node 
+/* struct for holding r/o pointer to generic internal node
  * for filtering purposes
  */
 typedef struct ncx_filptr_t_ {
@@ -624,7 +632,7 @@ typedef struct ncx_identity_t_ {
 /* representation of one module or submodule during and after parsing */
 typedef struct ncx_module_t_ {
     dlq_hdr_t         qhdr;
-    xmlChar          *name; 
+    xmlChar          *name;
     xmlChar          *version;
     xmlChar          *organization;
     xmlChar          *contact_info;
@@ -648,6 +656,7 @@ typedef struct ncx_module_t_ {
     status_t          status;         /* module parse result */
     uint32            errors;            /* yangdump results */
     uint32            warnings;          /* yangdump results */
+    uint32            modtag;            /* Module level global tag */
 
     dlq_hdr_t         revhistQ;        /* Q of ncx_revhist_t */
     dlq_hdr_t         importQ;          /* Q of ncx_import_t */
@@ -661,7 +670,7 @@ typedef struct ncx_module_t_ {
     dlq_hdr_t         identityQ;      /* Q of ncx_identity_t */
     dlq_hdr_t         appinfoQ;        /* Q of ncx_appinfo_t */
     dlq_hdr_t         typnameQ;        /* Q of ncx_typname_t */
-    dlq_hdr_t         saveimpQ;    /* Q of yang_import_ptr_t */   
+    dlq_hdr_t         saveimpQ;    /* Q of yang_import_ptr_t */
                                   /* saved from pcb->allimpQ */
     dlq_hdr_t         stmtQ;             /* Q of yang_stmt_t */
                              /* saved for top, yang, docmode */
@@ -700,7 +709,7 @@ typedef enum ncx_cvttyp_t_ {
 
 
 /* enum for with-defaults enum values */
-typedef enum ncx_withdefaults_t_ { 
+typedef enum ncx_withdefaults_t_ {
     NCX_WITHDEF_NONE,
     NCX_WITHDEF_REPORT_ALL,
     NCX_WITHDEF_REPORT_ALL_TAGGED,
@@ -738,14 +747,14 @@ typedef struct ncx_include_t_ {
 
 
 /* enum for REQUIRED vs. OPTIONAL token */
-typedef enum ncx_opt_t_ { 
+typedef enum ncx_opt_t_ {
     NCX_REQ,                              /* clause is required */
     NCX_OPT                               /* clause is optional */
 } ncx_opt_t;
 
 
 /* enum for WHITESPACE ALLOWED vs. WHITESPACE NOT ALLOWED string */
-typedef enum ncx_strtyp_t_ { 
+typedef enum ncx_strtyp_t_ {
     NCX_WSP,                 /* whitespace allowed: quoted string */
     NCX_NO_WSP         /* whitespace not allowed: unquoted string */
 } ncx_strtyp_t;
@@ -773,31 +782,45 @@ typedef struct ncx_typname_t_ {
 } ncx_typname_t;
 
 
+#define MAX_ERR_FILENAME     64
+#define MAX_ERR_MSG_LEN      256
+#define MAX_ERR_LEVEL        15
+
+/* the array of form IDs and form handlers */
+typedef struct error_snapshot_t_ {
+    int              linenum;
+    int              sqlError;
+    status_t         status;
+    char             filename[MAX_ERR_FILENAME];
+    const char      *msg;
+} error_snapshot_t;
+
 /* user function callback template when a module is
  * loaded into the system
  *
  * ncx_load_cbfn_t
- * 
- *  Run an instrumentation-defined function 
+ *
+ *  Run an instrumentation-defined function
  *  for a 'module-loaded' event
  *
  * INPUTS:
  *   mod == module that was added to the registry
  *
  */
-typedef void (*ncx_load_cbfn_t) (ncx_module_t *mod);
+typedef void (*ncx_load_cbfn_t) (struct ncx_instance_t_ *instance,
+				 ncx_module_t *mod);
 
 
 /* user function callback template to traverse all module
  * features for a specified module
  *
  * ncx_feature_cbfn_t
- * 
- *  Run an instrumentation-defined function 
+ *
+ *  Run an instrumentation-defined function
  *  for each feature found in the module (enabled or not)
  *
  * INPUTS:
- *    mod == module originally passed to the main 
+ *    mod == module originally passed to the main
  *           function, which contains the 'feature'
  *    feature == feature being processed in the traversal
  *    cookie == cookie originally passed to the main function
@@ -806,7 +829,8 @@ typedef void (*ncx_load_cbfn_t) (ncx_module_t *mod);
  *    TRUE if processing should continue
  *    FALSE if feature traversal should terminate
  */
-typedef boolean (*ncx_feature_cbfn_t) (const ncx_module_t *mod,
+typedef boolean (*ncx_feature_cbfn_t) (struct ncx_instance_t_ *instance,
+				       const ncx_module_t *mod,
 				       ncx_feature_t *feature,
 				       void *cookie);
 
@@ -814,7 +838,7 @@ typedef boolean (*ncx_feature_cbfn_t) (const ncx_module_t *mod,
 /* enum for get-schema format type enum values
  * matches the schema-format identities in RFC 6022
  */
-typedef enum ncx_modformat_t_ { 
+typedef enum ncx_modformat_t_ {
     NCX_MODFORMAT_NONE,
     NCX_MODFORMAT_XSD,
     NCX_MODFORMAT_YANG,
@@ -845,6 +869,320 @@ typedef enum ncx_confirm_event_t_ {
     NCX_CC_EVENT_EXTEND,
     NCX_CC_EVENT_COMPLETE
 } ncx_confirm_event_t;
+
+/* 
+ * Logging/tracing callback routine 
+ */ 
+typedef void (*Logging_Routine)(struct ncx_instance_t_ *instance, log_debug_t log_level, const char *fstr, va_list args);
+
+/*
+ * The following structure can be used to customize NCX behaviors.
+ * As of now the folowing are included the customization structure.
+ *  A pointer to the  NCX insance with which this custom NCX structure is associated
+ *  A pointer to the Yang Model
+ *  A logging call back routine which will be invoked by  libncx when present
+ */
+typedef struct ncx_custom_t_ {
+  struct ncx_instance_t_* instance;
+  void*                   yang_model; 
+  void*                   logging_context;
+  Logging_Routine         logging_routine;
+} ncx_custom_t;
+
+/* representation of one module or submodule during and after parsing */
+typedef struct ncx_instance_t_ {
+
+    struct typ_template_t_ **basetypes;
+
+    boolean typ_init_done;
+
+
+
+    /* Q of ncx_module_t
+     * list of active modules
+     */
+    dlq_hdr_t ncx_modQ;
+
+    /* pointer to the current Q of active modules */
+    dlq_hdr_t *ncx_curQ;
+
+    /* pointer to the current session Q of active modules
+     * this is for yangcli to serialize access to the
+     * database of modules
+     */
+    dlq_hdr_t *ncx_sesmodQ;
+
+    /* pointer to dead modules during yangdump subtree processing */
+    dlq_hdr_t deadmodQ;
+    boolean usedeadmodQ;
+
+    /* Q of ncx_filptr_t
+     * used as a cache of subtree filtering headers
+     */
+    dlq_hdr_t ncx_filptrQ;
+
+    /* maximum number of filter cache entries */
+    uint32 ncx_max_filptrs;
+
+    /* current number of filter cache entries */
+    uint32 ncx_cur_filptrs;
+
+    /* generic anyxml object template */
+    struct obj_template_t_ *gen_anyxml;
+
+    /* generic container object template */
+    struct obj_template_t_ *gen_container;
+
+    /* generic string object template */
+    struct obj_template_t_ *gen_string;
+
+    /* generic empty object template */
+    struct obj_template_t_ *gen_empty;
+
+    /* generic root container object template */
+    struct obj_template_t_ *gen_root;
+
+    /* generic binary leaf object template */
+    struct obj_template_t_ *gen_binary;
+
+    /* module load callback function
+     * TBD: support multiple callbacks
+     *  used when a ncxmod loads a module
+     */
+    ncx_load_cbfn_t mod_load_callback;
+
+    /* module init */
+    boolean ncx_init_done;
+
+    /* save descriptive clauses like description, reference */
+    boolean save_descr;
+
+    /* system warning length for identifiers */
+    uint32 warn_idlen;
+
+    /* system warning length for YANG file line length */
+    uint32 warn_linelen;
+
+    /* Q of warnoff_t
+     * used to suppress warnings
+     * from being counted in the total
+     * only filters out the ncx_print_errormsg calls
+     * not the log_warn text messages
+     */
+    dlq_hdr_t warnoffQ;
+
+    /* pointer to the current Q of modules to use
+     * for yangcli sessions; will be 1 per thread
+     * later but now this works because access is
+     * serialized and the temp_modQ is set when each
+     * session needs to look for objects (CLI or XPath)
+     */
+    dlq_hdr_t *temp_modQ;
+
+    /* default diplay mode in all programs except yangcli,
+     * which uses a more complex schem for diplay-mode
+     */
+    ncx_display_mode_t display_mode;
+
+    /* memory leak debugging vars */
+    uint64_t malloc_cnt;
+    uint64_t free_cnt;
+
+    /* use XML prefix flag */
+    boolean use_prefix;
+
+    /* search subdirs in the CWD for modules, for default search
+     * not YUMA_MODPATH or YUMA_HOME, or YUMA_INSTALL subdirs
+     * this is over-ridden by the --subdirs=false parameter
+     */
+    boolean cwd_subdirs;
+
+    /* bitmask of protocols to match ncx_protocol_t enum */
+    uint32 protocols_enabled;
+
+    /* flag to indicate whether ordered-by system is sorted or not */
+    boolean system_sorted;
+
+    FILE *tracefile;
+
+    /* flag to force yang_parse to reject a module that has top-level
+     * mandatory data nodes; applies to server <load> operation  */
+    boolean allow_top_mandatory;
+
+
+
+    /* global logging only at this time
+     * per-session logging is TBD, and would need
+     * to be in the agent or mgr specific session handlers,
+     * not in the ncx directory
+     */
+    log_debug_t debug_level;
+
+    boolean use_tstamps;
+
+    boolean use_audit_tstamps;
+
+    FILE *logfile;
+
+    FILE *altlogfile;
+
+    FILE *auditlogfile;
+
+
+
+    boolean cfg_init_done;
+
+    struct cfg_template_t_ **cfg_arr;
+
+
+
+    /* first tier: module header hash table */
+    dlq_hdr_t *topht; // ATTN: Needs alloc
+
+    /* module init flag */
+    boolean def_reg_init_done;
+
+
+
+    boolean runstack_init_done;
+
+    struct runstack_context_t_* defcxt; // ATTN: Needs alloc + reference change
+
+
+
+    /* used for error_stack, when debug_level == NONE */
+    int error_level;
+    struct error_snapshot_t_ *error_stack; // ATTN: Needs alloc
+    uint32 error_count;
+
+
+
+    /* the default code generation mode for yangdump
+     * related to YANG features
+     */
+    ncx_feature_code_t feature_code_default;
+
+    /* the default mode for enabling or disabling YANG features */
+    boolean feature_enable_default;
+
+    /* Q of feature_entry_t parameters */
+    dlq_hdr_t feature_entryQ;
+
+    boolean feature_init_done;
+
+
+
+    boolean ses_msg_init_done;
+    dlq_hdr_t freeQ;
+    uint32 freecnt;
+    dlq_hdr_t inreadyQ;
+    dlq_hdr_t outreadyQ;
+
+    /* the ID zero will not get used */
+    uint32 last_id;
+
+
+
+    boolean ncxmod_init_done;
+
+    const xmlChar *ncxmod_yuma_home;
+
+    xmlChar *ncxmod_home_cli;
+
+    xmlChar *ncxmod_yuma_home_cli;
+
+    xmlChar *ncxmod_yumadir_path;
+
+    const xmlChar *ncxmod_env_install;
+
+    const xmlChar *ncxmod_home;
+
+    const xmlChar *ncxmod_mod_path;
+
+    xmlChar *ncxmod_mod_path_cli;
+
+    const xmlChar *ncxmod_alt_path;
+
+    const xmlChar *ncxmod_data_path;
+
+    xmlChar *ncxmod_data_path_cli;
+
+    const xmlChar *ncxmod_run_path;
+
+    xmlChar *ncxmod_run_path_cli;
+
+    boolean ncxmod_subdirs;
+
+
+
+    struct rpc_err_rec_t_ *staterr;
+
+    boolean staterr_inuse;
+
+
+
+    boolean top_init_done;
+
+    dlq_hdr_t topQ;
+
+
+
+    struct ses_total_stats_t_ *totals;
+
+
+
+    /* INVALID namespace ID */
+    xmlns_id_t xmlns_invid;
+
+    /* NETCONF namespace ID */
+    xmlns_id_t xmlns_ncid;
+
+    /* XMLNS namespace ID */
+    xmlns_id_t xmlns_nsid;
+
+    /* XSD namespace ID */
+    xmlns_id_t xmlns_xsid;
+
+    /* NETCONF Extensions namespace ID */
+    xmlns_id_t xmlns_ncxid;
+
+    /* XSD Instance (XSI) namespace ID */
+    xmlns_id_t xmlns_xsiid;
+
+    /* 1998 XML Namespace ID */
+    xmlns_id_t xmlns_xmlid;
+
+    /* NETCONF Notifications namespace ID */
+    xmlns_id_t xmlns_ncnid;
+
+    /* YANG namespace ID */
+    xmlns_id_t xmlns_yangid;
+
+    /* YIN namespace ID */
+    xmlns_id_t xmlns_yinid;
+
+    /* Wildcard namespace ID */
+    xmlns_id_t xmlns_wildcardid;
+
+    /* with-defaults wd:default attribute namespace ID */
+    xmlns_id_t xmlns_wdaid;
+
+    /* next ID to allocate */
+    xmlns_id_t xmlns_next_id;
+
+    /* array of xmlns_t pointers */
+    xmlns_t **xmlns;
+
+    /* module init done flag */
+    boolean xmlns_init_done;
+
+   /* A pointer to the NCX Customization structure */
+   ncx_custom_t *custom;
+
+} ncx_instance_t;
+
+/* Valid only if the application sets it. */
+extern ncx_instance_t* ncx_g_instance;
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

@@ -63,6 +63,8 @@ date         init     comment
 #include  "ydump.h"
 #endif
 
+#include "ncx.h"
+
 
 /********************************************************************
 *                                                                   *
@@ -95,31 +97,33 @@ int
     mtrace();
 #endif
 
-    res = ydump_init(argc, argv, TRUE, &mycvtparms);
+    ncx_instance_t* instance = ncx_alloc();
+
+    res = ydump_init(instance, argc, argv, TRUE, &mycvtparms);
 
     if (res == NO_ERR) {
 
-	res = ydump_main(&mycvtparms);
+	res = ydump_main(instance, &mycvtparms);
 
         /* if warnings+ are enabled, then res could be NO_ERR and still
          * have output to STDOUT
          */
         if (res == NO_ERR) {
-            log_warn("\n");   /*** producing extra blank lines ***/
+            log_warn(instance, "\n");   /*** producing extra blank lines ***/
         }
 
-        print_errors();
+        print_errors(instance);
 
-        print_error_count();
-
-        ydump_cleanup(&mycvtparms);
+        print_error_count(instance);
     } else {
-        print_errors();
+        print_errors(instance);
     }
 
-    print_error_count();
+    // ATTN: print_error_count(instance);
 
-    yang_final_memcheck();
+    // ATTN: yang_final_memcheck(instance);
+
+    ydump_cleanup(instance, &mycvtparms);
 
 #ifdef MEMORY_DEBUG
     muntrace();

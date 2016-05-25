@@ -115,12 +115,13 @@ static obj_template_t** select_pcb_object( xpath_pcb_t* pcb,
  * \param res the status error
  * \return the status error
  ********************************************************************/
-static status_t  pcb_print_errormsg( xpath_pcb_t* pcb, 
+static status_t  pcb_print_errormsg(ncx_instance_t *instance, 
+                                      xpath_pcb_t* pcb, 
                                      ncx_module_t *mod, 
                                      status_t res )
 {
     if ( pcb->logerrors ) {
-        ncx_print_errormsg( pcb->tkc, mod, res );
+        ncx_print_errormsg(instance,  pcb->tkc, mod, res );
     }
     return res;
 }
@@ -132,13 +133,14 @@ static status_t  pcb_print_errormsg( xpath_pcb_t* pcb,
  * \param pcb the parser control block
  * \param fmtstr the error message format string
  ********************************************************************/
-static void pcb_log_error( xpath_pcb_t* pcb, 
+static void pcb_log_error(ncx_instance_t *instance, 
+                            xpath_pcb_t* pcb, 
                            const char* fmtstr, ... )
 {
     if ( pcb->logerrors ) {
         va_list args;
         va_start(args, fmtstr);
-        vlog_error( fmtstr, args );
+        vlog_error(instance,  fmtstr, args );
         va_end( args );
     }
 }
@@ -153,17 +155,18 @@ static void pcb_log_error( xpath_pcb_t* pcb,
  * \param fmtstr the error message format string
  * \return the status error
  ********************************************************************/
-static status_t pcb_log_error_msg( xpath_pcb_t* pcb, 
+static status_t pcb_log_error_msg(ncx_instance_t *instance, 
+                                xpath_pcb_t* pcb, 
                                ncx_module_t *mod, 
                                status_t res,
                                const char* fmtstr, ... )
 {
     if ( pcb->logerrors ) {
-        ncx_print_errormsg( pcb->tkc, mod, res );
+        ncx_print_errormsg(instance,  pcb->tkc, mod, res );
 
         va_list args;
         va_start(args, fmtstr);
-        vlog_error( fmtstr, args );
+        vlog_error(instance,  fmtstr, args );
         va_end( args );
     }
     return res;
@@ -176,11 +179,11 @@ static status_t pcb_log_error_msg( xpath_pcb_t* pcb,
  * \param nsid the nsid
  * \return the corresponding module.
  ********************************************************************/
-static ncx_module_t* get_target_module_for_nsid( xmlns_id_t nsid )
+static ncx_module_t* get_target_module_for_nsid(ncx_instance_t *instance,  xmlns_id_t nsid )
 {
-    const xmlChar* modname = xmlns_get_module(nsid);
+    const xmlChar* modname = xmlns_get_module(instance, nsid);
     if (modname) {
-        return ncx_find_module(modname, NULL);
+        return ncx_find_module(instance, modname, NULL);
     }
     return NULL;
 }
@@ -206,7 +209,8 @@ static bool targ_obj_is_leaflist( xpath_pcb_t* pcb )
  * \param laxnamespaces flag indicating if lax namespaces are being used.
  * \return the corresponding module.
  ********************************************************************/
-static ncx_module_t* select_target_module( xpath_pcb_t* pcb, 
+static ncx_module_t* select_target_module(ncx_instance_t *instance, 
+                                       xpath_pcb_t* pcb, 
                                       const xmlChar* prefix,
                                       xmlns_id_t nsid, 
                                       boolean laxnamespaces,
@@ -217,34 +221,34 @@ static ncx_module_t* select_target_module( xpath_pcb_t* pcb,
 
     if( pcb->source == XP_SRC_XML || !pcb->tkerr.mod ) {
         if (nsid) {
-            dlq_hdr_t *temp_modQ = ncx_get_temp_modQ();
-            if (nsid == xmlns_nc_id() || !temp_modQ ) {
-                targmod = get_target_module_for_nsid( nsid );
+            dlq_hdr_t *temp_modQ = ncx_get_temp_modQ(instance);
+            if (nsid == xmlns_nc_id(instance) || !temp_modQ ) {
+                targmod = get_target_module_for_nsid(instance,  nsid );
             } else if ( temp_modQ ) {
                 /* try the temp Q first */
-                targmod = ncx_find_module_que_nsid(temp_modQ, nsid);
+                targmod = ncx_find_module_que_nsid(instance, temp_modQ, nsid);
                 if ( !targmod ) {
-                    targmod = get_target_module_for_nsid( nsid );
+                    targmod = get_target_module_for_nsid(instance,  nsid );
                 }
             }
 
             if ( !targmod ) {
                 *res = ERR_NCX_DEF_NOT_FOUND;
-                pcb_log_error( pcb, "\nError: module not found in expr '%s'",
+                pcb_log_error(instance,  pcb, "\nError: module not found in expr '%s'",
                                pcb->exprstr );
             }
         } else if (!laxnamespaces) {
             *res = ERR_NCX_UNKNOWN_NAMESPACE;
-            pcb_log_error( pcb, "\nError: no namespace in expr '%s'", 
+            pcb_log_error(instance,  pcb, "\nError: no namespace in expr '%s'", 
                            pcb->exprstr);
         }
     } else {
-        *res = xpath_get_curmod_from_prefix( prefix, pcb->tkerr.mod, &targmod);
+        *res = xpath_get_curmod_from_prefix(instance,  prefix, pcb->tkerr.mod, &targmod);
         if (*res != NO_ERR) {
             if ( !prefix && laxnamespaces) {
                 *res = NO_ERR;
             } else {
-                pcb_log_error( pcb, "\nError: Module for prefix '%s' not found",
+                pcb_log_error(instance,  pcb, "\nError: Module for prefix '%s' not found",
                                (prefix) ? prefix : EMPTY_STRING );
             }
         }
@@ -259,17 +263,17 @@ static ncx_module_t* select_target_module( xpath_pcb_t* pcb,
  * \param nodename the name of the object to find.
  * \return the corresponding object template.
  ********************************************************************/
-static obj_template_t* find_any_object( const xmlChar* nodename )
+static obj_template_t* find_any_object(ncx_instance_t *instance,  const xmlChar* nodename )
 {
     obj_template_t *foundobj = NULL;
-    dlq_hdr_t *temp_modQ = ncx_get_temp_modQ();
+    dlq_hdr_t *temp_modQ = ncx_get_temp_modQ(instance);
 
     if ( temp_modQ ) {
-        foundobj = ncx_find_any_object_que( temp_modQ, nodename );
+        foundobj = ncx_find_any_object_que(instance,  temp_modQ, nodename );
      }
 
      if ( !foundobj ) {
-         foundobj = ncx_find_any_object(nodename);
+         foundobj = ncx_find_any_object(instance, nodename);
      }
 
      return foundobj;
@@ -283,12 +287,13 @@ static obj_template_t* find_any_object( const xmlChar* nodename )
  * \param nsid the nsid
  * \return the corresponding object template.
  ********************************************************************/
-static obj_template_t* find_object_from_root( const xmlChar* nodename, 
+static obj_template_t* find_object_from_root(ncx_instance_t *instance, 
+                                               const xmlChar* nodename, 
                                               xmlns_id_t nsid )
 {
-    obj_template_t *foundobj = find_any_object( nodename );
+    obj_template_t *foundobj = find_any_object(instance,  nodename );
 
-     if ( foundobj && nsid && obj_get_nsid(foundobj) != nsid ) {
+     if ( foundobj && nsid && obj_get_nsid(instance, foundobj) != nsid ) {
          /* did not match the specified namespace ID */
          foundobj = NULL;
      }
@@ -315,7 +320,8 @@ static obj_template_t* ensure_found_object_is_rpc( obj_template_t* foundobj )
  * \param targobj the target module
  * \return the corresponding object template
  ********************************************************************/
-static obj_template_t* find_top_level_object( xpath_pcb_t* pcb, 
+static obj_template_t* find_top_level_object(ncx_instance_t *instance, 
+                                        xpath_pcb_t* pcb, 
                                        const xmlChar* prefix,
                                        xmlns_id_t nsid, 
                                        const xmlChar* nodename )
@@ -332,36 +338,36 @@ static obj_template_t* find_top_level_object( xpath_pcb_t* pcb,
 
 
     if (obj_is_root(pcb->targobj)) {
-        foundobj = find_object_from_root( nodename, nsid );
-    } else if ( obj_get_nsid(pcb->targobj) == xmlns_nc_id() && 
-                ( !xml_strcmp(obj_get_name(pcb->targobj), NCX_EL_RPC)) ) { 
+        foundobj = find_object_from_root(instance,  nodename, nsid );
+    } else if ( obj_get_nsid(instance, pcb->targobj) == xmlns_nc_id(instance) && 
+                ( !xml_strcmp(instance, obj_get_name(instance, pcb->targobj), NCX_EL_RPC)) ) { 
         /* find an RPC method with the nodename */
         if ( prefix && nsid == 0) {
-            nsid = xmlns_find_ns_by_prefix(prefix);
+            nsid = xmlns_find_ns_by_prefix(instance, prefix);
         }
 
         if ( !nsid ) {
-            foundobj = find_any_object( nodename );
+            foundobj = find_any_object(instance,  nodename );
         } else {
             ncx_module_t* targmod = NULL;
-            dlq_hdr_t *temp_modQ = ncx_get_temp_modQ();
+            dlq_hdr_t *temp_modQ = ncx_get_temp_modQ(instance);
             if (temp_modQ) {
-                targmod = ncx_find_module_que_nsid(temp_modQ, nsid);
+                targmod = ncx_find_module_que_nsid(instance, temp_modQ, nsid);
             } else {
-                targmod = get_target_module_for_nsid( nsid );
+                targmod = get_target_module_for_nsid(instance,  nsid );
             }
 
             if ( targmod ) {
-                foundobj = ncx_find_object( targmod, nodename);
+                foundobj = ncx_find_object(instance,  targmod, nodename);
             }
         }
 
         foundobj = ensure_found_object_is_rpc( foundobj );
     } else {
-        foundobj = obj_find_child( pcb->targobj, obj_get_mod_name(pcb->targobj),
+        foundobj = obj_find_child(instance,  pcb->targobj, obj_get_mod_name(instance, pcb->targobj),
                                    nodename);
         if ( !foundobj && !prefix ) {
-            foundobj = obj_find_child( pcb->targobj, NULL, nodename);
+            foundobj = obj_find_child(instance,  pcb->targobj, NULL, nodename);
         }
     }
     return foundobj;
@@ -377,34 +383,44 @@ static obj_template_t* find_top_level_object( xpath_pcb_t* pcb,
  * \return status
  *********************************************************************/
 
-static obj_template_t* find_object_from_use_obj( obj_template_t* useobj, 
+static obj_template_t* find_object_from_use_obj(ncx_instance_t *instance, 
+                                                  obj_template_t* useobj, 
                                                  ncx_module_t* targmod,
                                                  const xmlChar* nodename,
-                                                 boolean laxnamespaces )
+                                                 boolean laxnamespaces,
+                                                 xpath_pcb_t* pcb)
 {
     obj_template_t* foundobj = NULL;
 
     if (obj_is_root(useobj)) {
         if ( targmod ) {
-            foundobj = obj_find_template_top( targmod, ncx_get_modname(targmod),
+            foundobj = obj_find_template_top(instance,  targmod, ncx_get_modname(targmod),
                                               nodename);
         }
-    } else if ( obj_get_nsid(useobj) == xmlns_nc_id() &&
-                !xml_strcmp(obj_get_name(useobj), NCX_EL_RPC)) {
+    } else if ( obj_get_nsid(instance, useobj) == xmlns_nc_id(instance) &&
+                !xml_strcmp(instance, obj_get_name(instance, useobj), NCX_EL_RPC)) {
         /* get the rpc template ode for this object */
         if ( targmod ) {
-            foundobj = obj_find_template_top(targmod, ncx_get_modname(targmod),
+            foundobj = obj_find_template_top(instance, targmod, ncx_get_modname(targmod),
                                           nodename);
             foundobj = ensure_found_object_is_rpc( foundobj );
         }
     } else {
         /* get child node of this object */
         if ( targmod ) {
-            foundobj = obj_find_child( useobj, ncx_get_modname(targmod),
+            if (pcb->source == XP_SRC_LEAFREF &&
+                !( pcb->flags & XP_FL_ABSPATH )) {
+              //ATTN: This is called as a WA for RIFT-9366 for passing
+              //source as an argument to 'find_template' function.
+              foundobj = obj_find_child_lr(instance, useobj, ncx_get_modname(targmod),
+                                           nodename, pcb);
+            } else {
+              foundobj = obj_find_child(instance,  useobj, ncx_get_modname(targmod),
                                        nodename);
+            }
         }
         else if ( !foundobj && laxnamespaces ) {
-            foundobj = obj_find_child(useobj, NULL, nodename);
+            foundobj = obj_find_child(instance, useobj, NULL, nodename);
         }
     }
     return foundobj;
@@ -423,7 +439,8 @@ static obj_template_t* find_object_from_use_obj( obj_template_t* useobj,
  * \param nodename the node name to find (must be present)
  * \return status
  *********************************************************************/
-static status_t set_next_objnode( xpath_pcb_t *pcb,
+static status_t set_next_objnode(ncx_instance_t *instance,
+                                   xpath_pcb_t *pcb,
                                   const xmlChar *prefix,
                                   xmlns_id_t  nsid,
                                   const xmlChar *nodename )
@@ -435,14 +452,14 @@ static status_t set_next_objnode( xpath_pcb_t *pcb,
     status_t res = NO_ERR;
     obj_template_t** useobj = select_pcb_object( pcb, &res );
     if ( res != NO_ERR ) {
-        return pcb_print_errormsg( pcb, pcb->tkerr.mod, res );
+        return pcb_print_errormsg(instance,  pcb, pcb->tkerr.mod, res );
     }
 
     /* get the module from the NSID or the prefix */
-    ncx_module_t* targmod = select_target_module( pcb, prefix, nsid, 
+    ncx_module_t* targmod = select_target_module(instance,  pcb, prefix, nsid, 
                                                   laxnamespaces, &res );
     if ( res != NO_ERR ) {
-        return pcb_print_errormsg( pcb, pcb->tkerr.mod, res );
+        return pcb_print_errormsg(instance,  pcb, pcb->tkerr.mod, res );
     }
 
     /* check if no NSID or prefix used: instead of rejecting
@@ -451,45 +468,45 @@ static status_t set_next_objnode( xpath_pcb_t *pcb,
      */
     obj_template_t *foundobj = NULL;
     if ( !targmod && laxnamespaces && ( !nsid || !prefix )) {
-        foundobj = find_top_level_object( pcb, prefix, nsid, nodename );
+        foundobj = find_top_level_object(instance,  pcb, prefix, nsid, nodename );
         if ( !foundobj ) {
-            return pcb_log_error_msg(pcb, pcb->tkerr.mod, ERR_NCX_DEF_NOT_FOUND,
+            return pcb_log_error_msg(instance, pcb, pcb->tkerr.mod, ERR_NCX_DEF_NOT_FOUND,
                       "\nError: No object match for node '%s' in expr '%s'", 
                       nodename, pcb->exprstr);
         }
     } else if ( *useobj ) {
-        foundobj = find_object_from_use_obj( *useobj, targmod, nodename, 
-                                              laxnamespaces ); 
+        foundobj = find_object_from_use_obj(instance,  *useobj, targmod, nodename, 
+                                            laxnamespaces, pcb); 
     } else if ( pcb->curmode == XP_CM_KEYVAR || pcb->curmode == XP_CM_ALT ) {
         /* setting object for the first time, get child node of the current 
          * context object */
         if ( pcb->targobj && targmod ) {
-            foundobj = obj_find_child( pcb->targobj, ncx_get_modname(targmod), 
+            foundobj = obj_find_child(instance,  pcb->targobj, ncx_get_modname(targmod), 
                                        nodename );
         }
     } else if ( ( pcb->flags & XP_FL_ABSPATH ) ) {
         /* setting object for the first time get top-level object from 
          * object module */
         if ( targmod ) {
-            foundobj = obj_find_template_top(targmod, ncx_get_modname(targmod),
+            foundobj = obj_find_template_top(instance, targmod, ncx_get_modname(targmod),
                                              nodename);
         }
     } else {
         /* setting object for the first time but the context node is a leaf, 
          * so there is no possible child node of the start object */
-        log_debug2( "\n%s setting object for the first time but the context "
+        log_debug2(instance,  "\n%s setting object for the first time but the context "
                     "node is a leaf, so there is no possible child node "
                     "of the start object", __func__ );
     }
 
     if ( !foundobj ) {
         if (prefix) {
-            pcb_log_error( pcb, "\nError: object not found '%s:%s'", prefix, 
+            pcb_log_error(instance,  pcb, "\nError: object not found '%s:%s'", prefix, 
                                nodename);
         } else {
-            pcb_log_error( pcb, "\nError: object not found '%s'", nodename);
+            pcb_log_error(instance,  pcb, "\nError: object not found '%s'", nodename);
         }
-        return pcb_print_errormsg( pcb, pcb->objmod, 
+        return pcb_print_errormsg(instance,  pcb, pcb->objmod, 
                                    ERR_NCX_DEF_NOT_FOUND );
     }
 
@@ -511,21 +528,21 @@ static status_t set_next_objnode( xpath_pcb_t *pcb,
 * RETURNS:
 *   status
 *********************************************************************/
-static status_t move_up_obj (xpath_pcb_t *pcb)
+static status_t move_up_obj (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     obj_template_t  *foundobj = NULL;
 
     status_t res = NO_ERR;
     obj_template_t** useobj = select_pcb_object( pcb, &res );
     if ( NO_ERR != res ) {
-        pcb_print_errormsg(pcb, pcb->objmod, res);
+        pcb_print_errormsg(instance, pcb, pcb->objmod, res);
         return res;
     }
 
     if (*useobj) {
         /* get child node of this object */
         if ((*useobj)->parent) {
-            foundobj = obj_get_real_parent(*useobj);
+            foundobj = obj_get_real_parent(instance, *useobj);
         } else if (*useobj != pcb->docroot) {
             foundobj = pcb->docroot;
         }
@@ -533,7 +550,7 @@ static status_t move_up_obj (xpath_pcb_t *pcb)
         /* setting object for the first time
          * get parent node of the the start object 
          */
-        foundobj = obj_get_real_parent(pcb->obj);
+        foundobj = obj_get_real_parent(instance, pcb->obj);
         if (foundobj == NULL) {
             foundobj = pcb->docroot;
         }
@@ -542,9 +559,10 @@ static status_t move_up_obj (xpath_pcb_t *pcb)
     if (foundobj == NULL) {
         res = ERR_NCX_DEF_NOT_FOUND;
         if (pcb->logerrors) {
-            log_error("\nError: parent not found for object '%s'",
-                      obj_get_name(*useobj));
-            ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+            log_error(instance,
+                      "\nError: parent not found for object '%s'",
+                      obj_get_name(instance, *useobj));
+            ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
         }
     } else {
         *useobj = foundobj;
@@ -562,7 +580,8 @@ static status_t move_up_obj (xpath_pcb_t *pcb)
  * \param res the result status
  * \return the associated node name
  *********************************************************************/
-static const xmlChar* parse_node_identifier_tk_tt_period( xpath_pcb_t* pcb,
+static const xmlChar* parse_node_identifier_tk_tt_period(ncx_instance_t *instance,
+                                                           xpath_pcb_t* pcb,
                                                           status_t* res )
 {
     if (pcb->flags & XP_FL_INSTANCEID) {
@@ -570,10 +589,10 @@ static const xmlChar* parse_node_identifier_tk_tt_period( xpath_pcb_t* pcb,
             *res = ERR_NCX_INVALID_VALUE;
         } else {
             *res = NO_ERR;
-            return obj_get_name(pcb->targobj);
+            return obj_get_name(instance, pcb->targobj);
         }
     } else {
-       *res = pcb_log_error_msg( pcb, NULL, ERR_NCX_WRONG_TKTYPE,
+       *res = pcb_log_error_msg(instance,  pcb, NULL, ERR_NCX_WRONG_TKTYPE,
                                  "\nError: '.' not allowed here" );
     }
     return NULL;
@@ -589,7 +608,8 @@ static const xmlChar* parse_node_identifier_tk_tt_period( xpath_pcb_t* pcb,
  * \param res the result status
  * \return the associated node name
  *********************************************************************/
-static const xmlChar* parse_node_identifier_tk_tt_string( xpath_pcb_t* pcb, 
+static const xmlChar* parse_node_identifier_tk_tt_string(ncx_instance_t *instance, 
+                                             xpath_pcb_t* pcb, 
                                             const xmlChar** prefix,
                                             xmlns_id_t* nsid,
                                             status_t* res )
@@ -599,16 +619,18 @@ static const xmlChar* parse_node_identifier_tk_tt_string( xpath_pcb_t* pcb,
 
     if (pcb->source != XP_SRC_XML) {
         if (pcb->tkerr.mod) {
-            if ( xml_strcmp(pcb->tkerr.mod->prefix, *prefix)) {
-                ncx_import_t* import = ncx_find_pre_import( pcb->tkerr.mod, 
+            if ( xml_strcmp(instance, pcb->tkerr.mod->prefix, *prefix)) {
+                ncx_import_t* import = ncx_find_pre_import(instance, 
+                                                             pcb->tkerr.mod, 
                                                             *prefix);
                 if (!import) {
-                    *res = pcb_log_error_msg( pcb, pcb->tkerr.mod, 
+                    *res = pcb_log_error_msg(instance,  pcb, pcb->tkerr.mod, 
                             ERR_NCX_PREFIX_NOT_FOUND, 
                             "\nError: '.' not allowed here" );
                     return NULL;
                 } else {
-                    ncx_module_t* testmod = ncx_find_module( import->module, 
+                    ncx_module_t* testmod = ncx_find_module(instance, 
+                                                              import->module, 
                                                              import->revision );
                     if (testmod) {
                         *nsid = testmod->nsid;
@@ -616,19 +638,19 @@ static const xmlChar* parse_node_identifier_tk_tt_string( xpath_pcb_t* pcb,
                 }
             }
         } else {
-            *nsid = xmlns_find_ns_by_prefix(*prefix);
+            *nsid = xmlns_find_ns_by_prefix(instance, *prefix);
             if ( *nsid == XMLNS_NULL_NS_ID ) {
-                *res = pcb_log_error_msg( pcb, pcb->tkerr.mod, 
+                *res = pcb_log_error_msg(instance,  pcb, pcb->tkerr.mod, 
                        ERR_NCX_PREFIX_NOT_FOUND, 
                        "\nError: module for prefix '%s' not found", *prefix );
                 return NULL;
             }
         }
     } else {
-        *res = xml_get_namespace_id( pcb->reader, *prefix, 
+        *res = xml_get_namespace_id(instance,  pcb->reader, *prefix, 
                                      TK_CUR_MODLEN(pcb->tkc), nsid);
         if ( *res != NO_ERR ) {
-            *res = pcb_log_error_msg( pcb, pcb->tkerr.mod, *res,
+            *res = pcb_log_error_msg(instance,  pcb, pcb->tkerr.mod, *res,
                     "\nError: unknown XML prefix '%s'", *prefix );
             return NULL;
         }
@@ -651,26 +673,26 @@ static const xmlChar* parse_node_identifier_tk_tt_string( xpath_pcb_t* pcb,
  * \param pcb the parser control block in progress|
  * \return the status result
  *********************************************************************/
-static status_t parse_node_identifier (xpath_pcb_t *pcb)
+static status_t parse_node_identifier (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     const xmlChar *nodename = NULL;
     const xmlChar *prefix = NULL;
     xmlns_id_t nsid = 0;
 
     /* get the next token in the step, node-identifier */
-    status_t res = TK_ADV(pcb->tkc);
+    status_t res = TK_ADV(instance, pcb->tkc);
     if (res != NO_ERR) {
-        pcb_print_errormsg(pcb, pcb->tkerr.mod, res);
+        pcb_print_errormsg(instance, pcb, pcb->tkerr.mod, res);
         return res;
     }
 
     switch (TK_CUR_TYP(pcb->tkc)) {
     case TK_TT_PERIOD:
-        nodename = parse_node_identifier_tk_tt_period( pcb, &res );
+        nodename = parse_node_identifier_tk_tt_period(instance,  pcb, &res );
         break;
 
     case TK_TT_MSTRING:
-        nodename = parse_node_identifier_tk_tt_string( pcb, &prefix, &nsid, 
+        nodename = parse_node_identifier_tk_tt_string(instance,  pcb, &prefix, &nsid, 
                                                       &res );
         break;
 
@@ -681,7 +703,7 @@ static status_t parse_node_identifier (xpath_pcb_t *pcb)
     default:
         res = ERR_NCX_WRONG_TKTYPE;
         if (pcb->logerrors) {
-            ncx_mod_exp_err(pcb->tkc, pcb->tkerr.mod, res, "node identifier");
+            ncx_mod_exp_err(instance, pcb->tkc, pcb->tkerr.mod, res, "node identifier");
         }
         break;
     }
@@ -689,7 +711,7 @@ static status_t parse_node_identifier (xpath_pcb_t *pcb)
     /* FIXME Should this function simply return NO_ERR at the top if
      * pcb->obj is NULL */
     if ( res == NO_ERR && pcb->obj ) {
-        res = set_next_objnode( pcb, prefix, nsid, nodename );
+        res = set_next_objnode(instance,  pcb, prefix, nsid, nodename );
     }
 
     return res;
@@ -715,20 +737,22 @@ static status_t parse_node_identifier (xpath_pcb_t *pcb)
 *   status
 *********************************************************************/
 static status_t
-    parse_current_fn (xpath_pcb_t *pcb)
+    parse_current_fn (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     status_t     res;
 
     /* get the function name 'current' */
-    res = xpath_parse_token(pcb, TK_TT_TSTRING);
+    res = xpath_parse_token(instance, pcb, TK_TT_TSTRING);
     if (res != NO_ERR) {
         return res;
     }
-    if (xml_strcmp(TK_CUR_VAL(pcb->tkc),
+    if (xml_strcmp(instance,
+                   TK_CUR_VAL(pcb->tkc),
                    (const xmlChar *)"current")) {
         res = ERR_NCX_WRONG_VAL;
         if (pcb->logerrors) {
-            ncx_mod_exp_err(pcb->tkc, 
+            ncx_mod_exp_err(instance, 
+                            pcb->tkc, 
                             pcb->tkerr.mod, 
                             res,
                             "current() function");
@@ -737,13 +761,13 @@ static status_t
     }
 
     /* get the left paren '(' */
-    res = xpath_parse_token(pcb, TK_TT_LPAREN);
+    res = xpath_parse_token(instance, pcb, TK_TT_LPAREN);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get the right paren ')' */
-    res = xpath_parse_token(pcb, TK_TT_RPAREN);
+    res = xpath_parse_token(instance, pcb, TK_TT_RPAREN);
     if (res != NO_ERR) {
         return res;
     }
@@ -758,7 +782,7 @@ static status_t
             pcb->altobj = pcb->obj;
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
@@ -789,7 +813,7 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    parse_path_key_expr (xpath_pcb_t *pcb)
+    parse_path_key_expr (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     tk_type_t    nexttyp;
     status_t     res;
@@ -802,13 +826,13 @@ static status_t
     pcb->curmode = XP_CM_ALT;
 
     /* get the current function call 'current()' */
-    res = parse_current_fn(pcb);
+    res = parse_current_fn(instance, pcb);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get the path separator '/' */
-    res = xpath_parse_token(pcb, TK_TT_FSLASH);
+    res = xpath_parse_token(instance, pcb, TK_TT_FSLASH);
     if (res != NO_ERR) {
         return res;
     }
@@ -818,14 +842,14 @@ static status_t
      */
     while (!done) {
         /* get the parent marker '..' */
-        res = xpath_parse_token(pcb, TK_TT_RANGESEP);
+        res = xpath_parse_token(instance, pcb, TK_TT_RANGESEP);
         if (res != NO_ERR) {
             done = TRUE;
             continue;
         }
 
         /* get the path separator '/' */
-        res = xpath_parse_token(pcb, TK_TT_FSLASH);
+        res = xpath_parse_token(instance, pcb, TK_TT_FSLASH);
         if (res != NO_ERR) {
             done = TRUE;
             continue;
@@ -833,7 +857,7 @@ static status_t
 
         /* move the context node up one level */
         if (pcb->obj) {
-            res = move_up_obj(pcb);
+            res = move_up_obj(instance, pcb);
             if (res != NO_ERR) {
                 done = TRUE;
                 continue;
@@ -843,7 +867,7 @@ static status_t
         /* check the next token;
          * it may be the start of another '../' pair
          */
-        nexttyp = tk_next_typ(pcb->tkc);
+        nexttyp = tk_next_typ(instance, pcb->tkc);
         if (nexttyp != TK_TT_RANGESEP) {
             done = TRUE;
         } /* else keep going to the next '../' pair */
@@ -856,7 +880,7 @@ static status_t
     /* get the node-identifier sequence */
     done = FALSE;
     while (!done) {
-        res = parse_node_identifier(pcb);
+        res = parse_node_identifier(instance, pcb);
         if (res != NO_ERR) {
             done = TRUE;
             continue;
@@ -865,11 +889,11 @@ static status_t
         /* check the next token;
          * it may be the fwd slash to start another step
          */
-        nexttyp = tk_next_typ(pcb->tkc);
+        nexttyp = tk_next_typ(instance, pcb->tkc);
         if (nexttyp != TK_TT_FSLASH) {
             done = TRUE;
         } else {
-            res = xpath_parse_token(pcb, TK_TT_FSLASH);
+            res = xpath_parse_token(instance, pcb, TK_TT_FSLASH);
             if (res != NO_ERR) {
                 done = TRUE;
             }
@@ -895,7 +919,8 @@ static status_t
 *   int32   [0..N-1] key number or -1 if not a key in this obj
 *********************************************************************/
 static int32
-    get_key_number (obj_template_t *obj,
+    get_key_number (ncx_instance_t *instance,
+                    obj_template_t *obj,
                     obj_template_t *keyobj)
 {
     obj_key_t       *key;
@@ -903,14 +928,14 @@ static int32
 
     keynum = 0;
 
-    key = obj_first_key(obj);
+    key = obj_first_key(instance, obj);
     while (key) {
         if (key->keyobj == keyobj) {
             return keynum;
         }
 
         keynum++;
-        key = obj_next_key(key);
+        key = obj_next_key(instance, key);
     }
 
     return -1;
@@ -952,7 +977,7 @@ static int32
 *   status
 *********************************************************************/
 static status_t
-    parse_path_predicate (xpath_pcb_t *pcb)
+    parse_path_predicate (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
 #define MAX_KEYS   64
     tk_type_t              nexttyp;
@@ -971,22 +996,24 @@ static status_t
     leaflist = FALSE;
 
     if (pcb->targobj && pcb->targobj->objtype == OBJ_TYP_LIST) {
-        keytotal = obj_key_count(pcb->targobj);
+        keytotal = obj_key_count(instance, pcb->targobj);
         if (keytotal > MAX_KEYS) {
             if (pcb->logerrors && 
-                ncx_warning_enabled(ERR_NCX_MAX_KEY_CHECK)) {
-                log_warn("\nWarning: Only first %u keys in list '%s'"
+                ncx_warning_enabled(instance, ERR_NCX_MAX_KEY_CHECK)) {
+                log_warn(instance, 
+                         "\nWarning: Only first %u keys in list '%s'"
                          " can be checked in XPath expression", 
                          MAX_KEYS,
-                         obj_get_name(pcb->obj));
+                         obj_get_name(instance, pcb->obj));
             } else if (pcb->objmod != NULL) {
                 ncx_inc_warnings(pcb->objmod);
             }
         } else if (keytotal == 0) {
             res = ERR_NCX_INVALID_VALUE;
-            log_error("\nError: Key predicates found for list "
+            log_error(instance, 
+                      "\nError: Key predicates found for list "
                       "'%s' which does not define any keys", 
-                      obj_get_name(pcb->targobj));
+                      obj_get_name(instance, pcb->targobj));
             return res;
         }
     } else if ((pcb->flags & XP_FL_INSTANCEID) && 
@@ -1003,7 +1030,7 @@ static status_t
         loopcount++;
 
         /* get the left bracket '[' */
-        res = xpath_parse_token(pcb, TK_TT_LBRACK);
+        res = xpath_parse_token(instance, pcb, TK_TT_LBRACK);
         if (res != NO_ERR) {
             done = TRUE;
             continue;
@@ -1013,7 +1040,7 @@ static status_t
         pcb->curmode = XP_CM_KEYVAR;
 
         /* get the node-identifier next */
-        res = parse_node_identifier(pcb);
+        res = parse_node_identifier(instance, pcb);
         if (res != NO_ERR) {
             done = TRUE;
             continue;
@@ -1026,11 +1053,12 @@ static status_t
                 if (!(pcb->targobj && pcb->targobj == pcb->varobj)) {
                     res = ERR_NCX_WRONG_INDEX_TYPE;
                     if (pcb->logerrors) {
-                        log_error("\nError: wrong index type '%s' for "
+                        log_error(instance,
+                                  "\nError: wrong index type '%s' for "
                                   "leaf-list '%s'",
-                                  obj_get_typestr(pcb->varobj),
-                                  obj_get_name(pcb->targobj));
-                        ncx_print_errormsg(pcb->tkc, NULL, res);
+                                  obj_get_typestr(instance, pcb->varobj),
+                                  obj_get_name(instance, pcb->targobj));
+                        ncx_print_errormsg(instance, pcb->tkc, NULL, res);
                     }
                 } else {
                     leaflist = TRUE;
@@ -1038,10 +1066,12 @@ static status_t
             } else if (pcb->varobj->objtype != OBJ_TYP_LEAF) {
                 res = ERR_NCX_WRONG_TYPE;
                 if (pcb->logerrors) {
-                    log_error("\nError: path predicate found is %s '%s'",
-                              obj_get_typestr(pcb->varobj),
-                              obj_get_name(pcb->varobj));
-                    ncx_mod_exp_err(pcb->tkc, 
+                    log_error(instance,
+                              "\nError: path predicate found is %s '%s'",
+                              obj_get_typestr(instance, pcb->varobj),
+                              obj_get_name(instance, pcb->varobj));
+                    ncx_mod_exp_err(instance, 
+                                    pcb->tkc, 
                                     pcb->objmod, 
                                     res, 
                                     "leaf");
@@ -1053,7 +1083,7 @@ static status_t
             if (leaflist) {
                 keynum = 0;
             } else {
-                keynum = get_key_number(pcb->targobj, pcb->varobj);
+                keynum = get_key_number(instance, pcb->targobj, pcb->varobj);
             }
             if (keynum == -1) {
                 ;
@@ -1064,11 +1094,12 @@ static status_t
                 if (keyflags & keybit) {
                     res = ERR_NCX_EXTRA_PARM;
                     if (pcb->logerrors) {
-                        log_error("\nError: key '%s' already specified "
+                        log_error(instance,
+                                  "\nError: key '%s' already specified "
                                   "in XPath expression for object '%s'",
-                                  obj_get_name(pcb->varobj),
-                                  obj_get_name(pcb->targobj));
-                        ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+                                  obj_get_name(instance, pcb->varobj),
+                                  obj_get_name(instance, pcb->targobj));
+                        ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
                     }
                 } else {
                     keycount++;
@@ -1076,10 +1107,11 @@ static status_t
                 }
             } else {
                 if (pcb->logerrors &&
-                    ncx_warning_enabled(ERR_NCX_MAX_KEY_CHECK)) {
-                    log_warn("\nWarning: Key '%s' skipped "
+                    ncx_warning_enabled(instance, ERR_NCX_MAX_KEY_CHECK)) {
+                    log_warn(instance,
+                             "\nWarning: Key '%s' skipped "
                              "in validation test",
-                             obj_get_name(pcb->varobj));
+                             obj_get_name(instance, pcb->varobj));
                 } else if (pcb->objmod != NULL) {
                     ncx_inc_warnings(pcb->objmod);
                 }
@@ -1087,7 +1119,7 @@ static status_t
         } 
 
         /* get the equals sign '=' */
-        res = xpath_parse_token(pcb, TK_TT_EQUAL);
+        res = xpath_parse_token(instance, pcb, TK_TT_EQUAL);
         if (res != NO_ERR) {
             done = TRUE;
             continue;
@@ -1099,7 +1131,7 @@ static status_t
             pcb->altobj = NULL;
 
             /* parse literal */
-            res = TK_ADV(pcb->tkc);
+            res = TK_ADV(instance, pcb->tkc);
             if (res == NO_ERR) {
                 if (!(TK_CUR_TYP(pcb->tkc) == TK_TT_QSTRING ||
                       TK_CUR_TYP(pcb->tkc) == TK_TT_SQSTRING)) {
@@ -1109,16 +1141,16 @@ static status_t
 
             if (res != NO_ERR) {
                 if (pcb->logerrors) {
-                    log_error("\nError: invalid predicate in "
+                    log_error(instance, "\nError: invalid predicate in "
                               "expression '%s'", pcb->exprstr);
-                    ncx_print_errormsg(pcb->tkc, NULL, res);
+                    ncx_print_errormsg(instance, pcb->tkc, NULL, res);
                 }
                 done = TRUE;
                 continue;
             }
         } else {
             /* get the path-key-expr next */
-            res = parse_path_key_expr(pcb);
+            res = parse_path_key_expr(instance, pcb);
             if (res != NO_ERR) {
                 done = TRUE;
                 continue;
@@ -1130,10 +1162,12 @@ static status_t
             if (pcb->altobj->objtype != OBJ_TYP_LEAF) {
                 res = ERR_NCX_WRONG_TYPE;
                 if (pcb->logerrors) {
-                    log_error("\nError: path target found is %s '%s'",
-                              obj_get_typestr(pcb->altobj),
-                              obj_get_name(pcb->altobj));
-                    ncx_mod_exp_err(pcb->tkc, 
+                    log_error(instance,
+                              "\nError: path target found is %s '%s'",
+                              obj_get_typestr(instance, pcb->altobj),
+                              obj_get_name(instance, pcb->altobj));
+                    ncx_mod_exp_err(instance, 
+                                    pcb->tkc, 
                                     pcb->objmod, 
                                     res, 
                                     "leaf");
@@ -1145,20 +1179,22 @@ static status_t
                 if (pcb->altobj == pcb->obj) {
                     res = ERR_NCX_DEF_LOOP;
                     if (pcb->logerrors) {
-                        log_error("\nError: path target '%s' is set to "
+                        log_error(instance,
+                                  "\nError: path target '%s' is set to "
                                   "the target object",
-                                  obj_get_name(pcb->altobj));
-                        ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+                                  obj_get_name(instance, pcb->altobj));
+                        ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
                     }
                     done = TRUE;
                     continue;
                 } else if (pcb->altobj == pcb->varobj) {
                     res = ERR_NCX_DEF_LOOP;
                     if (pcb->logerrors) {
-                        log_error("\nError: path target '%s' is set to "
+                        log_error(instance,
+                                  "\nError: path target '%s' is set to "
                                   "the key leaf object",
-                                  obj_get_name(pcb->altobj));
-                        ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+                                  obj_get_name(instance, pcb->altobj));
+                        ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
                     }
                     done = TRUE;
                     continue;
@@ -1167,7 +1203,7 @@ static status_t
         }
 
         /* get the right bracket ']' */
-        res = xpath_parse_token(pcb, TK_TT_RBRACK);
+        res = xpath_parse_token(instance, pcb, TK_TT_RBRACK);
         if (res != NO_ERR) {
             done = TRUE;
             continue;
@@ -1178,7 +1214,7 @@ static status_t
         /* check the next token;
          * it may be the start of another path-predicate '['
          */
-        nexttyp = tk_next_typ(pcb->tkc);
+        nexttyp = tk_next_typ(instance, pcb->tkc);
         if (nexttyp != TK_TT_LBRACK) {
             done = TRUE;
         } /* else keep going to the next path-predicate */
@@ -1197,19 +1233,21 @@ static status_t
                     /* regular instance-identifier must have all keys */
                     res = ERR_NCX_MISSING_INDEX;
                     if (pcb->logerrors) {
-                        log_error("\nError: missing key components in"
+                        log_error(instance,
+                                  "\nError: missing key components in"
                                   " XPath expression for list '%s'",
-                                  obj_get_name(pcb->targobj));
-                        ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+                                  obj_get_name(instance, pcb->targobj));
+                        ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
                     }
                 }
             } else {
                 res = ERR_NCX_EXTRA_VAL_INST;
                 if (pcb->logerrors) {
-                    log_error("\nError: extra key components in"
+                    log_error(instance,
+                              "\nError: extra key components in"
                               " XPath expression for list '%s'",
-                              obj_get_name(pcb->targobj));
-                    ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+                              obj_get_name(instance, pcb->targobj));
+                    ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
                 }
             }
         }
@@ -1254,7 +1292,7 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    parse_absolute_path (xpath_pcb_t *pcb)
+    parse_absolute_path (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     tk_type_t    nexttyp;
     status_t     res;
@@ -1269,13 +1307,13 @@ static status_t
         /* get  the first token in the step, '/' */
         if (first) {
             /* allow the first '/' to be omitted */
-            if (tk_next_typ(pcb->tkc) == TK_TT_FSLASH) {
-                res = xpath_parse_token(pcb, TK_TT_FSLASH);
+            if (tk_next_typ(instance, pcb->tkc) == TK_TT_FSLASH) {
+                res = xpath_parse_token(instance, pcb, TK_TT_FSLASH);
             }
             first = FALSE;
         } else {
             /* get  the first token in the step, '/' */
-            res = xpath_parse_token(pcb, TK_TT_FSLASH);
+            res = xpath_parse_token(instance, pcb, TK_TT_FSLASH);
         }
         if (res != NO_ERR) {
             done = TRUE;
@@ -1283,7 +1321,7 @@ static status_t
         }
 
         if (pcb->flags & XP_FL_SCHEMA_INSTANCEID &&
-            tk_next_typ(pcb->tkc) == TK_TT_NONE) {
+            tk_next_typ(instance, pcb->tkc) == TK_TT_NONE) {
             /* corner-case: a schema-instance-string
              * is allowed to be a single forward slash
              * to indicate the entire document
@@ -1294,7 +1332,7 @@ static status_t
         }
 
         /* get the node-identifier next */
-        res = parse_node_identifier(pcb);
+        res = parse_node_identifier(instance, pcb);
         if (res != NO_ERR) {
             done = TRUE;
             continue;
@@ -1304,15 +1342,15 @@ static status_t
          * it may be the start of a path-predicate '['
          * or the start of another step '/'
          */
-        nexttyp = tk_next_typ(pcb->tkc);
+        nexttyp = tk_next_typ(instance, pcb->tkc);
         if (nexttyp == TK_TT_LBRACK) {
-            res = parse_path_predicate(pcb);
+            res = parse_path_predicate(instance, pcb);
             if (res != NO_ERR) {
                 done = TRUE;
                 continue;
             }
 
-            nexttyp = tk_next_typ(pcb->tkc);
+            nexttyp = tk_next_typ(instance, pcb->tkc);
             if (nexttyp != TK_TT_FSLASH) {
                 done = TRUE;
             }
@@ -1323,13 +1361,15 @@ static status_t
 
     /* check that the string ended properly */
     if (res == NO_ERR) {
-        nexttyp = tk_next_typ(pcb->tkc);
+        nexttyp = tk_next_typ(instance, pcb->tkc);
         if (nexttyp != TK_TT_NONE) {
             res = ERR_NCX_INVALID_TOKEN;
             if (pcb->logerrors) {
-                log_error("\nError: wrong token at end of absolute-path '%s'",
+                log_error(instance,
+                          "\nError: wrong token at end of absolute-path '%s'",
                           tk_get_token_name(nexttyp));
-                ncx_print_errormsg(pcb->tkc, 
+                ncx_print_errormsg(instance, 
+                                   pcb->tkc, 
                                    pcb->tkerr.mod, 
                                    res);
             }
@@ -1371,7 +1411,7 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    parse_relative_path (xpath_pcb_t *pcb)
+    parse_relative_path (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     tk_type_t    nexttyp;
     status_t     res;
@@ -1382,45 +1422,45 @@ static status_t
      * it may be the start of a '../' pair or a
      * descendant-path (node-identifier)
      */
-    nexttyp = tk_next_typ(pcb->tkc);
+    nexttyp = tk_next_typ(instance, pcb->tkc);
     while (nexttyp == TK_TT_RANGESEP && res == NO_ERR) {
-        res = xpath_parse_token(pcb, TK_TT_RANGESEP);
+        res = xpath_parse_token(instance, pcb, TK_TT_RANGESEP);
         if (res == NO_ERR) {
-            res = xpath_parse_token(pcb, TK_TT_FSLASH);
+            res = xpath_parse_token(instance, pcb, TK_TT_FSLASH);
             if (res == NO_ERR) {
                 if (pcb->obj) {
-                    res = move_up_obj(pcb);
+                    res = move_up_obj(instance, pcb);
                 }
 
                 /* check the next token;
                  * it may be the start of another ../ pair
                  * or a node identifier
                  */
-                nexttyp = tk_next_typ(pcb->tkc);
+                nexttyp = tk_next_typ(instance, pcb->tkc);
             }
         }
     }
 
     if (res == NO_ERR) {
         /* expect a node identifier first */
-        res = parse_node_identifier(pcb);
+        res = parse_node_identifier(instance, pcb);
         if (res == NO_ERR) {
             /* check the next token;
              * it may be the start of a path-predicate '['
              * or the start of another step '/'
              */
-            nexttyp = tk_next_typ(pcb->tkc);
+            nexttyp = tk_next_typ(instance, pcb->tkc);
             if (nexttyp == TK_TT_LBRACK) {
-                res = parse_path_predicate(pcb);
+                res = parse_path_predicate(instance, pcb);
             }
 
             if (res == NO_ERR) {
                 /* check the next token;
                  * it may be the start of another step '/'
                  */
-                nexttyp = tk_next_typ(pcb->tkc);
+                nexttyp = tk_next_typ(instance, pcb->tkc);
                 if (nexttyp == TK_TT_FSLASH) {
-                    res = parse_absolute_path(pcb);
+                    res = parse_absolute_path(instance, pcb);
                 }
             }
         }
@@ -1452,19 +1492,19 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    parse_path_arg (xpath_pcb_t *pcb)
+    parse_path_arg (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     tk_type_t  nexttyp;
 
-    nexttyp = tk_next_typ(pcb->tkc);
+    nexttyp = tk_next_typ(instance, pcb->tkc);
     if (nexttyp == TK_TT_FSLASH) {
         pcb->flags |= XP_FL_ABSPATH;
-        return parse_absolute_path(pcb);
+        return parse_absolute_path(instance, pcb);
     } else if (pcb->obj != NULL && pcb->obj == pcb->docroot) {
         pcb->flags |= XP_FL_ABSPATH;
-        return parse_absolute_path(pcb);
+        return parse_absolute_path(instance, pcb);
     } else {
-        return parse_relative_path(pcb);
+        return parse_relative_path(instance, pcb);
     }
 
 }  /* parse_path_arg */
@@ -1491,7 +1531,7 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    parse_keyexpr (xpath_pcb_t *pcb)
+    parse_keyexpr (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     tk_type_t    nexttyp;
     status_t     res;
@@ -1506,9 +1546,9 @@ static status_t
          * it may be the start of a path-predicate '['
          * or the start of another step '/'
          */
-        nexttyp = tk_next_typ(pcb->tkc);
+        nexttyp = tk_next_typ(instance, pcb->tkc);
         if (nexttyp == TK_TT_LBRACK) {
-            res = parse_path_predicate(pcb);
+            res = parse_path_predicate(instance, pcb);
             if (res != NO_ERR) {
                 done = TRUE;
             }
@@ -1519,9 +1559,10 @@ static status_t
             res = ERR_NCX_INVALID_VALUE;
             done = TRUE;
             if (pcb->logerrors) {
-                log_error("\nError: wrong token in key-expr '%s'",
+                log_error(instance,
+                          "\nError: wrong token in key-expr '%s'",
                           pcb->exprstr);
-                ncx_print_errormsg(pcb->tkc, pcb->tkerr.mod, res);
+                ncx_print_errormsg(instance, pcb->tkc, pcb->tkerr.mod, res);
             }
         }
     }
@@ -1567,12 +1608,13 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_yang_parse_path (tk_chain_t *tkc,
+    xpath_yang_parse_path (ncx_instance_t *instance,
+                           tk_chain_t *tkc,
                            ncx_module_t *mod,
                            xpath_source_t source,
                            xpath_pcb_t *pcb)
 {
-    return xpath_yang_parse_path_ex(tkc, mod, source, pcb, TRUE);
+    return xpath_yang_parse_path_ex(instance, tkc, mod, source, pcb, TRUE);
 
 }  /* xpath_yang_parse_path */
 
@@ -1611,7 +1653,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_yang_parse_path_ex (tk_chain_t *tkc,
+    xpath_yang_parse_path_ex (ncx_instance_t *instance,
+                              tk_chain_t *tkc,
                               ncx_module_t *mod,
                               xpath_source_t source,
                               xpath_pcb_t *pcb,
@@ -1622,7 +1665,7 @@ status_t
 
 #ifdef DEBUG
     if (!pcb || !pcb->exprstr) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     switch (source) {
     case XP_SRC_LEAFREF:
@@ -1630,7 +1673,7 @@ status_t
     case XP_SRC_SCHEMA_INSTANCEID:
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
@@ -1645,18 +1688,20 @@ status_t
     }
 
     if (pcb->tkc) {
-        tk_reset_chain(pcb->tkc);
+        tk_reset_chain(instance, pcb->tkc);
     } else {
-        pcb->tkc = tk_tokenize_xpath_string(mod, 
+        pcb->tkc = tk_tokenize_xpath_string(instance, 
+                                            mod, 
                                             pcb->exprstr, 
                                             linenum,
                                             linepos,
                                             &res);
         if (!pcb->tkc || res != NO_ERR) {
             if (pcb->logerrors) {
-                log_error("\nError: Invalid path string '%s'",
+                log_error(instance,
+                          "\nError: Invalid path string '%s'",
                           pcb->exprstr);
-                ncx_print_errormsg(tkc, mod, res);
+                ncx_print_errormsg(instance, tkc, mod, res);
             }
             return res;
         }
@@ -1678,7 +1723,7 @@ status_t
      * phase will skip identifier tests, predicate tests
      * and completeness tests
      */
-    pcb->parseres = parse_path_arg(pcb);
+    pcb->parseres = parse_path_arg(instance, pcb);
 
     /* the expression will not be processed further if the
      * parseres is other than NO_ERR
@@ -1726,13 +1771,14 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_yang_validate_path (ncx_module_t *mod,
+    xpath_yang_validate_path (ncx_instance_t *instance,
+                              ncx_module_t *mod,
                               obj_template_t *obj,
                               xpath_pcb_t *pcb,
                               boolean schemainst,
                               obj_template_t **leafobj)
 {
-    return xpath_yang_validate_path_ex(mod, obj, pcb, schemainst, 
+    return xpath_yang_validate_path_ex(instance, mod, obj, pcb, schemainst, 
                                        leafobj, TRUE);
 
 }  /* xpath_yang_validate_path */
@@ -1778,7 +1824,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_yang_validate_path_ex (ncx_module_t *mod,
+    xpath_yang_validate_path_ex (ncx_instance_t *instance,
+                                 ncx_module_t *mod,
                                  obj_template_t *obj,
                                  xpath_pcb_t *pcb,
                                  boolean schemainst,
@@ -1791,10 +1838,10 @@ status_t
 
 #ifdef DEBUG
     if (!obj || !pcb || !leafobj || !pcb->exprstr) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!pcb->tkc) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
@@ -1811,12 +1858,12 @@ status_t
         return NO_ERR;
     }
 
-    pcb->docroot = ncx_get_gen_root();
+    pcb->docroot = ncx_get_gen_root(instance);
     if (!pcb->docroot) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    tk_reset_chain(pcb->tkc);
+    tk_reset_chain(instance, pcb->tkc);
     pcb->objmod = mod;
     pcb->obj = obj;
     pcb->targobj = NULL;
@@ -1827,7 +1874,7 @@ status_t
     /* validate the XPath expression against the 
      * full cooked object tree
      */
-    pcb->validateres = parse_path_arg(pcb);
+    pcb->validateres = parse_path_arg(instance, pcb);
 
     /* check leafref is config but target is not */
     if (pcb->validateres == NO_ERR && pcb->targobj) {
@@ -1840,19 +1887,19 @@ status_t
          * if obj is config, it can point at only config targobj
          * if obj not config, it can point at any targobj node
          */
-        if (obj_get_config_flag(obj) &&
-            !obj_get_config_flag(pcb->targobj)) {
+        if (obj_get_config_flag(instance, obj) &&
+            !obj_get_config_flag(instance, pcb->targobj)) {
 
             doerror = TRUE;
 
-            btyp = obj_get_basetype(obj);
+            btyp = obj_get_basetype(instance, obj);
 
             /* only some instance-identifier and leafref 
              * objects will ever return TRUE 
              */
             if ((btyp == NCX_BT_INSTANCE_ID || 
                  btyp == NCX_BT_LEAFREF) && 
-                !typ_get_constrained(obj_get_ctypdef(obj))) {
+                !typ_get_constrained(instance, obj_get_ctypdef(instance, obj))) {
                 doerror = FALSE;
             }
 
@@ -1868,11 +1915,12 @@ status_t
             if (doerror) {
                 res = ERR_NCX_NOT_CONFIG;
                 if (pcb->logerrors) {
-                    log_error("\nError: XPath target '%s' for leafref '%s'"
+                    log_error(instance,
+                              "\nError: XPath target '%s' for leafref '%s'"
                               " must be a config object",
-                              obj_get_name(pcb->targobj),
-                              obj_get_name(obj));
-                    ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+                              obj_get_name(instance, pcb->targobj),
+                              obj_get_name(instance, obj));
+                    ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
                 }
                 pcb->validateres = res;
             }
@@ -1880,13 +1928,14 @@ status_t
 
         /* check for a leaf, then if that is OK */
         if (pcb->source == XP_SRC_LEAFREF) {
-            if (!obj_is_leafy(pcb->targobj)) {
+            if (!obj_is_leafy(instance, pcb->targobj)) {
                 res = ERR_NCX_INVALID_VALUE;
                 if (pcb->logerrors) {
-                    log_error("\nError: invalid path target %s '%s'",
-                              obj_get_typestr(pcb->targobj),
-                              obj_get_name(pcb->targobj));
-                    ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+                    log_error(instance,
+                              "\nError: invalid path target %s '%s'",
+                              obj_get_typestr(instance, pcb->targobj),
+                              obj_get_name(instance, pcb->targobj));
+                    ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
                 }
                 pcb->validateres = res;
             }
@@ -1900,10 +1949,11 @@ status_t
             pcb->targobj != pcb->docroot) {
             res = ERR_NCX_DEF_LOOP;
             if (pcb->logerrors) {
-                log_error("\nError: path target '%s' is set to "
+                log_error(instance,
+                          "\nError: path target '%s' is set to "
                           "the target object",
-                          obj_get_name(pcb->targobj));
-                ncx_print_errormsg(pcb->tkc, pcb->objmod, res);
+                          obj_get_name(instance, pcb->targobj));
+                ncx_print_errormsg(instance, pcb->tkc, pcb->objmod, res);
             }
             pcb->validateres = res;
         }
@@ -1945,7 +1995,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_yang_validate_xmlpath (xmlTextReaderPtr reader,
+    xpath_yang_validate_xmlpath (ncx_instance_t *instance,
+                                 xmlTextReaderPtr reader,
                                  xpath_pcb_t *pcb,
                                  obj_template_t *pathobj,
                                  boolean logerrors,
@@ -1955,7 +2006,7 @@ status_t
 
 #ifdef DEBUG
     if (!reader || !pcb || !targobj || !pcb->exprstr) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1964,9 +2015,10 @@ status_t
     pcb->logerrors = logerrors;
 
     if (pcb->tkc) {
-        tk_reset_chain(pcb->tkc);
+        tk_reset_chain(instance, pcb->tkc);
     } else {
-        pcb->tkc = tk_tokenize_xpath_string(NULL, 
+        pcb->tkc = tk_tokenize_xpath_string(instance, 
+                                            NULL, 
                                             pcb->exprstr, 
                                             0, 
                                             0, 
@@ -1975,19 +2027,20 @@ status_t
 
     if (!pcb->tkc || res != NO_ERR) {
         if (pcb->logerrors) {
-            log_error("\nError: Invalid path string '%s'",
+            log_error(instance,
+                      "\nError: Invalid path string '%s'",
                       pcb->exprstr);
         }
         pcb->parseres = res;
         return res;
     }
 
-    pcb->docroot = ncx_get_gen_root();
+    pcb->docroot = ncx_get_gen_root(instance);
     if (!pcb->docroot) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    if (pathobj && obj_is_schema_instance_string(pathobj)) {
+    if (pathobj && obj_is_schema_instance_string(instance, pathobj)) {
         pcb->flags |= XP_FL_SCHEMA_INSTANCEID;
     } else {
         pcb->flags |= XP_FL_INSTANCEID;
@@ -2009,7 +2062,7 @@ status_t
     /* validate the XPath expression against the 
      * full cooked object tree
      */
-    pcb->validateres = parse_absolute_path(pcb);
+    pcb->validateres = parse_absolute_path(instance, pcb);
 
     /* check leafref is config but target is not */
     if (pcb->validateres == NO_ERR && pcb->targobj) {
@@ -2050,7 +2103,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_yang_validate_xmlkey (xmlTextReaderPtr reader,
+    xpath_yang_validate_xmlkey (ncx_instance_t *instance,
+                                xmlTextReaderPtr reader,
                                 xpath_pcb_t *pcb,
                                 obj_template_t *obj,
                                 boolean logerrors)
@@ -2059,7 +2113,7 @@ status_t
 
 #ifdef DEBUG
     if (!reader || !pcb || !pcb->exprstr) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2067,9 +2121,10 @@ status_t
     pcb->logerrors = logerrors;
 
     if (pcb->tkc) {
-        tk_reset_chain(pcb->tkc);
+        tk_reset_chain(instance, pcb->tkc);
     } else {
-        pcb->tkc = tk_tokenize_xpath_string(NULL, 
+        pcb->tkc = tk_tokenize_xpath_string(instance, 
+                                            NULL, 
                                             pcb->exprstr, 
                                             0, 
                                             0, 
@@ -2078,16 +2133,17 @@ status_t
 
     if (!pcb->tkc || res != NO_ERR) {
         if (pcb->logerrors) {
-            log_error("\nError: Invalid path string '%s'",
+            log_error(instance,
+                      "\nError: Invalid path string '%s'",
                       pcb->exprstr);
         }
         pcb->parseres = res;
         return res;
     }
 
-    pcb->docroot = ncx_get_gen_root();
+    pcb->docroot = ncx_get_gen_root(instance);
     if (!pcb->docroot) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     pcb->obj = obj;
     pcb->reader = reader;
@@ -2104,7 +2160,7 @@ status_t
     /* validate the XPath expression against the 
      * full cooked object tree
      */
-    pcb->validateres = parse_keyexpr(pcb);
+    pcb->validateres = parse_keyexpr(instance, pcb);
 
     pcb->reader = NULL;
 
@@ -2138,7 +2194,8 @@ status_t
 *   in internal val_value_t data structures
 *********************************************************************/
 val_value_t *
-    xpath_yang_make_instanceid_val (xpath_pcb_t *pcb,
+    xpath_yang_make_instanceid_val (ncx_instance_t *instance,
+                                    xpath_pcb_t *pcb,
                                     status_t *retres,
                                     val_value_t **deepest)
 {
@@ -2150,12 +2207,12 @@ val_value_t *
 
 #ifdef DEBUG
     if (!pcb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (!pcb->tkc) {
         if (retres) {
-            *retres = SET_ERROR(ERR_INTERNAL_VAL);
+            *retres = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         return NULL;
     }
@@ -2180,8 +2237,8 @@ val_value_t *
     }
 
     /* get first token */
-    tk_reset_chain(pcb->tkc);
-    res = TK_ADV(pcb->tkc);
+    tk_reset_chain(instance, pcb->tkc);
+    res = TK_ADV(instance, pcb->tkc);
     if (res != NO_ERR) {
         if (retres) {
             *retres = res;
@@ -2193,7 +2250,7 @@ val_value_t *
     if (TK_CUR_TYP(pcb->tkc) == TK_TT_FSLASH) {
         /* absolute path, use objroot to start */
         curobj = pcb->docroot;
-        res = TK_ADV(pcb->tkc);
+        res = TK_ADV(instance, pcb->tkc);
 
         if (res == ERR_NCX_EOF && 
             (pcb->flags & XP_FL_SCHEMA_INSTANCEID)) {
@@ -2214,7 +2271,7 @@ val_value_t *
         curobj = pcb->obj;
     }
     if (!curobj) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         if (retres) {
             *retres = ERR_INTERNAL_VAL;
         }
@@ -2229,7 +2286,7 @@ val_value_t *
         objprefix = TK_CUR_MOD(pcb->tkc);
         if (objprefix) {
             modname = xmlns_get_module
-                (xmlns_find_ns_by_prefix(objprefix));
+                (instance, xmlns_find_ns_by_prefix(instance, objprefix));
         } else {
             modname = NULL;
         }
@@ -2239,13 +2296,13 @@ val_value_t *
         if (obj_is_root(curobj)) {
             if (modname) {
                 childobj = 
-                    ncx_find_object(ncx_find_module(modname, NULL), 
+                    ncx_find_object(instance, ncx_find_module(instance, modname, NULL), 
                                     objname);
             } else {
-                childobj = ncx_find_any_object(objname);
+                childobj = ncx_find_any_object(instance, objname);
             }
         } else {
-            childobj = obj_find_child(curobj, modname, objname);
+            childobj = obj_find_child(instance, curobj, modname, objname);
         }
         if (!childobj) {
             res = ERR_NCX_DEF_NOT_FOUND;
@@ -2255,7 +2312,7 @@ val_value_t *
             continue;
         }
 
-        childval = val_new_value();
+        childval = val_new_value(instance);
         if (!childval) {
             res = ERR_INTERNAL_MEM;
             if (retres) {
@@ -2267,21 +2324,22 @@ val_value_t *
         /* if this is the last node, then treat it as a select
          * node since no value will be set; force type empty
          */
-        if (tk_next_typ(pcb->tkc) == TK_TT_NONE &&
-            obj_get_datadefQ(childobj) == NULL) {
+        if (tk_next_typ(instance, pcb->tkc) == TK_TT_NONE &&
+            obj_get_datadefQ(instance, childobj) == NULL) {
             /* terminal leaf or leaf-list, create an empty node */
-            const xmlChar *name = obj_get_name(childobj);
+            const xmlChar *name = obj_get_name(instance, childobj);
 
-            val_init_from_template(childval,
-                                   ncx_get_gen_empty());
-            val_set_name(childval, name, xml_strlen(name));
-            val_change_nsid(childval, obj_get_nsid(childobj));
+            val_init_from_template(instance,
+                                   childval,
+                                   ncx_get_gen_empty(instance));
+            val_set_name(instance, childval, name, xml_strlen(instance, name));
+            val_change_nsid(instance, childval, obj_get_nsid(instance, childobj));
         } else {
-            val_init_from_template(childval, childobj);
+            val_init_from_template(instance, childval, childobj);
         }
 
         if (curtop) {
-            val_add_child(childval, curtop);
+            val_add_child(instance, childval, curtop);
         } else {
             top = childval;
         }
@@ -2292,7 +2350,7 @@ val_value_t *
         }
 
         /* move on to the next token */
-        res = TK_ADV(pcb->tkc);
+        res = TK_ADV(instance, pcb->tkc);
         if (res != NO_ERR) {
             /* reached end of the line at an OK point */
             res = NO_ERR;
@@ -2303,20 +2361,20 @@ val_value_t *
         switch (TK_CUR_TYP(pcb->tkc)) {
         case TK_TT_FSLASH:
             /* normal identifier expected next, go back to start */
-            res = TK_ADV(pcb->tkc);
+            res = TK_ADV(instance, pcb->tkc);
             continue;
         case TK_TT_LBRACK:
             /* predicate expected next, keep going */
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             continue;
         }
 
         done2 = FALSE;
         while (!done2 && res == NO_ERR) {
             /* got a start of predicate, get the key leaf name */
-            res = TK_ADV(pcb->tkc);
+            res = TK_ADV(instance, pcb->tkc);
             if (res != NO_ERR) {
                 continue;
             }
@@ -2325,68 +2383,69 @@ val_value_t *
             objprefix = TK_CUR_MOD(pcb->tkc);
             if (objprefix) {
                 modname = xmlns_get_module
-                    (xmlns_find_ns_by_prefix(objprefix));
+                    (instance, xmlns_find_ns_by_prefix(instance, objprefix));
             } else {
                 modname = NULL;
             }
             objname = TK_CUR_VAL(pcb->tkc);
 
             /* find the child node and add it to the curtop */
-            childobj = obj_find_child(curobj, modname, objname);
+            childobj = obj_find_child(instance, curobj, modname, objname);
             if (!childobj) {
                 res = ERR_NCX_DEF_NOT_FOUND;
                 continue;
             }
-            childval = val_new_value();
+            childval = val_new_value(instance);
             if (!childval) {
                 res = ERR_INTERNAL_MEM;
                 continue;
             }
-            val_init_from_template(childval, childobj);
-            val_add_child(childval, curtop);
+            val_init_from_template(instance, childval, childobj);
+            val_add_child(instance, childval, curtop);
 
             /* get the = sign */
-            res = TK_ADV(pcb->tkc);
+            res = TK_ADV(instance, pcb->tkc);
             if (res != NO_ERR) {
                 continue;
             }
             if (TK_CUR_TYP(pcb->tkc) != TK_TT_EQUAL) {
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 continue;
             }
 
             /* get the key leaf value */
-            res = TK_ADV(pcb->tkc);
+            res = TK_ADV(instance, pcb->tkc);
             if (res != NO_ERR) {
                 continue;
             }
             if (!TK_CUR_STR(pcb->tkc)) {
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 continue;
             }
 
             /* set the new leaf with the value */
-            res = val_set_simval(childval,
+            res = val_set_simval(instance,
+                                 childval,
                                  obj_get_typdef(childobj),
-                                 obj_get_nsid(childobj),
-                                 obj_get_name(childobj),
+                                 obj_get_nsid(instance, childobj),
+                                 obj_get_name(instance, childobj),
                                  TK_CUR_VAL(pcb->tkc));
             if (res != NO_ERR) {
                 continue;
             }
 
             /* get the closing predicate bracket */
-            res = TK_ADV(pcb->tkc);
+            res = TK_ADV(instance, pcb->tkc);
             if (res != NO_ERR) {
                 continue;
             }
             if (TK_CUR_TYP(pcb->tkc) != TK_TT_RBRACK) {
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 continue;
             }
 
             /* check any more predicates or path steps */
-            res = TK_ADV(pcb->tkc);
+            res = TK_ADV(instance, pcb->tkc);
             if (res != NO_ERR) {
                 /* no more steps, stopped at an OK spot */
                 done = TRUE;
@@ -2403,14 +2462,14 @@ val_value_t *
                 /* done with predicates for now 
                  * setup the next path step
                  */
-                res = TK_ADV(pcb->tkc);
+                res = TK_ADV(instance, pcb->tkc);
                 if (res != NO_ERR) {
                     continue;
                 }
                 done2 = TRUE;
                 break;
             default:
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
     }
@@ -2418,14 +2477,15 @@ val_value_t *
 
     /* cleanup and exit */
     if (res != NO_ERR && top) {
-        val_free_value(top);
+        val_free_value(instance, top);
         top = NULL;
     }
 
     if (LOGDEBUG2 && top) {
-        log_debug2("\nval_inst for expr '%s'\n", 
+        log_debug2(instance, 
+                   "\nval_inst for expr '%s'\n", 
                    pcb->exprstr);
-        val_dump_value(top, NCX_DEF_INDENT);
+        val_dump_value(instance, top, NCX_DEF_INDENT);
     }
 
     if (retres != NULL) {
@@ -2466,7 +2526,8 @@ val_value_t *
 *   status
 *********************************************************************/
 status_t
-    xpath_yang_get_namespaces (const xpath_pcb_t *pcb,
+    xpath_yang_get_namespaces (ncx_instance_t *instance,
+                               const xpath_pcb_t *pcb,
                                xmlns_id_t *nsid_array,
                                uint32 max_nsids,
                                uint32 *num_nsids)
@@ -2479,13 +2540,13 @@ status_t
 
 #ifdef DEBUG
     if (!pcb || !nsid_array || !num_nsids) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!pcb->tkc) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     if (max_nsids == 0) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
@@ -2498,9 +2559,9 @@ status_t
     *num_nsids = 0;
 
     done = FALSE;
-    for (tk = (const tk_token_t *)dlq_firstEntry(&pcb->tkc->tkQ);
+    for (tk = (const tk_token_t *)dlq_firstEntry(instance, &pcb->tkc->tkQ);
          tk != NULL && !done;
-         tk = (const tk_token_t *)dlq_nextEntry(tk)) {
+         tk = (const tk_token_t *)dlq_nextEntry(instance, tk)) {
 
         /* only MSTRING and QVARBIND tokens have relevant NSID fields
          * as used in instance-identifier or schema-instance

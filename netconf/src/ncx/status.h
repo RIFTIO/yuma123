@@ -35,6 +35,8 @@ date             init     comment
 extern "C" {
 #endif
 
+struct ncx_instance_t_;
+
 /*********************************************************************
 *                                                                    *
 *                          C O N S T A N T S                         *
@@ -71,7 +73,7 @@ extern "C" {
  * RETURNS:
  *   E
  */
-#define SET_ERROR(E) set_error(__FILE__, __LINE__, E, 0)
+#define SET_ERROR(instance, E) set_error(instance, __FILE__, __LINE__, E, 0)
 
 
 /********************************************************************
@@ -419,7 +421,7 @@ typedef enum status_t_
 *    the 'status' parameter will be returned
 *********************************************************************/
 extern status_t 
-    set_error (const char *filename, int linenum, 
+    set_error (struct ncx_instance_t_ *instance, const char *filename, int linenum, 
                status_t status, int sqlError);
 
 
@@ -430,7 +432,7 @@ extern status_t
 *
 *********************************************************************/
 extern void 
-    print_errors (void);
+    print_errors (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -440,7 +442,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    clear_errors (void);
+    clear_errors (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -497,7 +499,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    status_init (void);
+    status_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -507,7 +509,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    status_cleanup (void);
+    status_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -520,7 +522,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    print_error_count (void);
+    print_error_count (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -531,7 +533,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    print_error_messages (void);
+    print_error_messages (struct ncx_instance_t_ *instance);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

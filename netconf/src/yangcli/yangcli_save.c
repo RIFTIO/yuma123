@@ -149,7 +149,7 @@ date         init     comment
 *    status
 *********************************************************************/
 static status_t
-    send_copy_config_to_server (server_cb_t *server_cb)
+    send_copy_config_to_server (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     obj_template_t        *rpc, *input, *child;
     mgr_rpc_req_t         *req;
@@ -163,71 +163,75 @@ static status_t
     rpc = NULL;
 
     /* get the <copy-config> template */
-    rpc = ncx_find_object(get_netconf_mod(server_cb), 
+    rpc = ncx_find_object(instance, 
+                          get_netconf_mod(instance, server_cb), 
                           NCX_EL_COPY_CONFIG);
     if (!rpc) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* get the 'input' section container */
-    input = obj_find_child(rpc, NULL, YANG_K_INPUT);
+    input = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     if (!input) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* construct a method + parameter tree */
-    reqdata = xml_val_new_struct(obj_get_name(rpc), 
-                                 obj_get_nsid(rpc));
+    reqdata = xml_val_new_struct(instance, 
+                                 obj_get_name(instance, rpc), 
+                                 obj_get_nsid(instance, rpc));
     if (!reqdata) {
-        log_error("\nError allocating a new RPC request");
+        log_error(instance, "\nError allocating a new RPC request");
         return ERR_INTERNAL_MEM;
     }
 
     /* set the edit-config/input/target node to the default_target */
-    child = obj_find_child(input, NC_MODULE, NCX_EL_TARGET);
-    parm = val_new_value();
+    child = obj_find_child(instance, input, NC_MODULE, NCX_EL_TARGET);
+    parm = val_new_value(instance);
     if (!parm) {
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(parm, child);
-    val_add_child(parm, reqdata);
+    val_init_from_template(instance, parm, child);
+    val_add_child(instance, parm, reqdata);
 
-    target = xml_val_new_flag((const xmlChar *)"startup",
-                              obj_get_nsid(child));
+    target = xml_val_new_flag(instance,
+                              (const xmlChar *)"startup",
+                              obj_get_nsid(instance, child));
     if (!target) {
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     }
-    val_add_child(target, parm);
+    val_add_child(instance, target, parm);
 
     /* set the edit-config/input/default-operation node to 'none' */
-    child = obj_find_child(input, NC_MODULE, NCX_EL_SOURCE);
-    parm = val_new_value();
+    child = obj_find_child(instance, input, NC_MODULE, NCX_EL_SOURCE);
+    parm = val_new_value(instance);
     if (!parm) {
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(parm, child);
-    val_add_child(parm, reqdata);
+    val_init_from_template(instance, parm, child);
+    val_add_child(instance, parm, reqdata);
 
-    source = xml_val_new_flag((const xmlChar *)"running",
-                              obj_get_nsid(child));
+    source = xml_val_new_flag(instance,
+                              (const xmlChar *)"running",
+                              obj_get_nsid(instance, child));
     if (!source) {
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     }
-    val_add_child(source, parm);
+    val_add_child(instance, source, parm);
 
     /* allocate an RPC request and send it */
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        res = SET_ERROR(ERR_INTERNAL_PTR);
+        res = SET_ERROR(instance, ERR_INTERNAL_PTR);
     } else {
-        req = mgr_rpc_new_request(scb);
+        req = mgr_rpc_new_request(instance, scb);
         if (!req) {
             res = ERR_INTERNAL_MEM;
-            log_error("\nError allocating a new RPC request");
+            log_error(instance, "\nError allocating a new RPC request");
         } else {
             req->data = reqdata;
             req->rpc = rpc;
@@ -237,8 +241,9 @@ static status_t
         
     if (res == NO_ERR) {
         if (LOGDEBUG2) {
-            log_debug2("\nabout to send RPC request with reqdata:");
-            val_dump_value_max(reqdata, 
+            log_debug2(instance, "\nabout to send RPC request with reqdata:");
+            val_dump_value_max(instance, 
+                               reqdata, 
                                0,
                                server_cb->defindent,
                                DUMP_VAL_LOG,
@@ -248,14 +253,14 @@ static status_t
         }
 
         /* the request will be stored if this returns NO_ERR */
-        res = mgr_rpc_send_request(scb, req, yangcli_reply_handler);
+        res = mgr_rpc_send_request(instance, scb, req, (mgr_rpc_cbfn_t)yangcli_reply_handler);
     }
 
     if (res != NO_ERR) {
         if (req) {
-            mgr_rpc_free_request(req);
+            mgr_rpc_free_request(instance, req);
         } else if (reqdata) {
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
         }
     } else {
         server_cb->state = MGR_IO_ST_CONN_RPYWAIT;
@@ -279,7 +284,7 @@ static status_t
  *   status
  *********************************************************************/
 status_t
-    do_save (server_cb_t *server_cb)
+    do_save (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     const ses_cb_t   *scb;
     const mgr_scb_t  *mscb;
@@ -291,26 +296,26 @@ status_t
     /* get the session info */
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     mscb = (const mgr_scb_t *)scb->mgrcb;
 
-    log_info("\nSaving configuration to non-volative storage");
+    log_info(instance, "\nSaving configuration to non-volative storage");
 
     /* determine which commands to send */
     switch (mscb->targtyp) {
     case NCX_AGT_TARG_NONE:
-        log_stdout("\nWarning: No writable targets supported on this server");
+        log_stdout(instance, "\nWarning: No writable targets supported on this server");
         break;
     case NCX_AGT_TARG_CAND_RUNNING:
-        if (!xml_strcmp(server_cb->default_target, NCX_EL_CANDIDATE)) {
-            line = xml_strdup(NCX_EL_COMMIT);
+        if (!xml_strcmp(instance, server_cb->default_target, NCX_EL_CANDIDATE)) {
+            line = xml_strdup(instance, NCX_EL_COMMIT);
             if (line) {
-                res = conn_command(server_cb, line);
-                m__free(line);
+                res = conn_command(instance, server_cb, line);
+                m__free(instance, line);
             } else {
                 res = ERR_INTERNAL_MEM;
-                log_stdout("\nError: Malloc failed");
+                log_stdout(instance, "\nError: Malloc failed");
             }
             if (res == NO_ERR &&
                 mscb->starttyp == NCX_AGT_START_DISTINCT) {
@@ -322,25 +327,26 @@ status_t
             }
         } else {
             if (mscb->starttyp == NCX_AGT_START_DISTINCT) {
-                res = send_copy_config_to_server(server_cb);
+                res = send_copy_config_to_server(instance, server_cb);
                 if (res != NO_ERR) {
-                    log_stdout("\nError: send copy-config failed (%s)",
+                    log_stdout(instance,
+                               "\nError: send copy-config failed (%s)",
                                get_error_string(res));
                 }
             } else {
-                log_stdout("\nWarning: No distinct save operation needed "
+                log_stdout(instance, "\nWarning: No distinct save operation needed "
                            "for this server");
             }
         }
         break;
     case NCX_AGT_TARG_CANDIDATE:
-        line = xml_strdup(NCX_EL_COMMIT);
+        line = xml_strdup(instance, NCX_EL_COMMIT);
         if (line) {
-            res = conn_command(server_cb, line);
-            m__free(line);
+            res = conn_command(instance, server_cb, line);
+            m__free(instance, line);
         } else {
             res = ERR_INTERNAL_MEM;
-            log_stdout("\nError: Malloc failed");
+            log_stdout(instance, "\nError: Malloc failed");
         }
         if (res == NO_ERR &&
             mscb->starttyp == NCX_AGT_START_DISTINCT) {
@@ -353,25 +359,26 @@ status_t
         break;
     case NCX_AGT_TARG_RUNNING:
         if (mscb->starttyp == NCX_AGT_START_DISTINCT) {
-            res = send_copy_config_to_server(server_cb);
+            res = send_copy_config_to_server(instance, server_cb);
             if (res != NO_ERR) {
-                log_stdout("\nError: send copy-config failed (%s)",
+                log_stdout(instance,
+                           "\nError: send copy-config failed (%s)",
                            get_error_string(res));
             }
         } else {
-            log_stdout("\nWarning: No distinct save operation needed "
+            log_stdout(instance, "\nWarning: No distinct save operation needed "
                        "for this server");
         }
         break;
     case NCX_AGT_TARG_LOCAL:
-        log_stdout("Error: Local URL target not supported");
+        log_stdout(instance, "Error: Local URL target not supported");
         break;
     case NCX_AGT_TARG_REMOTE:
-        log_stdout("Error: Local URL target not supported");
+        log_stdout(instance, "Error: Local URL target not supported");
         break;
     default:
-        log_stdout("Error: Internal target not set");
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        log_stdout(instance, "Error: Internal target not set");
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -392,7 +399,7 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    finish_save (server_cb_t *server_cb)
+    finish_save (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     const ses_cb_t   *scb;
     const mgr_scb_t  *mscb;
@@ -403,20 +410,21 @@ status_t
     /* get the session info */
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     mscb = (const mgr_scb_t *)scb->mgrcb;
 
-    log_info("\nFinal step saving configuration to non-volative storage");
+    log_info(instance, "\nFinal step saving configuration to non-volative storage");
 
     if (mscb->starttyp == NCX_AGT_START_DISTINCT) {
-        res = send_copy_config_to_server(server_cb);
+        res = send_copy_config_to_server(instance, server_cb);
         if (res != NO_ERR) {
-            log_stdout("\nError: send copy-config failed (%s)",
+            log_stdout(instance,
+                       "\nError: send copy-config failed (%s)",
                        get_error_string(res));
         }
     } else {
-        log_stdout("\nWarning: No distinct save operation needed "
+        log_stdout(instance, "\nWarning: No distinct save operation needed "
                    "for this server");
     }
 

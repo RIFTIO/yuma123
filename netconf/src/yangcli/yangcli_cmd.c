@@ -93,7 +93,8 @@ date         init     comment
 
 /* get_case needs to recurse */
 static status_t
-    fill_valset (server_cb_t *server_cb,
+    fill_valset (struct ncx_instance_t_ *instance,
+                 server_cb_t *server_cb,
                  obj_template_t *rpc,
                  val_value_t *valset,
                  val_value_t *oldvalset,
@@ -115,11 +116,11 @@ static status_t
 *    FALSE if it should be skipped
 *********************************************************************/
 static boolean
-    need_get_parm (obj_template_t *parm)
+    need_get_parm (ncx_instance_t *instance, obj_template_t *parm)
 {
-    if (!obj_is_config(parm) || 
-        obj_is_abstract(parm) ||
-        obj_get_status(parm) == NCX_STATUS_OBSOLETE) {
+    if (!obj_is_config(instance, parm) || 
+        obj_is_abstract(instance, parm) ||
+        obj_get_status(instance, parm) == NCX_STATUS_OBSOLETE) {
         return FALSE;
     }
 
@@ -148,18 +149,19 @@ static boolean
 *    == NULL if *res == ERR_NCX_SKIPPED
 *********************************************************************/
 static val_value_t* 
-   check_external_rpc_input (obj_template_t *rpc,
+   check_external_rpc_input (ncx_instance_t *instance,
+                             obj_template_t *rpc,
                              const xmlChar *args,
                              status_t  *res)
 {
-    obj_template_t   *obj = obj_find_child(rpc, NULL, YANG_K_INPUT);
+    obj_template_t   *obj = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     const xmlChar    *str = args;
     xmlChar          *sourcefile = NULL;
     xmlChar          *fname = NULL;
     val_value_t      *retval = NULL;
 
     if (obj == NULL) {
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
@@ -183,18 +185,18 @@ static val_value_t*
      * may need to be expanded (e.g., @~/filespec.xml)
      */
     *res = NO_ERR;
-    sourcefile = ncx_get_source_ex(&str[1], FALSE, res);
+    sourcefile = ncx_get_source_ex(instance, &str[1], FALSE, res);
     if (*res == NO_ERR && sourcefile != NULL) {
-        fname = ncxmod_find_data_file(sourcefile, TRUE, res);
+        fname = ncxmod_find_data_file(instance, sourcefile, TRUE, res);
         if (fname != NULL && *res == NO_ERR) {
-            retval = mgr_load_extern_file(fname, obj, res);
+            retval = mgr_load_extern_file(instance, fname, obj, res);
         }
     }
     if (sourcefile != NULL) {
-        m__free(sourcefile);
+        m__free(instance, sourcefile);
     }
     if (fname != NULL) {
-        m__free(fname);
+        m__free(instance, fname);
     }
 
     return retval;
@@ -220,7 +222,8 @@ static val_value_t*
 *    pointer to malloced value set or NULL if none created,
 *    may have errors, check *res
 *********************************************************************/
-static val_value_t* parse_rpc_cli ( server_cb_t *server_cb,
+static val_value_t* parse_rpc_cli (ncx_instance_t *instance,
+                                     server_cb_t *server_cb,
                                     obj_template_t *rpc,
                                     const xmlChar *args,
                                     status_t  *res )
@@ -230,26 +233,26 @@ static val_value_t* parse_rpc_cli ( server_cb_t *server_cb,
     val_value_t      *retval = NULL;
 
     /* construct an argv array, convert the CLI into a parmset */
-    obj = obj_find_child(rpc, NULL, YANG_K_INPUT);
+    obj = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     if (obj) {
         /* check if this is the special command form
          *  foo-command @parms.xml
          */
         if (args) {
             *res = NO_ERR;
-            retval = check_external_rpc_input(rpc, args, res);
+            retval = check_external_rpc_input(instance, rpc, args, res);
             if (*res != ERR_NCX_SKIPPED) {
                 return retval;
             }
             if (retval) {
-                val_free_value(retval);
+                val_free_value(instance, retval);
                 retval = NULL;
             }
         }
 
-        myargv[0] = (char*)xml_strdup( obj_get_name(rpc) );
+        myargv[0] = (char*)xml_strdup(instance,  obj_get_name(instance, rpc) );
         if ( myargv[0] ) {
-            char* secondary_args = args;
+            char* secondary_args = (char *)xml_strdup(instance, args);
             int secondary_args_flag = 0;
             while(strlen(secondary_args)>=strlen("--")) {
                 if(memcmp(secondary_args, "--", strlen("--"))==0) {
@@ -260,27 +263,27 @@ static val_value_t* parse_rpc_cli ( server_cb_t *server_cb,
                 secondary_args++;
             }
 
-            myargv[1] = (char*)xml_strdup( args );
+            myargv[1] = (char*)xml_strdup(instance,  args );
             if(secondary_args_flag) secondary_args[0] = '-';
 
             if ( myargv[1] ) {
-                retval = cli_parse( server_cb->runstack_context, 2, myargv, obj,
+                retval = cli_parse(instance,  server_cb->runstack_context, 2, myargv, obj,
                                     VALONLY, SCRIPTMODE, get_autocomp(), 
                                     CLI_MODE_COMMAND, res );
-                m__free( myargv[1] );
+                m__free(instance,  myargv[1] );
             } else {
                 *res = ERR_INTERNAL_MEM;
             }
-            m__free( myargv[0] );
+            m__free(instance,  myargv[0] );
             if(*res==NO_ERR && secondary_args_flag) {
                 secondary_args[0] = '-';
-                myargv[0] = (char*)xml_strdup( secondary_args + strlen("--") );
+                myargv[0] = (char*)xml_strdup(instance, (const xmlChar *)(secondary_args + strlen("--")) );
             }
         } else {
             *res = ERR_INTERNAL_MEM;
         }
     } else {
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     return retval;
 }  /* parse_rpc_cli */
@@ -297,7 +300,8 @@ static val_value_t* parse_rpc_cli ( server_cb_t *server_cb,
 *
 *********************************************************************/
 static void
-    get_prompt (server_cb_t *server_cb,
+    get_prompt (ncx_instance_t *instance,
+                server_cb_t *server_cb,
                 xmlChar *buff,
                 uint32 bufflen)
 {
@@ -307,12 +311,12 @@ static void
     boolean         cond;
 
     if (server_cb->climore) {
-        xml_strncpy(buff, MORE_PROMPT, bufflen);
+        xml_strncpy(instance, buff, MORE_PROMPT, bufflen);
         return;
     }
 
-    cond = runstack_get_cond_state(server_cb->runstack_context);
-    condlen = (cond) ? 0: xml_strlen(FALSE_PROMPT);
+    cond = runstack_get_cond_state(instance, server_cb->runstack_context);
+    condlen = (cond) ? 0: xml_strlen(instance, FALSE_PROMPT);
 
     switch (server_cb->state) {
     case MGR_IO_ST_INIT:
@@ -321,26 +325,26 @@ static void
     case MGR_IO_ST_CONN_START:
     case MGR_IO_ST_SHUT:
         if (server_cb->cli_fn) {
-            len = xml_strlen(DEF_FN_PROMPT) 
-                + xml_strlen(server_cb->cli_fn) 
+            len = xml_strlen(instance, DEF_FN_PROMPT) 
+                + xml_strlen(instance, server_cb->cli_fn) 
                 + condlen + 2;
             if (len < bufflen) {
                 p = buff;
-                p += xml_strcpy(p, DEF_FN_PROMPT);
-                p += xml_strcpy(p, server_cb->cli_fn);
+                p += xml_strcpy(instance, p, DEF_FN_PROMPT);
+                p += xml_strcpy(instance, p, server_cb->cli_fn);
                 if (condlen) {
-                    p += xml_strcpy(p, FALSE_PROMPT);
+                    p += xml_strcpy(instance, p, FALSE_PROMPT);
                 }
-                xml_strcpy(p, (const xmlChar *)"> ");
+                xml_strcpy(instance, p, (const xmlChar *)"> ");
             } else if (cond) {
-                xml_strncpy(buff, DEF_PROMPT, bufflen);
+                xml_strncpy(instance, buff, DEF_PROMPT, bufflen);
             } else {
-                xml_strncpy(buff, DEF_FALSE_PROMPT, bufflen);
+                xml_strncpy(instance, buff, DEF_FALSE_PROMPT, bufflen);
             }
         } else if (cond ) {
-            xml_strncpy(buff, DEF_PROMPT, bufflen);
+            xml_strncpy(instance, buff, DEF_PROMPT, bufflen);
         } else {
-            xml_strncpy(buff, DEF_FALSE_PROMPT, bufflen);
+            xml_strncpy(instance, buff, DEF_FALSE_PROMPT, bufflen);
         }
         break;
     case MGR_IO_ST_CONN_IDLE:
@@ -349,7 +353,7 @@ static void
     case MGR_IO_ST_CONN_CLOSEWAIT:
     case MGR_IO_ST_CONN_SHUT:
         p = buff;
-        len = xml_strncpy(p, (const xmlChar *)"yangcli ", bufflen);
+        len = xml_strncpy(instance, p, (const xmlChar *)"yangcli ", bufflen);
         p += len;
         bufflen -= len;
 
@@ -359,19 +363,21 @@ static void
 
         parm = NULL;
         if (server_cb->connect_valset) {
-            parm = val_find_child(server_cb->connect_valset, 
+            parm = val_find_child(instance, 
+                                  server_cb->connect_valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_USER);
         }
 
         if (!parm && get_connect_valset()) {
-            parm = val_find_child(get_connect_valset(), 
+            parm = val_find_child(instance, 
+                                  get_connect_valset(), 
                                   YANGCLI_MOD, 
                                   YANGCLI_USER);
         }
 
         if (parm) {
-            len = xml_strncpy(p, VAL_STR(parm), bufflen);
+            len = xml_strncpy(instance, p, VAL_STR(parm), bufflen);
             p += len;
             bufflen -= len;
             if (bufflen == 0) {
@@ -386,19 +392,21 @@ static void
 
         parm = NULL;
         if (server_cb->connect_valset) {
-            parm = val_find_child(server_cb->connect_valset, 
+            parm = val_find_child(instance, 
+                                  server_cb->connect_valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_SERVER);
         }
 
         if (!parm && get_connect_valset()) {
-            parm= val_find_child(get_connect_valset(), 
+            parm= val_find_child(instance, 
+                                 get_connect_valset(), 
                                  YANGCLI_MOD, 
                                  YANGCLI_SERVER);
         }
 
         if (parm) {
-            len = xml_strncpy(p, VAL_STR(parm), bufflen);
+            len = xml_strncpy(instance, p, VAL_STR(parm), bufflen);
             p += len;
             bufflen -= len;
             if (bufflen == 0) {
@@ -408,15 +416,15 @@ static void
 
         if (server_cb->cli_fn && bufflen > 3) {
             *p++ = ':';
-            len = xml_strncpy(p, server_cb->cli_fn, --bufflen);
+            len = xml_strncpy(instance, p, server_cb->cli_fn, --bufflen);
             p += len;
             bufflen -= len;
         }
 
         if (!cond) {
-            len = xml_strlen(FALSE_PROMPT);
+            len = xml_strlen(instance, FALSE_PROMPT);
             if (bufflen > len) {
-                p += xml_strcpy(p, FALSE_PROMPT);
+                p += xml_strcpy(instance, p, FALSE_PROMPT);
                 bufflen -= len;
             }
         }
@@ -429,8 +437,8 @@ static void
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
-        xml_strncpy(buff, DEF_PROMPT, bufflen);        
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
+        xml_strncpy(instance, buff, DEF_PROMPT, bufflen);        
         break;
     }
 
@@ -455,7 +463,7 @@ static void
 *   static line from tecla read line, else NULL if some error
 *********************************************************************/
 static xmlChar *
-    get_line (server_cb_t *server_cb)
+    get_line (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     xmlChar          *line;
     xmlChar           prompt[MAX_PROMPT_LEN];
@@ -463,10 +471,10 @@ static xmlChar *
 
     line = NULL;
 
-    get_prompt(server_cb, prompt, MAX_PROMPT_LEN-1);
+    get_prompt(instance, server_cb, prompt, MAX_PROMPT_LEN-1);
 
     if (!server_cb->climore) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
     }
 
 
@@ -490,8 +498,8 @@ static xmlChar *
     if (!line) {
         if (server_cb->returncode == MGR_IO_RC_DROPPED ||
             server_cb->returncode == MGR_IO_RC_DROPPED_NOW) {
-            log_write("\nSession was dropped by the server");
-            clear_server_cb_session(server_cb);
+            log_write(instance, "\nSession was dropped by the server");
+            clear_server_cb_session(instance, server_cb);
             return NULL;
         }
 
@@ -499,7 +507,7 @@ static xmlChar *
 
         /* treat signal as control-C warning; about to exit */
         if (returnstatus == GLR_SIGNAL) {
-            log_warn("\nWarning: Control-C exit\n\n");            
+            log_warn(instance, "\nWarning: Control-C exit\n\n");            
             return NULL;
         }
 
@@ -508,33 +516,34 @@ static xmlChar *
             return NULL;
         }
 
-        log_error("\nError: GetLine returned ");
+        log_error(instance, "\nError: GetLine returned ");
         switch (returnstatus) {
         case GLR_NEWLINE:
-            log_error("NEWLINE");
+            log_error(instance, "NEWLINE");
             break;
         case GLR_BLOCKED:
-            log_error("BLOCKED");
+            log_error(instance, "BLOCKED");
             break;
         case GLR_SIGNAL:
-            log_error("SIGNAL");
+            log_error(instance, "SIGNAL");
             break;
         case GLR_TIMEOUT:
-            log_error("TIMEOUT");
+            log_error(instance, "TIMEOUT");
             break;
         case GLR_FDABORT:
-            log_error("FDABORT");
+            log_error(instance, "FDABORT");
             break;
         case GLR_EOF:
-            log_error("EOF");
+            log_error(instance, "EOF");
             break;
         case GLR_ERROR:
-            log_error("ERROR");
+            log_error(instance, "ERROR");
             break;
         default:
-            log_error("<unknown>");
+            log_error(instance, "<unknown>");
         }
-        log_error(" (rt:%u errno:%u)", 
+        log_error(instance, 
+                  " (rt:%u errno:%u)", 
                   server_cb->returncode,
                   server_cb->errnocode);
     }
@@ -567,7 +576,8 @@ static xmlChar *
 *   pointer to the found definition template or NULL if not found
 *********************************************************************/
 static void *
-    try_parse_def (server_cb_t *server_cb,
+    try_parse_def (ncx_instance_t *instance,
+                   server_cb_t *server_cb,
                    ncx_module_t *mymod,
                    const xmlChar *modname,
                    const xmlChar *defname,
@@ -580,7 +590,7 @@ static void *
     if (mymod != NULL) {
         mod = mymod;
     } else {
-        mod = find_module(server_cb, modname);
+        mod = find_module(instance, server_cb, modname);
         if (!mod) {
             return NULL;
         }
@@ -589,34 +599,34 @@ static void *
     def = NULL;
     switch (*dtyp) {
     case NCX_NT_NONE:
-        def = ncx_find_object(mod, defname);
+        def = ncx_find_object(instance, mod, defname);
         if (def) {
             *dtyp = NCX_NT_OBJ;
             break;
         }
-        def = ncx_find_grouping(mod, defname, FALSE);
+        def = ncx_find_grouping(instance, mod, defname, FALSE);
         if (def) {
             *dtyp = NCX_NT_GRP;
             break;
         }
-        def = ncx_find_type(mod, defname, FALSE);
+        def = ncx_find_type(instance, mod, defname, FALSE);
         if (def) {
             *dtyp = NCX_NT_TYP;
             break;
         }
         break;
     case NCX_NT_OBJ:
-        def = ncx_find_object(mod, defname);
+        def = ncx_find_object(instance, mod, defname);
         break;
     case NCX_NT_GRP:
-        def = ncx_find_grouping(mod, defname, FALSE);
+        def = ncx_find_grouping(instance, mod, defname, FALSE);
         break;
     case NCX_NT_TYP:
-        def = ncx_find_type(mod, defname, FALSE);
+        def = ncx_find_type(instance, mod, defname, FALSE);
         break;
     default:
         def = NULL;
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return def;
@@ -648,7 +658,8 @@ static void *
 *   status
 *********************************************************************/
 static status_t
-    get_yesno (server_cb_t *server_cb,
+    get_yesno (ncx_instance_t *instance,
+               server_cb_t *server_cb,
                const xmlChar *prompt,
                uint32 defcode,
                uint32 *retcode)
@@ -660,24 +671,25 @@ static status_t
     done = FALSE;
     res = NO_ERR;
 
-    set_completion_state(&server_cb->completion_state,
+    set_completion_state(instance,
+                         &server_cb->completion_state,
                          NULL, NULL, CMD_STATE_YESNO);
 
     if (prompt) {
-        log_stdout("\n%s", prompt);
+        log_stdout(instance, "\n%s", prompt);
     }
-    log_stdout("\nEnter Y for yes, N for no, or C to cancel:");
+    log_stdout(instance, "\nEnter Y for yes, N for no, or C to cancel:");
     switch (defcode) {
     case YESNO_NODEF:
         break;
     case YESNO_YES:
-        log_stdout(" [default: Y]");
+        log_stdout(instance, " [default: Y]");
         break;
     case YESNO_NO:
-        log_stdout(" [default: N]");
+        log_stdout(instance, " [default: N]");
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         done = TRUE;
     }
 
@@ -685,7 +697,7 @@ static status_t
     while (!done) {
 
         /* get input from the user STDIN */
-        myline = get_cmd_line(server_cb, &res);
+        myline = get_cmd_line(instance, server_cb, &res);
         if (!myline) {
             done = TRUE;
             continue;
@@ -723,12 +735,12 @@ static status_t
                 done = TRUE;
                 break;
             default:
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 done = TRUE;
             }
         }
         if (res == NO_ERR && !done) {
-            log_stdout("\nError: invalid value '%s'\n", str);
+            log_stdout(instance, "\nError: invalid value '%s'\n", str);
         }
     }
 
@@ -758,7 +770,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    get_parm (server_cb_t *server_cb,
+    get_parm (ncx_instance_t *instance,
+              server_cb_t *server_cb,
               obj_template_t *rpc,
               obj_template_t *parm,
               val_value_t *valset,
@@ -773,22 +786,23 @@ static status_t
     boolean           done, ispassword, iscomplex;
     uint32            len;
 
-    if (!obj_is_mandatory(parm) && !server_cb->get_optional) {
+    if (!obj_is_mandatory(instance, parm) && !server_cb->get_optional) {
         return NO_ERR;
     }
 
     def = NULL;
     iscomplex = FALSE;
-    btyp = obj_get_basetype(parm);
+    btyp = obj_get_basetype(instance, parm);
     res = NO_ERR;
-    ispassword = obj_is_password(parm);
+    ispassword = obj_is_password(instance, parm);
 
-    if (obj_is_data_db(parm) && 
+    if (obj_is_data_db(instance, parm) && 
         parm->objtype != OBJ_TYP_RPCIO) {
         objbuff = NULL;
-        res = obj_gen_object_id(parm, &objbuff);
+        res = obj_gen_object_id(instance, parm, &objbuff);
         if (res != NO_ERR) {
-            log_error("\nError: generate object ID failed (%s)",
+            log_error(instance,
+                      "\nError: generate object ID failed (%s)",
                       get_error_string(res));
             return res;
         }
@@ -798,18 +812,19 @@ static status_t
             str = YANG_K_KEY;
         } else if (ispassword) {
             str = YANGCLI_PASSWORD;
-        } else if (obj_is_mandatory(parm)) {
+        } else if (obj_is_mandatory(instance, parm)) {
             str = YANG_K_MANDATORY;
         } else {
             str = YANGCLI_OPTIONAL;
         }
 
-        log_stdout("\nFilling %s %s %s:", 
+        log_stdout(instance, 
+                   "\nFilling %s %s %s:", 
                    str,
-                   obj_get_typestr(parm), 
+                   obj_get_typestr(instance, parm), 
                    objbuff);
             
-        m__free(objbuff);
+        m__free(instance, objbuff);
     }
 
     switch (btyp) {
@@ -822,29 +837,33 @@ static status_t
         ;
     }
 
-    parmname = obj_get_name(parm);
-    btyp = obj_get_basetype(parm);
+    parmname = obj_get_name(instance, parm);
+    btyp = obj_get_basetype(instance, parm);
     res = NO_ERR;
     oldparm = NULL;
   
     done = FALSE;
     while (!done) {
         if (btyp==NCX_BT_EMPTY) {
-            log_stdout("\nShould flag %s be set? [Y, N]", 
+            log_stdout(instance, 
+                       "\nShould flag %s be set? [Y, N]", 
                        parmname);
         } else if (iscomplex) {
-            log_stdout("\nEnter value for %s <%s>",
-                       obj_get_typestr(parm),
+            log_stdout(instance,
+                       "\nEnter value for %s <%s>",
+                       obj_get_typestr(instance, parm),
                        parmname);
         } else {
-            log_stdout("\nEnter %s value for %s <%s>",
+            log_stdout(instance,
+                       "\nEnter %s value for %s <%s>",
                        (const xmlChar *)tk_get_btype_sym(btyp),
-                       obj_get_typestr(parm),
+                       obj_get_typestr(instance, parm),
                        parmname);
         }
         if (oldvalset) {
-            oldparm = val_find_child(oldvalset, 
-                                     obj_get_mod_name(parm),
+            oldparm = val_find_child(instance, 
+                                     oldvalset, 
+                                     obj_get_mod_name(instance, parm),
                                      parmname);
         }
 
@@ -852,34 +871,35 @@ static status_t
         if (oldparm) {
             /* use the old value for the default */
             if (btyp==NCX_BT_EMPTY) {
-                log_stdout(" [Y]");
+                log_stdout(instance, " [Y]");
             } else if (iscomplex) {
-                log_stdout(" [%s contents not shown]",
-                           obj_get_typestr(parm));
+                log_stdout(instance,
+                           " [%s contents not shown]",
+                           obj_get_typestr(instance, parm));
             } else {
-                res = val_sprintf_simval_nc(NULL, oldparm, &len);
+                res = val_sprintf_simval_nc(instance, NULL, oldparm, &len);
                 if (res != NO_ERR) {
-                    return SET_ERROR(res);
+                    return SET_ERROR(instance, res);
                 }
-                buff = m__getMem(len+1);
+                buff = m__getMem(instance, len+1);
                 if (!buff) {
                     return ERR_INTERNAL_MEM;
                 }
-                res = val_sprintf_simval_nc(buff, oldparm, &len);
+                res = val_sprintf_simval_nc(instance, buff, oldparm, &len);
                 if (res == NO_ERR) {
-                    log_stdout(" [%s]", buff);
+                    log_stdout(instance, " [%s]", buff);
                 }
-                m__free(buff);
+                m__free(instance, buff);
             }
         } else {
             def = NULL;
 
             /* try to get the defined default value */
             if (btyp != NCX_BT_EMPTY && !iscomplex) {
-                def = obj_get_default(parm);
-                if (!def && (obj_get_nsid(rpc) == xmlns_nc_id() &&
-                             (!xml_strcmp(parmname, NCX_EL_TARGET) ||
-                              !xml_strcmp(parmname, NCX_EL_SOURCE)))) {
+                def = obj_get_default(instance, parm);
+                if (!def && (obj_get_nsid(instance, rpc) == xmlns_nc_id(instance) &&
+                             (!xml_strcmp(instance, parmname, NCX_EL_TARGET) ||
+                              !xml_strcmp(instance, parmname, NCX_EL_SOURCE)))) {
                     /* offer the default target for the NETCONF
                      * <source> and <target> parameters
                      */
@@ -888,13 +908,14 @@ static status_t
             }
 
             if (def) {
-                log_stdout(" [%s]\n", def);
+                log_stdout(instance, " [%s]\n", def);
             } else if (btyp==NCX_BT_EMPTY) {
-                log_stdout(" [N]\n");
+                log_stdout(instance, " [N]\n");
             }
         }
 
-        set_completion_state_curparm(&server_cb->completion_state,
+        set_completion_state_curparm(instance,
+                                     &server_cb->completion_state,
                                      parm);
 
         /* get a line of input from the user
@@ -905,7 +926,7 @@ static status_t
             (void)gl_echo_mode(server_cb->cli_gl, 0);
         }
                                 
-        line = get_cmd_line(server_cb, &res);
+        line = get_cmd_line(instance, server_cb, &res);
 
         if (ispassword) {
             /* ignore return value which is previous mode */
@@ -926,24 +947,26 @@ static status_t
         if (*start == '?') {
             if (start[1] == '?') {
                 /* ?? == full help */
-                obj_dump_template(parm, HELP_MODE_FULL, 0,
+                obj_dump_template(instance, parm, HELP_MODE_FULL, 0,
                                   server_cb->defindent);
             } else if (start[1] == 'C' || start[1] == 'c') {
                 /* ?c or ?C == cancel the operation */
-                log_stdout("\n%s command canceled",
-                           obj_get_name(rpc));
+                log_stdout(instance,
+                           "\n%s command canceled",
+                           obj_get_name(instance, rpc));
                 return ERR_NCX_CANCELED;
             } else if (start[1] == 'S' || start[1] == 's') {
                 /* ?s or ?S == skip this parameter */
-                log_stdout("\n%s parameter skipped",
-                           obj_get_name(parm));
+                log_stdout(instance,
+                           "\n%s parameter skipped",
+                           obj_get_name(instance, parm));
                 return ERR_NCX_SKIPPED;
             } else {
                 /* ? == normal help mode */
-                obj_dump_template(parm, HELP_MODE_NORMAL, 4,
+                obj_dump_template(instance, parm, HELP_MODE_NORMAL, 4,
                                   server_cb->defindent);
             }
-            log_stdout("\n");
+            log_stdout(instance, "\n");
             continue;
         } else {
             /* top loop to get_parm is only executed once */
@@ -956,7 +979,8 @@ static status_t
         /* no input, use default or old value or EMPTY_STRING */
         if (def) {
             /* use default */
-            res = cli_parse_parm_ex(server_cb->runstack_context,
+            res = cli_parse_parm_ex(instance,
+                                    server_cb->runstack_context,
                                     valset, 
                                     parm, 
                                     def, 
@@ -965,7 +989,8 @@ static status_t
         } else if (oldparm) {
             /* no default, try old value */
             if (btyp==NCX_BT_EMPTY) {
-                res = cli_parse_parm_ex(server_cb->runstack_context,
+                res = cli_parse_parm_ex(instance,
+                                        server_cb->runstack_context,
                                         valset, 
                                         parm, 
                                         NULL,
@@ -973,24 +998,27 @@ static status_t
                                         get_baddata());
             } else {
                 /* use a copy of the last value */
-                newparm = val_clone(oldparm);
+                newparm = val_clone(instance, oldparm);
                 if (!newparm) {
                     res = ERR_INTERNAL_MEM;
                 } else {
-                    val_add_child(newparm, valset);
+                    val_add_child(instance, newparm, valset);
                 }
             }
         } else if (btyp == NCX_BT_EMPTY) {
-            res = cli_parse_parm_ex(server_cb->runstack_context,
+            res = cli_parse_parm_ex(instance,
+                                    server_cb->runstack_context,
                                     valset, 
                                     parm, 
                                     NULL,
                                     SCRIPTMODE, 
                                     get_baddata());
         } else if (!iscomplex && 
-                   (val_simval_ok(obj_get_typdef(parm), 
+                   (val_simval_ok(instance, 
+                                  obj_get_typdef(parm), 
                                   EMPTY_STRING) == NO_ERR)) {
-            res = cli_parse_parm_ex(server_cb->runstack_context,
+            res = cli_parse_parm_ex(instance,
+                                    server_cb->runstack_context,
                                     valset, 
                                     parm, 
                                     EMPTY_STRING,
@@ -1003,7 +1031,8 @@ static status_t
     } else if (btyp==NCX_BT_EMPTY) {
         /* empty data type handled special Y: set, N: leave out */
         if (*start=='Y' || *start=='y') {
-            res = cli_parse_parm_ex(server_cb->runstack_context,
+            res = cli_parse_parm_ex(instance,
+                                    server_cb->runstack_context,
                                     valset, 
                                     parm, 
                                     NULL, 
@@ -1013,7 +1042,8 @@ static status_t
             ; /* skip; do not add the flag */
         } else if (oldparm) {
             /* previous value was set, so add this flag */
-            res = cli_parse_parm_ex(server_cb->runstack_context,
+            res = cli_parse_parm_ex(instance,
+                                    server_cb->runstack_context,
                                     valset, 
                                     parm, 
                                     NULL,
@@ -1025,7 +1055,8 @@ static status_t
         }
     } else {
         /* normal case: input for regular data type */
-        res = cli_parse_parm_ex(server_cb->runstack_context,
+        res = cli_parse_parm_ex(instance,
+                                server_cb->runstack_context,
                                 valset, 
                                 parm, 
                                 start,
@@ -1052,8 +1083,8 @@ static status_t
                 break;
             }
 
-            saveline = (start) ? xml_strdup(start) :
-                xml_strdup(EMPTY_STRING);
+            saveline = (start) ? xml_strdup(instance, start) :
+                xml_strdup(instance, EMPTY_STRING);
             if (!saveline) {
                 res = ERR_INTERNAL_MEM;
                 break;
@@ -1061,10 +1092,11 @@ static status_t
 
             done = FALSE;
             while (!done) {
-                log_stdout("\nError: parameter '%s' value '%s' is invalid"
+                log_stdout(instance, 
+                           "\nError: parameter '%s' value '%s' is invalid"
                            "\nShould this value be used anyway? [Y, N]"
                            " [N]", 
-                           obj_get_name(parm),
+                           obj_get_name(instance, parm),
                            (start) ? start : EMPTY_STRING);
 
                 /* save the previous value because it is about
@@ -1072,9 +1104,9 @@ static status_t
                  */
 
                 /* get a line of input from the user */
-                line2 = get_cmd_line(server_cb, &res);
+                line2 = get_cmd_line(instance, server_cb, &res);
                 if (!line2) {
-                    m__free(saveline);
+                    m__free(instance, saveline);
                     return res;
                 }
 
@@ -1087,62 +1119,66 @@ static status_t
                 /* check for question-mark char sequences */
                 if (!*start2) {
                     /* default N: try again for a different input */
-                    m__free(saveline);
-                    res = get_parm(server_cb, rpc, parm, valset, oldvalset);
+                    m__free(instance, saveline);
+                    res = get_parm(instance, server_cb, rpc, parm, valset, oldvalset);
                     done = TRUE;
                 } else if (*start2 == '?') {
                     if (start2[1] == '?') {
                         /* ?? == full help */
-                        obj_dump_template(parm, HELP_MODE_FULL, 0,
+                        obj_dump_template(instance, parm, HELP_MODE_FULL, 0,
                                           server_cb->defindent);
                     } else if (start2[1] == 'C' || start2[1] == 'c') {
                         /* ?c or ?C == cancel the operation */
-                        log_stdout("\n%s command canceled",
-                                   obj_get_name(rpc));
-                        m__free(saveline);
+                        log_stdout(instance,
+                                   "\n%s command canceled",
+                                   obj_get_name(instance, rpc));
+                        m__free(instance, saveline);
                         res = ERR_NCX_CANCELED;
                         done = TRUE;
                     } else if (start2[1] == 'S' || start2[1] == 's') {
                         /* ?s or ?S == skip this parameter */
-                        log_stdout("\n%s parameter skipped",
-                                   obj_get_name(parm));
-                        m__free(saveline);
+                        log_stdout(instance,
+                                   "\n%s parameter skipped",
+                                   obj_get_name(instance, parm));
+                        m__free(instance, saveline);
                         res = ERR_NCX_SKIPPED;
                         done = TRUE;
                     } else {
                         /* ? == normal help mode */
-                        obj_dump_template(parm, HELP_MODE_NORMAL, 4,
+                        obj_dump_template(instance, parm, HELP_MODE_NORMAL, 4,
                                           server_cb->defindent);
                     }
-                    log_stdout("\n");
+                    log_stdout(instance, "\n");
                     continue;
                 } else if (*start2 == 'Y' || *start2 == 'y') {
                     /* use the invalid value */
-                    res = cli_parse_parm_ex(server_cb->runstack_context,
+                    res = cli_parse_parm_ex(instance,
+                                            server_cb->runstack_context,
                                             valset, 
                                             parm, 
                                             saveline, 
                                             SCRIPTMODE, 
                                             NCX_BAD_DATA_IGNORE);
-                    m__free(saveline);
+                    m__free(instance, saveline);
                     done = TRUE;
                 } else if (*start2 == 'N' || *start2 == 'n') {
                     /* recurse: try again for a different input */
-                    m__free(saveline);
-                    res = get_parm(server_cb, rpc, parm, valset, oldvalset);
+                    m__free(instance, saveline);
+                    res = get_parm(instance, server_cb, rpc, parm, valset, oldvalset);
                     done = TRUE;
                 } else {
-                    log_stdout("\nInvalid input.");
+                    log_stdout(instance, "\nInvalid input.");
                 }
             }
             break;
         case NCX_BAD_DATA_ERROR:
-            log_stdout("\nError: set parameter '%s' failed (%s)\n",
-                       obj_get_name(parm),
+            log_stdout(instance,
+                       "\nError: set parameter '%s' failed (%s)\n",
+                       obj_get_name(instance, parm),
                        get_error_string(res));
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
@@ -1173,7 +1209,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    get_case (server_cb_t *server_cb,
+    get_case (ncx_instance_t *instance,
+              server_cb_t *server_cb,
               obj_template_t *cas,
               val_value_t *valset,
               val_value_t *oldvalset,
@@ -1184,58 +1221,61 @@ static status_t
     boolean                  saveopt = server_cb->get_optional;
 
     /* make sure a case was selected or found */
-    if (!obj_is_config(cas) || obj_is_abstract(cas)) {
-        log_stdout("\nError: No writable objects to fill for this case");
+    if (!obj_is_config(instance, cas) || obj_is_abstract(instance, cas)) {
+        log_stdout(instance, "\nError: No writable objects to fill for this case");
         return ERR_NCX_SKIPPED;
     }
 
-    if (obj_is_data_db(cas)) {
+    if (obj_is_data_db(instance, cas)) {
         xmlChar *objbuff = NULL;
         const xmlChar *str = NULL;
-        res = obj_gen_object_id(cas, &objbuff);
+        res = obj_gen_object_id(instance, cas, &objbuff);
         if (res != NO_ERR) {
-            log_error("\nError: generate object ID failed (%s)",
+            log_error(instance,
+                      "\nError: generate object ID failed (%s)",
                       get_error_string(res));
             return res;
         }
 
         /* let the user know about the new nest level */
-        if (obj_is_mandatory(cas)) {
+        if (obj_is_mandatory(instance, cas)) {
             str = YANG_K_MANDATORY;
         } else {
             str = (const xmlChar *)"optional";
         }
 
-        log_stdout("\nFilling %s case %s:", str, objbuff);
+        log_stdout(instance, "\nFilling %s case %s:", str, objbuff);
             
-        m__free(objbuff);
+        m__free(instance, objbuff);
     }
 
     /* corner-case: user selected a case, and that case has
      * one empty leaf in it; 
      * e.g., <source> and <target> parms
      */
-    if (obj_get_child_count(cas) == 1) {
-        obj_template_t *parm = obj_first_child(cas);
-        if (parm && obj_get_basetype(parm)==NCX_BT_EMPTY) {
+    if (obj_get_child_count(instance, cas) == 1) {
+        obj_template_t *parm = obj_first_child(instance, cas);
+        if (parm && obj_get_basetype(instance, parm)==NCX_BT_EMPTY) {
             /* user picked a case that is an empty flag so
              * do not call fill_valset for this corner-case
              * because the user will be prompted again
              * 'should this flag be set? y/n'
              * Instead, call cli_parse_parm directly
              */
-            val_value_t *parmval = val_find_child(valset,
-                                                  obj_get_mod_name(parm),
-                                                  obj_get_name(parm));
+            val_value_t *parmval = val_find_child(instance,
+                                                  valset,
+                                                  obj_get_mod_name(instance, parm),
+                                                  obj_get_name(instance, parm));
             if (parmval == NULL || 
                 parmval->obj->objtype == OBJ_TYP_LEAF_LIST) {
-                return cli_parse_parm(server_cb->runstack_context,
+                return cli_parse_parm(instance,
+                                      server_cb->runstack_context,
                                       valset, parm, NULL, FALSE);
             }
         }
     }
 
-    res = fill_valset(server_cb, cas, valset, oldvalset, iswrite, isdelete);
+    res = fill_valset(instance, server_cb, cas, valset, oldvalset, iswrite, isdelete);
 
     server_cb->get_optional = saveopt;
     return res;
@@ -1256,17 +1296,18 @@ static status_t
 *   number of enabled cases
 *********************************************************************/
 static uint32
-    enabled_case_count (server_cb_t *server_cb,
+    enabled_case_count (ncx_instance_t *instance,
+                        server_cb_t *server_cb,
                         obj_template_t *choic,
                         boolean iswrite)
 {
     uint32 case_count = 0;
-    obj_template_t *cas = obj_first_child(choic); 
-    for (; cas != NULL; cas = obj_next_child(cas)) {
-        if ((!server_cb->get_optional && !iswrite) || !need_get_parm(cas)) {
+    obj_template_t *cas = obj_first_child(instance, choic); 
+    for (; cas != NULL; cas = obj_next_child(instance, cas)) {
+        if ((!server_cb->get_optional && !iswrite) || !need_get_parm(instance, cas)) {
             continue;
         }
-        obj_template_t *parm = obj_first_child(cas);
+        obj_template_t *parm = obj_first_child(instance, cas);
         if (parm) {
             case_count++;
         }
@@ -1289,16 +1330,17 @@ static uint32
 *   number of enabled cases
 *********************************************************************/
 static obj_template_t *
-    first_enabled_case (server_cb_t *server_cb,
+    first_enabled_case (ncx_instance_t *instance,
+                        server_cb_t *server_cb,
                         obj_template_t *choic,
                         boolean iswrite)
 {
-    obj_template_t *cas = obj_first_child(choic); 
-    for (; cas != NULL; cas = obj_next_child(cas)) {
-        if ((!server_cb->get_optional && !iswrite) || !need_get_parm(cas)) {
+    obj_template_t *cas = obj_first_child(instance, choic); 
+    for (; cas != NULL; cas = obj_next_child(instance, cas)) {
+        if ((!server_cb->get_optional && !iswrite) || !need_get_parm(instance, cas)) {
             continue;
         }
-        obj_template_t *parm = obj_first_child(cas);
+        obj_template_t *parm = obj_first_child(instance, cas);
         if (parm) {
             return cas;
         }
@@ -1332,7 +1374,8 @@ static obj_template_t *
 *   status
 *********************************************************************/
 static status_t
-    get_choice (server_cb_t *server_cb,
+    get_choice (ncx_instance_t *instance,
+                server_cb_t *server_cb,
                 obj_template_t *rpc,
                 obj_template_t *choic,
                 val_value_t *valset,
@@ -1344,26 +1387,28 @@ static status_t
     status_t         res = NO_ERR;
     boolean          done = FALSE;
 
-    if (!obj_is_config(choic) || obj_is_abstract(choic)) {
-        log_stdout("\nError: choice '%s' has no configurable parameters",
-                   obj_get_name(choic));
+    if (!obj_is_config(instance, choic) || obj_is_abstract(instance, choic)) {
+        log_stdout(instance,
+                   "\nError: choice '%s' has no configurable parameters",
+                   obj_get_name(instance, choic));
         return ERR_NCX_ACCESS_DENIED;
     }
 
     int casenum = 0;
 
-    if (obj_is_data_db(choic)) {
+    if (obj_is_data_db(instance, choic)) {
         xmlChar *objbuff = NULL;
-        res = obj_gen_object_id(choic, &objbuff);
+        res = obj_gen_object_id(instance, choic, &objbuff);
         if (res != NO_ERR) {
-            log_error("\nError: generate object ID failed (%s)",
+            log_error(instance,
+                      "\nError: generate object ID failed (%s)",
                       get_error_string(res));
             return res;
         }
 
         /* let the user know about the new nest level */
-        log_stdout("\nFilling choice %s:", objbuff);
-        m__free(objbuff);
+        log_stdout(instance, "\nFilling choice %s:", objbuff);
+        m__free(instance, objbuff);
     }
 
     boolean saveopt = server_cb->get_optional;
@@ -1373,37 +1418,37 @@ static status_t
      * will just get skipped over;
      * only set to true for reads if --optional also set
      */
-    if (((saveopt && !iswrite) && obj_is_mandatory(choic)) ||
-        (iswrite && obj_is_mandatory(choic))) {
+    if (((saveopt && !iswrite) && obj_is_mandatory(instance, choic)) ||
+        (iswrite && obj_is_mandatory(instance, choic))) {
         server_cb->get_optional = TRUE;
     }
 
     /* first check the partial block corner case */
-    val_value_t *pval = val_get_choice_first_set(valset, choic);
+    val_value_t *pval = val_get_choice_first_set(instance, valset, choic);
     if (pval != NULL) {
         /* found something set from this choice, finish the case */
-        log_stdout("\nEnter more parameters to complete the choice:");
+        log_stdout(instance, "\nEnter more parameters to complete the choice:");
 
         cas = pval->casobj;
         if (cas == NULL) {
             server_cb->get_optional = saveopt;
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
-        obj_template_t *parm = obj_first_child(cas); 
-        for (; parm != NULL; parm = obj_next_child(parm)) {
+        obj_template_t *parm = obj_first_child(instance, cas); 
+        for (; parm != NULL; parm = obj_next_child(instance, parm)) {
 
             if ((!server_cb->get_optional && !iswrite) ||
-                !need_get_parm(parm)) {
+                !need_get_parm(instance, parm)) {
                 continue;
             }
 
-            pval = val_find_child(valset, obj_get_mod_name(parm),
-                                  obj_get_name(parm));
+            pval = val_find_child(instance, valset, obj_get_mod_name(instance, parm),
+                                  obj_get_name(instance, parm));
             if (pval) {
                 continue;   /* node within case already set */
             }
 
-            res = get_parm(server_cb, rpc, parm, valset, oldvalset);
+            res = get_parm(instance, server_cb, rpc, parm, valset, oldvalset);
             switch (res) {
             case NO_ERR:
                 break;
@@ -1423,74 +1468,77 @@ static status_t
     }
 
     /* get number of enabled cases */
-    uint32 case_count = enabled_case_count(server_cb, choic, iswrite);
+    uint32 case_count = enabled_case_count(instance, server_cb, choic, iswrite);
     boolean usedef = FALSE;
 
     /* check corner-case -- choice with no cases defined */
-    cas = obj_first_child(choic);
+    cas = obj_first_child(instance, choic);
     if (cas == NULL) {
         if (case_count) {
-            log_stdout("\nNo case nodes enabled for choice %s\n",
-                   obj_get_name(choic));
+            log_stdout(instance,
+                   "\nNo case nodes enabled for choice %s\n",
+                   obj_get_name(instance, choic));
         } else {
-            log_stdout("\nNo case nodes defined for choice %s\n",
-                       obj_get_name(choic));
+            log_stdout(instance,
+                       "\nNo case nodes defined for choice %s\n",
+                       obj_get_name(instance, choic));
         }
         server_cb->get_optional = saveopt;
         return NO_ERR;
     }
 
     if (case_count == 1) {
-        cas = first_enabled_case(server_cb, choic, iswrite);
+        cas = first_enabled_case(instance, server_cb, choic, iswrite);
     } else {
         /* else not a partial block corner case but a normal
          * situation where no case has been selected at all
          */
-        log_stdout("\nEnter the number of the selected case statement:\n");
+        log_stdout(instance, "\nEnter the number of the selected case statement:\n");
 
         int num = 1;
 
-        for (; cas != NULL; cas = obj_next_child(cas)) {
+        for (; cas != NULL; cas = obj_next_child(instance, cas)) {
 
-            if ((!server_cb->get_optional && !iswrite) || !need_get_parm(cas)) {
+            if ((!server_cb->get_optional && !iswrite) || !need_get_parm(instance, cas)) {
                 continue;
             }
 
             boolean first = TRUE;
-            obj_template_t *parm = obj_first_child(cas);
-            for (; parm != NULL; parm = obj_next_child(parm)) {
+            obj_template_t *parm = obj_first_child(instance, cas);
+            for (; parm != NULL; parm = obj_next_child(instance, parm)) {
 
-                if (!obj_is_config(parm) || obj_is_abstract(parm)) {
+                if (!obj_is_config(instance, parm) || obj_is_abstract(instance, parm)) {
                     continue;
                 }
 
                 if (first) {
-                    log_stdout("\n  %d: case %s:", num++, obj_get_name(cas));
+                    log_stdout(instance, "\n  %d: case %s:", num++, obj_get_name(instance, cas));
                     first = FALSE;
                 }
 
-                log_stdout("\n       %s %s", obj_get_typestr(parm),
-                           obj_get_name(parm));
+                log_stdout(instance, "\n       %s %s", obj_get_typestr(instance, parm),
+                           obj_get_name(instance, parm));
             }
         }
 
         done = FALSE;
-        log_stdout("\n");
+        log_stdout(instance, "\n");
         while (!done) {
 
             boolean redo = FALSE;
 
             /* Pick a prompt, depending on the choice default case */
-            if (obj_get_default(choic)) {
-                log_stdout("\nEnter choice number [%d - %d], "
+            if (obj_get_default(instance, choic)) {
+                log_stdout(instance,
+                           "\nEnter choice number [%d - %d], "
                            "[ENTER] for default (%s): ",
-                           1, num-1, obj_get_default(choic));
+                           1, num-1, obj_get_default(instance, choic));
             } else {
-                log_stdout("\nEnter choice number [%d - %d]: ", 1, num-1);
+                log_stdout(instance, "\nEnter choice number [%d - %d]: ", 1, num-1);
             }
 
             /* get input from the user STDIN */
-            xmlChar *myline = get_cmd_line(server_cb, &res);
+            xmlChar *myline = get_cmd_line(instance, server_cb, &res);
             if (!myline) {
                 server_cb->get_optional = saveopt;
                 return res;
@@ -1508,22 +1556,23 @@ static status_t
             } else if (*str == '?') {
                 redo = TRUE;
                 if (str[1] == '?') {
-                    obj_dump_template(choic, HELP_MODE_FULL, 0,
+                    obj_dump_template(instance, choic, HELP_MODE_FULL, 0,
                                       server_cb->defindent);
                 } else if (str[1] == 'C' || str[1] == 'c') {
-                    log_stdout("\n%s command canceled\n",
-                               obj_get_name(rpc));
+                    log_stdout(instance,
+                               "\n%s command canceled\n",
+                               obj_get_name(instance, rpc));
                     server_cb->get_optional = saveopt;
                     return ERR_NCX_CANCELED;
                 } else if (str[1] == 'S' || str[1] == 's') {
-                    log_stdout("\n%s choice skipped\n", obj_get_name(choic));
+                    log_stdout(instance, "\n%s choice skipped\n", obj_get_name(instance, choic));
                     server_cb->get_optional = saveopt;
                     return ERR_NCX_SKIPPED;
                 } else {
-                    obj_dump_template(choic, HELP_MODE_NORMAL, 4,
+                    obj_dump_template(instance, choic, HELP_MODE_NORMAL, 4,
                                       server_cb->defindent);
                 }
-                log_stdout("\n");
+                log_stdout(instance, "\n");
             } else {
                 casenum = atoi((const char *)str);
                 usedef = FALSE;
@@ -1535,15 +1584,15 @@ static status_t
 
             /* check if default requested */
             if (usedef) {
-                if (obj_get_default(choic)) {
+                if (obj_get_default(instance, choic)) {
                     done = TRUE;
                 } else {
-                    log_stdout("\nError: Choice does not have "
+                    log_stdout(instance, "\nError: Choice does not have "
                                "a default case\n");
                     usedef = FALSE;
                 }
             } else if (casenum < 0 || casenum >= num) {
-                log_stdout("\nError: invalid value '%s'\n", str);
+                log_stdout(instance, "\nError: invalid value '%s'\n", str);
             } else {
                 done = TRUE;
             }
@@ -1554,24 +1603,24 @@ static status_t
      * now get the object template for the correct case 
      */
     if (usedef) {
-        cas = obj_find_child(choic, obj_get_mod_name(choic),
-                             obj_get_default(choic));
+        cas = obj_find_child(instance, choic, obj_get_mod_name(instance, choic),
+                             obj_get_default(instance, choic));
     } else if (case_count > 1) {
 
         int num = 1;
         done = FALSE;
         obj_template_t *usecase = NULL;
 
-        for (cas = obj_first_child(choic); 
+        for (cas = obj_first_child(instance, choic); 
              cas != NULL && !done;
-             cas = obj_next_child(cas)) {
+             cas = obj_next_child(instance, cas)) {
 
             if ((!server_cb->get_optional && !iswrite) ||
-                !need_get_parm(cas)) {
+                !need_get_parm(instance, cas)) {
                 continue;
             }
 
-            if (obj_first_child(cas) == NULL) {
+            if (obj_first_child(instance, cas) == NULL) {
                 /* skip case if no enabled children */
                 continue;
             }
@@ -1589,12 +1638,12 @@ static status_t
 
     /* make sure a case was selected or found */
     if (!cas) {
-        log_stdout("\nError: No case to fill for this choice");
+        log_stdout(instance, "\nError: No case to fill for this choice");
         server_cb->get_optional = saveopt;
         return ERR_NCX_SKIPPED;
     }
 
-    res = get_case(server_cb, cas, valset, oldvalset, iswrite, isdelete);
+    res = get_case(instance, server_cb, cas, valset, oldvalset, iswrite, isdelete);
     switch (res) {
     case NO_ERR:
         break;
@@ -1636,7 +1685,8 @@ static status_t
 *    malloced value, filled in or NULL if some error
 *********************************************************************/
 static val_value_t *
-    fill_value (server_cb_t *server_cb,
+    fill_value (ncx_instance_t *instance,
+                server_cb_t *server_cb,
                 obj_template_t *rpc,
                 obj_template_t *parm,
                 val_value_t *useval,
@@ -1652,28 +1702,28 @@ static val_value_t *
     case OBJ_TYP_LEAF_LIST:
         break;
     default:
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
-    if (obj_is_abstract(parm)) {
+    if (obj_is_abstract(instance, parm)) {
         *res = ERR_NCX_NO_ACCESS_MAX;
-        log_error("\nError: no access to abstract objects");
+        log_error(instance, "\nError: no access to abstract objects");
         return NULL;
     }
 
     /* just copy the useval if it is given */
     if (useval) {
-        newval = val_clone(useval);
+        newval = val_clone(instance, useval);
         if (!newval) {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             return NULL;
         }
         if (newval->obj != parm) {
             /* force the new value to have the QName of 'parm' */
-            val_change_nsid(newval, obj_get_nsid(parm));
-            val_set_name(newval, obj_get_name(parm),
-                         xml_strlen(obj_get_name(parm)));
+            val_change_nsid(instance, newval, obj_get_nsid(instance, parm));
+            val_set_name(instance, newval, obj_get_name(instance, parm),
+                         xml_strlen(instance, obj_get_name(instance, parm)));
         }
         return newval;
     }        
@@ -1685,37 +1735,38 @@ static val_value_t *
     if (parm->parent && !obj_is_root(parm->parent)) {
         parentobj = parm->parent;
     } else {
-        parentobj = ncx_get_gen_container();
+        parentobj = ncx_get_gen_container(instance);
     }
 
-    dummy = val_new_value();
+    dummy = val_new_value(instance);
     if (!dummy) {
         *res = ERR_INTERNAL_MEM;
-        log_error("\nError: malloc failed");
+        log_error(instance, "\nError: malloc failed");
         return NULL;
     }
-    val_init_from_template(dummy, parentobj);
+    val_init_from_template(instance, dummy, parentobj);
 
-    server_cb->cli_fn = obj_get_name(rpc);
+    server_cb->cli_fn = obj_get_name(instance, rpc);
 
     newval = NULL;
     saveopt = server_cb->get_optional;
     server_cb->get_optional = TRUE;
 
-    set_completion_state(&server_cb->completion_state,
+    set_completion_state(instance,
+                         &server_cb->completion_state,
                          rpc, parm, CMD_STATE_GETVAL);
 
-    *res = get_parm(server_cb, rpc, parm, dummy, NULL);
+    *res = get_parm(instance, server_cb, rpc, parm, dummy, NULL);
     server_cb->get_optional = saveopt;
 
     if (*res == NO_ERR) {
-        newval = val_get_first_child(dummy);
+        newval = val_get_first_child(instance, dummy);
         if (newval) {
-            val_remove_child(newval);
+            val_remove_child(instance, newval);
         }
     }
     server_cb->cli_fn = NULL;
-    val_free_value(dummy);
+    val_free_value(instance, dummy);
     return newval;
 
 } /* fill_value */
@@ -1743,7 +1794,8 @@ static val_value_t *
 *    status,, valset may be partially filled if not NO_ERR
 *********************************************************************/
 static status_t
-    fill_valset (server_cb_t *server_cb,
+    fill_valset (ncx_instance_t *instance,
+                 server_cb_t *server_cb,
                  obj_template_t *rpc,
                  val_value_t *valset,
                  val_value_t *oldvalset,
@@ -1762,7 +1814,7 @@ static status_t
         target = rpc;
     } else if (rpc->objtype == OBJ_TYP_RPC) {
         /* called by RPC invocation or fill data fn */
-        server_cb->cli_fn = obj_get_name(rpc);
+        server_cb->cli_fn = obj_get_name(instance, rpc);
         target = valset->obj;
     } else {
         /* called by fill data fn */
@@ -1773,26 +1825,27 @@ static status_t
           target->objtype == OBJ_TYP_RPCIO ||
           target->objtype == OBJ_TYP_CASE)) {
         xmlChar *objbuff = NULL;
-        res = obj_gen_object_id(target, &objbuff);
+        res = obj_gen_object_id(instance, target, &objbuff);
         if (res != NO_ERR) {
-            log_error("\nError: generate object ID failed (%s)",
+            log_error(instance,
+                      "\nError: generate object ID failed (%s)",
                       get_error_string(res));
             return res;
         }
 
         /* let the user know about the new nest level */
-        log_stdout("\nFilling %s %s:", obj_get_typestr(target), objbuff);
-        m__free(objbuff);
+        log_stdout(instance, "\nFilling %s %s:", obj_get_typestr(instance, target), objbuff);
+        m__free(instance, objbuff);
     }
 
-    for (parm = obj_first_child(target);
+    for (parm = obj_first_child(instance, target);
          parm != NULL && res==NO_ERR;
-         parm = obj_next_child(parm)) {
+         parm = obj_next_child(instance, parm)) {
 
         if ((!server_cb->get_optional && !iswrite) ||
-            !need_get_parm(parm)) {
+            !need_get_parm(instance, parm)) {
             if (oldvalset != NULL) {
-                res = clone_old_parm(oldvalset, valset, parm);
+                res = clone_old_parm(instance, oldvalset, valset, parm);
             }
             continue;
         }
@@ -1802,34 +1855,34 @@ static status_t
         }
 
         if (!server_cb->get_optional) {
-            if (!obj_is_mandatory(parm)) {
+            if (!obj_is_mandatory(instance, parm)) {
                 if (oldvalset != NULL) {
-                    res = clone_old_parm(oldvalset, valset, parm);
+                    res = clone_old_parm(instance, oldvalset, valset, parm);
                 }
                 continue;
             }
             if (!iswrite && !obj_is_key(parm)) {
                 if (oldvalset != NULL) {
-                    res = clone_old_parm(oldvalset, valset, parm);
+                    res = clone_old_parm(instance, oldvalset, valset, parm);
                 }
                 continue;
             }
         }
 
-        set_completion_state(&server_cb->completion_state, rpc, parm,
+        set_completion_state(instance, &server_cb->completion_state, rpc, parm,
                              CMD_STATE_GETVAL);
 
         switch (parm->objtype) {
         case OBJ_TYP_CHOICE:
-            firstchoice = val_get_choice_first_set(valset, parm);
+            firstchoice = val_get_choice_first_set(instance, valset, parm);
             if (firstchoice) {
                 assert( firstchoice->casobj && "case backptr is NULL!" );
 
                 /* a case is already selected so try finishing that */
-                res = get_case(server_cb, firstchoice->casobj, valset,
+                res = get_case(instance, server_cb, firstchoice->casobj, valset,
                                oldvalset, iswrite, isdelete);
             } else {
-                res = get_choice(server_cb, rpc, parm, valset, oldvalset,
+                res = get_choice(instance, server_cb, rpc, parm, valset, oldvalset,
                                  iswrite, isdelete);
                 switch (res) {
                 case NO_ERR:
@@ -1846,10 +1899,10 @@ static status_t
             break;
         case OBJ_TYP_ANYXML:
         case OBJ_TYP_LEAF:
-            val = val_find_child(valset, obj_get_mod_name(parm),
-                                 obj_get_name(parm));
+            val = val_find_child(instance, valset, obj_get_mod_name(instance, parm),
+                                 obj_get_name(instance, parm));
             if (val == NULL) {
-                res = get_parm(server_cb, rpc, parm, valset, oldvalset);
+                res = get_parm(instance, server_cb, rpc, parm, valset, oldvalset);
                 switch (res) {
                 case NO_ERR:
                     break;
@@ -1866,11 +1919,11 @@ static status_t
         case OBJ_TYP_LEAF_LIST:
             done = FALSE;
             while (!done && res == NO_ERR) {
-                res = get_parm(server_cb, rpc, parm, valset, oldvalset);
+                res = get_parm(instance, server_cb, rpc, parm, valset, oldvalset);
                 switch (res) {
                 case NO_ERR:
                     /* prompt for more leaf-list objects */
-                    res = get_yesno(server_cb, YANGCLI_PR_LLIST,
+                    res = get_yesno(instance, server_cb, YANGCLI_PR_LLIST,
                                     YESNO_NO, &yesnocode);
                     if (res == NO_ERR) {
                         switch (yesnocode) {
@@ -1883,7 +1936,7 @@ static status_t
                             done = TRUE;
                             break;
                         default:
-                            res = SET_ERROR(ERR_INTERNAL_VAL);
+                            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                         }
                     }
                     break;
@@ -1904,31 +1957,31 @@ static status_t
             /* if the parm is not already set and is not read-only
              * then try to get a value from the user at the CLI
              */
-            val = val_find_child(valset, obj_get_mod_name(parm),
-                                 obj_get_name(parm));
+            val = val_find_child(instance, valset, obj_get_mod_name(instance, parm),
+                                 obj_get_name(instance, parm));
             if (val) {
                 break;
             }
                         
             if (oldvalset) {
-                oldval = val_find_child(oldvalset, obj_get_mod_name(parm),
-                                        obj_get_name(parm));
+                oldval = val_find_child(instance, oldvalset, obj_get_mod_name(instance, parm),
+                                        obj_get_name(instance, parm));
             } else {
                 oldval = NULL;
             }
 
-            val = val_new_value();
+            val = val_new_value(instance);
             if (!val) {
                 res = ERR_INTERNAL_MEM;
-                log_error("\nError: malloc of new value failed");
+                log_error(instance, "\nError: malloc of new value failed");
                 break;
             } else {
-                val_init_from_template(val, parm);
-                val_add_child(val, valset);
+                val_init_from_template(instance, val, parm);
+                val_add_child(instance, val, valset);
             }
 
             /* recurse with the child nodes */
-            res = fill_valset(server_cb, parm, val, oldval, iswrite, isdelete);
+            res = fill_valset(instance, server_cb, parm, val, oldval, iswrite, isdelete);
 
             switch (res) {
             case NO_ERR:
@@ -1945,25 +1998,25 @@ static status_t
         case OBJ_TYP_LIST:
             done = FALSE;
             while (!done && res == NO_ERR) {
-                val = val_new_value();
+                val = val_new_value(instance);
                 if (!val) {
                     res = ERR_INTERNAL_MEM;
-                    log_error("\nError: malloc of new value failed");
+                    log_error(instance, "\nError: malloc of new value failed");
                     continue;
                 } else {
-                    val_init_from_template(val, parm);
-                    val_add_child(val, valset);
+                    val_init_from_template(instance, val, parm);
+                    val_add_child(instance, val, valset);
                 }
 
                 /* recurse with the child node -- NO OLD VALUE
                  * TBD: get keys, then look up old matching entry
                  */
-                res = fill_valset(server_cb, parm, val, NULL, iswrite, 
+                res = fill_valset(instance, server_cb, parm, val, NULL, iswrite, 
                                   isdelete);
                 switch (res) {
                 case NO_ERR:
                     /* prompt for more list entries */
-                    res = get_yesno(server_cb, YANGCLI_PR_LIST,
+                    res = get_yesno(instance, server_cb, YANGCLI_PR_LIST,
                                     YESNO_NO, &yesnocode);
                     if (res == NO_ERR) {
                         switch (yesnocode) {
@@ -1976,7 +2029,7 @@ static status_t
                             done = TRUE;
                             break;
                         default:
-                            res = SET_ERROR(ERR_INTERNAL_VAL);
+                            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                         }
                     }
                     break;
@@ -1991,7 +2044,7 @@ static status_t
             }
             break;
         default: 
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
@@ -2021,7 +2074,7 @@ static status_t
 *
 *********************************************************************/
 static void
-    create_session (server_cb_t *server_cb)
+    create_session (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     const xmlChar          *server, *username, *password;
     const char             *publickey, *privatekey;
@@ -2034,22 +2087,23 @@ static void
     boolean                 tcp_direct_enable;
 
     if (LOGDEBUG) {
-        log_debug("\nConnect attempt with following parameters:");
-        val_dump_value_max(server_cb->connect_valset,
+        log_debug(instance, "\nConnect attempt with following parameters:");
+        val_dump_value_max(instance,
+                           server_cb->connect_valset,
                            0,
                            server_cb->defindent,
                            DUMP_VAL_LOG,
                            server_cb->display_mode,
                            FALSE,
                            FALSE);
-        log_debug("\n");
+        log_debug(instance, "\n");
     }
     
     /* make sure session not already running */
     if (server_cb->mysid) {
         if (mgr_ses_get_scb(server_cb->mysid)) {
             /* already connected; fn should not have been called */
-            SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+            SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
             return;
         } else {
             /* OK: reset session ID */
@@ -2058,41 +2112,44 @@ static void
     }
 
     /* make sure no stale search results in the control block */
-    while (!dlq_empty(&server_cb->searchresultQ)) {
+    while (!dlq_empty(instance, &server_cb->searchresultQ)) {
         searchresult = (ncxmod_search_result_t *)
-            dlq_deque(&server_cb->searchresultQ);
-        ncxmod_free_search_result(searchresult);
+            dlq_deque(instance, &server_cb->searchresultQ);
+        ncxmod_free_search_result(instance, searchresult);
     }
 
     /* make sure no stale modules in the control block */
-    while (!dlq_empty(&server_cb->modptrQ)) {
-        modptr = (modptr_t *)dlq_deque(&server_cb->modptrQ);
-        free_modptr(modptr);
+    while (!dlq_empty(instance, &server_cb->modptrQ)) {
+        modptr = (modptr_t *)dlq_deque(instance, &server_cb->modptrQ);
+        free_modptr(instance, modptr);
     }
 
     /* retrieving the parameters should not fail */
     username = NULL;
-    val =  val_find_child(server_cb->connect_valset,
+    val =  val_find_child(instance,
+                          server_cb->connect_valset,
                           YANGCLI_MOD, YANGCLI_USER);
     if (val && val->res == NO_ERR) {
         username = VAL_STR(val);
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     server = NULL;
-    val = val_find_child(server_cb->connect_valset,
+    val = val_find_child(instance,
+                         server_cb->connect_valset,
                          YANGCLI_MOD, YANGCLI_SERVER);
     if (val && val->res == NO_ERR) {
         server = VAL_STR(val);
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     password = NULL;
-    val = val_find_child(server_cb->connect_valset,
+    val = val_find_child(instance,
+                         server_cb->connect_valset,
                          YANGCLI_MOD, YANGCLI_PASSWORD);
     if (val && val->res == NO_ERR) {
         password = VAL_STR(val);
@@ -2100,39 +2157,45 @@ static void
 
     port = 0;
     portbydefault = FALSE;
-    val = val_find_child(server_cb->connect_valset,
+    val = val_find_child(instance,
+                         server_cb->connect_valset,
                          YANGCLI_MOD, YANGCLI_NCPORT);
     if (val && val->res == NO_ERR) {
         port = VAL_UINT16(val);
-        portbydefault = val_set_by_default(val);
+        portbydefault = val_set_by_default(instance, val);
     }
 
     publickey = NULL;
-    val = val_find_child(server_cb->connect_valset,
+    val = val_find_child(instance,
+                         server_cb->connect_valset,
                          YANGCLI_MOD, YANGCLI_PUBLIC_KEY);
     if (val && val->res == NO_ERR) {
         publickey = (const char *)VAL_STR(val);
     }
 
     privatekey = NULL;
-    val = val_find_child(server_cb->connect_valset,
+    val = val_find_child(instance,
+                         server_cb->connect_valset,
                          YANGCLI_MOD, YANGCLI_PRIVATE_KEY);
     if (val && val->res == NO_ERR) {
         privatekey = (const char *)VAL_STR(val);
     }
 
     tcp = FALSE;
-    val = val_find_child(server_cb->connect_valset,
+    val = val_find_child(instance,
+                         server_cb->connect_valset,
                          YANGCLI_MOD, YANGCLI_TRANSPORT);
     if (val != NULL && 
         val->res == NO_ERR && 
-        !xml_strcmp(VAL_ENUM_NAME(val),
+        !xml_strcmp(instance,
+                    VAL_ENUM_NAME(val),
                     (const xmlChar *)"tcp")) {
         tcp = TRUE;
     }
 
      tcp_direct_enable = FALSE;
-     val = val_find_child(server_cb->connect_valset,
+     val = val_find_child(instance,
+                          server_cb->connect_valset,
                           YANGCLI_MOD, 
                           YANGCLI_TCP_DIRECT_ENABLE);
      if(val == NULL) printf("val is NULL.\n");
@@ -2149,7 +2212,8 @@ static void
         }
     }
         
-    log_info("\nyangcli: Starting NETCONF session for %s on %s",
+    log_info(instance,
+             "\nyangcli: Starting NETCONF session for %s on %s",
              username, 
              server);
 
@@ -2159,7 +2223,8 @@ static void
     /* this function call will cause us to block while the
      * protocol layer connect messages are processed
      */
-    res = mgr_ses_new_session(username, 
+    res = mgr_ses_new_session(instance, 
+                              username, 
                               password, 
                               publickey,
                               privatekey,
@@ -2169,28 +2234,31 @@ static void
                               : SES_TRANSPORT_SSH,
                               server_cb->temp_progcb,
                               &server_cb->mysid,
-                              xpath_getvar_fn,
+                              (xpath_getvar_fn_t)xpath_getvar_fn,
                               server_cb->connect_valset);
     if (res == NO_ERR) {
         startedsession = TRUE;
         server_cb->state = MGR_IO_ST_CONN_START;
-        log_debug("\nyangcli: Start session %d OK for server '%s'", 
+        log_debug(instance, 
+                  "\nyangcli: Start session %d OK for server '%s'", 
                   server_cb->mysid, 
                   server_cb->name);
 
-        res = mgr_set_getvar_fn(server_cb->mysid,
-                                xpath_getvar_fn);
+        res = mgr_set_getvar_fn(instance,
+                                server_cb->mysid,
+                                (xpath_getvar_fn_t)xpath_getvar_fn);
         if (res != NO_ERR) {
-            log_error("\nError: Could not set XPath variable callback");
+            log_error(instance, "\nError: Could not set XPath variable callback");
         }
     }
 
     if (res != NO_ERR) {
         if (startedsession) {
-            mgr_ses_free_session(server_cb->mysid);
+            mgr_ses_free_session(instance, server_cb->mysid);
             server_cb->mysid = 0;
         }
-        log_info("\nyangcli: Start session failed for user %s on "
+        log_info(instance, 
+                 "\nyangcli: Start session failed for user %s on "
                  "%s (%s)\n", 
                  username, 
                  server, 
@@ -2221,7 +2289,8 @@ static void
  *   status
  *********************************************************************/
 static status_t
-    do_mgrload (server_cb_t *server_cb,
+    do_mgrload (ncx_instance_t *instance,
+                server_cb_t *server_cb,
                 obj_template_t *rpc,
                 const xmlChar *line,
                 uint32  len)
@@ -2237,7 +2306,7 @@ static status_t
     modval = NULL;
     revval = NULL;
     res = NO_ERR;
-    dlq_createSQue(&savedevQ);
+    dlq_createSQue(instance, &savedevQ);
 
     if (interactive_mode()) {
         logfn = log_stdout;
@@ -2245,11 +2314,11 @@ static status_t
         logfn = log_write;
     }
         
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     /* get the module name */
     if (res == NO_ERR) {
-        modval = val_find_child(valset, YANGCLI_MOD, NCX_EL_MODULE);
+        modval = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_MODULE);
         if (!modval) {
             res = ERR_NCX_DEF_NOT_FOUND;
         } else if (modval->res != NO_ERR) {
@@ -2259,24 +2328,24 @@ static status_t
 
     /* get the module revision */
     if (res == NO_ERR) {
-        revval = val_find_child(valset, YANGCLI_MOD, NCX_EL_REVISION);
+        revval = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_REVISION);
     }
 
 
     /* check if any version of the module is loaded already */
     if (res == NO_ERR) {
-        mod = ncx_find_module(VAL_STR(modval), NULL);
+        mod = ncx_find_module(instance, VAL_STR(modval), NULL);
         if (mod) {
             if (mod->version) {
-                (*logfn)("\nModule '%s' revision '%s' already loaded",
+                (*logfn)(instance, "\nModule '%s' revision '%s' already loaded",
                          mod->name, 
                          mod->version);
             } else {
-                (*logfn)("\nModule '%s' already loaded",
+                (*logfn)(instance, "\nModule '%s' already loaded",
                          mod->name);
             }
             if (valset) {
-                val_free_value(valset);
+                val_free_value(instance, valset);
             }
             return res;
         }
@@ -2284,30 +2353,31 @@ static status_t
 
     /* check if there are any deviation parameters to load first */
     if (res == NO_ERR) {
-        for (devval = val_find_child(valset, YANGCLI_MOD, NCX_EL_DEVIATION);
+        for (devval = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_DEVIATION);
              devval != NULL && res == NO_ERR;
-             devval = val_find_next_child(valset, YANGCLI_MOD,
+             devval = val_find_next_child(instance, valset, YANGCLI_MOD,
                                           NCX_EL_DEVIATION, devval)) {
 
-            res = ncxmod_load_deviation(VAL_STR(devval), &savedevQ);
+            res = ncxmod_load_deviation(instance, VAL_STR(devval), &savedevQ);
         }
     }
 
     /* load the module */
     if (res == NO_ERR) {
         mod = NULL;
-        res = ncxmod_load_module(VAL_STR(modval), 
+        res = ncxmod_load_module(instance, 
+                                 VAL_STR(modval), 
                                  (revval) ? VAL_STR(revval) : NULL, 
                                  &savedevQ,
                                  &mod);
         if (res == NO_ERR) {
             /*** TBD: prompt user for features to enable/disable ***/
-            modptr = new_modptr(mod, NULL, NULL);
+            modptr = new_modptr(instance, mod, NULL, NULL);
             if (!modptr) {
                 res = ERR_INTERNAL_MEM;
             } else {
                 mgrloadQ = get_mgrloadQ();
-                dlq_enque(modptr, mgrloadQ);
+                dlq_enque(instance, modptr, mgrloadQ);
             }
         }
     }
@@ -2315,22 +2385,22 @@ static status_t
     /* print the result to stdout */
     if (res == NO_ERR) {
         if (revval) {
-            (*logfn)("\nLoad module '%s' revision '%s' OK", 
+            (*logfn)(instance, "\nLoad module '%s' revision '%s' OK", 
                      VAL_STR(modval),
                      VAL_STR(revval));
         } else {
-            (*logfn)("\nLoad module '%s' OK", VAL_STR(modval));
+            (*logfn)(instance, "\nLoad module '%s' OK", VAL_STR(modval));
         }
     } else {
-        (*logfn)("\nError: Load module failed (%s)",
+        (*logfn)(instance, "\nError: Load module failed (%s)",
                  get_error_string(res));
     }
-    (*logfn)("\n");
+    (*logfn)(instance, "\n");
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
-    ncx_clean_save_deviationsQ(&savedevQ);
+    ncx_clean_save_deviationsQ(instance, &savedevQ);
 
     return res;
 
@@ -2350,7 +2420,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_help_commands (server_cb_t *server_cb,
+    do_help_commands (ncx_instance_t *instance,
+                      server_cb_t *server_cb,
                       help_mode_t mode)
 {
     modptr_t            *modptr;
@@ -2360,57 +2431,57 @@ static status_t
     imode = interactive_mode();
     anyout = FALSE;
 
-    if (use_servercb(server_cb)) {
+    if (use_servercb(instance, server_cb)) {
         if (imode) {
-            log_stdout("\nServer Commands:\n");
+            log_stdout(instance, "\nServer Commands:\n");
         } else {
-            log_write("\nServer Commands:\n");
+            log_write(instance, "\nServer Commands:\n");
         }
 
         for (modptr = (modptr_t *)
-                 dlq_firstEntry(&server_cb->modptrQ);
+                 dlq_firstEntry(instance, &server_cb->modptrQ);
              modptr != NULL;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            obj = ncx_get_first_object(modptr->mod);
+            obj = ncx_get_first_object(instance, modptr->mod);
             while (obj) {
-                if (obj_is_rpc(obj) && !obj_is_hidden(obj)) {
+                if (obj_is_rpc(instance, obj) && !obj_is_hidden(instance, obj)) {
                     if (mode == HELP_MODE_BRIEF) {
-                        obj_dump_template(obj, mode, 1, 0);
+                        obj_dump_template(instance, obj, mode, 1, 0);
                     } else {
-                        obj_dump_template(obj, mode, 0, 0);
+                        obj_dump_template(instance, obj, mode, 0, 0);
                     }
                     anyout = TRUE;
                 }
-                obj = ncx_get_next_object(modptr->mod, obj);
+                obj = ncx_get_next_object(instance, modptr->mod, obj);
             }
         }
     }
 
     if (imode) {
-        log_stdout("\nLocal Commands:\n");
+        log_stdout(instance, "\nLocal Commands:\n");
     } else {
-        log_write("\nLocal Commands:\n");
+        log_write(instance, "\nLocal Commands:\n");
     }
 
-    obj = ncx_get_first_object(get_yangcli_mod());
+    obj = ncx_get_first_object(instance, get_yangcli_mod());
     while (obj) {
-        if (obj_is_rpc(obj) && !obj_is_hidden(obj)) {
+        if (obj_is_rpc(instance, obj) && !obj_is_hidden(instance, obj)) {
             if (mode == HELP_MODE_BRIEF) {
-                obj_dump_template(obj, mode, 1, 0);
+                obj_dump_template(instance, obj, mode, 1, 0);
             } else {
-                obj_dump_template(obj, mode, 0, 0);
+                obj_dump_template(instance, obj, mode, 0, 0);
             }
             anyout = TRUE;
         }
-        obj = ncx_get_next_object(get_yangcli_mod(), obj);
+        obj = ncx_get_next_object(instance, get_yangcli_mod(), obj);
     }
 
     if (anyout) {
         if (imode) {
-            log_stdout("\n");
+            log_stdout(instance, "\n");
         } else {
-            log_write("\n");
+            log_write(instance, "\n");
         }
     }
 
@@ -2437,7 +2508,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_help (server_cb_t *server_cb,
+    do_help (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len)
@@ -2453,10 +2525,10 @@ static status_t
 
     res = NO_ERR;
     imode = interactive_mode();
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
@@ -2464,110 +2536,120 @@ static status_t
     mode = HELP_MODE_NORMAL;
 
     /* look for the 'brief' parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_BRIEF);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_BRIEF);
     if (parm && parm->res == NO_ERR) {
         mode = HELP_MODE_BRIEF;
     } else {
         /* look for the 'full' parameter */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_FULL);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_FULL);
         if (parm && parm->res == NO_ERR) {
             mode = HELP_MODE_FULL;
         }
     }
 
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_COMMAND);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_COMMAND);
     if (parm && parm->res == NO_ERR) {
         dtyp = NCX_NT_OBJ;
         res = NO_ERR;
-        obj = parse_def(server_cb, &dtyp, VAL_STR(parm), &dlen, &res);
+        obj = parse_def(instance, server_cb, &dtyp, VAL_STR(parm), &dlen, &res);
         if (obj != NULL) {
             if (obj->objtype == OBJ_TYP_RPC && 
-                !obj_is_hidden(obj)) {
-                help_object(obj, mode);
+                !obj_is_hidden(instance, obj)) {
+                help_object(instance, obj, mode);
             } else {
                 res = ERR_NCX_DEF_NOT_FOUND;
                 if (imode) {
-                    log_stdout("\nError: command (%s) not found",
+                    log_stdout(instance,
+                               "\nError: command (%s) not found",
                                VAL_STR(parm));
                 } else {
-                    log_error("\nError: command (%s) not found",
+                    log_error(instance,
+                              "\nError: command (%s) not found",
                               VAL_STR(parm));
                 }
             }
         } else {
             if (res == ERR_NCX_DEF_NOT_FOUND) {
                 if (imode) {
-                    log_stdout("\nError: command (%s) not found",
+                    log_stdout(instance,
+                               "\nError: command (%s) not found",
                                VAL_STR(parm));
                 } else {
-                    log_error("\nError: command (%s) not found",
+                    log_error(instance,
+                              "\nError: command (%s) not found",
                               VAL_STR(parm));
                 }
             } else if (res == ERR_NCX_AMBIGUOUS_CMD) {
                 if (imode) {
-                    log_stdout("\n");
+                    log_stdout(instance, "\n");
                 } else {
-                    log_error("\n");
+                    log_error(instance, "\n");
                 }
             } else {
                 if (imode) {
-                    log_stdout("\nError: command error (%s)",
+                    log_stdout(instance,
+                               "\nError: command error (%s)",
                                get_error_string(res));
                 } else {
-                    log_error("\nError: command error (%s)",
+                    log_error(instance,
+                              "\nError: command error (%s)",
                               get_error_string(res));
                 }
             }
         }
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
     /* look for the specific definition parameters */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_COMMANDS);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_COMMANDS);
     if (parm && parm->res==NO_ERR) {
-        res = do_help_commands(server_cb, mode);
-        val_free_value(valset);
+        res = do_help_commands(instance, server_cb, mode);
+        val_free_value(instance, valset);
         return res;
     }
 
-    parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_TYPE);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_TYPE);
     if (parm && parm->res==NO_ERR) {
         res = NO_ERR;
         dtyp = NCX_NT_TYP;
-        typ = parse_def(server_cb, &dtyp, VAL_STR(parm), &dlen, &res);
+        typ = parse_def(instance, server_cb, &dtyp, VAL_STR(parm), &dlen, &res);
         if (typ) {
-            help_type(typ, mode);
+            help_type(instance, typ, mode);
         } else {
             if (res == ERR_NCX_DEF_NOT_FOUND) {
                 if (imode) {
-                    log_stdout("\nError: type definition (%s) not found",
+                    log_stdout(instance,
+                               "\nError: type definition (%s) not found",
                                VAL_STR(parm));
                 } else {
-                    log_error("\nError: type definition (%s) not found",
+                    log_error(instance,
+                              "\nError: type definition (%s) not found",
                               VAL_STR(parm));
                 }
             } else if (res == ERR_NCX_AMBIGUOUS_CMD) {
                 if (imode) {
-                    log_stdout("\n");
+                    log_stdout(instance, "\n");
                 } else {
-                    log_error("\n");
+                    log_error(instance, "\n");
                 }
             } else {
                 if (imode) {
-                    log_stdout("\nError: type error (%s)",
+                    log_stdout(instance,
+                               "\nError: type error (%s)",
                                get_error_string(res));
                 } else {
-                    log_error("\nError: type error (%s)",
+                    log_error(instance,
+                              "\nError: type error (%s)",
                               get_error_string(res));
                 }
             }
         }
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
-    parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_OBJECT);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_OBJECT);
     if (parm && parm->res == NO_ERR) {
         xmlChar *valstr = VAL_STR(parm);
 
@@ -2576,90 +2658,99 @@ static status_t
             /* union matched UrlPath type */
             xmlChar *urlpath;
 
-            urlpath = xpath_convert_url_to_path(valstr,
+            urlpath = xpath_convert_url_to_path(instance,
+                                                valstr,
                                                 server_cb->match_names,
                                                 server_cb->alt_names,
                                                 FALSE,  /* wildcards */
                                                 FALSE,   /* withkeys */
                                                 &res);
             if (urlpath != NULL && res == NO_ERR) {
-                res = xpath_find_schema_target_int(urlpath, &obj);
+                res = xpath_find_schema_target_int(instance, urlpath, &obj);
             }
             if (urlpath != NULL) {
-                m__free(urlpath);
+                m__free(instance, urlpath);
             }
         } else {
             /* union match NcxIdentifier type */
             res = NO_ERR;
             dtyp = NCX_NT_OBJ;
-            obj = parse_def(server_cb, &dtyp, valstr, &dlen, &res);
+            obj = parse_def(instance, server_cb, &dtyp, valstr, &dlen, &res);
         }
 
         if (obj) {
-            if (obj_is_data(obj) && !obj_is_hidden(obj)) {
-                help_object(obj, mode);
-                if (obj_is_leafy(obj)) {
+            if (obj_is_data(instance, obj) && !obj_is_hidden(instance, obj)) {
+                help_object(instance, obj, mode);
+                if (obj_is_leafy(instance, obj)) {
                     if (imode) {
-                        log_stdout("\n");
+                        log_stdout(instance, "\n");
                     } else {
-                        log_write("\n");
+                        log_write(instance, "\n");
                     }
                 }
             } else {
                 if (imode) {
-                    log_stdout("\nError: object definition (%s) not found",
+                    log_stdout(instance,
+                               "\nError: object definition (%s) not found",
                                VAL_STR(parm));
                 } else {
-                    log_error("\nError: object definition (%s) not found",
+                    log_error(instance,
+                              "\nError: object definition (%s) not found",
                               VAL_STR(parm));
                 }
             }
         } else {
             if (res == ERR_NCX_DEF_NOT_FOUND) {
                 if (imode) {
-                    log_stdout("\nError: object definition (%s) not found",
+                    log_stdout(instance,
+                               "\nError: object definition (%s) not found",
                                VAL_STR(parm));
                 } else {
-                    log_error("\nError: object definition (%s) not found",
+                    log_error(instance,
+                              "\nError: object definition (%s) not found",
                               VAL_STR(parm));
                 }
             } else if (res == ERR_NCX_AMBIGUOUS_CMD) {
                 if (imode) {
-                    log_stdout("\n");
+                    log_stdout(instance, "\n");
                 } else {
-                    log_error("\n");
+                    log_error(instance, "\n");
                 }
             } else {
                 if (imode) {
-                    log_stdout("\nError: object error (%s)",
+                    log_stdout(instance,
+                               "\nError: object error (%s)",
                                get_error_string(res));
                 } else {
-                    log_error("\nError: object error (%s)",
+                    log_error(instance,
+                              "\nError: object error (%s)",
                               get_error_string(res));
                 }
             }
         }
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
-    parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_NOTIFICATION);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_NOTIFICATION);
     if (parm && parm->res == NO_ERR) {
         res = NO_ERR;
         dtyp = NCX_NT_OBJ;
-        obj = parse_def(server_cb, &dtyp, VAL_STR(parm), &dlen, &res);
+        obj = parse_def(instance, server_cb, &dtyp, VAL_STR(parm), &dlen, &res);
         if (obj != NULL) {
             if (obj->objtype == OBJ_TYP_NOTIF &&
-                !obj_is_hidden(obj)) {
-                help_object(obj, mode);
+                !obj_is_hidden(instance, obj)) {
+                help_object(instance, obj, mode);
             } else {
                 res = ERR_NCX_DEF_NOT_FOUND;
                 if (imode) {
-                    log_stdout("\nError: notification definition "
+                    log_stdout(instance,
+                               "\nError: notification definition "
                                "(%s) not found",
                                VAL_STR(parm));
                 } else {
-                    log_error("\nError: notification definition "
+                    log_error(instance,
+                              "\nError: notification definition "
                               "(%s) not found",
                               VAL_STR(parm));
                 }
@@ -2667,31 +2758,35 @@ static status_t
         } else {
             if (res == ERR_NCX_DEF_NOT_FOUND) {
                 if (imode) {
-                    log_stdout("\nError: notification definition "
+                    log_stdout(instance,
+                               "\nError: notification definition "
                                "(%s) not found",
                                VAL_STR(parm));
                 } else {
-                    log_error("\nError: notification definition "
+                    log_error(instance,
+                              "\nError: notification definition "
                               "(%s) not found",
                               VAL_STR(parm));
                 }
             } else if (res == ERR_NCX_AMBIGUOUS_CMD) {
                 if (imode) {
-                    log_stdout("\n");
+                    log_stdout(instance, "\n");
                 } else {
-                    log_error("\n");
+                    log_error(instance, "\n");
                 }
             } else {
                 if (imode) {
-                    log_stdout("\nError: notification error (%s)",
+                    log_stdout(instance,
+                               "\nError: notification error (%s)",
                                get_error_string(res));
                 } else {
-                    log_error("\nError: notification error (%s)",
+                    log_error(instance,
+                              "\nError: notification error (%s)",
                               get_error_string(res));
                 }
             }
         }
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
@@ -2700,41 +2795,42 @@ static status_t
     switch (mode) {
     case HELP_MODE_BRIEF:
     case HELP_MODE_NORMAL:
-        log_stdout("\n\nyangcli summary:");
-        log_stdout("\n\n  Commands are defined with YANG rpc statements.");
-        log_stdout("\n  Use 'help commands' to see current list of commands.");
-        log_stdout("\n\n  Global variables are created with 2 dollar signs"
+        log_stdout(instance, "\n\nyangcli summary:");
+        log_stdout(instance, "\n\n  Commands are defined with YANG rpc statements.");
+        log_stdout(instance, "\n  Use 'help commands' to see current list of commands.");
+        log_stdout(instance, "\n\n  Global variables are created with 2 dollar signs"
                    "\n  in assignment statements ($$foo = 7).");
-        log_stdout("\n  Use 'show globals' to see current list "
+        log_stdout(instance, "\n  Use 'show globals' to see current list "
                    "of global variables.");
-        log_stdout("\n\n  Local variables (within a stack frame) are created"
+        log_stdout(instance, "\n\n  Local variables (within a stack frame) are created"
                    "\n  with 1 dollar sign in assignment"
                    " statements ($foo = $bar).");
-        log_stdout("\n  Use 'show locals' to see current list "
+        log_stdout(instance, "\n  Use 'show locals' to see current list "
                    "of local variables.");
-        log_stdout("\n\n  Use 'show vars' to see all program variables.\n");
+        log_stdout(instance, "\n\n  Use 'show vars' to see all program variables.\n");
 
         if (mode==HELP_MODE_BRIEF) {
             break;
         }
 
-        obj = ncx_find_object(get_yangcli_mod(), YANGCLI_HELP);
+        obj = ncx_find_object(instance, get_yangcli_mod(), YANGCLI_HELP);
         if (obj && obj->objtype == OBJ_TYP_RPC) {
-            help_object(obj, HELP_MODE_FULL);
+            help_object(instance, obj, HELP_MODE_FULL);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case HELP_MODE_FULL:
-        help_program_module(YANGCLI_MOD, 
+        help_program_module(instance, 
+                            YANGCLI_MOD, 
                             YANGCLI_BOOT, 
                             HELP_MODE_FULL);
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    val_free_value(valset);
+    val_free_value(instance, valset);
 
     return res;
 
@@ -2757,7 +2853,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_start_script (server_cb_t *server_cb,
+    do_start_script (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      const xmlChar *source,
                      val_value_t *valset)
 {
@@ -2771,7 +2868,7 @@ static status_t
     res = NO_ERR;
 
     /* saerch for the script */
-    fspec = ncxmod_find_script_file(source, &res);
+    fspec = ncxmod_find_script_file(instance, source, &res);
     if (!fspec) {
         return res;
     }
@@ -2779,13 +2876,14 @@ static status_t
     /* open a new runstack frame if the file exists */
     fp = fopen((const char *)fspec, "r");
     if (!fp) {
-        m__free(fspec);
+        m__free(instance, fspec);
         return ERR_NCX_MISSING_FILE;
     } else {
-        res = runstack_push(server_cb->runstack_context,
+        res = runstack_push(instance,
+                            server_cb->runstack_context,
                             fspec, 
                             fp);
-        m__free(fspec);
+        m__free(instance, fspec);
         if (res != NO_ERR) {
             fclose(fp);
             return res;
@@ -2799,18 +2897,20 @@ static status_t
     /* add the P1 through P9 parameters that are present */
     for (num=1; num<=YANGCLI_MAX_RUNPARMS; num++) {
         buff[1] = '0' + num;
-        parm = (valset) ? val_find_child(valset, 
+        parm = (valset) ? val_find_child(instance, 
+                                         valset, 
                                          YANGCLI_MOD, 
                                          buff) : NULL;
         if (parm) {
             /* store P7 named as ASCII 7 */
-            res = var_set_str(server_cb->runstack_context,
+            res = var_set_str(instance,
+                              server_cb->runstack_context,
                               buff+1, 
                               1, 
                               parm, 
                               VAR_TYP_LOCAL);
             if (res != NO_ERR) {
-                runstack_pop(server_cb->runstack_context);
+                runstack_pop(instance, server_cb->runstack_context);
                 return res;
             }
         }
@@ -2839,7 +2939,8 @@ static status_t
  *    status
  *********************************************************************/
 static status_t
-    do_run (server_cb_t *server_cb,
+    do_run (ncx_instance_t *instance,
+            server_cb_t *server_cb,
             obj_template_t *rpc,
             const xmlChar *line,
             uint32  len)
@@ -2850,11 +2951,12 @@ static status_t
     res = NO_ERR;
 
     /* get the 'script' parameter */
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     if (valset && res == NO_ERR) {
         /* there is 1 parm */
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               NCX_EL_SCRIPT);
         if (!parm) {
@@ -2863,17 +2965,18 @@ static status_t
             res = parm->res;
         } else {
             /* the parm val is the script filespec */
-            res = do_start_script(server_cb, VAL_STR(parm), valset);
+            res = do_start_script(instance, server_cb, VAL_STR(parm), valset);
             if (res != NO_ERR) {
-                log_write("\nError: start script %s failed (%s)",
-                          obj_get_name(rpc),
+                log_write(instance,
+                          "\nError: start script %s failed (%s)",
+                          obj_get_name(instance, rpc),
                           get_error_string(res));
             }
         }
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -2902,7 +3005,8 @@ static status_t
  *    status
  *********************************************************************/
 static status_t
-    do_log (server_cb_t *server_cb,
+    do_log (ncx_instance_t *instance,
+            server_cb_t *server_cb,
             obj_template_t *rpc,
             const xmlChar *line,
             uint32  len,
@@ -2914,11 +3018,12 @@ static status_t
     res = NO_ERR;
 
     /* get the 'script' parameter */
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     if (valset && res == NO_ERR) {
         /* there is 1 parm */
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_MSG);
         if (!parm) {
@@ -2928,25 +3033,25 @@ static status_t
         } else if (VAL_STR(parm)) {
             switch (level) {
             case LOG_DEBUG_ERROR:
-                log_error("\nError: %s\n", VAL_STR(parm));
+                log_error(instance, "\nError: %s\n", VAL_STR(parm));
                 break;
             case LOG_DEBUG_WARN:
-                log_warn("\nWarning: %s\n", VAL_STR(parm));
+                log_warn(instance, "\nWarning: %s\n", VAL_STR(parm));
                 break;
             case LOG_DEBUG_INFO:
-                log_info("\nInfo: %s\n", VAL_STR(parm));
+                log_info(instance, "\nInfo: %s\n", VAL_STR(parm));
                 break;
             case LOG_DEBUG_DEBUG:
-                log_debug("\nDebug: %s\n", VAL_STR(parm));
+                log_debug(instance, "\nDebug: %s\n", VAL_STR(parm));
                 break;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -2969,40 +3074,40 @@ static status_t
  *
  *********************************************************************/
 static void
-    pwd (void)
+    pwd (ncx_instance_t *instance)
 {
     char             *buff;
     boolean           imode;
 
     imode = interactive_mode();
 
-    buff = m__getMem(YANGCLI_BUFFLEN);
+    buff = m__getMem(instance, YANGCLI_BUFFLEN);
     if (!buff) {
         if (imode) {
-            log_stdout("\nMalloc failure\n");
+            log_stdout(instance, "\nMalloc failure\n");
         } else {
-            log_write("\nMalloc failure\n");
+            log_write(instance, "\nMalloc failure\n");
         }
         return;
     }
 
     if (!getcwd(buff, YANGCLI_BUFFLEN)) {
         if (imode) {
-            log_stdout("\nGet CWD failure\n");
+            log_stdout(instance, "\nGet CWD failure\n");
         } else {
-            log_write("\nGet CWD failure\n");
+            log_write(instance, "\nGet CWD failure\n");
         }
-        m__free(buff);
+        m__free(instance, buff);
         return;
     }
 
     if (imode) {
-        log_stdout("\nCurrent working directory is %s\n", buff);
+        log_stdout(instance, "\nCurrent working directory is %s\n", buff);
     } else {
-        log_write("\nCurrent working directory is %s\n", buff);
+        log_write(instance, "\nCurrent working directory is %s\n", buff);
     }
 
-    m__free(buff);
+    m__free(instance, buff);
 
 }  /* pwd */
 
@@ -3025,7 +3130,8 @@ static void
  *   status
  *********************************************************************/
 static status_t
-    do_pwd (server_cb_t *server_cb,
+    do_pwd (ncx_instance_t *instance,
+            server_cb_t *server_cb,
             obj_template_t *rpc,
             const xmlChar *line,
             uint32  len)
@@ -3033,12 +3139,12 @@ static status_t
     val_value_t      *valset;
     status_t          res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (res == NO_ERR || res == ERR_NCX_SKIPPED) {
-        pwd();
+        pwd(instance);
     }
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
     return res;
 
@@ -3063,7 +3169,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_cd (server_cb_t *server_cb,
+    do_cd (ncx_instance_t *instance,
+           server_cb_t *server_cb,
            obj_template_t *rpc,
            const xmlChar *line,
            uint32  len)
@@ -3076,30 +3183,32 @@ static status_t
 
     res = NO_ERR;
     imode = interactive_mode();
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
-    parm = val_find_child(valset, 
+    parm = val_find_child(instance, 
+                          valset, 
                           YANGCLI_MOD, 
                           YANGCLI_DIR);
     if (parm == NULL || 
 	parm->res != NO_ERR || 
-	xml_strlen(VAL_STR(parm)) == 0) {
-        val_free_value(valset);
-        log_error("\nError: 'dir' parameter is missing");
+	xml_strlen(instance, VAL_STR(parm)) == 0) {
+        val_free_value(instance, valset);
+        log_error(instance, "\nError: 'dir' parameter is missing");
         return ERR_NCX_MISSING_PARM;
     }
 
     res = NO_ERR;
-    pathstr = ncx_get_source_ex(VAL_STR(parm), FALSE, &res);
+    pathstr = ncx_get_source_ex(instance, VAL_STR(parm), FALSE, &res);
     if (!pathstr) {
-        val_free_value(valset);
-        log_error("\nError: get path string failed (%s)",
+        val_free_value(instance, valset);
+        log_error(instance,
+                  "\nError: get path string failed (%s)",
                   get_error_string(res));
         return res;
     }
@@ -3108,18 +3217,20 @@ static status_t
     if (ret) {
         res = ERR_NCX_INVALID_VALUE;
         if (imode) {
-            log_stdout("\nChange CWD failure (%s)\n",
+            log_stdout(instance,
+                       "\nChange CWD failure (%s)\n",
                        get_error_string(errno_to_status()));
         } else {
-            log_write("\nChange CWD failure (%s)\n",
+            log_write(instance,
+                      "\nChange CWD failure (%s)\n",
                       get_error_string(errno_to_status()));
         }
     } else {
-        pwd();
+        pwd(instance);
     }
 
-    val_free_value(valset);
-    m__free(pathstr);
+    val_free_value(instance, valset);
+    m__free(instance, pathstr);
 
     return res;
 
@@ -3146,7 +3257,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_fill (server_cb_t *server_cb,
+    do_fill (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len,
@@ -3160,18 +3272,18 @@ static status_t
     boolean                save_getopt;
 
     res = NO_ERR;
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
     target = NULL;
-    parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_TARGET);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_TARGET);
     if (!parm || parm->res != NO_ERR) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return ERR_NCX_MISSING_PARM;
     } else {
         target = VAL_STR(parm);
@@ -3188,25 +3300,25 @@ static status_t
      * if target == /foo/bar/baz then
      * valroot --> /foo and targobj --> /foo/bar/baz
      */
-    valroot = get_instanceid_parm(target, TRUE, TRUE, &targobj, &targval, &res);
+    valroot = get_instanceid_parm(instance, target, TRUE, TRUE, &targobj, &targval, &res);
     if (res != NO_ERR) {
         if (valroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         }
-        val_free_value(valset);
-        clear_result(server_cb);
+        val_free_value(instance, valset);
+        clear_result(instance, server_cb);
         return res;
     } else if (valroot == NULL) {
         /* this means the docroot was selected */
-        log_error("\nError: The document root is not allowed here as a target");
+        log_error(instance, "\nError: The document root is not allowed here as a target");
         res = ERR_NCX_OPERATION_NOT_SUPPORTED;
-        val_free_value(valset);
-        clear_result(server_cb);
+        val_free_value(instance, valset);
+        clear_result(instance, server_cb);
         return res;
     } else if (targval != valroot) {
         /* keep targval, toss valroot */
-        val_remove_child(targval);
-        val_free_value(valroot);
+        val_remove_child(instance, targval);
+        val_free_value(instance, valroot);
         valroot = NULL;
     }
 
@@ -3222,18 +3334,18 @@ static status_t
          * if a value was entered as '' it would be recorded
          * as a zero-length string, not a NULL string
          */
-        val_free_value(targval);
+        val_free_value(instance, targval);
         targval = NULL;
     }
 
     /* find the value to use as content value or template, if any */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_VALUE);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_VALUE);
     if (parm && parm->res == NO_ERR) {
         curparm = parm;
     }
 
     /* find the --optional flag */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
     if (parm && parm->res == NO_ERR) {
         server_cb->get_optional = TRUE;
     }
@@ -3244,9 +3356,9 @@ static status_t
     case OBJ_TYP_LEAF:
     case OBJ_TYP_LEAF_LIST:
         /* make a new leaf, toss the targval if any */
-        newparm = fill_value(server_cb, rpc, targobj, curparm, &res);
+        newparm = fill_value(instance, server_cb, rpc, targobj, curparm, &res);
         if (targval) {
-            val_free_value(targval);
+            val_free_value(instance, targval);
             targval = NULL;
         }
         break;
@@ -3254,16 +3366,16 @@ static status_t
         if (targval) {
             newparm = targval;
         } else {
-            newparm = val_new_value();
+            newparm = val_new_value(instance);
             if (!newparm) {
-                log_error("\nError: malloc failure");
+                log_error(instance, "\nError: malloc failure");
                 res = ERR_INTERNAL_MEM;
             } else {
-                val_init_from_template(newparm, targobj);
+                val_init_from_template(instance, newparm, targobj);
             }
         }
         if (res == NO_ERR) {
-            res = get_choice(server_cb, rpc, targobj, newparm, 
+            res = get_choice(instance, server_cb, rpc, targobj, newparm, 
                              curparm, iswrite, FALSE);
             if (res == ERR_NCX_SKIPPED) {
                 res = NO_ERR;
@@ -3274,15 +3386,15 @@ static status_t
         if (targval) {
             newparm = targval;
         } else {
-            newparm = val_new_value();
+            newparm = val_new_value(instance);
             if (!newparm) {
-                log_error("\nError: malloc failure");
+                log_error(instance, "\nError: malloc failure");
                 res = ERR_INTERNAL_MEM;
             } else {
-                val_init_from_template(newparm, targobj);
+                val_init_from_template(instance, newparm, targobj);
             }
         }
-        res = get_case(server_cb, targobj, newparm, curparm, iswrite, FALSE);
+        res = get_case(instance, server_cb, targobj, newparm, curparm, iswrite, FALSE);
         if (res == ERR_NCX_SKIPPED) {
             res = NO_ERR;
         }
@@ -3291,15 +3403,15 @@ static status_t
         if (targval) {
             newparm = targval;
         } else {
-            newparm = val_new_value();
+            newparm = val_new_value(instance);
             if (!newparm) {
-                log_error("\nError: malloc failure");
+                log_error(instance, "\nError: malloc failure");
                 res = ERR_INTERNAL_MEM;
             } else {
-                val_init_from_template(newparm, targobj);
+                val_init_from_template(instance, newparm, targobj);
             }
         }
-        res = fill_valset(server_cb, rpc, newparm, curparm, TRUE, FALSE);
+        res = fill_valset(instance, server_cb, rpc, newparm, curparm, TRUE, FALSE);
         if (res == ERR_NCX_SKIPPED) {
             res = NO_ERR;
         }
@@ -3310,22 +3422,22 @@ static status_t
         if (server_cb->result_name || 
             server_cb->result_filename) {
             /* set the index chains because the value is being saved */
-            res = val_build_index_chains(newparm);
+            res = val_build_index_chains(instance, newparm);
 
             /* save the filled in value */
             if (res == NO_ERR) {
-                res = finish_result_assign(server_cb, newparm, NULL);
+                res = finish_result_assign(instance, server_cb, newparm, NULL);
                 newparm = NULL;
             }
         }
     } else {
-        clear_result(server_cb);
+        clear_result(instance, server_cb);
     }
 
     /* cleanup */
-    val_free_value(valset);
+    val_free_value(instance, valset);
     if (newparm) {
-        val_free_value(newparm);
+        val_free_value(instance, newparm);
     }
     server_cb->get_optional = save_getopt;
 
@@ -3365,7 +3477,8 @@ static status_t
 *    status; config_content is NOT freed if returning an error
 *********************************************************************/
 static status_t
-    add_content (server_cb_t *server_cb,
+    add_content (ncx_instance_t *instance,
+                 server_cb_t *server_cb,
                  obj_template_t *rpc,
                  val_value_t *config_content,
                  obj_template_t *curobj,
@@ -3381,7 +3494,8 @@ static status_t
     res = NO_ERR;
     newnode = NULL;
 
-    set_completion_state(&server_cb->completion_state,
+    set_completion_state(instance,
+                         &server_cb->completion_state,
                          rpc, curobj, CMD_STATE_GETVAL);
 
     /* add content based on the current node type */
@@ -3390,10 +3504,10 @@ static status_t
     case OBJ_TYP_LEAF:
     case OBJ_TYP_LEAF_LIST:
         if (curobj != config_content->obj) {
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         if (!obj_is_key(config_content->obj)) {
-            val_add_child(config_content, *curtop);
+            val_add_child(instance, config_content, *curtop);
             *curtop = config_content;
         }
         break;
@@ -3402,38 +3516,40 @@ static status_t
          * if they do not already exist
          */
         if (curobj == config_content->obj) {
-            val_add_child(config_content, *curtop);
+            val_add_child(instance, config_content, *curtop);
             *curtop = config_content;
             return NO_ERR;
         }
 
         /* else need to fill in the keys for this content layer */
-        newnode = val_new_value();
+        newnode = val_new_value(instance);
         if (!newnode) {
             return ERR_INTERNAL_MEM;
         }
-        val_init_from_template(newnode, curobj);
-        val_add_child(newnode, *curtop);
+        val_init_from_template(instance, newnode, curobj);
+        val_add_child(instance, newnode, *curtop);
         *curtop = newnode;
         content_used = FALSE;
 
         lastkey = NULL;
-        for (curkey = obj_first_key(curobj);
+        for (curkey = obj_first_key(instance, curobj);
              curkey != NULL;
-             curkey = obj_next_key(curkey)) {
+             curkey = obj_next_key(instance, curkey)) {
 
-            keyval = val_find_child(*curtop,
-                                    obj_get_mod_name(curkey->keyobj),
-                                    obj_get_name(curkey->keyobj));
+            keyval = val_find_child(instance,
+                                    *curtop,
+                                    obj_get_mod_name(instance, curkey->keyobj),
+                                    obj_get_name(instance, curkey->keyobj));
             if (!keyval) {
                 if (curkey->keyobj == config_content->obj) {
                     keyval = config_content;
-                    val_insert_child(keyval, lastkey, *curtop);
+                    val_insert_child(instance, keyval, lastkey, *curtop);
                     content_used = TRUE;
                     lastkey = keyval;
                     res = NO_ERR;
                 } else if (dofill) {
-                    res = get_parm(server_cb, 
+                    res = get_parm(instance, 
+                                   server_cb, 
                                    rpc, 
                                    curkey->keyobj, 
                                    *curtop, 
@@ -3443,16 +3559,17 @@ static status_t
                     } else if (res != NO_ERR) {
                         return res;
                     } else {
-                        keyval = val_find_child(*curtop,
+                        keyval = val_find_child(instance,
+                                                *curtop,
                                                 obj_get_mod_name
-                                                (curkey->keyobj),
+                                                (instance, curkey->keyobj),
                                                 obj_get_name
-                                                (curkey->keyobj));
+                                                (instance, curkey->keyobj));
                         if (!keyval) {
-                            return SET_ERROR(ERR_INTERNAL_VAL);
+                            return SET_ERROR(instance, ERR_INTERNAL_VAL);
                         }
-                        val_remove_child(keyval);
-                        val_insert_child(keyval, lastkey, *curtop);
+                        val_remove_child(instance, keyval);
+                        val_insert_child(instance, keyval, lastkey, *curtop);
                         lastkey = keyval;
                     } /* else skip this key (for debugging server) */
                 }  /* else --nofill; skip this node */
@@ -3468,15 +3585,15 @@ static status_t
         break;
     case OBJ_TYP_CONTAINER:
         if (curobj == config_content->obj) {
-            val_add_child(config_content, *curtop);
+            val_add_child(instance, config_content, *curtop);
             *curtop = config_content;
         } else {
-            newnode = val_new_value();
+            newnode = val_new_value(instance);
             if (!newnode) {
                 return ERR_INTERNAL_MEM;
             }
-            val_init_from_template(newnode, curobj);
-            val_add_child(newnode, *curtop);
+            val_init_from_template(instance, newnode, curobj);
+            val_add_child(instance, newnode, *curtop);
             *curtop = newnode;
         }
         break;
@@ -3489,13 +3606,13 @@ static status_t
         }
         done = FALSE;
         while (!done) {
-            newnode = val_get_first_child(config_content);
+            newnode = val_get_first_child(instance, config_content);
             if (newnode) {
-                val_remove_child(newnode);
-                res = add_content(server_cb, rpc, newnode, newnode->obj, 
+                val_remove_child(instance, newnode);
+                res = add_content(instance, server_cb, rpc, newnode, newnode->obj, 
                                   dofill, curtop);
                 if (res != NO_ERR) {
-                    val_free_value(newnode);
+                    val_free_value(instance, newnode);
                     newnode = NULL;
                     done = TRUE;
                 }
@@ -3504,13 +3621,13 @@ static status_t
             }
         }
         if (res == NO_ERR) {
-            val_free_value(config_content);
+            val_free_value(instance, config_content);
         }
         *curtop = newnode;
         break;
     default:
         /* any other object type is an error */
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -3544,7 +3661,8 @@ static status_t
 *    status; config_content is NOT freed if returning an error
 *********************************************************************/
 static status_t
-    add_config_from_content_node (server_cb_t *server_cb,
+    add_config_from_content_node (ncx_instance_t *instance,
+                                  server_cb_t *server_cb,
                                   obj_template_t *rpc,
                                   val_value_t *config_content,
                                   obj_template_t *curobj,
@@ -3555,9 +3673,9 @@ static status_t
     status_t         res;
 
     /* get to the root of the object chain */
-    parent = obj_get_parent(curobj);
+    parent = obj_get_parent(instance, curobj);
     if (parent && !obj_is_root(parent)) {
-        res = add_config_from_content_node(server_cb, rpc, config_content,
+        res = add_config_from_content_node(instance, server_cb, rpc, config_content,
                                            parent, config, curtop);
         if (res != NO_ERR) {
             return res;
@@ -3572,7 +3690,7 @@ static status_t
         *curtop = config;
     }
 
-    res = add_content(server_cb, rpc, config_content, curobj, TRUE, curtop);
+    res = add_content(instance, server_cb, rpc, config_content, curobj, TRUE, curtop);
     return res;
 
 }  /* add_config_from_content_node */
@@ -3603,7 +3721,8 @@ static status_t
 *    status; config_content is NOT freed if returning an error
 *********************************************************************/
 static status_t
-    complete_path_content (server_cb_t *server_cb,
+    complete_path_content (ncx_instance_t *instance,
+                           server_cb_t *server_cb,
                            obj_template_t *rpc,
                            val_value_t *valroot,
                            val_value_t *config_content,
@@ -3628,29 +3747,30 @@ static status_t
     while (!done) {
         if (curnode->btyp == NCX_BT_LIST) {
             lastkey = NULL;
-            for (curkey = obj_first_key(curnode->obj);
+            for (curkey = obj_first_key(instance, curnode->obj);
                  curkey != NULL;
-                 curkey = obj_next_key(curkey)) {
+                 curkey = obj_next_key(instance, curkey)) {
 
-                keyval = val_find_child(curnode,
-                                        obj_get_mod_name(curkey->keyobj),
-                                        obj_get_name(curkey->keyobj));
+                keyval = val_find_child(instance,
+                                        curnode,
+                                        obj_get_mod_name(instance, curkey->keyobj),
+                                        obj_get_name(instance, curkey->keyobj));
                 if (keyval == NULL && dofill) {
-                    res = get_parm(server_cb, rpc, curkey->keyobj, 
+                    res = get_parm(instance, server_cb, rpc, curkey->keyobj, 
                                    curnode, NULL);
                     if (res == ERR_NCX_SKIPPED) {
                         res = NO_ERR;
                     } else if (res != NO_ERR) {
                         return res;
                     } else {
-                        keyval = val_find_child(curnode, obj_get_mod_name
-                                                (curkey->keyobj),
-                                                obj_get_name(curkey->keyobj));
+                        keyval = val_find_child(instance, curnode, obj_get_mod_name
+                                                (instance, curkey->keyobj),
+                                                obj_get_name(instance, curkey->keyobj));
                         if (!keyval) {
-                            return SET_ERROR(ERR_INTERNAL_VAL);
+                            return SET_ERROR(instance, ERR_INTERNAL_VAL);
                         }
-                        val_remove_child(keyval);
-                        val_insert_child(keyval, lastkey, curnode);
+                        val_remove_child(instance, keyval);
+                        val_insert_child(instance, keyval, lastkey, curnode);
                         lastkey = keyval;
                     } /* else skip this key (for debugging server) */
                 }  /* else --nofill; skip this node */
@@ -3698,7 +3818,8 @@ static status_t
 *    status; get_content is NOT freed if returning an error
 *********************************************************************/
 static status_t
-    add_filter_from_content_node (server_cb_t *server_cb,
+    add_filter_from_content_node (ncx_instance_t *instance,
+                                  server_cb_t *server_cb,
                                   obj_template_t *rpc,
                                   val_value_t *get_content,
                                   obj_template_t *curobj,
@@ -3710,9 +3831,9 @@ static status_t
     status_t         res;
 
     /* get to the root of the object chain */
-    parent = obj_get_parent(curobj);
+    parent = obj_get_parent(instance, curobj);
     if (parent && !obj_is_root(parent)) {
-        res = add_filter_from_content_node(server_cb, rpc, get_content,
+        res = add_filter_from_content_node(instance, server_cb, rpc, get_content,
                                            parent, filter, dofill, curtop);
         if (res != NO_ERR) {
             return res;
@@ -3727,7 +3848,7 @@ static status_t
         *curtop = filter;
     }
 
-    res = add_content(server_cb, rpc, get_content, curobj, dofill, curtop);
+    res = add_content(instance, server_cb, rpc, get_content, curobj, dofill, curtop);
     return res;
 
 }  /* add_filter_from_content_node */
@@ -3763,7 +3884,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    send_edit_config_to_server (server_cb_t *server_cb,
+    send_edit_config_to_server (ncx_instance_t *instance,
+                                server_cb_t *server_cb,
                                 val_value_t *valroot,
                                 val_value_t *config_content,
                                 uint32 timeoutval,
@@ -3783,7 +3905,7 @@ static status_t
     dofill = TRUE;
 
     if (LOGDEBUG) {
-        log_debug("\nSending <edit-config> request");
+        log_debug(instance, "\nSending <edit-config> request");
     }
 
     /* either going to free valroot or config_content */
@@ -3795,98 +3917,100 @@ static status_t
 
     /* make sure there is an edit target on this server */
     if (!server_cb->default_target) {
-        log_error("\nError: no <edit-config> target available on server");
+        log_error(instance, "\nError: no <edit-config> target available on server");
         if (freeroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         } else {
-            val_free_value(config_content);
+            val_free_value(instance, config_content);
         }
         return ERR_NCX_OPERATION_FAILED;
     }
 
     /* get the <edit-config> template */
-    rpc = ncx_find_object(get_netconf_mod(server_cb), 
+    rpc = ncx_find_object(instance, 
+                          get_netconf_mod(instance, server_cb), 
                           NCX_EL_EDIT_CONFIG);
     if (!rpc) {
         if (freeroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         } else {
-            val_free_value(config_content);
+            val_free_value(instance, config_content);
         }
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* get the 'input' section container */
-    input = obj_find_child(rpc, NULL, YANG_K_INPUT);
+    input = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     if (!input) {
         if (freeroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         } else {
-            val_free_value(config_content);
+            val_free_value(instance, config_content);
         }
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* construct a method + parameter tree */
-    reqdata = xml_val_new_struct(obj_get_name(rpc), obj_get_nsid(rpc));
+    reqdata = xml_val_new_struct(instance, obj_get_name(instance, rpc), obj_get_nsid(instance, rpc));
     if (!reqdata) {
         if (freeroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         } else {
-            val_free_value(config_content);
+            val_free_value(instance, config_content);
         }
-        log_error("\nError allocating a new RPC request");
+        log_error(instance, "\nError allocating a new RPC request");
         return ERR_INTERNAL_MEM;
     }
 
     /* set the edit-config/input/target node to the default_target */
-    child = obj_find_child(input, 
+    child = obj_find_child(instance, 
+                           input, 
                            NC_MODULE,
                            NCX_EL_TARGET);
-    parm = val_new_value();
+    parm = val_new_value(instance);
     if (!parm) {
         if (freeroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         } else {
-            val_free_value(config_content);
+            val_free_value(instance, config_content);
         }
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     } else {
-        val_init_from_template(parm, child);
-        val_add_child(parm, reqdata);
+        val_init_from_template(instance, parm, child);
+        val_add_child(instance, parm, reqdata);
     }
 
-    target = xml_val_new_flag(server_cb->default_target, obj_get_nsid(child));
+    target = xml_val_new_flag(instance, server_cb->default_target, obj_get_nsid(instance, child));
     if (!target) {
         if (freeroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         } else {
-            val_free_value(config_content);
+            val_free_value(instance, config_content);
         }
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     } else {
-        val_add_child(target, parm);
+        val_add_child(instance, target, parm);
     }
 
     /* set the edit-config/input/default-operation node */
     if (!(def_editop == OP_DEFOP_NOT_USED ||
           def_editop == OP_DEFOP_NOT_SET)) {          
-        child = obj_find_child(input, NC_MODULE, NCX_EL_DEFAULT_OPERATION);
+        child = obj_find_child(instance, input, NC_MODULE, NCX_EL_DEFAULT_OPERATION);
         res = NO_ERR;
         defopstr = op_defop_name(def_editop);
-        parm = val_make_simval_obj(child, defopstr, &res);
+        parm = val_make_simval_obj(instance, child, defopstr, &res);
         if (!parm) {
             if (freeroot) {
-                val_free_value(valroot);
+                val_free_value(instance, valroot);
             } else {
-                val_free_value(config_content);
+                val_free_value(instance, config_content);
             }
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
             return res;
         } else {
-            val_add_child(parm, reqdata);
+            val_add_child(instance, parm, reqdata);
         }
     }
 
@@ -3895,21 +4019,22 @@ static status_t
         /* set the edit-config/input/test-option node to
          * the user-specified value
          */
-        child = obj_find_child(input, NC_MODULE, NCX_EL_TEST_OPTION);
+        child = obj_find_child(instance, input, NC_MODULE, NCX_EL_TEST_OPTION);
         res = NO_ERR;
-        parm = val_make_simval_obj(child,
+        parm = val_make_simval_obj(instance,
+                                   child,
                                    op_testop_name(server_cb->testoption),
                                    &res);
         if (!parm) {
             if (freeroot) {
-                val_free_value(valroot);
+                val_free_value(instance, valroot);
             } else {
-                val_free_value(config_content);
+                val_free_value(instance, config_content);
             }
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
             return res;
         } else {
-            val_add_child(parm, reqdata);
+            val_add_child(instance, parm, reqdata);
         }
     }
 
@@ -3918,38 +4043,39 @@ static status_t
         /* set the edit-config/input/error-option node to
          * the user-specified value
          */
-        child = obj_find_child(input, NC_MODULE, NCX_EL_ERROR_OPTION);
+        child = obj_find_child(instance, input, NC_MODULE, NCX_EL_ERROR_OPTION);
         res = NO_ERR;
-        parm = val_make_simval_obj(child,
+        parm = val_make_simval_obj(instance,
+                                   child,
                                    op_errop_name(server_cb->erroption),
                                    &res);
         if (!parm) {
             if (freeroot) {
-                val_free_value(valroot);
+                val_free_value(instance, valroot);
             } else {
-                val_free_value(config_content);
+                val_free_value(instance, config_content);
             }
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
             return ERR_INTERNAL_MEM;
         } else {
-            val_add_child(parm, reqdata);
+            val_add_child(instance, parm, reqdata);
         }
     }
 
     /* create the <config> node */
-    child = obj_find_child(input, NC_MODULE, NCX_EL_CONFIG);
-    parm = val_new_value();
+    child = obj_find_child(instance, input, NC_MODULE, NCX_EL_CONFIG);
+    parm = val_new_value(instance);
     if (!parm) {
         if (freeroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         } else {
-            val_free_value(config_content);
+            val_free_value(instance, config_content);
         }
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     } else {
-        val_init_from_template(parm, child);
-        val_add_child(parm, reqdata);
+        val_init_from_template(instance, parm, child);
+        val_add_child(instance, parm, reqdata);
     }
 
 
@@ -3958,23 +4084,23 @@ static status_t
      * missing nodes from the root to the target
      */
     if (valroot) {
-        val_add_child(valroot, parm);
-        res = complete_path_content(server_cb, rpc, valroot, config_content,
+        val_add_child(instance, valroot, parm);
+        res = complete_path_content(instance, server_cb, rpc, valroot, config_content,
                                     dofill, TRUE);
         if (res != NO_ERR) {
-            val_free_value(valroot);
-            val_free_value(reqdata);
+            val_free_value(instance, valroot);
+            val_free_value(instance, reqdata);
             return res;
         }
     } else {
         /* !!! use the parm as-is, even if a container !!! */
         dummy_parm = NULL;
-        res = add_config_from_content_node(server_cb, rpc, config_content,
+        res = add_config_from_content_node(instance, server_cb, rpc, config_content,
                                            config_content->obj, parm, 
                                            &dummy_parm);
         if (res != NO_ERR) {
-            val_free_value(config_content);
-            val_free_value(reqdata);
+            val_free_value(instance, config_content);
+            val_free_value(instance, reqdata);
             return res;
         }
     }
@@ -3990,20 +4116,20 @@ static status_t
         /* insert all of the children of this choice
          * in place of itself in the parent node
          */
-        val_move_children(config_content, config_content->parent);
+        val_move_children(instance, config_content, config_content->parent);
 
         /* now config_content should be empty with all its child
          * nodes now siblings; remove it and discard
          */
-        val_remove_child(config_content);
-        val_free_value(config_content);
+        val_remove_child(instance, config_content);
+        val_free_value(instance, config_content);
         config_content = NULL;
     }
 
     /* rearrange the nodes to canonical order if requested */
     if (server_cb->fixorder) {
         /* must set the order of a root container seperately */
-        val_set_canonical_order(parm);
+        val_set_canonical_order(instance, parm);
     }
 
     /* !!! config_content consumed at this point !!!
@@ -4011,12 +4137,12 @@ static status_t
      */
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        res = SET_ERROR(ERR_INTERNAL_PTR);
+        res = SET_ERROR(instance, ERR_INTERNAL_PTR);
     } else {
-        req = mgr_rpc_new_request(scb);
+        req = mgr_rpc_new_request(instance, scb);
         if (!req) {
             res = ERR_INTERNAL_MEM;
-            log_error("\nError allocating a new RPC request");
+            log_error(instance, "\nError allocating a new RPC request");
         } else {
             req->data = reqdata;
             req->rpc = rpc;
@@ -4027,22 +4153,22 @@ static status_t
     /* if all OK, send the RPC request */
     if (res == NO_ERR) {
         if (LOGDEBUG2) {
-            log_debug2("\nabout to send RPC request with reqdata:");
-            val_dump_value_max(reqdata, 0, server_cb->defindent,
+            log_debug2(instance, "\nabout to send RPC request with reqdata:");
+            val_dump_value_max(instance, reqdata, 0, server_cb->defindent,
                                DUMP_VAL_LOG, server_cb->display_mode,
                                FALSE, FALSE);
         }
 
         /* the request will be stored if this returns NO_ERR */
-        res = mgr_rpc_send_request(scb, req, yangcli_reply_handler);
+        res = mgr_rpc_send_request(instance, scb, req, (mgr_rpc_cbfn_t)yangcli_reply_handler);
     }
 
     /* cleanup and set next state */
     if (res != NO_ERR) {
         if (req) {
-            mgr_rpc_free_request(req);
+            mgr_rpc_free_request(instance, req);
         } else if (reqdata) {
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
         }
     } else {
         server_cb->state = MGR_IO_ST_CONN_RPYWAIT;
@@ -4069,23 +4195,24 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    add_filter_attrs (val_value_t *val,
+    add_filter_attrs (ncx_instance_t *instance,
+                      val_value_t *val,
                       val_value_t *selectval)
 {
     val_value_t          *metaval;
 
     /* create a value node for the meta-value */
-    metaval = val_make_string(0, NCX_EL_TYPE,
+    metaval = val_make_string(instance, 0, NCX_EL_TYPE,
                               (selectval) 
                               ?  NCX_EL_XPATH : NCX_EL_SUBTREE);
     if (!metaval) {
         return ERR_INTERNAL_MEM;
     }
-    dlq_enque(metaval, &val->metaQ);
+    dlq_enque(instance, metaval, &val->metaQ);
 
     if (selectval) {
-        val_set_qname(selectval, 0, NCX_EL_SELECT, xml_strlen(NCX_EL_SELECT));
-        dlq_enque(selectval, &val->metaQ);
+        val_set_qname(instance, selectval, 0, NCX_EL_SELECT, xml_strlen(instance, NCX_EL_SELECT));
+        dlq_enque(instance, selectval, &val->metaQ);
     }
 
     return NO_ERR;
@@ -4147,7 +4274,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    send_get_to_server (server_cb_t *server_cb,
+    send_get_to_server (ncx_instance_t *instance,
+                        server_cb_t *server_cb,
                         val_value_t *valroot,
                         val_value_t *get_content,
                         val_value_t *selectval,
@@ -4173,9 +4301,9 @@ static status_t
 
     if (LOGDEBUG) {
         if (source != NULL) {
-            log_debug("\nSending <get-config> request");
+            log_debug(instance, "\nSending <get-config> request");
         } else {
-            log_debug("\nSending <get> request");
+            log_debug(instance, "\nSending <get> request");
         }
     }
 
@@ -4187,21 +4315,23 @@ static status_t
     }
 
     /* get the <get> or <get-config> input template */
-    rpc = ncx_find_object(get_netconf_mod(server_cb),
+    rpc = ncx_find_object(instance,
+                          get_netconf_mod(instance, server_cb),
                           (source) ? 
                           NCX_EL_GET_CONFIG : NCX_EL_GET);
     if (rpc) {
-        input = obj_find_child(rpc, NULL, YANG_K_INPUT);
+        input = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     }
 
     if (!input) {
-        res = SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        res = SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     } else {
         /* construct a method + parameter tree */
-        reqdata = xml_val_new_struct(obj_get_name(rpc), 
-                                     obj_get_nsid(rpc));
+        reqdata = xml_val_new_struct(instance, 
+                                     obj_get_name(instance, rpc), 
+                                     obj_get_nsid(instance, rpc));
         if (!reqdata) {
-            log_error("\nError allocating a new RPC request");
+            log_error(instance, "\nError allocating a new RPC request");
             res = ERR_INTERNAL_MEM;
         }
     }
@@ -4209,7 +4339,7 @@ static status_t
     /* add /get-star/input/source */
     if (res == NO_ERR) {
         if (source) {
-            val_add_child(source, reqdata);
+            val_add_child(instance, source, reqdata);
         }
     }
 
@@ -4220,33 +4350,33 @@ static status_t
              * get_content, but after filling in any
              * missing nodes from the root to the target
              */
-            filter = xml_val_new_struct(NCX_EL_FILTER, xmlns_nc_id());
+            filter = xml_val_new_struct(instance, NCX_EL_FILTER, xmlns_nc_id(instance));
         } else {
-            filter = xml_val_new_flag(NCX_EL_FILTER, xmlns_nc_id());
+            filter = xml_val_new_flag(instance, NCX_EL_FILTER, xmlns_nc_id(instance));
         }
         if (!filter) {
-            log_error("\nError: malloc failure");
+            log_error(instance, "\nError: malloc failure");
             res = ERR_INTERNAL_MEM;
         } else {
-            val_add_child(filter, reqdata);
+            val_add_child(instance, filter, reqdata);
         }
 
         /* add the type and maybe select attributes */
         if (res == NO_ERR) {
-            res = add_filter_attrs(filter, selectval);
+            res = add_filter_attrs(instance, filter, selectval);
         }
     }
 
     /* check any errors so far */
     if (res != NO_ERR) {
         if (freeroot) {
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         } else if (get_content) {
-            val_free_value(get_content);
+            val_free_value(instance, get_content);
         } else if (selectval) {
-            val_free_value(selectval);
+            val_free_value(instance, selectval);
         }
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return res;
     }
 
@@ -4255,22 +4385,22 @@ static status_t
      * to the root; fill if dofill is true
      */
     if (valroot) {
-        val_add_child(valroot, filter);
-        res = complete_path_content(server_cb, rpc, valroot, get_content,
+        val_add_child(instance, valroot, filter);
+        res = complete_path_content(instance, server_cb, rpc, valroot, get_content,
                                     dofill, FALSE);
         if (res != NO_ERR) {
-            val_free_value(valroot);
-            val_free_value(reqdata);
+            val_free_value(instance, valroot);
+            val_free_value(instance, reqdata);
             return res;
         }
     } else if (get_content) {
         dummy_parm = NULL;
-        res = add_filter_from_content_node(server_cb, rpc, get_content,
+        res = add_filter_from_content_node(instance, server_cb, rpc, get_content,
                                            get_content->obj, filter, 
                                            dofill, &dummy_parm);
         if (res != NO_ERR && res != ERR_NCX_SKIPPED) {
             /*  val_free_value(get_content); already freed! */
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
             return res;
         }
         res = NO_ERR;
@@ -4279,14 +4409,14 @@ static status_t
     /* get the session control block */
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        res = SET_ERROR(ERR_INTERNAL_PTR);
+        res = SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 
     /* !!! get_content consumed at this point !!!
      * check if the with-defaults parmaeter should be added
      */
     if (res == NO_ERR) {
-        mscb = mgr_ses_get_mscb(scb);
+        mscb = mgr_ses_get_mscb(instance, scb);
         if (cap_std_set(&mscb->caplist, CAP_STDID_WITH_DEFAULTS)) {
             switch (withdef) {
             case NCX_WITHDEF_NONE:
@@ -4300,36 +4430,38 @@ static status_t
                 /* fall through */
             case NCX_WITHDEF_REPORT_ALL:
                 /* it is OK to send a with-defaults to this server */
-                withdefobj = obj_find_child(input, 
+                withdefobj = obj_find_child(instance, 
+                                            input, 
                                             NULL,
                                             NCX_EL_WITH_DEFAULTS);
                 if (withdefobj == NULL) {
-                    SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+                    SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
                 } else {
                     withdefval = val_make_simval_obj
-                        (withdefobj,
-                         ncx_get_withdefaults_string(withdef),
+                        (instance,
+                         withdefobj,
+                         ncx_get_withdefaults_string(instance, withdef),
                          &res);
                     if (withdefval != NULL) {
-                        val_add_child(withdefval, reqdata);
+                        val_add_child(instance, withdefval, reqdata);
                     }
                 }
                 break;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         } else if (withdef != NCX_WITHDEF_NONE) {
-            log_warn("\nWarning: 'with-defaults' "
+            log_warn(instance, "\nWarning: 'with-defaults' "
                      "capability not-supported so parameter ignored");
         }
     }
 
     if (res == NO_ERR) {
         /* allocate an RPC request and send it */
-        req = mgr_rpc_new_request(scb);
+        req = mgr_rpc_new_request(instance, scb);
         if (!req) {
             res = ERR_INTERNAL_MEM;
-            log_error("\nError allocating a new RPC request");
+            log_error(instance, "\nError allocating a new RPC request");
         } else {
             req->data = reqdata;
             req->rpc = rpc;
@@ -4339,8 +4471,9 @@ static status_t
         
     if (res == NO_ERR) {
         if (LOGDEBUG2) {
-            log_debug2("\nabout to send RPC request with reqdata:");
-            val_dump_value_max(reqdata, 
+            log_debug2(instance, "\nabout to send RPC request with reqdata:");
+            val_dump_value_max(instance, 
+                               reqdata, 
                                0,
                                server_cb->defindent,
                                DUMP_VAL_LOG,
@@ -4350,14 +4483,14 @@ static status_t
         }
 
         /* the request will be stored if this returns NO_ERR */
-        res = mgr_rpc_send_request(scb, req, yangcli_reply_handler);
+        res = mgr_rpc_send_request(instance, scb, req, (mgr_rpc_cbfn_t)yangcli_reply_handler);
     }
 
     if (res != NO_ERR) {
         if (req) {
-            mgr_rpc_free_request(req);
+            mgr_rpc_free_request(instance, req);
         } else if (reqdata) {
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
         }
     } else {
         server_cb->state = MGR_IO_ST_CONN_RPYWAIT;
@@ -4420,7 +4553,8 @@ static status_t
  *   specific node to return as a subtree.
  *********************************************************************/
 static val_value_t *
-    get_content_from_choice (server_cb_t *server_cb,
+    get_content_from_choice (ncx_instance_t *instance,
+                             server_cb_t *server_cb,
                              obj_template_t *rpc,
                              val_value_t *valset,
                              boolean getoptional,
@@ -4448,9 +4582,9 @@ static val_value_t *
     *retres = NO_ERR;
 
     /* look for the 'match-names' parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_MATCH_NAMES);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_MATCH_NAMES);
     if (parm != NULL) {
-        match_names = ncx_get_name_match_enum(VAL_ENUM_NAME(parm));
+        match_names = ncx_get_name_match_enum(instance, VAL_ENUM_NAME(parm));
         if (match_names == NCX_MATCH_NONE) {
             *retres = ERR_NCX_INVALID_VALUE;
             return NULL;
@@ -4460,7 +4594,7 @@ static val_value_t *
     }
 
     /* look for the 'alt-names' parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_ALT_NAMES);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_ALT_NAMES);
     if (parm != NULL) {
         alt_names = VAL_BOOL(parm);
     } else {
@@ -4468,13 +4602,13 @@ static val_value_t *
     }
 
     /* look for the 'from' parameter variant */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_VARREF);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_VARREF);
     if (parm != NULL) {
         /* content = uservar or $varref */
         isvarref = TRUE;
         fromstr = VAL_STR(parm);
     } else {
-        parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_SELECT);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_SELECT);
         if (parm != NULL) {
             /* content == select string for xget or xget-config */
             isselect = TRUE;
@@ -4483,25 +4617,27 @@ static val_value_t *
     }
     if (parm == NULL && 
         !iswrite && 
-        !xml_strncmp(obj_get_name(rpc), (const xmlChar *)"xget", 4)) {
+        !xml_strncmp(instance, obj_get_name(instance, rpc), (const xmlChar *)"xget", 4)) {
 
         /* try urltarget; convert to XPath first */
-        parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_URLTARGET);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_URLTARGET);
         if (parm != NULL) {
-            fromurl = xpath_convert_url_to_path(VAL_STR(parm),
+            fromurl = xpath_convert_url_to_path(instance,
+                                                VAL_STR(parm),
                                                 match_names,
                                                 alt_names,
                                                 !iswrite,  /* wildcards */
                                                 TRUE,       /* withkeys */
                                                 &res);
             if (fromurl == NULL || res != NO_ERR) {
-                log_error("\nError: urltarget '%s' has "
+                log_error(instance,
+                          "\nError: urltarget '%s' has "
                           "invalid format (%s)",
                           VAL_STR(parm),
                           get_error_string(res));
                 *retres = res;
                 if (fromurl != NULL) {
-                    m__free(fromurl);
+                    m__free(instance, fromurl);
                 }
                 return NULL;
             } else {
@@ -4521,28 +4657,30 @@ static val_value_t *
         server_cb->get_optional = getoptional;
 
         /* from CLI -- look for the 'target' parameter */
-        parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_TARGET);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_TARGET);
         if (parm != NULL) {
             target = VAL_STR(parm);
         } else {
-            parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_URLTARGET);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_URLTARGET);
             if (parm != NULL) {
                 res = NO_ERR;
-                fromurl = xpath_convert_url_to_path(VAL_STR(parm),
+                fromurl = xpath_convert_url_to_path(instance,
+                                                    VAL_STR(parm),
                                                     match_names,
                                                     alt_names,
                                                     !iswrite,
                                                     TRUE, /* withkeys */
                                                     &res);
                 if (fromurl == NULL || res != NO_ERR) {
-                    log_error("\nError: urltarget '%s' has "
+                    log_error(instance,
+                              "\nError: urltarget '%s' has "
                               "invalid format (%s)\n",
                               VAL_STR(parm),
                               get_error_string(res));
                     server_cb->get_optional = saveopt;
                     *retres = res;
                     if (fromurl != NULL) {
-                        m__free(fromurl);
+                        m__free(instance, fromurl);
                     }
                     return NULL;
                 } else {
@@ -4551,23 +4689,24 @@ static val_value_t *
             }
         }
         if (parm == NULL) {
-            log_error("\nError: target or urltarget parameter is missing");
+            log_error(instance, "\nError: target or urltarget parameter is missing");
             server_cb->get_optional = saveopt;
             *retres = ERR_NCX_MISSING_PARM;
             return NULL;
         }
 
-        *valroot = get_instanceid_parm(target, TRUE, iswrite, &targobj,
+        *valroot = get_instanceid_parm(instance, target, TRUE, iswrite, &targobj,
                                        &targval, &res);
         if (res != NO_ERR) {
-            log_error("\nError: invalid target parameter (%s)",
+            log_error(instance,
+                      "\nError: invalid target parameter (%s)",
                       get_error_string(res));
             if (*valroot) {
-                val_free_value(*valroot);
+                val_free_value(instance, *valroot);
                 *valroot = NULL;
             }
             if (fromurl != NULL) {
-                m__free(fromurl);
+                m__free(instance, fromurl);
             }
             server_cb->get_optional = saveopt;
             *retres = res;
@@ -4575,23 +4714,23 @@ static val_value_t *
         } else if (*valroot == NULL) {
             /* indicates the docroot was selected or path not found */
             if (fromurl != NULL) {
-                m__free(fromurl);
+                m__free(instance, fromurl);
             }
             return NULL;
         }
 
         if (fromurl != NULL) {
-            m__free(fromurl);
+            m__free(instance, fromurl);
             fromurl = NULL;
         }
         
         curparm = NULL;
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_VALUE);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_VALUE);
         if (parm && parm->res == NO_ERR) {
             const xmlChar *parmval = NULL;
             if (parm->btyp == NCX_BT_EXTERN) {
                 isextern = TRUE;
-                curparm = mgr_load_extern_file(VAL_EXTERN(parm), NULL,  &res);
+                curparm = mgr_load_extern_file(instance, VAL_EXTERN(parm), NULL,  &res);
                 if (res != NO_ERR) {
                     *retres = res;
                     return NULL;
@@ -4602,34 +4741,37 @@ static val_value_t *
                 } else if (typ_is_enum(parm->btyp)) {
                     parmval = VAL_ENUM_NAME(parm);
                 }
-                curparm = var_get_script_val_ex(server_cb->runstack_context,
+                curparm = var_get_script_val_ex(instance,
+                                                server_cb->runstack_context,
                                                 NULL, targobj, NULL, parmval, ISPARM, 
                                                 (parmval) ? NULL : parm, &res);
             }
             if (curparm == NULL || res != NO_ERR) {
-                log_error("\nError: Script value '%s' invalid (%s)", 
+                log_error(instance, 
+                          "\nError: Script value '%s' invalid (%s)", 
                           (parmval) ? parmval : 
                           (const xmlChar *)"<complex-val>",
                           get_error_string(res)); 
                 server_cb->get_optional = saveopt;
-                val_free_value(*valroot);
+                val_free_value(instance, *valroot);
                 *valroot = NULL;
                 if (curparm) {
-                    val_free_value(curparm);
+                    val_free_value(instance, curparm);
                 }
                 *retres = res;
                 return NULL;
             }
             if (curparm->obj != targobj && !isextern) {
                 res = ERR_NCX_INVALID_VALUE;
-                log_error("\nError: current value '%s' "
+                log_error(instance,
+                          "\nError: current value '%s' "
                           "object type is incorrect.",
                           VAL_STR(parm));
                 server_cb->get_optional = saveopt;
-                val_free_value(*valroot);
+                val_free_value(instance, *valroot);
                 *valroot = NULL;
                 *retres = res;
-                val_free_value(curparm);
+                val_free_value(instance, curparm);
                 return NULL;
             }
         }
@@ -4639,7 +4781,7 @@ static val_value_t *
         case OBJ_TYP_LEAF:
             if (isdelete) {
                 dofill = FALSE;
-            } else if (obj_get_basetype(targobj) == NCX_BT_EMPTY) {
+            } else if (obj_get_basetype(instance, targobj) == NCX_BT_EMPTY) {
                 /* already filled in the target value by creating it */
                 dofill = FALSE;
             } else if (!iswrite && !server_cb->get_optional) {
@@ -4654,7 +4796,7 @@ static val_value_t *
                  * value struct because it was the deepest node
                  * specified in the schema-instance string
                  */
-                newparm = fill_value(server_cb, rpc, targobj, curparm, &res);
+                newparm = fill_value(instance, server_cb, rpc, targobj, curparm, &res);
                 if (newparm && res == NO_ERR) {
                     if (targval) {
                         if (targval == *valroot) {
@@ -4662,50 +4804,50 @@ static val_value_t *
                              * so get rid of the instance ID and
                              * just use the fill_value result
                              */
-                            val_free_value(*valroot);
+                            val_free_value(instance, *valroot);
                             *valroot = NULL;
                         } else {
                             /* got a leaf or leaf-list that is not
                              * a top-level node so just swap
                              * out the old leaf for the new leaf
                              */
-                            val_swap_child(newparm, targval);
-                            val_free_value(targval);
+                            val_swap_child(instance, newparm, targval);
+                            val_free_value(instance, targval);
                             targval = NULL;
                         }
                     }
                 }
             } else if (targval == NULL) {
-                newparm = val_new_value();
+                newparm = val_new_value(instance);
                 if (!newparm) {
-                    log_error("\nError: malloc failure");
+                    log_error(instance, "\nError: malloc failure");
                     res = ERR_INTERNAL_MEM;
                 } else {
-                    val_init_from_template(newparm, targobj);
+                    val_init_from_template(instance, newparm, targobj);
                 }
                 if (isdelete) {
-                    val_reset_empty(newparm);
+                    val_reset_empty(instance, newparm);
                 }
             } else if (isdelete) {
-                val_reset_empty(targval);
+                val_reset_empty(instance, targval);
             }  /* else going to use targval, not newval */
             break;
         case OBJ_TYP_CHOICE:
             if (isdelete) {
                 res = ERR_NCX_OPERATION_NOT_SUPPORTED;
-                log_error("\nError: delete operation not supported "
+                log_error(instance, "\nError: delete operation not supported "
                           "for choice");
             } else if (targval == NULL) {
-                newparm = val_new_value();
+                newparm = val_new_value(instance);
                 if (!newparm) {
-                    log_error("\nError: malloc failure");
+                    log_error(instance, "\nError: malloc failure");
                     res = ERR_INTERNAL_MEM;
                 } else {
-                    val_init_from_template(newparm, targobj);
+                    val_init_from_template(instance, newparm, targobj);
                 }
             }
             if (res == NO_ERR && dofill) {
-                res = get_choice(server_cb, rpc, targobj,
+                res = get_choice(instance, server_cb, rpc, targobj,
                                  (newparm) ? newparm : targval,
                                  curparm, iswrite, isdelete);
             }
@@ -4713,19 +4855,19 @@ static val_value_t *
         case OBJ_TYP_CASE:
             if (isdelete) {
                 res = ERR_NCX_OPERATION_NOT_SUPPORTED;
-                log_error("\nError: delete operation not supported "
+                log_error(instance, "\nError: delete operation not supported "
                           "for case");
             } else if (targval == NULL) {
-                newparm = val_new_value();
+                newparm = val_new_value(instance);
                 if (!newparm) {
-                    log_error("\nError: malloc failure");
+                    log_error(instance, "\nError: malloc failure");
                     res = ERR_INTERNAL_MEM;
                 } else {
-                    val_init_from_template(newparm, targobj);
+                    val_init_from_template(instance, newparm, targobj);
                 }
             }
             if (res == NO_ERR && dofill) {
-                res = get_case(server_cb, targobj,
+                res = get_case(instance, server_cb, targobj,
                                (newparm) ? newparm : targval, 
                                curparm, iswrite, isdelete);
             }
@@ -4737,12 +4879,12 @@ static val_value_t *
                 dofill = FALSE;
             }
             if (targval == NULL) {
-                newparm = val_new_value();
+                newparm = val_new_value(instance);
                 if (!newparm) {
-                    log_error("\nError: malloc failure");
+                    log_error(instance, "\nError: malloc failure");
                     res = ERR_INTERNAL_MEM;
                 } else {
-                    val_init_from_template(newparm, targobj);
+                    val_init_from_template(instance, newparm, targobj);
                 }
             }
             if (res == NO_ERR && dofill) {
@@ -4751,32 +4893,32 @@ static val_value_t *
                 if (isextern) {
                     if (curparm != NULL && 
                         mytarg != NULL &&
-                        !typ_is_simple(curparm->btyp) &&
-                        !typ_is_simple(mytarg->btyp)) {
-                        val_change_nsid(curparm, val_get_nsid(mytarg));
-                        val_move_children(curparm, mytarg);
+                        !typ_is_simple(instance, curparm->btyp) &&
+                        !typ_is_simple(instance, mytarg->btyp)) {
+                        val_change_nsid(instance, curparm, val_get_nsid(instance, mytarg));
+                        val_move_children(instance, curparm, mytarg);
                     } else if (curparm != NULL && 
                                mytarg != NULL &&
-                               typ_is_simple(curparm->btyp) &&
-                               !typ_is_simple(mytarg->btyp)) {
-                        val_change_nsid(curparm, val_get_nsid(mytarg));
-                        val_add_child(curparm, mytarg);
+                               typ_is_simple(instance, curparm->btyp) &&
+                               !typ_is_simple(instance, mytarg->btyp)) {
+                        val_change_nsid(instance, curparm, val_get_nsid(instance, mytarg));
+                        val_add_child(instance, curparm, mytarg);
                         curparm = NULL;
                     } else if (curparm != NULL && mytarg != NULL) {
-                        val_change_nsid(curparm, val_get_nsid(mytarg));
-                        res = val_replace(curparm, mytarg);
+                        val_change_nsid(instance, curparm, val_get_nsid(instance, mytarg));
+                        res = val_replace(instance, curparm, mytarg);
                     } /* else should not happen */
                 } else if (!get_batchmode()){
                     /* secondary_args = "mtu=1500"; */
                     if(secondary_args) {
                         status_t status;
                         char* argv[2];
-                        argv[0] = obj_get_name(mytarg->obj);
+                        argv[0] = (char *)xml_strdup(instance, obj_get_name(instance, mytarg->obj));
                         argv[1] = secondary_args;
-                        curparm = cli_parse(server_cb->runstack_context, /*argc=*/2, argv, mytarg->obj, /*valonly=*/true, /*script=*/true, /*autocomp=*/true, /*mode=*/CLI_MODE_COMMAND, &status);
-                        res = val_replace(curparm, mytarg);
+                        curparm = cli_parse(instance, server_cb->runstack_context, /*argc=*/2, argv, mytarg->obj, /*valonly=*/true, /*script=*/true, /*autocomp=*/true, /*mode=*/CLI_MODE_COMMAND, &status);
+                        res = val_replace(instance, curparm, mytarg);
                     }
-                    res = fill_valset(server_cb, rpc, mytarg, curparm, 
+                    res = fill_valset(instance, server_cb, rpc, mytarg, curparm, 
                                       iswrite, isdelete);
                 }
             }
@@ -4784,21 +4926,22 @@ static val_value_t *
 
         /* done with the current value */
         if (curparm) {
-            val_free_value(curparm);
+            val_free_value(instance, curparm);
         }
 
         server_cb->get_optional = saveopt;
         if (res == ERR_NCX_SKIPPED) {
             res = NO_ERR;
             if (newparm) {
-                val_free_value(newparm);
+                val_free_value(instance, newparm);
             }
             newparm = 
-                xml_val_new_flag(obj_get_name(targobj),
-                                 obj_get_nsid(targobj));
+                xml_val_new_flag(instance,
+                                 obj_get_name(instance, targobj),
+                                 obj_get_nsid(instance, targobj));
             if (!newparm) {
                 res = ERR_INTERNAL_MEM;
-                log_error("\nError: malloc failure");
+                log_error(instance, "\nError: malloc failure");
             } else {
                 /* need to set the real object so the
                  * path to root will be built correctly
@@ -4807,7 +4950,7 @@ static val_value_t *
             }
 
             if (res != NO_ERR) {
-                val_free_value(*valroot);
+                val_free_value(instance, *valroot);
                 *valroot = NULL;
             } /* else *valroot is active and in use */
 
@@ -4815,9 +4958,9 @@ static val_value_t *
             return newparm;
         } else if (res != NO_ERR) {
             if (newparm) {
-                val_free_value(newparm);
+                val_free_value(instance, newparm);
             }
-            val_free_value(*valroot);
+            val_free_value(instance, *valroot);
             *valroot = NULL;
             *retres = res;
             return NULL;
@@ -4831,32 +4974,33 @@ static val_value_t *
                  * leaf is not treated as match-node
                  * instead of a selection node
                  */
-                if (obj_is_leafy(targval->obj)) {
+                if (obj_is_leafy(instance, targval->obj)) {
                     /* force the data type to be
                      * empty so it will be treated
                      * as a selection node
                      */
-                    val_force_empty(targval);
+                    val_force_empty(instance, targval);
                 }
             }
             return (newparm) ? newparm : targval;
         }
     } else if (isselect) {
-        newparm = val_new_value();
+        newparm = val_new_value(instance);
         if (!newparm) {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
         } else {
-            val_init_from_template(newparm, parm->obj);
-            res = val_set_simval_obj(newparm, parm->obj, fromstr);
+            val_init_from_template(instance, newparm, parm->obj);
+            res = val_set_simval_obj(instance, newparm, parm->obj, fromstr);
             if (res != NO_ERR) {
-                log_error("\nError: set 'select' failed (%s)",
+                log_error(instance,
+                          "\nError: set 'select' failed (%s)",
                           get_error_string(res));
-                val_free_value(newparm);
+                val_free_value(instance, newparm);
                 newparm = NULL;
             }
         }
         if (fromurl != NULL) {
-            m__free(fromurl);
+            m__free(instance, fromurl);
         }
 
         /*  *valroot == NULL and not in use */
@@ -4881,23 +5025,24 @@ static val_value_t *
             vartype = VAR_TYP_LOCAL;
         }
         if (fromstr) {
-            userval = var_get(server_cb->runstack_context, fromstr, vartype);
+            userval = var_get(instance, server_cb->runstack_context, fromstr, vartype);
             if (!userval) {
-                log_error("\nError: variable '%s' not found", 
+                log_error(instance, 
+                          "\nError: variable '%s' not found", 
                           fromstr);
                 *retres = ERR_NCX_NOT_FOUND;
                 return NULL;
             } else {
-                newparm = val_clone(userval);
+                newparm = val_clone(instance, userval);
                 if (!newparm) {
-                    log_error("\nError: malloc failed");
+                    log_error(instance, "\nError: malloc failed");
                 }
                 *retres = ERR_INTERNAL_MEM;
                 return newparm;
             }
         }
     } else {
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     *retres = res;
@@ -4920,7 +5065,8 @@ static val_value_t *
  *   status
  *********************************************************************/
 static status_t
-    add_one_operation_attr (server_cb_t *server_cb,
+    add_one_operation_attr (ncx_instance_t *instance,
+                            server_cb_t *server_cb,
                             val_value_t *val,
                             op_editop_t op)
 {
@@ -4930,39 +5076,41 @@ static status_t
     status_t              res;
 
     /* get the internal nc:operation object */
-    operobj = ncx_find_object(get_netconf_mod(server_cb), 
+    operobj = ncx_find_object(instance, 
+                              get_netconf_mod(instance, server_cb), 
                               NC_OPERATION_ATTR_NAME);
     if (operobj == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* create a value node for the meta-value */
-    metaval = val_new_value();
+    metaval = val_new_value(instance);
     if (!metaval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(metaval, operobj);
+    val_init_from_template(instance, metaval, operobj);
 
     /* get the string value for the edit operation */
     editopstr = op_editop_name(op);
     if (editopstr  == NULL) {
-        val_free_value(metaval);
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        val_free_value(instance, metaval);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* set the meta variable value and other fields */
-    res = val_set_simval(metaval,
+    res = val_set_simval(instance,
+                         metaval,
                          obj_get_typdef(operobj),
-                         obj_get_nsid(operobj),
-                         obj_get_name(operobj),
+                         obj_get_nsid(instance, operobj),
+                         obj_get_name(instance, operobj),
                          editopstr);
 
     if (res != NO_ERR) {
-        val_free_value(metaval);
+        val_free_value(instance, metaval);
         return res;
     }
 
-    dlq_enque(metaval, &val->metaQ);
+    dlq_enque(instance, metaval, &val->metaQ);
     return NO_ERR;
 
 } /* add_one_operation_attr */
@@ -4985,7 +5133,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    add_operation_attr (server_cb_t *server_cb,
+    add_operation_attr (ncx_instance_t *instance,
+                        server_cb_t *server_cb,
                         val_value_t *val,
                         op_editop_t op,
                         boolean topcontainer)
@@ -4998,25 +5147,26 @@ static status_t
     switch (val->obj->objtype) {
     case OBJ_TYP_CONTAINER:
         if (!topcontainer) {
-            res = add_one_operation_attr(server_cb,
+            res = add_one_operation_attr(instance,
+                                         server_cb,
                                          val, 
                                          op);
             break;
         } /* else fall through */
     case OBJ_TYP_CHOICE:
     case OBJ_TYP_CASE:
-        for (childval = val_get_first_child(val);
+        for (childval = val_get_first_child(instance, val);
              childval != NULL;
-             childval = val_get_next_child(childval)) {
+             childval = val_get_next_child(instance, childval)) {
 
-            res = add_one_operation_attr(server_cb, childval, op);
+            res = add_one_operation_attr(instance, server_cb, childval, op);
             if (res != NO_ERR) {
                 return res;
             }
         }
         break;
     default:
-        res = add_one_operation_attr(server_cb, val, op);
+        res = add_one_operation_attr(instance, server_cb, val, op);
     }
 
     return res;
@@ -5038,7 +5188,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    add_one_insert_attrs (val_value_t *val,
+    add_one_insert_attrs (ncx_instance_t *instance,
+                          val_value_t *val,
                           op_insertop_t insop,
                           const xmlChar *edit_target)
 {
@@ -5048,61 +5199,62 @@ static status_t
     status_t              res;
     xmlns_id_t            yangid;
 
-    yangid = xmlns_yang_id();
+    yangid = xmlns_yang_id(instance);
 
     /* get the internal nc:operation object */
-    operobj = ncx_get_gen_string();
+    operobj = ncx_get_gen_string(instance);
     if (!operobj) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     insopstr = op_insertop_name(insop);
 
     /* create a value node for the meta-value */
-    metaval = val_new_value();
+    metaval = val_new_value(instance);
     if (!metaval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(metaval, operobj);
-    val_set_qname(metaval, yangid, YANG_K_INSERT, xml_strlen(YANG_K_INSERT));
+    val_init_from_template(instance, metaval, operobj);
+    val_set_qname(instance, metaval, yangid, YANG_K_INSERT, xml_strlen(instance, YANG_K_INSERT));
 
     /* set the meta variable value and other fields */
-    res = val_set_simval(metaval, metaval->typdef, yangid, YANG_K_INSERT,
+    res = val_set_simval(instance, metaval, metaval->typdef, yangid, YANG_K_INSERT,
                          insopstr);
     if (res != NO_ERR) {
-        val_free_value(metaval);
+        val_free_value(instance, metaval);
         return res;
     } else {
-        dlq_enque(metaval, &val->metaQ);
+        dlq_enque(instance, metaval, &val->metaQ);
     }
 
     if (insop == OP_INSOP_BEFORE || insop == OP_INSOP_AFTER) {
         /* create a value node for the meta-value */
-        metaval = val_new_value();
+        metaval = val_new_value(instance);
         if (!metaval) {
             return ERR_INTERNAL_MEM;
         }
-        val_init_from_template(metaval, operobj);
+        val_init_from_template(instance, metaval, operobj);
 
         /* set the attribute name */
         if (val->obj->objtype==OBJ_TYP_LEAF_LIST) {
-            val_set_qname(metaval, yangid, YANG_K_VALUE,
-                          xml_strlen(YANG_K_VALUE));
+            val_set_qname(instance, metaval, yangid, YANG_K_VALUE,
+                          xml_strlen(instance, YANG_K_VALUE));
         } else {
-            val_set_qname(metaval, yangid, YANG_K_KEY,
-                          xml_strlen(YANG_K_KEY));
+            val_set_qname(instance, metaval, yangid, YANG_K_KEY,
+                          xml_strlen(instance, YANG_K_KEY));
         }
 
         /* set the meta variable value and other fields */
-        res = val_set_simval(metaval,
+        res = val_set_simval(instance,
+                             metaval,
                              metaval->typdef,
                              yangid, NULL,
                              edit_target);
         if (res != NO_ERR) {
-            val_free_value(metaval);
+            val_free_value(instance, metaval);
             return res;
         } else {
-            dlq_enque(metaval, &val->metaQ);
+            dlq_enque(instance, metaval, &val->metaQ);
         }
     }          
 
@@ -5124,7 +5276,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    add_insert_attrs (val_value_t *val,
+    add_insert_attrs (ncx_instance_t *instance,
+                      val_value_t *val,
                       op_insertop_t insop,
                       const xmlChar *edit_target)
 {
@@ -5136,18 +5289,18 @@ static status_t
     switch (val->obj->objtype) {
     case OBJ_TYP_CHOICE:
     case OBJ_TYP_CASE:
-        for (childval = val_get_first_child(val);
+        for (childval = val_get_first_child(instance, val);
              childval != NULL;
-             childval = val_get_next_child(childval)) {
+             childval = val_get_next_child(instance, childval)) {
 
-            res = add_one_insert_attrs(childval, insop, edit_target);
+            res = add_one_insert_attrs(instance, childval, insop, edit_target);
             if (res != NO_ERR) {
                 return res;
             }
         }
         break;
     default:
-        res = add_one_insert_attrs(val, insop, edit_target);
+        res = add_one_insert_attrs(instance, val, insop, edit_target);
     }
 
     return res;
@@ -5176,9 +5329,10 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_edit (server_cb_t *server_cb,
+    do_edit (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
-             const xmlChar *line,
+             xmlChar *line,
              uint32  len,
              op_editop_t editop)
 {
@@ -5207,16 +5361,16 @@ static status_t
     }
 
     /* get the command line parameters for this command */
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (!valset || res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
     /* get the timeout parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
     if (parm && parm->res == NO_ERR) {
         timeoutval = VAL_UINT(parm);
     } else {
@@ -5224,7 +5378,7 @@ static status_t
     }
 
     /* get the 'fill-in optional parms' parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
     if (parm && parm->res == NO_ERR) {
         getoptional = TRUE;
     } else {
@@ -5232,12 +5386,12 @@ static status_t
     }
 
     /* get the --nofill parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_NOFILL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_NOFILL);
     if (parm && parm->res == NO_ERR) {
         dofill = FALSE;
     }
 
-    secondary_args = line;
+    secondary_args = (char *)line;
     secondary_args_flag = 0;
     while(strlen(secondary_args)>=strlen("--")) {
         if(memcmp(secondary_args, "--", strlen("--"))==0) {
@@ -5248,23 +5402,24 @@ static status_t
         secondary_args++;
     }
     /* get the contents specified in the 'from' choice */
-    content = get_content_from_choice(server_cb, rpc, valset, getoptional,
+    content = get_content_from_choice(instance, server_cb, rpc, valset, getoptional,
                                       isdelete, dofill,
                                       TRUE, /* iswrite */
                                       &res, &valroot, secondary_args_flag?secondary_args:NULL);
     if (content == NULL) {
         if (res != NO_ERR) {
             if (LOGDEBUG2) {
-                log_debug2("get_content error %d = (%s)",
+                log_debug2(instance,
+                           "get_content error %d = (%s)",
                            res,
                            get_error_string(res));
             }
             res = ERR_NCX_MISSING_PARM;
         } else {
-            log_error("\nError: operations on root '/' not supported");
+            log_error(instance, "\nError: operations on root '/' not supported");
             res = ERR_NCX_OPERATION_NOT_SUPPORTED;
         }
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
@@ -5282,36 +5437,37 @@ static status_t
             def_editop = OP_DEFOP_REPLACE;
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
     if (doattr) {
         /* add nc:operation attribute to the value node */
-        res = add_operation_attr(server_cb, content, editop, topcontainer);
+        res = add_operation_attr(instance, server_cb, content, editop, topcontainer);
         if (res != NO_ERR) {
-            log_error("\nError: Creation of nc:operation"
+            log_error(instance, "\nError: Creation of nc:operation"
                       " attribute failed");
-            val_free_value(valset);
+            val_free_value(instance, valset);
             if (valroot) {
-                val_free_value(valroot);
+                val_free_value(instance, valroot);
             } else {
-                val_free_value(content);
+                val_free_value(instance, content);
             }
             return res;
         }
     }
 
     /* construct an edit-config PDU with default parameters */
-    res = send_edit_config_to_server(server_cb, valroot, content, 
+    res = send_edit_config_to_server(instance, server_cb, valroot, content, 
                                      timeoutval, def_editop);
     if (res != NO_ERR) {
-        log_error("\nError: send %s operation failed (%s)",
+        log_error(instance,
+                  "\nError: send %s operation failed (%s)",
                   op_editop_name(editop),
                   get_error_string(res));
     }
 
-    val_free_value(valset);
+    val_free_value(instance, valset);
 
     return res;
 
@@ -5337,7 +5493,8 @@ static status_t
  *  status
  *********************************************************************/
 static status_t
-    do_insert (server_cb_t *server_cb,
+    do_insert (ncx_instance_t *instance,
+               server_cb_t *server_cb,
                obj_template_t *rpc,
                const xmlChar *line,
                uint32  len)
@@ -5357,16 +5514,16 @@ static status_t
     dofill = TRUE;
 
     /* get the command line parameters for this command */
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (!valset || res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
     /* get the 'fill-in optional parms' parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
     if (parm && parm->res == NO_ERR) {
         getoptional = TRUE;
     } else {
@@ -5374,24 +5531,24 @@ static status_t
     }
 
     /* get the --nofill parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_NOFILL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_NOFILL);
     if (parm && parm->res == NO_ERR) {
         dofill = FALSE;
     }
 
     /* get the contents specified in the 'from' choice */
-    content = get_content_from_choice(server_cb, rpc, valset, getoptional,
+    content = get_content_from_choice(instance, server_cb, rpc, valset, getoptional,
                                       FALSE,  /* isdelete */
                                       dofill,
                                       TRUE,  /* iswrite */
                                       &res, &valroot, NULL);
     if (!content) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return (res == NO_ERR) ? ERR_NCX_MISSING_PARM : res;
     }
 
     /* get the timeout parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
     if (parm && parm->res == NO_ERR) {
         timeoutval = VAL_UINT(parm);
     } else {
@@ -5399,17 +5556,17 @@ static status_t
     }
 
     /* get the insert order */
-    tempval = val_find_child(valset, YANGCLI_MOD, YANGCLI_ORDER);
+    tempval = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_ORDER);
     if (tempval && tempval->res == NO_ERR) {
-        insertop = op_insertop_id(VAL_ENUM_NAME(tempval));
+        insertop = op_insertop_id(instance, VAL_ENUM_NAME(tempval));
     } else {
         insertop = OP_INSOP_LAST;
     }
 
     /* get the edit-config operation */
-    tempval = val_find_child(valset, YANGCLI_MOD, YANGCLI_OPERATION);
+    tempval = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_OPERATION);
     if (tempval && tempval->res == NO_ERR) {
-        editop = op_editop_id(VAL_ENUM_NAME(tempval));
+        editop = op_editop_id(instance, VAL_ENUM_NAME(tempval));
     } else {
         editop = OP_EDITOP_MERGE;
     }
@@ -5417,7 +5574,7 @@ static status_t
     /* get the edit-target parameter only if the
      * order is 'before' or 'after'; ignore otherwise
      */
-    tempval = val_find_child(valset, YANGCLI_MOD, YANGCLI_EDIT_TARGET);
+    tempval = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_EDIT_TARGET);
     if (tempval && tempval->res == NO_ERR) {
         edit_target = VAL_STR(tempval);
     } else {
@@ -5429,13 +5586,13 @@ static status_t
     case OP_INSOP_BEFORE:
     case OP_INSOP_AFTER:
         if (!edit_target) {
-            log_error("\nError: edit-target parameter missing");
+            log_error(instance, "\nError: edit-target parameter missing");
             if (valroot) {
-                val_free_value(valroot);
+                val_free_value(instance, valroot);
             } else {
-                val_free_value(content);
+                val_free_value(instance, content);
             }
-            val_free_value(valset);
+            val_free_value(instance, valset);
             return ERR_NCX_MISSING_PARM;
         }
         break;
@@ -5444,9 +5601,9 @@ static status_t
     }
 
     /* add nc:operation attribute to the value node */
-    res = add_operation_attr(server_cb, content, editop, FALSE);
+    res = add_operation_attr(instance, server_cb, content, editop, FALSE);
     if (res != NO_ERR) {
-        log_error("\nError: Creation of nc:operation"
+        log_error(instance, "\nError: Creation of nc:operation"
                   " attribute failed");
     }
 
@@ -5454,9 +5611,9 @@ static status_t
      * attribute as well
      */
     if (res == NO_ERR) {
-        res = add_insert_attrs(content, insertop, edit_target);
+        res = add_insert_attrs(instance, content, insertop, edit_target);
         if (res != NO_ERR) {
-            log_error("\nError: Creation of yang:insert"
+            log_error(instance, "\nError: Creation of yang:insert"
                   " attribute(s) failed");
         }
     }
@@ -5464,10 +5621,11 @@ static status_t
     /* send the PDU, hand off the content node */
     if (res == NO_ERR) {
         /* construct an edit-config PDU with default parameters */
-        res = send_edit_config_to_server(server_cb, valroot, content, 
+        res = send_edit_config_to_server(instance, server_cb, valroot, content, 
                                          timeoutval, server_cb->defop);
         if (res != NO_ERR) {
-            log_error("\nError: send create operation failed (%s)",
+            log_error(instance,
+                      "\nError: send create operation failed (%s)",
                       get_error_string(res));
         }
         valroot = NULL;
@@ -5476,12 +5634,12 @@ static status_t
 
     /* cleanup and exit */
     if (valroot) {
-        val_free_value(valroot);
+        val_free_value(instance, valroot);
     } else if (content) {
-        val_free_value(content);
+        val_free_value(instance, content);
     }
 
-    val_free_value(valset);
+    val_free_value(instance, valset);
 
     return res;
 
@@ -5508,7 +5666,8 @@ static status_t
  *  status
  *********************************************************************/
 static status_t
-    do_sget (server_cb_t *server_cb,
+    do_sget (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len)
@@ -5526,60 +5685,61 @@ static status_t
     dofill = TRUE;
 
     /* get the command line parameters for this command */
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (!valset || res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
     if (parm && parm->res == NO_ERR) {
         timeoutval = VAL_UINT(parm);
     } else {
         timeoutval = server_cb->timeout;
     }
 
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_NOFILL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_NOFILL);
     if (parm && parm->res == NO_ERR) {
         dofill = FALSE;
     }
 
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
     if (parm && parm->res == NO_ERR) {
         getoptional = TRUE;
     } else {
         getoptional = server_cb->get_optional;
     }
 
-    parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_WITH_DEFAULTS);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_WITH_DEFAULTS);
     if (parm && parm->res == NO_ERR) {
-        withdef = ncx_get_withdefaults_enum(VAL_STR(parm));
+        withdef = ncx_get_withdefaults_enum(instance, VAL_STR(parm));
     } else {
         withdef = server_cb->withdefaults;
     }
     
     /* get the contents specified in the 'from' choice */
-    content = get_content_from_choice(server_cb, rpc, valset, getoptional,
+    content = get_content_from_choice(instance, server_cb, rpc, valset, getoptional,
                                       FALSE,  /* isdelete */
                                       dofill,
                                       FALSE,  /* iswrite */
                                       &res, &valroot, NULL);
     if (res != NO_ERR) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return (res==NO_ERR) ? ERR_NCX_MISSING_PARM : res;
     }
 
     /* construct a get PDU with the content as the filter */
-    res = send_get_to_server(server_cb, valroot, content, NULL, NULL, 
+    res = send_get_to_server(instance, server_cb, valroot, content, NULL, NULL, 
                              timeoutval, dofill, withdef);
     if (res != NO_ERR) {
-        log_error("\nError: send get operation failed (%s)",
+        log_error(instance,
+                  "\nError: send get operation failed (%s)",
                   get_error_string(res));
     }
 
-    val_free_value(valset);
+    val_free_value(instance, valset);
 
     return res;
 
@@ -5606,7 +5766,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_sget_config (server_cb_t *server_cb,
+    do_sget_config (ncx_instance_t *instance,
+                    server_cb_t *server_cb,
                     obj_template_t *rpc,
                     const xmlChar *line,
                     uint32  len)
@@ -5623,16 +5784,16 @@ static status_t
     res = NO_ERR;
 
     /* get the command line parameters for this command */
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (!valset || res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
     /* get the timeout parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
     if (parm && parm->res == NO_ERR) {
         timeoutval = VAL_UINT(parm);
     } else {
@@ -5640,7 +5801,7 @@ static status_t
     }
 
     /* get the'fill-in optional' parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_OPTIONAL);
     if (parm && parm->res == NO_ERR) {
         getoptional = TRUE;
     } else {
@@ -5648,53 +5809,54 @@ static status_t
     }
 
     /* get the --nofill parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_NOFILL);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_NOFILL);
     if (parm && parm->res == NO_ERR) {
         dofill = FALSE;
     }
 
     /* get the config source parameter */
-    source = val_find_child(valset, NULL, NCX_EL_SOURCE);
+    source = val_find_child(instance, valset, NULL, NCX_EL_SOURCE);
     if (!source) {
-        log_error("\nError: mandatory source parameter missing");
-        val_free_value(valset);
+        log_error(instance, "\nError: mandatory source parameter missing");
+        val_free_value(instance, valset);
         return ERR_NCX_MISSING_PARM;
     }
 
     /* get the with-defaults parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_WITH_DEFAULTS);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_WITH_DEFAULTS);
     if (parm && parm->res == NO_ERR) {
-        withdef = ncx_get_withdefaults_enum(VAL_STR(parm));
+        withdef = ncx_get_withdefaults_enum(instance, VAL_STR(parm));
     } else {
         withdef = server_cb->withdefaults;
     }
 
     /* get the contents specified in the 'from' choice */
-    content = get_content_from_choice(server_cb, rpc, valset, getoptional,
+    content = get_content_from_choice(instance, server_cb, rpc, valset, getoptional,
                                       FALSE,  /* isdelete */
                                       dofill,
                                       FALSE, /* iswrite */
                                       &res, &valroot, NULL);
     if (res != NO_ERR) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
     /* hand off this malloced node to send_get_to_server */
-    val_remove_child(source);
-    val_change_nsid(source, xmlns_nc_id());
+    val_remove_child(instance, source);
+    val_change_nsid(instance, source, xmlns_nc_id(instance));
 
     /* construct a get PDU with the content as the filter */
-    res = send_get_to_server(server_cb, valroot, content, NULL, source, 
+    res = send_get_to_server(instance, server_cb, valroot, content, NULL, source, 
                              timeoutval, 
                              FALSE,  /* dofill; don't fill again */
                              withdef);
     if (res != NO_ERR) {
-        log_error("\nError: send get-config operation failed (%s)",
+        log_error(instance,
+                  "\nError: send get-config operation failed (%s)",
                   get_error_string(res));
     }
 
-    val_free_value(valset);
+    val_free_value(instance, valset);
 
     return res;
 
@@ -5721,7 +5883,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_xget (server_cb_t *server_cb,
+    do_xget (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len)
@@ -5742,21 +5905,21 @@ static status_t
     /* get the session info */
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     mscb = (const mgr_scb_t *)scb->mgrcb;
 
     /* get the command line parameters for this command */
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (!valset || res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
     /* get the timeout parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
     if (parm && parm->res == NO_ERR) {
         timeoutval = VAL_UINT(parm);
     } else {
@@ -5764,9 +5927,9 @@ static status_t
     }
 
     /* get the with-defaults parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_WITH_DEFAULTS);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_WITH_DEFAULTS);
     if (parm && parm->res == NO_ERR) {
-        withdef = ncx_get_withdefaults_enum(VAL_ENUM_NAME(parm));
+        withdef = ncx_get_withdefaults_enum(instance, VAL_ENUM_NAME(parm));
     } else {
         withdef = server_cb->withdefaults;
     }
@@ -5777,12 +5940,13 @@ static status_t
         case NCX_BAD_DATA_IGNORE:
             break;
         case NCX_BAD_DATA_WARN:
-            log_warn("\nWarning: server does not have :xpath support");
+            log_warn(instance, "\nWarning: server does not have :xpath support");
             break;
         case NCX_BAD_DATA_CHECK:
             retcode = 0;
-            log_warn("\nWarning: server does not have :xpath support");
-            res = get_yesno(server_cb,
+            log_warn(instance, "\nWarning: server does not have :xpath support");
+            res = get_yesno(instance,
+                            server_cb,
                             (const xmlChar *)"Send request anyway?",
                             YESNO_NO, &retcode);
             if (res == NO_ERR) {
@@ -5794,30 +5958,30 @@ static status_t
                 case YESNO_YES:
                     break;
                 default:
-                    res = SET_ERROR(ERR_INTERNAL_VAL);
+                    res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             }
             break;
         case NCX_BAD_DATA_ERROR:
-            log_error("\nError: server does not have :xpath support");
+            log_error(instance, "\nError: server does not have :xpath support");
             res = ERR_NCX_OPERATION_NOT_SUPPORTED;
             break;
         case NCX_BAD_DATA_NONE:
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
     /* check any error so far */
     if (res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
     /* get the contents specified in the 'from' choice */
-    content = get_content_from_choice(server_cb, rpc, valset,
+    content = get_content_from_choice(instance, server_cb, rpc, valset,
                                       FALSE,  /* getoptional */
                                       FALSE,  /* isdelete */
                                       FALSE,  /* dofill */
@@ -5830,35 +5994,36 @@ static status_t
                 str++;
             }
             if (*str) {
-                log_error("\nError: select string cannot "
+                log_error(instance, "\nError: select string cannot "
                           "contain a double quote");
             } else {
                 /* construct a get PDU with the content
                  * as the filter 
                  * !! passing off content memory even on error !!
                  */
-                res = send_get_to_server(server_cb, valroot, NULL, content, 
+                res = send_get_to_server(instance, server_cb, valroot, NULL, content, 
                                         NULL, timeoutval, FALSE, withdef);
                 content = NULL;
                 if (res != NO_ERR) {
-                    log_error("\nError: send get operation"
+                    log_error(instance,
+                              "\nError: send get operation"
                               " failed (%s)",
                               get_error_string(res));
                 }
             }
         } else {
-            log_error("\nError: xget content wrong type");
+            log_error(instance, "\nError: xget content wrong type");
         }
         if (valroot) {
             /* should not happen */
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         }
         if (content) {
-            val_free_value(content);
+            val_free_value(instance, content);
         }
     }
 
-    val_free_value(valset);
+    val_free_value(instance, valset);
 
     return res;
 
@@ -5885,7 +6050,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_xget_config (server_cb_t *server_cb,
+    do_xget_config (ncx_instance_t *instance,
+                    server_cb_t *server_cb,
                     obj_template_t *rpc,
                     const xmlChar *line,
                     uint32  len)
@@ -5906,37 +6072,37 @@ static status_t
     /* get the session info */
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     mscb = (const mgr_scb_t *)scb->mgrcb;
       
     /* get the command line parameters for this command */
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (!valset || res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
     /* get the source parameter */
-    source = val_find_child(valset, NULL, NCX_EL_SOURCE);
+    source = val_find_child(instance, valset, NULL, NCX_EL_SOURCE);
     if (!source) {
-        log_error("\nError: mandatory source parameter missing");
-        val_free_value(valset);
+        log_error(instance, "\nError: mandatory source parameter missing");
+        val_free_value(instance, valset);
         return ERR_NCX_MISSING_PARM;
     }
 
     /* get the with-defaults parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_WITH_DEFAULTS);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_WITH_DEFAULTS);
     if (parm && parm->res == NO_ERR) {
-        withdef = ncx_get_withdefaults_enum(VAL_ENUM_NAME(parm));
+        withdef = ncx_get_withdefaults_enum(instance, VAL_ENUM_NAME(parm));
     } else {
         withdef = server_cb->withdefaults;
     }
 
     /* get the timeout parameter */
-    parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
+    parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
     if (parm && parm->res == NO_ERR) {
         timeoutval = VAL_UINT(parm);
     } else {
@@ -5949,12 +6115,13 @@ static status_t
         case NCX_BAD_DATA_IGNORE:
             break;
         case NCX_BAD_DATA_WARN:
-            log_warn("\nWarning: server does not have :xpath support");
+            log_warn(instance, "\nWarning: server does not have :xpath support");
             break;
         case NCX_BAD_DATA_CHECK:
             retcode = 0;
-            log_warn("\nWarning: server does not have :xpath support");
-            res = get_yesno(server_cb,
+            log_warn(instance, "\nWarning: server does not have :xpath support");
+            res = get_yesno(instance,
+                            server_cb,
                             (const xmlChar *)"Send request anyway?",
                             YESNO_NO, &retcode);
             if (res == NO_ERR) {
@@ -5966,30 +6133,30 @@ static status_t
                 case YESNO_YES:
                     break;
                 default:
-                    res = SET_ERROR(ERR_INTERNAL_VAL);
+                    res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             }
             break;
         case NCX_BAD_DATA_ERROR:
-            log_error("\nError: server does not have :xpath support");
+            log_error(instance, "\nError: server does not have :xpath support");
             res = ERR_NCX_OPERATION_NOT_SUPPORTED;
             break;
         case NCX_BAD_DATA_NONE:
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
     /* check any error so far */
     if (res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     }
 
     /* get the contents specified in the 'from' choice */
-    content = get_content_from_choice(server_cb, rpc, valset,
+    content = get_content_from_choice(instance, server_cb, rpc, valset,
                                       FALSE,  /* getoptional */
                                       FALSE,  /* isdelete */
                                       FALSE,  /* dofill */
@@ -6002,17 +6169,18 @@ static status_t
                 str++;
             }
             if (*str) {
-                log_error("\nError: select string cannot "
+                log_error(instance, "\nError: select string cannot "
                           "contain a double quote");
             } else {
                 /* hand off this malloced node to send_get_to_server */
-                val_remove_child(source);
-                val_change_nsid(source, xmlns_nc_id());
+                val_remove_child(instance, source);
+                val_change_nsid(instance, source, xmlns_nc_id(instance));
 
                 /* construct a get PDU with the content as the filter
                  * !! hand off content memory here, even on error !! 
                  */
-                res = send_get_to_server(server_cb, 
+                res = send_get_to_server(instance, 
+                                        server_cb, 
                                         valroot,
                                         NULL, 
                                         content, 
@@ -6022,24 +6190,25 @@ static status_t
                                         withdef);
                 content = NULL;
                 if (res != NO_ERR) {
-                    log_error("\nError: send get-config "
+                    log_error(instance,
+                              "\nError: send get-config "
                               "operation failed (%s)",
                               get_error_string(res));
                 }
             }
         } else {
-            log_error("\nError: xget content wrong type");
+            log_error(instance, "\nError: xget content wrong type");
         }
         if (valroot) {
             /* should not happen */
-            val_free_value(valroot);
+            val_free_value(instance, valroot);
         }
         if (content) {
-            val_free_value(content);
+            val_free_value(instance, content);
         }
     }
 
-    val_free_value(valset);
+    val_free_value(instance, valset);
 
     return res;
 
@@ -6060,7 +6229,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_history_show (server_cb_t *server_cb,
+    do_history_show (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      int maxlines,
                      help_mode_t mode)
 {
@@ -6069,7 +6239,7 @@ static status_t
     int            glstatus;
     status_t       res = NO_ERR;
 
-    outputfile = log_get_logfile();
+    outputfile = log_get_logfile(instance);
     if (!outputfile) {
         /* use STDOUT instead */
         outputfile = stdout;
@@ -6084,7 +6254,7 @@ static status_t
     glstatus = gl_show_history(server_cb->cli_gl, outputfile, format, 1,
                                maxlines);
     if (glstatus) {
-        log_error("\nError: show history failed");
+        log_error(instance, "\nError: show history failed");
         res = ERR_NCX_OPERATION_FAILED;
     }
     fputc('\n', outputfile);
@@ -6129,7 +6299,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_history_load (server_cb_t *server_cb,
+    do_history_load (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      const xmlChar *fname)
 {
     status_t   res;
@@ -6139,9 +6310,9 @@ static status_t
 
     if (fname && *fname) {
         if (server_cb->history_filename) {
-            m__free(server_cb->history_filename);
+            m__free(instance, server_cb->history_filename);
         }
-        server_cb->history_filename = xml_strdup(fname);
+        server_cb->history_filename = xml_strdup(instance, fname);
         if (!server_cb->history_filename) {
             res = ERR_INTERNAL_MEM;
         }
@@ -6179,7 +6350,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_history_save (server_cb_t *server_cb,
+    do_history_save (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      const xmlChar *fname)
 {
     status_t   res;
@@ -6189,9 +6361,9 @@ static status_t
 
     if (fname && *fname) {
         if (server_cb->history_filename) {
-            m__free(server_cb->history_filename);
+            m__free(instance, server_cb->history_filename);
         }
-        server_cb->history_filename = xml_strdup(fname);
+        server_cb->history_filename = xml_strdup(instance, fname);
         if (!server_cb->history_filename) {
             res = ERR_INTERNAL_MEM;
         }
@@ -6237,7 +6409,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_history (server_cb_t *server_cb,
+    do_history (ncx_instance_t *instance,
+                server_cb_t *server_cb,
                 obj_template_t *rpc,
                 const xmlChar *line,
                 uint32  len)
@@ -6250,89 +6423,89 @@ static status_t
     done = FALSE;
     res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset && res == NO_ERR) {
         mode = HELP_MODE_NORMAL;
 
         /* check if the 'brief' flag is set first */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_BRIEF);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_BRIEF);
         if (parm && parm->res == NO_ERR) {
             mode = HELP_MODE_BRIEF;
         } else {
             /* check if the 'full' flag is set first */
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_FULL);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_FULL);
             if (parm && parm->res == NO_ERR) {
                 mode = HELP_MODE_FULL;
             }
         }
 
         /* find the 1 of N choice */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_SHOW);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_SHOW);
         if (parm) {
             /* do show history */
-            res = do_history_show(server_cb, VAL_INT(parm), mode);
+            res = do_history_show(instance, server_cb, VAL_INT(parm), mode);
             done = TRUE;
         }
 
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_CLEAR);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_CLEAR);
             if (parm) {
                 /* do clear history */
                 res = do_history_clear(server_cb);
                 done = TRUE;
                 if (res == NO_ERR) {
-                    log_info("\nOK\n");
+                    log_info(instance, "\nOK\n");
                 } else {
-                    log_error("\nError: clear history failed\n");
+                    log_error(instance, "\nError: clear history failed\n");
                 }
             }
         }
 
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_LOAD);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_LOAD);
             if (parm) {
                 if (!VAL_STR(parm) || !*VAL_STR(parm)) {
                     /* do history load buffer: default filename */
-                    res = do_history_load(server_cb, YANGCLI_DEF_HISTORY_FILE);
+                    res = do_history_load(instance, server_cb, YANGCLI_DEF_HISTORY_FILE);
                 } else {
                     /* do history load buffer */
-                    res = do_history_load(server_cb, VAL_STR(parm));
+                    res = do_history_load(instance, server_cb, VAL_STR(parm));
                 }
                 done = TRUE;
                 if (res == NO_ERR) {
-                    log_info("\nOK\n");
+                    log_info(instance, "\nOK\n");
                 } else {
-                    log_error("\nError: load history failed\n");
+                    log_error(instance, "\nError: load history failed\n");
                 }
             }
         }
 
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_SAVE);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_SAVE);
             if (parm) {
                 if (!VAL_STR(parm) || !*VAL_STR(parm)) {
                     /* do history save buffer: default filename */
-                    res = do_history_save(server_cb, YANGCLI_DEF_HISTORY_FILE);
+                    res = do_history_save(instance, server_cb, YANGCLI_DEF_HISTORY_FILE);
                 } else {
                     /* do history save buffer */
-                    res = do_history_save(server_cb, VAL_STR(parm));
+                    res = do_history_save(instance, server_cb, VAL_STR(parm));
                 }
                 done = TRUE;
                 if (res == NO_ERR) {
-                    log_info("\nOK\n");
+                    log_info(instance, "\nOK\n");
                 } else {
-                    log_error("\nError: save history failed\n");
+                    log_error(instance, "\nError: save history failed\n");
                 }
             }
         }
 
         if (!done) {
-            res = do_history_show(server_cb, YANGCLI_DEF_HISTORY_LINES, mode);
+            res = do_history_show(instance, server_cb, YANGCLI_DEF_HISTORY_LINES, mode);
         }
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -6357,7 +6530,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_recall (server_cb_t *server_cb,
+    do_recall (ncx_instance_t *instance,
+               server_cb_t *server_cb,
                obj_template_t *rpc,
                const xmlChar *line,
                uint32  len)
@@ -6366,21 +6540,21 @@ static status_t
     status_t            res;
 
     res = NO_ERR;
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset && res == NO_ERR) {
         /* find the mandatory index */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_INDEX);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_INDEX);
         if (parm) {
             /* do show history */
-            res = do_line_recall(server_cb, VAL_UINT(parm));
+            res = do_line_recall(instance, server_cb, VAL_UINT(parm));
         } else {
             res = ERR_NCX_MISSING_PARM;
-            log_error("\nError: missing index parameter");
+            log_error(instance, "\nError: missing index parameter");
         }
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -6403,7 +6577,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_eventlog_show (server_cb_t *server_cb,
+    do_eventlog_show (ncx_instance_t *instance,
+                      server_cb_t *server_cb,
                       int32 maxevents,
                       uint32 startindex,
                       help_mode_t mode)
@@ -6434,26 +6609,26 @@ static status_t
     eventsdone = 0;
 
     for (notif = (mgr_not_msg_t *)
-             dlq_firstEntry(&server_cb->notificationQ);
+             dlq_firstEntry(instance, &server_cb->notificationQ);
          notif != NULL && !done;
-         notif = (mgr_not_msg_t *)dlq_nextEntry(notif)) {
+         notif = (mgr_not_msg_t *)dlq_nextEntry(instance, notif)) {
 
         if (eventindex >= startindex) {
 
-            sequence_id = val_find_child(notif->notification, NULL,
+            sequence_id = val_find_child(instance, notif->notification, NULL,
                                          NCX_EL_SEQUENCE_ID);
 
 
-            (*logfn)("\n [%u]\t", eventindex);
+            (*logfn)(instance, "\n [%u]\t", eventindex);
             if (mode != HELP_MODE_BRIEF && notif->eventTime) {
-                (*logfn)(" [%s] ", VAL_STR(notif->eventTime));
+                (*logfn)(instance, " [%s] ", VAL_STR(notif->eventTime));
             }
 
             if (mode != HELP_MODE_BRIEF) {
                 if (sequence_id) {
-                    (*logfn)("(%u)\t", VAL_UINT(sequence_id));
+                    (*logfn)(instance, "(%u)\t", VAL_UINT(sequence_id));
                 } else {
-                    (*logfn)("(--)\t");
+                    (*logfn)(instance, "(--)\t");
                 }
             }
 
@@ -6461,32 +6636,32 @@ static status_t
             if (notif->eventType) {
                 switch (server_cb->display_mode) {
                 case NCX_DISPLAY_MODE_PLAIN:
-                    (*logfn)("<%s>", notif->eventType->name);
+                    (*logfn)(instance, "<%s>", notif->eventType->name);
                     break;
                 case NCX_DISPLAY_MODE_PREFIX:
                 case NCX_DISPLAY_MODE_XML:
-                    (*logfn)("<%s:%s>", 
-                             val_get_mod_prefix(notif->eventType),
+                    (*logfn)(instance, "<%s:%s>", 
+                             val_get_mod_prefix(instance, notif->eventType),
                              notif->eventType->name);
                     break;
                 case NCX_DISPLAY_MODE_MODULE:
-                    (*logfn)("<%s:%s>", 
-                             val_get_mod_name(notif->eventType),
+                    (*logfn)(instance, "<%s:%s>", 
+                             val_get_mod_name(instance, notif->eventType),
                              notif->eventType->name);
                     break;
                 default:
-                    SET_ERROR(ERR_INTERNAL_VAL);
+                    SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             } else {
-                (*logfn)("<>");
+                (*logfn)(instance, "<>");
             }
 
             if (mode == HELP_MODE_FULL) {
-                val_dump_value_max(notif->notification, 0,
+                val_dump_value_max(instance, notif->notification, 0,
                                    server_cb->defindent,
                                    (imode) ? DUMP_VAL_STDOUT : DUMP_VAL_LOG,
                                    server_cb->display_mode, FALSE, FALSE);
-                (*logfn)("\n");
+                (*logfn)(instance, "\n");
             }
             eventsdone++;
         }
@@ -6499,7 +6674,7 @@ static status_t
     }
 
     if (eventsdone) {
-        (*logfn)("\n");
+        (*logfn)(instance, "\n");
     }
 
     return NO_ERR;
@@ -6521,7 +6696,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_eventlog_clear (server_cb_t *server_cb,
+    do_eventlog_clear (ncx_instance_t *instance,
+                       server_cb_t *server_cb,
                        int32 maxevents)
 {
     mgr_not_msg_t  *notif;
@@ -6529,18 +6705,18 @@ static status_t
 
     if (maxevents > 0) {
         eventcount = 0;
-        while (!dlq_empty(&server_cb->notificationQ) &&
+        while (!dlq_empty(instance, &server_cb->notificationQ) &&
                eventcount < maxevents) {
             notif = (mgr_not_msg_t *)
-                dlq_deque(&server_cb->notificationQ);
-            mgr_not_free_msg(notif);
+                dlq_deque(instance, &server_cb->notificationQ);
+            mgr_not_free_msg(instance, notif);
             eventcount++;
         }
     } else if (maxevents == -1) {
-        while (!dlq_empty(&server_cb->notificationQ)) {
+        while (!dlq_empty(instance, &server_cb->notificationQ)) {
             notif = (mgr_not_msg_t *)
-                dlq_deque(&server_cb->notificationQ);
-            mgr_not_free_msg(notif);
+                dlq_deque(instance, &server_cb->notificationQ);
+            mgr_not_free_msg(instance, notif);
         }
     } else {
         return ERR_NCX_INVALID_VALUE;
@@ -6570,7 +6746,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_eventlog (server_cb_t *server_cb,
+    do_eventlog (ncx_instance_t *instance,
+                 server_cb_t *server_cb,
                  obj_template_t *rpc,
                  const xmlChar *line,
                  uint32  len)
@@ -6583,56 +6760,56 @@ static status_t
     done = FALSE;
     res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset && res == NO_ERR) {
         mode = HELP_MODE_NORMAL;
 
         /* check if the 'brief' flag is set first */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_BRIEF);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_BRIEF);
         if (parm && parm->res == NO_ERR) {
             mode = HELP_MODE_BRIEF;
         } else {
             /* check if the 'full' flag is set first */
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_FULL);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_FULL);
             if (parm && parm->res == NO_ERR) {
                 mode = HELP_MODE_FULL;
             }
         }
 
         /* optional start position for show */
-        start = val_find_child(valset, YANGCLI_MOD, YANGCLI_START);
+        start = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_START);
 
         /* find the 1 of N choice */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_SHOW);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_SHOW);
         if (parm) {
             /* do show eventlog  */
-            res = do_eventlog_show(server_cb, VAL_INT(parm),
+            res = do_eventlog_show(instance, server_cb, VAL_INT(parm),
                                    (start) ? VAL_UINT(start) : 0, mode);
             done = TRUE;
         }
 
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_CLEAR);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_CLEAR);
             if (parm) {
                 /* do clear event log */
-                res = do_eventlog_clear(server_cb, VAL_INT(parm));
+                res = do_eventlog_clear(instance, server_cb, VAL_INT(parm));
                 done = TRUE;
                 if (res == NO_ERR) {
-                    log_info("\nOK\n");
+                    log_info(instance, "\nOK\n");
                 } else {
-                    log_error("\nError: clear event log failed\n");
+                    log_error(instance, "\nError: clear event log failed\n");
                 }
             }
         }
 
         if (!done) {
-            res = do_eventlog_show(server_cb, -1, 
+            res = do_eventlog_show(instance, server_cb, -1, 
                                    (start) ? VAL_UINT(start) : 0, mode);
         }
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -6661,7 +6838,8 @@ static status_t
 *    some other error if command execution failed
 *********************************************************************/
 static status_t
-    do_local_conn_command (server_cb_t *server_cb,
+    do_local_conn_command (ncx_instance_t *instance,
+                           server_cb_t *server_cb,
                            obj_template_t *rpc,
                            xmlChar *line,
                            uint32  len)
@@ -6671,73 +6849,75 @@ static status_t
     boolean        cond;
 
     res = NO_ERR;
-    rpcname = obj_get_name(rpc);
-    cond = runstack_get_cond_state(server_cb->runstack_context);
+    rpcname = obj_get_name(instance, rpc);
+    cond = runstack_get_cond_state(instance, server_cb->runstack_context);
 
-    if (!xml_strcmp(rpcname, YANGCLI_CREATE)) {
+    if (!xml_strcmp(instance, rpcname, YANGCLI_CREATE)) {
         if (cond) {
-            res = do_edit(server_cb, rpc, line, len, OP_EDITOP_CREATE);
+            res = do_edit(instance, server_cb, rpc, line, len, OP_EDITOP_CREATE);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_DELETE)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_DELETE)) {
         if (cond) {
-            res = do_edit(server_cb, rpc, line, len, OP_EDITOP_DELETE);
+            res = do_edit(instance, server_cb, rpc, line, len, OP_EDITOP_DELETE);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_REMOVE)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_REMOVE)) {
         if (cond) {
-            res = do_edit(server_cb, rpc, line, len, OP_EDITOP_REMOVE);
+            res = do_edit(instance, server_cb, rpc, line, len, OP_EDITOP_REMOVE);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_GET_LOCKS)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_GET_LOCKS)) {
         if (cond) {
-            res = do_get_locks(server_cb, rpc, line, len);
+            res = do_get_locks(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_INSERT)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_INSERT)) {
         if (cond) {
-            res = do_insert(server_cb, rpc, line, len);
+            res = do_insert(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_MERGE)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_MERGE)) {
         if (cond) {
-            res = do_edit(server_cb, rpc, line, len, OP_EDITOP_MERGE);
+            res = do_edit(instance, server_cb, rpc, line, len, OP_EDITOP_MERGE);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_RELEASE_LOCKS)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_RELEASE_LOCKS)) {
         if (cond) {
-            res = do_release_locks(server_cb, rpc, line, len);
+            res = do_release_locks(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_REPLACE)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_REPLACE)) {
         if (cond) {
-            res = do_edit(server_cb, rpc, line, len, OP_EDITOP_REPLACE);
+            res = do_edit(instance, server_cb, rpc, line, len, OP_EDITOP_REPLACE);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_SAVE)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_SAVE)) {
         if (cond) {
-            if (len < xml_strlen(line)) {
+            if (len < xml_strlen(instance, line)) {
                 res = ERR_NCX_INVALID_VALUE;
-                log_error("\nError: Extra characters found (%s)",
+                log_error(instance,
+                          "\nError: Extra characters found (%s)",
                           &line[len]);
             } else {
-                res = do_save(server_cb);
+                res = do_save(instance, server_cb);
             }
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_SGET)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_SGET)) {
         if (cond) {
-            res = do_sget(server_cb, rpc, line, len);
+            res = do_sget(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_SGET_CONFIG)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_SGET_CONFIG)) {
         if (cond) {
-            res = do_sget_config(server_cb, rpc, line, len);
+            res = do_sget_config(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_XGET)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_XGET)) {
         if (cond) {
-            res = do_xget(server_cb, rpc, line, len);
+            res = do_xget(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_XGET_CONFIG)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_XGET_CONFIG)) {
         if (cond) {
-            res = do_xget_config(server_cb, rpc, line, len);
+            res = do_xget_config(instance, server_cb, rpc, line, len);
         }
     } else {
         res = ERR_NCX_SKIPPED;
     }
 
     if (res == NO_ERR && !cond && LOGDEBUG) {
-        log_debug("\nrSkipping false conditional command '%s'",
+        log_debug(instance,
+                  "\nrSkipping false conditional command '%s'",
                   rpcname);
     }
 
@@ -6765,7 +6945,8 @@ static status_t
 *  status
 *********************************************************************/
 static status_t
-    do_local_command (server_cb_t *server_cb,
+    do_local_command (ncx_instance_t *instance,
+                      server_cb_t *server_cb,
                       obj_template_t *rpc,
                       xmlChar *line,
                       uint32  len)
@@ -6776,133 +6957,135 @@ static status_t
 
     res = NO_ERR;
     didcmd = FALSE;
-    rpcname = obj_get_name(rpc);
-    cond = runstack_get_cond_state(server_cb->runstack_context);
+    rpcname = obj_get_name(instance, rpc);
+    cond = runstack_get_cond_state(instance, server_cb->runstack_context);
 
-    if (!xml_strcmp(rpcname, YANGCLI_ALIAS)) {
+    if (!xml_strcmp(instance, rpcname, YANGCLI_ALIAS)) {
         if (cond) {
-            res = do_alias(server_cb, rpc, line, len);
+            res = do_alias(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_ALIASES)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_ALIASES)) {
         if (cond) {
-            res = do_aliases(server_cb, rpc, line, len);
+            res = do_aliases(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_CD)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_CD)) {
         if (cond) {
-            res = do_cd(server_cb, rpc, line, len);
+            res = do_cd(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_CONNECT)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_CONNECT)) {
         if (cond) {
-            res = do_connect(server_cb, rpc, line, len, FALSE);
+            res = do_connect(instance, server_cb, rpc, line, len, FALSE);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_ELIF)) {
-        res = do_elif(server_cb, rpc, line, len);
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_ELIF)) {
+        res = do_elif(instance, server_cb, rpc, line, len);
         didcmd = TRUE;
-    } else if (!xml_strcmp(rpcname, YANGCLI_ELSE)) {
-        res = do_else(server_cb, rpc, line, len);
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_ELSE)) {
+        res = do_else(instance, server_cb, rpc, line, len);
         didcmd = TRUE;
-    } else if (!xml_strcmp(rpcname, YANGCLI_END)) {
-        res = do_end(server_cb, rpc, line, len);
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_END)) {
+        res = do_end(instance, server_cb, rpc, line, len);
         didcmd = TRUE;
-    } else if (!xml_strcmp(rpcname, YANGCLI_EVAL)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_EVAL)) {
         if (cond) {
-            res = do_eval(server_cb, rpc, line, len);
+            res = do_eval(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_EVENTLOG)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_EVENTLOG)) {
         if (cond) {
-            res = do_eventlog(server_cb, rpc, line, len);
+            res = do_eventlog(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_FILL)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_FILL)) {
         if (cond) {
-            res = do_fill(server_cb, rpc, line, len, TRUE);
+            res = do_fill(instance, server_cb, rpc, line, len, TRUE);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_HELP)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_HELP)) {
         if (cond) {
-            res = do_help(server_cb, rpc, line, len);
+            res = do_help(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_HISTORY)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_HISTORY)) {
         if (cond) {
-            res = do_history(server_cb, rpc, line, len);
+            res = do_history(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_IF)) {
-        res = do_if(server_cb, rpc, line, len);
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_IF)) {
+        res = do_if(instance, server_cb, rpc, line, len);
         didcmd = TRUE;
-    } else if (!xml_strcmp(rpcname, YANGCLI_LIST)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LIST)) {
         if (cond) {
-            res = do_list(server_cb, rpc, line, len);
+            res = do_list(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_LOG_ERROR)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LOG_ERROR)) {
         if (cond) {
-            res = do_log(server_cb, rpc, line, len, LOG_DEBUG_ERROR);
+            res = do_log(instance, server_cb, rpc, line, len, LOG_DEBUG_ERROR);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_LOG_WARN)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LOG_WARN)) {
         if (cond) {
-            res = do_log(server_cb, rpc, line, len, LOG_DEBUG_WARN);
+            res = do_log(instance, server_cb, rpc, line, len, LOG_DEBUG_WARN);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_LOG_INFO)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LOG_INFO)) {
         if (cond) {
-            res = do_log(server_cb, rpc, line, len, LOG_DEBUG_INFO);
+            res = do_log(instance, server_cb, rpc, line, len, LOG_DEBUG_INFO);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_LOG_DEBUG)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_LOG_DEBUG)) {
         if (cond) {
-            res = do_log(server_cb, rpc, line, len, LOG_DEBUG_DEBUG);
+            res = do_log(instance, server_cb, rpc, line, len, LOG_DEBUG_DEBUG);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_MGRLOAD)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_MGRLOAD)) {
         if (cond) {
-            res = do_mgrload(server_cb, rpc, line, len);
+            res = do_mgrload(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_PWD)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_PWD)) {
         if (cond) {
-            res = do_pwd(server_cb, rpc, line, len);
+            res = do_pwd(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_QUIT)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_QUIT)) {
         if (cond) {
             server_cb->state = MGR_IO_ST_SHUT;
-            mgr_request_shutdown();
+            mgr_request_shutdown(instance);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_RECALL)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_RECALL)) {
         if (cond) {
-            res = do_recall(server_cb, rpc, line, len);
+            res = do_recall(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_RUN)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_RUN)) {
         if (cond) {
-            res = do_run(server_cb, rpc, line, len);
+            res = do_run(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_SHOW)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_SHOW)) {
         if (cond) {
-            res = do_show(server_cb, rpc, line, len);
+            res = do_show(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_START_TIMER)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_START_TIMER)) {
         if (cond) {
-            res = yangcli_timer_start(server_cb, rpc, line, len);
+            res = yangcli_timer_start(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_STOP_TIMER)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_STOP_TIMER)) {
         if (cond) {
-            res = yangcli_timer_stop(server_cb, rpc, line, len);
+            res = yangcli_timer_stop(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_WHILE)) {
-        res = do_while(server_cb, rpc, line, len);
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_WHILE)) {
+        res = do_while(instance, server_cb, rpc, line, len);
         didcmd = TRUE;
-    } else if (!xml_strcmp(rpcname, YANGCLI_UNSET)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_UNSET)) {
         if (cond) {
-            res = do_unset(server_cb, rpc, line, len);
+            res = do_unset(instance, server_cb, rpc, line, len);
         }
-    } else if (!xml_strcmp(rpcname, YANGCLI_USERVARS)) {
+    } else if (!xml_strcmp(instance, rpcname, YANGCLI_USERVARS)) {
         if (cond) {
-            res = do_uservars(server_cb, rpc, line, len);
+            res = do_uservars(instance, server_cb, rpc, line, len);
         }
     } else {
         res = ERR_NCX_INVALID_VALUE;
-        log_error("\nError: The %s command is not allowed in this mode",
+        log_error(instance,
+                   "\nError: The %s command is not allowed in this mode",
                    rpcname);
     }
 
     if (res == NO_ERR && !cond && !didcmd && LOGDEBUG) {
-        log_debug("\nrSkipping false conditional command '%s'",
+        log_debug(instance,
+                  "\nrSkipping false conditional command '%s'",
                   rpcname);
     }
     if (res != NO_ERR) {
-        log_error("\n");
+        log_error(instance, "\n");
     }
 
     return res;
@@ -6930,7 +7113,8 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    top_command (server_cb_t *server_cb,
+    top_command (ncx_instance_t *instance,
+                 server_cb_t *server_cb,
                  xmlChar *line)
 {
     obj_template_t         *rpc = NULL;
@@ -6942,58 +7126,58 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !line) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    if (xml_strlen(line) == 0) {
+    if (xml_strlen(instance, line) == 0) {
         return res;
     }
 
     /* first check the command keyword to see if it is an alias */
-    newline = expand_alias(line, &res);
+    newline = expand_alias(instance, line, &res);
     if (res == ERR_NCX_SKIPPED) {
         res = NO_ERR;
         useline = line;
     } else if (res == NO_ERR) {
         if (newline == NULL) {
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         useline = newline;
     } else {
-        log_error("\nError: %s\n", get_error_string(res));
+        log_error(instance, "\nError: %s\n", get_error_string(res));
         if (newline) {
-            m__free(newline);
+            m__free(instance, newline);
         }
         return res;
     }
 
     /* look for an RPC command match for the command keyword */
-    rpc = (obj_template_t *)parse_def(server_cb, &dtyp, useline, &len, &res);
-    if (rpc==NULL || !obj_is_rpc(rpc)) {
+    rpc = (obj_template_t *)parse_def(instance, server_cb, &dtyp, useline, &len, &res);
+    if (rpc==NULL || !obj_is_rpc(instance, rpc)) {
         if (server_cb->result_name || server_cb->result_filename) {
-            res = finish_result_assign(server_cb, NULL, useline);
+            res = finish_result_assign(instance, server_cb, NULL, useline);
         } else {
             if (res == ERR_NCX_DEF_NOT_FOUND) {
                 /* this is an unknown command */
-                log_error("\nError: Unrecognized command\n");
+                log_error(instance, "\nError: Unrecognized command\n");
             } else if (res == ERR_NCX_AMBIGUOUS_CMD) {
-                log_error("\n");
+                log_error(instance, "\n");
             } else {
-                log_error("\nError: %s\n", get_error_string(res));
+                log_error(instance, "\nError: %s\n", get_error_string(res));
             }
         }
-    } else if (is_yangcli_ns(obj_get_nsid(rpc))) {
+    } else if (is_yangcli_ns(instance, obj_get_nsid(instance, rpc))) {
         /* check handful of yangcli commands */
-        res = do_local_command(server_cb, rpc, useline, len);
+        res = do_local_command(instance, server_cb, rpc, useline, len);
     } else {
         res = ERR_NCX_OPERATION_FAILED;
-        log_error("\nError: Not connected to server."
+        log_error(instance, "\nError: Not connected to server."
                   "\nLocal commands only in this mode.\n");
     }
 
     if (newline) {
-        m__free(newline);
+        m__free(instance, newline);
     }
 
     return res;
@@ -7018,7 +7202,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    conn_command (server_cb_t *server_cb,
+    conn_command (ncx_instance_t *instance,
+                  server_cb_t *server_cb,
                   xmlChar *line)
 {
     obj_template_t        *rpc, *input;
@@ -7033,70 +7218,70 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !line) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* make sure there is something to parse */
-    linelen = xml_strlen(line);
+    linelen = xml_strlen(instance, line);
     if (!linelen) {
         return res;
     }
 
     /* first check the command keyword to see if it is an alias */
-    newline = expand_alias(line, &res);
+    newline = expand_alias(instance, line, &res);
     if (res == ERR_NCX_SKIPPED) {
         res = NO_ERR;
         useline = line;
     } else if (res == NO_ERR) {
         if (newline == NULL) {
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         useline = newline;
-        linelen = xml_strlen(newline);
+        linelen = xml_strlen(instance, newline);
     } else {
-        log_error("\nError: %s\n", get_error_string(res));
+        log_error(instance, "\nError: %s\n", get_error_string(res));
         if (newline) {
-            m__free(newline);
+            m__free(instance, newline);
         }
         return res;
     }
 
     /* get the RPC method template */
     dtyp = NCX_NT_OBJ;
-    rpc = (obj_template_t *)parse_def(server_cb, &dtyp, useline, &len, &res);
-    if (rpc == NULL || !obj_is_rpc(rpc)) {
+    rpc = (obj_template_t *)parse_def(instance, server_cb, &dtyp, useline, &len, &res);
+    if (rpc == NULL || !obj_is_rpc(instance, rpc)) {
         if (server_cb->result_name || server_cb->result_filename) {
-            res = finish_result_assign(server_cb, NULL, useline);
+            res = finish_result_assign(instance, server_cb, NULL, useline);
         } else {
             if (res == ERR_NCX_DEF_NOT_FOUND) {
                 /* this is an unknown command */
-                log_error("\nError: Unrecognized command");
+                log_error(instance, "\nError: Unrecognized command");
             } else if (res == ERR_NCX_AMBIGUOUS_CMD) {
-                log_error("\n");
+                log_error(instance, "\n");
             } else {
-                log_error("\nError: %s", get_error_string(res));
+                log_error(instance, "\nError: %s", get_error_string(res));
             }
         }
         if (newline) {
-            m__free(newline);
+            m__free(instance, newline);
         }
         return res;
     }
 
     /* check local commands */
-    if (is_yangcli_ns(obj_get_nsid(rpc))) {
-        if (!xml_strcmp(obj_get_name(rpc), YANGCLI_CONNECT)) {
+    if (is_yangcli_ns(instance, obj_get_nsid(instance, rpc))) {
+        if (!xml_strcmp(instance, obj_get_name(instance, rpc), YANGCLI_CONNECT)) {
             res = ERR_NCX_OPERATION_FAILED;
-            log_stdout("\nError: Already connected");
+            log_stdout(instance, "\nError: Already connected");
         } else {
-            res = do_local_conn_command(server_cb, rpc, useline, len);
+            res = do_local_conn_command(instance, server_cb, rpc, useline, len);
             if (res == ERR_NCX_SKIPPED) {
-                res = do_local_command(server_cb, rpc, useline, len);
+                res = do_local_command(instance, server_cb, rpc, useline, len);
             }
         }
         if (newline) {
-            m__free(newline);
+            m__free(instance, newline);
         }
         return res;
     }
@@ -7106,14 +7291,14 @@ status_t
      */
 
     /* construct a method + parameter tree */
-    reqdata = xml_val_new_struct(obj_get_name(rpc), obj_get_nsid(rpc));
+    reqdata = xml_val_new_struct(instance, obj_get_name(instance, rpc), obj_get_nsid(instance, rpc));
     if (!reqdata) {
-        log_error("\nError allocating a new RPC request");
+        log_error(instance, "\nError allocating a new RPC request");
         res = ERR_INTERNAL_MEM;
         input = NULL;
     } else {
         /* should find an input node */
-        input = obj_find_child(rpc, NULL, YANG_K_INPUT);
+        input = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     }
 
     /* check if any params are expected */
@@ -7123,27 +7308,28 @@ status_t
         }
 
         if (len < linelen) {
-            valset = parse_rpc_cli(server_cb, rpc, &useline[len], &res);
+            valset = parse_rpc_cli(instance, server_cb, rpc, &useline[len], &res);
             if (res != NO_ERR) {
-                log_error("\nError in the parameters for '%s' command (%s)",
-                          obj_get_name(rpc), get_error_string(res));
+                log_error(instance,
+                          "\nError in the parameters for '%s' command (%s)",
+                          obj_get_name(instance, rpc), get_error_string(res));
             }
         }
 
         /* check no input from user, so start a parmset */
         if (res == NO_ERR && !valset) {
-            valset = val_new_value();
+            valset = val_new_value(instance);
             if (!valset) {
                 res = ERR_INTERNAL_MEM;
             } else {
-                val_init_from_template(valset, input);
+                val_init_from_template(instance, valset, input);
             }
         }
 
         /* fill in any missing parameters from the CLI */
         if (res == NO_ERR) {
             if (interactive_mode()) {
-                res = fill_valset(server_cb, rpc, valset, NULL, TRUE, FALSE);
+                res = fill_valset(instance, server_cb, rpc, valset, NULL, TRUE, FALSE);
                 if (res == ERR_NCX_SKIPPED) {
                     res = NO_ERR;
                 }
@@ -7153,25 +7339,25 @@ status_t
         /* make sure the values are in canonical order
          * so compliant some servers will not complain
          */
-        val_set_canonical_order(valset);
+        val_set_canonical_order(instance, valset);
 
         /* go through the parm list and move the values 
          * to the reqdata struct. 
          */
         if (res == NO_ERR) {
-            parm = val_get_first_child(valset);
+            parm = val_get_first_child(instance, valset);
             while (parm) {
-                val_remove_child(parm);
-                val_add_child(parm, reqdata);
-                parm = val_get_first_child(valset);
+                val_remove_child(instance, parm);
+                val_add_child(instance, parm, reqdata);
+                parm = val_get_first_child(instance, valset);
             }
         }
     }
 
     /* check the close-session corner case */
     if (res == NO_ERR && 
-        (obj_get_nsid(rpc) == xmlns_nc_id()) &&
-        !xml_strcmp(obj_get_name(rpc), NCX_EL_CLOSE_SESSION)) {
+        (obj_get_nsid(instance, rpc) == xmlns_nc_id(instance)) &&
+        !xml_strcmp(instance, obj_get_name(instance, rpc), NCX_EL_CLOSE_SESSION)) {
         shut = TRUE;
     }
             
@@ -7179,12 +7365,12 @@ status_t
     if (res == NO_ERR) {
         scb = mgr_ses_get_scb(server_cb->mysid);
         if (!scb) {
-            res = SET_ERROR(ERR_INTERNAL_PTR);
+            res = SET_ERROR(instance, ERR_INTERNAL_PTR);
         } else {
-            req = mgr_rpc_new_request(scb);
+            req = mgr_rpc_new_request(instance, scb);
             if (!req) {
                 res = ERR_INTERNAL_MEM;
-                log_error("\nError allocating a new RPC request");
+                log_error(instance, "\nError allocating a new RPC request");
             } else {
                 req->data = reqdata;
                 req->rpc = rpc;
@@ -7194,40 +7380,42 @@ status_t
         
         if (res == NO_ERR) {
             if (LOGDEBUG2) {
-                log_debug2("\nabout to send <%s> RPC request with reqdata:",
-                           obj_get_name(rpc));
-                val_dump_value_max(reqdata, 0, server_cb->defindent,
+                log_debug2(instance,
+                           "\nabout to send <%s> RPC request with reqdata:",
+                           obj_get_name(instance, rpc));
+                val_dump_value_max(instance, reqdata, 0, server_cb->defindent,
                                    DUMP_VAL_LOG, server_cb->display_mode,
                                    FALSE, FALSE);
             }
 
             /* the request will be stored if this returns NO_ERR */
-            res = mgr_rpc_send_request(scb, req, yangcli_reply_handler);
+            res = mgr_rpc_send_request(instance, scb, req, (mgr_rpc_cbfn_t)yangcli_reply_handler);
             if (res != NO_ERR) {
-                log_error("\nError: send <%s> message failed (%s)",
-                          obj_get_name(rpc),
+                log_error(instance,
+                          "\nError: send <%s> message failed (%s)",
+                          obj_get_name(instance, rpc),
                           get_error_string(res));
             }
         }
     }
 
     if (res != NO_ERR) {
-        log_error("\n");
+        log_error(instance, "\n");
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     if (newline) {
-        m__free(newline);
+        m__free(instance, newline);
     }
 
     if (res != NO_ERR) {
         if (req) {
-            mgr_rpc_free_request(req);
+            mgr_rpc_free_request(instance, req);
         } else if (reqdata) {
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
         }
     } else if (shut) {
         server_cb->state = MGR_IO_ST_CONN_CLOSEWAIT;
@@ -7256,7 +7444,8 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_startup_script (server_cb_t *server_cb,
+    do_startup_script (ncx_instance_t *instance,
+                       server_cb_t *server_cb,
                        const xmlChar *runscript)
 {
     obj_template_t       *rpc;
@@ -7266,7 +7455,7 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !runscript) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -7275,30 +7464,30 @@ status_t
     }
 
     /* get the 'run' RPC method template */
-    rpc = ncx_find_object(get_yangcli_mod(), YANGCLI_RUN);
+    rpc = ncx_find_object(instance, get_yangcli_mod(), YANGCLI_RUN);
     if (!rpc) {
         return ERR_NCX_DEF_NOT_FOUND;
     }
 
     /* create a dummy command line 'script <runscipt-text>' */
-    linelen = xml_strlen(runscript) + xml_strlen(NCX_EL_SCRIPT) + 1;
-    line = m__getMem(linelen+1);
+    linelen = xml_strlen(instance, runscript) + xml_strlen(instance, NCX_EL_SCRIPT) + 1;
+    line = m__getMem(instance, linelen+1);
     if (!line) {
         return ERR_INTERNAL_MEM;
     }
     p = line;
-    p += xml_strcpy(p, NCX_EL_SCRIPT);
+    p += xml_strcpy(instance, p, NCX_EL_SCRIPT);
     *p++ = ' ';
-    xml_strcpy(p, runscript);
+    xml_strcpy(instance, p, runscript);
 
     if (LOGDEBUG) {
-        log_debug("\nBegin startup script '%s'",  runscript);
+        log_debug(instance,  "\nBegin startup script '%s'",  runscript);
     }
 
     /* fill in the value set for the input parameters */
-    res = do_run(server_cb, rpc, line, 0);
+    res = do_run(instance, server_cb, rpc, line, 0);
 
-    m__free(line);
+    m__free(instance, line);
 
     return res;
 
@@ -7318,7 +7507,8 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_startup_command (server_cb_t *server_cb,
+    do_startup_command (ncx_instance_t *instance,
+                        server_cb_t *server_cb,
                         const xmlChar *runcommand)
 {
     xmlChar        *copystring;
@@ -7326,7 +7516,7 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !runcommand) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -7334,35 +7524,35 @@ status_t
         return ERR_NCX_INVALID_VALUE;
     }
 
-    if (xml_strlen(runcommand) > YANGCLI_LINELEN) {
+    if (xml_strlen(instance, runcommand) > YANGCLI_LINELEN) {
         return ERR_NCX_RESOURCE_DENIED;
     }
 
     /* the top_command and conn_command functions
      * expect this buffer to be wriable
      */
-    copystring = xml_strdup(runcommand);
+    copystring = xml_strdup(instance, runcommand);
     if (!copystring) {
         return ERR_INTERNAL_MEM;
     }
 
     if (LOGDEBUG) {
-        log_debug("\nBegin startup command '%s'",  copystring);
+        log_debug(instance,  "\nBegin startup command '%s'",  copystring);
     }
 
     /* only invoke the command in idle or connection idle states */
     switch (server_cb->state) {
     case MGR_IO_ST_IDLE:
-        res = top_command(server_cb, copystring);
+        res = top_command(instance, server_cb, copystring);
         break;
     case MGR_IO_ST_CONN_IDLE:
-        res = conn_command(server_cb, copystring);
+        res = conn_command(instance, server_cb, copystring);
         break;
     default:
         res = ERR_NCX_OPERATION_FAILED;
     }
 
-    m__free(copystring);
+    m__free(instance, copystring);
     return res;
 
 }  /* do_startup_command */
@@ -7389,7 +7579,8 @@ status_t
 *   NULL if some error
 *********************************************************************/
 xmlChar *
-    get_cmd_line (server_cb_t *server_cb,
+    get_cmd_line (ncx_instance_t *instance,
+                  server_cb_t *server_cb,
                   status_t *res)
 {
     xmlChar        *start, *str, *clibuff;
@@ -7398,7 +7589,7 @@ xmlChar *
 
 #ifdef DEBUG
     if (!server_cb || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -7415,7 +7606,7 @@ xmlChar *
     while (!done) {
 
         /* read the next line from the user */
-        str = get_line(server_cb);
+        str = get_line(instance, server_cb);
         if (!str) {
             *res = ERR_NCX_READ_FAILED;
             done = TRUE;
@@ -7423,7 +7614,7 @@ xmlChar *
         }
 
         /* find end of string */
-        len = xml_strlen(str);
+        len = xml_strlen(instance, str);
         
         /* get rid of EOLN if present */
         if (len && str[len-1]=='\n') {
@@ -7443,7 +7634,7 @@ xmlChar *
 
         /* copy the string to the clibuff */
         if (total + len < maxlen) {
-            xml_strcpy(start, str);
+            xml_strcpy(instance, start, str);
             start += len;
             total += len;
         } else {
@@ -7462,7 +7653,7 @@ xmlChar *
          * value, and this will cause an invalid-value
          * error to be incorrectly generated
          */
-        len = xml_strlen(clibuff);
+        len = xml_strlen(instance, clibuff);
         if (len > 0) {
             while (len > 0 && isspace(clibuff[len-1])) {
                 len--;
@@ -7501,7 +7692,8 @@ xmlChar *
  *   status
  *********************************************************************/
 status_t
-    do_connect (server_cb_t *server_cb,
+    do_connect (ncx_instance_t *instance,
+                server_cb_t *server_cb,
                 obj_template_t *rpc,
                 const xmlChar *line,
                 uint32 start,
@@ -7515,25 +7707,25 @@ status_t
 
 #ifdef DEBUG
     if (server_cb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* retrieve the 'connect' RPC template, if not done already */
     if (rpc == NULL) {
-        rpc = ncx_find_object(get_yangcli_mod(), YANGCLI_CONNECT);
+        rpc = ncx_find_object(instance, get_yangcli_mod(), YANGCLI_CONNECT);
         if (rpc == NULL) {
             server_cb->state = MGR_IO_ST_IDLE;
-            log_write("\nError finding the 'connect' RPC method");
+            log_write(instance, "\nError finding the 'connect' RPC method");
             return ERR_NCX_DEF_NOT_FOUND;
         }
     }            
 
-    obj = obj_find_child(rpc, NULL, YANG_K_INPUT);
+    obj = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     if (obj == NULL) {
         server_cb->state = MGR_IO_ST_IDLE;
-        log_write("\nError finding the connect RPC 'input' node");        
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        log_write(instance, "\nError finding the connect RPC 'input' node");        
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     res = NO_ERR;
@@ -7548,13 +7740,14 @@ status_t
             start++;
         }
         if (line[start]) {
-            valset = parse_rpc_cli(server_cb, rpc, &line[start], &res);
+            valset = parse_rpc_cli(instance, server_cb, rpc, &line[start], &res);
             if (valset == NULL || res != NO_ERR) {
                 if (valset != NULL) {
-                    val_free_value(valset);
+                    val_free_value(instance, valset);
                 }
-                log_write("\nError in the parameters for '%s' command (%s)",
-                          obj_get_name(rpc), 
+                log_write(instance,
+                          "\nError in the parameters for '%s' command (%s)",
+                          obj_get_name(instance, rpc), 
                           get_error_string(res));
                 server_cb->state = MGR_IO_ST_IDLE;
                 return res;
@@ -7565,39 +7758,41 @@ status_t
     if (valset == NULL) {
         if (startupmode) {
             /* just clone the connect valset to start with */
-            valset = val_clone(connect_valset);
+            valset = val_clone(instance, connect_valset);
             if (valset == NULL) {
                 server_cb->state = MGR_IO_ST_IDLE;
-                log_write("\nError: malloc failed");
+                log_write(instance, "\nError: malloc failed");
                 return ERR_INTERNAL_MEM;
             }
         } else {
-            valset = val_new_value();
+            valset = val_new_value(instance);
             if (valset == NULL) {
-                log_write("\nError: malloc failed");
+                log_write(instance, "\nError: malloc failed");
                 server_cb->state = MGR_IO_ST_IDLE;
                 return ERR_INTERNAL_MEM;
             } else {
-                val_init_from_template(valset, obj);
+                val_init_from_template(instance, valset, obj);
             }
         }
     }
 
     /* make sure the 3 required parms are set */
-    s1 = val_find_child(valset, YANGCLI_MOD, 
+    s1 = val_find_child(instance, valset, YANGCLI_MOD, 
                         YANGCLI_SERVER) ? TRUE : FALSE;
-    s2 = val_find_child(valset, YANGCLI_MOD,
+    s2 = val_find_child(instance, valset, YANGCLI_MOD,
                         YANGCLI_USER) ? TRUE : FALSE;
-    s3 = val_find_child(valset, YANGCLI_MOD,
+    s3 = val_find_child(instance, valset, YANGCLI_MOD,
                         YANGCLI_PASSWORD) ? TRUE : FALSE;
 
     /* check the transport parameter */
-    testval = val_find_child(valset, 
+    testval = val_find_child(instance, 
+                             valset, 
                              YANGCLI_MOD,
                              YANGCLI_TRANSPORT);
     if (testval != NULL && 
         testval->res == NO_ERR && 
-        !xml_strcmp(VAL_ENUM_NAME(testval),
+        !xml_strcmp(instance,
+                    VAL_ENUM_NAME(testval),
                     (const xmlChar *)"tcp")) {
         tcp = TRUE;
     }
@@ -7610,10 +7805,10 @@ status_t
     if (interactive_mode()) {
         if (startupmode && s1 && s2 && (s3 || tcp)) {
             if (LOGDEBUG3) {
-                log_debug3("\nyangcli: CLI direct connect mode");
+                log_debug3(instance, "\nyangcli: CLI direct connect mode");
             }
         } else {
-            res = fill_valset(server_cb, rpc, valset, connect_valset, 
+            res = fill_valset(instance, server_cb, rpc, valset, connect_valset, 
                               TRUE, FALSE);
             if (res == ERR_NCX_SKIPPED) {
                 res = NO_ERR;
@@ -7624,11 +7819,12 @@ status_t
     /* check error or operation canceled */
     if (res != NO_ERR) {
         if (res != ERR_NCX_CANCELED) {
-            log_write("\nError: Connect failed (%s)", 
+            log_write(instance, 
+                      "\nError: Connect failed (%s)", 
                       get_error_string(res));
         }
         server_cb->state = MGR_IO_ST_IDLE;
-        val_free_value(valset);
+        val_free_value(instance, valset);
         return res;
     }
 
@@ -7637,33 +7833,36 @@ status_t
     if (valset != NULL) {
         /* save the malloced valset */
         if (server_cb->connect_valset != NULL) {
-            val_free_value(server_cb->connect_valset);
+            val_free_value(instance, server_cb->connect_valset);
         }
         server_cb->connect_valset = valset;
 
         /* make sure the 3 required parms are set */
-        s1 = val_find_child(server_cb->connect_valset,
+        s1 = val_find_child(instance,
+                            server_cb->connect_valset,
                             YANGCLI_MOD, 
                             YANGCLI_SERVER) ? TRUE : FALSE;
-        s2 = val_find_child(server_cb->connect_valset, 
+        s2 = val_find_child(instance, 
+                            server_cb->connect_valset, 
                             YANGCLI_MOD,
                             YANGCLI_USER) ? TRUE : FALSE;
-        s3 = val_find_child(server_cb->connect_valset, 
+        s3 = val_find_child(instance, 
+                            server_cb->connect_valset, 
                             YANGCLI_MOD,
                             YANGCLI_PASSWORD) ? TRUE : FALSE;
     }
 
     /* check if all params present yet */
     if (s1 && s2 && (s3 || tcp)) {
-        res = replace_connect_valset(server_cb->connect_valset);
+        res = replace_connect_valset(instance, server_cb->connect_valset);
         if (res != NO_ERR) {
-            log_warn("\nWarning: connection parameters could not be saved");
+            log_warn(instance, "\nWarning: connection parameters could not be saved");
             res = NO_ERR;
         }
-        create_session(server_cb);
+        create_session(instance, server_cb);
     } else {
         res = ERR_NCX_MISSING_PARM;
-        log_write("\nError: Connect failed due to missing parameter(s)");
+        log_write(instance, "\nError: Connect failed due to missing parameter(s)");
         server_cb->state = MGR_IO_ST_IDLE;
     }
 
@@ -7700,7 +7899,8 @@ status_t
 *   pointer to the found definition template or NULL if not found
 *********************************************************************/
 void *
-    parse_def (server_cb_t *server_cb,
+    parse_def (ncx_instance_t *instance,
+               server_cb_t *server_cb,
                ncx_node_t *dtyp,
                xmlChar *line,
                uint32 *len,
@@ -7778,15 +7978,16 @@ void *
      * first check if only the user supplied a module name
      */
     if (prefix) {
-        nsid = xmlns_find_ns_by_prefix(prefix);
+        nsid = xmlns_find_ns_by_prefix(instance, prefix);
         if (nsid) {
-            modname = xmlns_get_module(nsid);
+            modname = xmlns_get_module(instance, nsid);
         }
         if (modname) {
             /* try exact match in specified module */
-            def = try_parse_def(server_cb, NULL, modname, defname, dtyp);
+            def = try_parse_def(instance, server_cb, NULL, modname, defname, dtyp);
         } else {
-            log_error("\nError: no module found for prefix '%s'", 
+            log_error(instance, 
+                      "\nError: no module found for prefix '%s'", 
                       prefix);
         }
     } else {
@@ -7795,7 +7996,7 @@ void *
          * modules. An unprefixed keyword will match
          * a yangcli command first
          */
-        def = try_parse_def(server_cb, NULL, YANGCLI_MOD, defname, dtyp);
+        def = try_parse_def(instance, server_cb, NULL, YANGCLI_MOD, defname, dtyp);
 
         if (def == NULL) {
             /* 2) try an exact match in the default module
@@ -7806,26 +8007,26 @@ void *
             defmod = get_default_module();
             if (defmod != NULL) {
                 /* do not re-check the yangcli and netconf modules */
-                if (xml_strcmp(defmod, NC_MODULE) &&
-                    xml_strcmp(defmod, NCXMOD_IETF_NETCONF)) {
-                    def = try_parse_def(server_cb, NULL, defmod, defname, dtyp);
+                if (xml_strcmp(instance, defmod, NC_MODULE) &&
+                    xml_strcmp(instance, defmod, NCXMOD_IETF_NETCONF)) {
+                    def = try_parse_def(instance, server_cb, NULL, defmod, defname, dtyp);
                 }
             }
         }
 
         /* 3) if not found, try any server advertised module */
-        if (def == NULL && use_servercb(server_cb)) {
+        if (def == NULL && use_servercb(instance, server_cb)) {
             /* try any of the server modules first
              * make sure there is only 1 exact match 
              */
             matchcount = 0;
             lastmatch = NULL;
             for (modptr = (modptr_t *)
-                     dlq_firstEntry(&server_cb->modptrQ);
+                     dlq_firstEntry(instance, &server_cb->modptrQ);
                  modptr != NULL;
-                 modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+                 modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-                def = try_parse_def(server_cb, modptr->mod, modptr->mod->name, 
+                def = try_parse_def(instance, server_cb, modptr->mod, modptr->mod->name, 
                                     defname, dtyp);
                 if (def != NULL) {
                     matchcount++;
@@ -7838,18 +8039,18 @@ void *
                 res = ERR_NCX_AMBIGUOUS_CMD;
                 first = TRUE;
                 for (modptr = (modptr_t *)
-                         dlq_firstEntry(&server_cb->modptrQ);
+                         dlq_firstEntry(instance, &server_cb->modptrQ);
                      modptr != NULL;
-                     modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+                     modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-                    ncx_match_rpc_error(modptr->mod, modptr->mod->name,
+                    ncx_match_rpc_error(instance, modptr->mod, modptr->mod->name,
                                         defname, FALSE, first);
                     if (first) {
                         first = FALSE;
                     }
                 }
                 /* check any matches for local commands too */
-                ncx_match_rpc_error(get_yangcli_mod(), NULL, defname,
+                ncx_match_rpc_error(instance, get_yangcli_mod(), NULL, defname,
                                     FALSE, FALSE);
             } else {
                 /*  0 or 1 matches found */
@@ -7862,11 +8063,11 @@ void *
             /* make sure there is only 1 exact match */
             matchcount = 0;
             lastmatch = NULL;
-            for (mod = ncx_get_first_module();
+            for (mod = ncx_get_first_module(instance);
                  mod != NULL;
-                 mod = ncx_get_next_module(mod)) {
+                 mod = ncx_get_next_module(instance, mod)) {
 
-                def = try_parse_def(server_cb, mod, mod->name, defname, dtyp);
+                def = try_parse_def(instance, server_cb, mod, mod->name, defname, dtyp);
                 if (def != NULL) {
                     lastmatch = def;
                     matchcount++;
@@ -7876,7 +8077,7 @@ void *
             if (matchcount > 1) {
                 /* generate ambiguous command error */
                 res = ERR_NCX_AMBIGUOUS_CMD;
-                ncx_match_rpc_error(NULL, NULL, defname, FALSE, TRUE);
+                ncx_match_rpc_error(instance, NULL, NULL, defname, FALSE, TRUE);
             } else {
                 /* 0 or 1 matches found */
                 def = lastmatch;
@@ -7892,25 +8093,25 @@ void *
         if (prefix != NULL) {
             if (modname != NULL) {
                 /* try to match a command from this module */
-                def = ncx_match_any_rpc(modname, defname, &matchcount);
+                def = ncx_match_any_rpc(instance, modname, defname, &matchcount);
                 if (matchcount > 1) {
                     res = ERR_NCX_AMBIGUOUS_CMD;
-                    ncx_match_rpc_error(NULL, modname, defname, TRUE, TRUE);
+                    ncx_match_rpc_error(instance, NULL, modname, defname, TRUE, TRUE);
                 } /* else 0 or 1 matches found */
             } /* else module not found error already done */
         } else {
             switch (*dtyp) {
             case NCX_NT_NONE:
             case NCX_NT_OBJ:
-                if (use_servercb(server_cb)) {
+                if (use_servercb(instance, server_cb)) {
                     /* check for 1 or more matches */
                     for (modptr = (modptr_t *)
-                             dlq_firstEntry(&server_cb->modptrQ);
+                             dlq_firstEntry(instance, &server_cb->modptrQ);
                          modptr != NULL;
-                         modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+                         modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
                         tempcount = 0;
-                        def = ncx_match_any_rpc_mod(modptr->mod, defname,
+                        def = ncx_match_any_rpc_mod(instance, modptr->mod, defname,
                                                     &tempcount);
                         if (def) {
                             lastmatch = def;
@@ -7922,17 +8123,17 @@ void *
                         res = ERR_NCX_AMBIGUOUS_CMD;
                         first = TRUE;
                         for (modptr = (modptr_t *)
-                                 dlq_firstEntry(&server_cb->modptrQ);
+                                 dlq_firstEntry(instance, &server_cb->modptrQ);
                              modptr != NULL;
-                             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
-                            ncx_match_rpc_error(modptr->mod, modptr->mod->name,
+                             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
+                            ncx_match_rpc_error(instance, modptr->mod, modptr->mod->name,
                                                 defname, TRUE, first);
                             if (first) {
                                 first = FALSE;
                             }
                         }
                         /* list any partial local command matches */
-                        ncx_match_rpc_error(get_yangcli_mod(), NULL,  defname,
+                        ncx_match_rpc_error(instance, get_yangcli_mod(), NULL,  defname,
                                             TRUE, FALSE);
                     }
                 }
@@ -7944,10 +8145,10 @@ void *
                      * with mgrload or at boot-time with the CLI
                      */
                     matchcount = 0;
-                    def = ncx_match_any_rpc(NULL, defname, &matchcount);
+                    def = ncx_match_any_rpc(instance, NULL, defname, &matchcount);
                     if (matchcount > 1) {
                         res = ERR_NCX_AMBIGUOUS_CMD;
-                        ncx_match_rpc_error(NULL, NULL, defname, TRUE, TRUE);
+                        ncx_match_rpc_error(instance, NULL, NULL, defname, TRUE, TRUE);
                     }
                 }
                 break;
@@ -8031,7 +8232,8 @@ status_t
  *
  *********************************************************************/
 val_value_t *
-    get_valset (server_cb_t *server_cb,
+    get_valset (ncx_instance_t *instance,
+                server_cb_t *server_cb,
                 obj_template_t *rpc,
                 const xmlChar *line,
                 status_t  *res)
@@ -8044,7 +8246,8 @@ val_value_t *
     valset = NULL;
     len = 0;
 
-    set_completion_state(&server_cb->completion_state,
+    set_completion_state(instance,
+                         &server_cb->completion_state,
                          rpc, NULL, CMD_STATE_GETVAL);
 
     /* skip leading whitespace */
@@ -8054,44 +8257,46 @@ val_value_t *
 
     /* check any non-whitespace entered after RPC method name */
     if (line[len]) {
-        valset = parse_rpc_cli(server_cb, rpc, &line[len], res);
+        valset = parse_rpc_cli(instance, server_cb, rpc, &line[len], res);
         if (*res == ERR_NCX_SKIPPED) {
-            log_stdout("\nError: no parameters defined for '%s' command",
-                       obj_get_name(rpc));
+            log_stdout(instance,
+                       "\nError: no parameters defined for '%s' command",
+                       obj_get_name(instance, rpc));
         } else if (*res != NO_ERR) {
-            log_stdout("\nError in the parameters for '%s' command (%s)",
-                       obj_get_name(rpc), 
+            log_stdout(instance,
+                       "\nError in the parameters for '%s' command (%s)",
+                       obj_get_name(instance, rpc), 
                        get_error_string(*res));
         }
     }
 
-    obj = obj_find_child(rpc, NULL, YANG_K_INPUT);
-    if (!obj || !obj_get_child_count(obj)) {
+    obj = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
+    if (!obj || !obj_get_child_count(instance, obj)) {
         *res = ERR_NCX_SKIPPED;
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return NULL;
     }
 
     /* check no input from user, so start a parmset */
     if (*res == NO_ERR && !valset) {
-        valset = val_new_value();
+        valset = val_new_value(instance);
         if (!valset) {
             *res = ERR_INTERNAL_MEM;
         } else {
-            val_init_from_template(valset, obj);
-            *res = val_add_defaults(valset, NULL, NULL, SCRIPTMODE);
+            val_init_from_template(instance, valset, obj);
+            *res = val_add_defaults(instance, valset, NULL, NULL, SCRIPTMODE);
         }
     }
 
     /* fill in any missing parameters from the CLI */
     if (*res==NO_ERR && interactive_mode()) {
-        *res = fill_valset(server_cb, rpc, valset, NULL, TRUE, FALSE);
+        *res = fill_valset(instance, server_cb, rpc, valset, NULL, TRUE, FALSE);
     }
 
     if (*res==NO_ERR) {
-        *res = val_instance_check(valset, valset->obj);
+        *res = val_instance_check(instance, valset, valset->obj);
     }
     return valset;
 
@@ -8111,7 +8316,8 @@ val_value_t *
  *   status
  *********************************************************************/
 status_t
-    do_line_recall (server_cb_t *server_cb,
+    do_line_recall (ncx_instance_t *instance,
+                    server_cb_t *server_cb,
                     unsigned long num)
 {
     GlHistoryLine   history_line;
@@ -8122,19 +8328,19 @@ status_t
     glstatus = gl_lookup_history(server_cb->cli_gl, num, &history_line);
 
     if (glstatus == 0) {
-        log_error("\nError: lookup command line history failed");
+        log_error(instance, "\nError: lookup command line history failed");
         return ERR_NCX_OPERATION_FAILED; 
     }
 
     if (server_cb->history_line) {
-        m__free(server_cb->history_line);
+        m__free(instance, server_cb->history_line);
     }
 
     /* save the line in the server_cb for next call
      * to get_line
      */
 
-    server_cb->history_line = xml_strdup((const xmlChar *)history_line.line);
+    server_cb->history_line = xml_strdup(instance, (const xmlChar *)history_line.line);
     if (!server_cb->history_line) {
         return ERR_INTERNAL_MEM;
     }
@@ -8158,7 +8364,8 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_line_recall_string (server_cb_t *server_cb,
+    do_line_recall_string (ncx_instance_t *instance,
+                           server_cb_t *server_cb,
                            const xmlChar *line)
 {
     GlHistoryLine   history_line;
@@ -8168,9 +8375,9 @@ status_t
     unsigned long   curindex;
     boolean         done;
 
-    len = xml_strlen(line);
+    len = xml_strlen(instance, line);
     if (len == 0) {
-        log_error("\nError: missing recall string\n");
+        log_error(instance, "\nError: missing recall string\n");
         return ERR_NCX_MISSING_PARM;
     }
 
@@ -8181,7 +8388,7 @@ status_t
     gl_range_of_history(server_cb->cli_gl, &history_range);
 
     if (history_range.nlines == 0) {
-        log_error("\nError: no command line history found\n");
+        log_error(instance, "\nError: no command line history found\n");
         return ERR_NCX_OPERATION_FAILED; 
     }
 
@@ -8196,19 +8403,19 @@ status_t
         if (glstatus == 0) {
             continue;
         }
-        if (!xml_strnicmp((const xmlChar *)history_line.line, line, len)) {
+        if (!xml_strnicmp(instance, (const xmlChar *)history_line.line, line, len)) {
             done = TRUE;
             continue;
         }
 
         if (curindex == history_range.oldest) {
-            log_error("\nError: command line '%s' not found\n", line);
+            log_error(instance, "\nError: command line '%s' not found\n", line);
             return ERR_NCX_OPERATION_FAILED; 
         }
     }
 
     if (server_cb->history_line != NULL) {
-        m__free(server_cb->history_line);
+        m__free(instance, server_cb->history_line);
     }
 
     /* save the line in the server_cb for next call
@@ -8216,7 +8423,7 @@ status_t
      */
 
     server_cb->history_line = 
-        xml_strdup((const xmlChar *)history_line.line);
+        xml_strdup(instance, (const xmlChar *)history_line.line);
     if (server_cb->history_line == NULL) {
         return ERR_INTERNAL_MEM;
     }

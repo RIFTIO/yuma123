@@ -81,7 +81,7 @@ extern "C" {
 *   the lock ID for this lock
 *********************************************************************/
 extern plock_id_t
-    plock_get_id (plock_cb_t *plcb);
+    plock_get_id (struct ncx_instance_t_ *instance, plock_cb_t *plcb);
 
 
 /********************************************************************
@@ -96,7 +96,7 @@ extern plock_id_t
 *   session ID that owns this lock
 *********************************************************************/
 extern uint32
-    plock_get_sid (plock_cb_t *plcb);
+    plock_get_sid (struct ncx_instance_t_ *instance, plock_cb_t *plcb);
 
 
 /********************************************************************
@@ -111,7 +111,7 @@ extern uint32
 *   timestamp in date-time format
 *********************************************************************/
 extern const xmlChar *
-    plock_get_timestamp (plock_cb_t *plcb);
+    plock_get_timestamp (struct ncx_instance_t_ *instance, plock_cb_t *plcb);
 
 
 
@@ -127,7 +127,7 @@ extern const xmlChar *
 *   session ID that owns this lock
 *********************************************************************/
 extern xpath_result_t *
-    plock_get_final_result (plock_cb_t *plcb);
+    plock_get_final_result (struct ncx_instance_t_ *instance, plock_cb_t *plcb);
 
 
 /********************************************************************
@@ -142,7 +142,7 @@ extern xpath_result_t *
 *   pointer to first xpath_pcb_t for the lock
 *********************************************************************/
 extern xpath_pcb_t *
-    plock_get_first_select (plock_cb_t *plcb);
+    plock_get_first_select (struct ncx_instance_t_ *instance, plock_cb_t *plcb);
 
 
 /********************************************************************
@@ -157,7 +157,7 @@ extern xpath_pcb_t *
 *   pointer to first xpath_pcb_t for the lock
 *********************************************************************/
 extern xpath_pcb_t *
-    plock_get_next_select (xpath_pcb_t *xpathpcb);
+    plock_get_next_select (struct ncx_instance_t_ *instance, xpath_pcb_t *xpathpcb);
 
 
 /********************************************************************
@@ -172,7 +172,8 @@ extern xpath_pcb_t *
 *
 *********************************************************************/
 extern void
-    plock_add_select (plock_cb_t *plcb,
+    plock_add_select (struct ncx_instance_t_ *instance,
+                      plock_cb_t *plcb,
                       xpath_pcb_t *xpathpcb,
                       xpath_result_t *result);
 
@@ -192,7 +193,7 @@ extern void
 *    status; NCX_ERR_INVALID_VALUE if the final nodeset is empty
 *********************************************************************/
 extern status_t
-    plock_make_final_result (plock_cb_t *plcb);
+    plock_make_final_result (struct ncx_instance_t_ *instance, plock_cb_t *plcb);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

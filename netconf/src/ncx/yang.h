@@ -218,7 +218,8 @@ typedef struct yang_pcb_t_ {
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_semiapp (tk_chain_t *tkc,
+    yang_consume_semiapp (struct ncx_instance_t_ *instance,
+			  tk_chain_t *tkc,
 			  ncx_module_t *mod,
 			  dlq_hdr_t *appinfoQ);
 
@@ -246,7 +247,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_string (tk_chain_t *tkc,
+    yang_consume_string (struct ncx_instance_t_ *instance,
+			 tk_chain_t *tkc,
 			 ncx_module_t *mod,
 			 xmlChar **field);
 
@@ -276,7 +278,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_keyword (tk_chain_t *tkc,
+    yang_consume_keyword (struct ncx_instance_t_ *instance,
+			  tk_chain_t *tkc,
 			  ncx_module_t *mod,
 			  xmlChar **prefix,
 			  xmlChar **field);
@@ -306,7 +309,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_nowsp_string (tk_chain_t *tkc,
+    yang_consume_nowsp_string (struct ncx_instance_t_ *instance,
+			       tk_chain_t *tkc,
 			       ncx_module_t *mod,
 			       xmlChar **field);
 
@@ -335,7 +339,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_id_string (tk_chain_t *tkc,
+    yang_consume_id_string (struct ncx_instance_t_ *instance,
+			    tk_chain_t *tkc,
 			    ncx_module_t *mod,
 			    xmlChar **field);
 
@@ -366,7 +371,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_pid_string (tk_chain_t *tkc,
+    yang_consume_pid_string (struct ncx_instance_t_ *instance,
+			     tk_chain_t *tkc,
 			     ncx_module_t *mod,
 			     xmlChar **prefix,
 			     xmlChar **field);
@@ -400,7 +406,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_error_stmts (tk_chain_t  *tkc,
+    yang_consume_error_stmts (struct ncx_instance_t_ *instance,
+			      tk_chain_t  *tkc,
 			      ncx_module_t *mod,
 			      ncx_errinfo_t *errinfo,
 			      dlq_hdr_t *appinfoQ);
@@ -431,7 +438,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_descr (tk_chain_t  *tkc,
+    yang_consume_descr (struct ncx_instance_t_ *instance,
+			tk_chain_t  *tkc,
 			ncx_module_t *mod,
 			xmlChar **str,
 			boolean *dupflag,
@@ -468,7 +476,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_pid (tk_chain_t  *tkc,
+    yang_consume_pid (struct ncx_instance_t_ *instance,
+		      tk_chain_t  *tkc,
 		      ncx_module_t *mod,
 		      xmlChar **prefixstr,
 		      xmlChar **str,
@@ -501,7 +510,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_strclause (tk_chain_t  *tkc,
+    yang_consume_strclause (struct ncx_instance_t_ *instance,
+			    tk_chain_t  *tkc,
 			    ncx_module_t *mod,
 			    xmlChar **str,
 			    boolean *dupflag,
@@ -533,7 +543,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_status (tk_chain_t  *tkc,
+    yang_consume_status (struct ncx_instance_t_ *instance,
+			 tk_chain_t  *tkc,
 			 ncx_module_t *mod,
 			 ncx_status_t *status,
 			 boolean *dupflag,
@@ -565,7 +576,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_ordered_by (tk_chain_t  *tkc,
+    yang_consume_ordered_by (struct ncx_instance_t_ *instance,
+			     tk_chain_t  *tkc,
 			     ncx_module_t *mod,
 			     boolean *ordsys,
 			     boolean *dupflag,
@@ -597,7 +609,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_max_elements (tk_chain_t  *tkc,
+    yang_consume_max_elements (struct ncx_instance_t_ *instance,
+			       tk_chain_t  *tkc,
 			       ncx_module_t *mod,
 			       uint32 *maxelems,
 			       boolean *dupflag,
@@ -629,7 +642,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    yang_consume_must (tk_chain_t  *tkc,
+    yang_consume_must (struct ncx_instance_t_ *instance,
+		       tk_chain_t  *tkc,
 		       ncx_module_t *mod,
 		       dlq_hdr_t *mustQ,
 		       dlq_hdr_t *appinfoQ);
@@ -662,7 +676,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    yang_consume_when (tk_chain_t  *tkc,
+    yang_consume_when (struct ncx_instance_t_ *instance,
+		       tk_chain_t  *tkc,
 		       ncx_module_t *mod,
 		       obj_template_t *obj,
 		       boolean        *whenflag);
@@ -693,7 +708,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    yang_consume_iffeature (tk_chain_t *tkc,
+    yang_consume_iffeature (struct ncx_instance_t_ *instance,
+			    tk_chain_t *tkc,
 			    ncx_module_t *mod,
 			    dlq_hdr_t *iffeatureQ,
 			    dlq_hdr_t *appinfoQ);
@@ -724,7 +740,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_boolean (tk_chain_t  *tkc,
+    yang_consume_boolean (struct ncx_instance_t_ *instance,
+			  tk_chain_t  *tkc,
 			  ncx_module_t *mod,
 			  boolean *boolval,
 			  boolean *dupflag,
@@ -756,7 +773,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_int32 (tk_chain_t  *tkc,
+    yang_consume_int32 (struct ncx_instance_t_ *instance,
+			tk_chain_t  *tkc,
 			ncx_module_t *mod,
 			int32 *num,
 			boolean *dupflag,
@@ -788,7 +806,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_consume_uint32 (tk_chain_t  *tkc,
+    yang_consume_uint32 (struct ncx_instance_t_ *instance,
+			 tk_chain_t  *tkc,
 			 ncx_module_t *mod,
 			 uint32 *num,
 			 boolean *dupflag,
@@ -819,7 +838,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_find_imp_typedef (yang_pcb_t *pcb,
+    yang_find_imp_typedef (struct ncx_instance_t_ *instance,
+                           yang_pcb_t *pcb,
                            tk_chain_t  *tkc,
 			   ncx_module_t *mod,
 			   const xmlChar *prefix,
@@ -852,7 +872,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_find_imp_grouping (yang_pcb_t *pcb,
+    yang_find_imp_grouping (struct ncx_instance_t_ *instance,
+                            yang_pcb_t *pcb,
                             tk_chain_t  *tkc,
 			    ncx_module_t *mod,
 			    const xmlChar *prefix,
@@ -885,7 +906,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_find_imp_extension (yang_pcb_t *pcb,
+    yang_find_imp_extension (struct ncx_instance_t_ *instance,
+                             yang_pcb_t *pcb,
                              tk_chain_t  *tkc,
 			     ncx_module_t *mod,
 			     const xmlChar *prefix,
@@ -918,7 +940,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_find_imp_feature (yang_pcb_t *pcb,
+    yang_find_imp_feature (struct ncx_instance_t_ *instance,
+                           yang_pcb_t *pcb,
                            tk_chain_t  *tkc,
 			   ncx_module_t *mod,
 			   const xmlChar *prefix,
@@ -951,7 +974,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_find_imp_identity (yang_pcb_t *pcb,
+    yang_find_imp_identity (struct ncx_instance_t_ *instance,
+                            yang_pcb_t *pcb,
                             tk_chain_t  *tkc,
 			    ncx_module_t *mod,
 			    const xmlChar *prefix,
@@ -978,7 +1002,8 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    yang_check_obj_used (tk_chain_t *tkc,
+    yang_check_obj_used (struct ncx_instance_t_ *instance,
+			 tk_chain_t *tkc,
 			 ncx_module_t *mod,
 			 dlq_hdr_t *typeQ,
 			 dlq_hdr_t *grpQ);
@@ -1001,7 +1026,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    yang_check_imports_used (tk_chain_t *tkc,
+    yang_check_imports_used (struct ncx_instance_t_ *instance,
+			     tk_chain_t *tkc,
 			     ncx_module_t *mod);
 
 
@@ -1014,7 +1040,7 @@ extern void
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_node_t *
-    yang_new_node (void);
+    yang_new_node (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1027,7 +1053,7 @@ extern yang_node_t *
 *
 *********************************************************************/
 extern void
-    yang_free_node (yang_node_t *node);
+    yang_free_node (struct ncx_instance_t_ *instance, yang_node_t *node);
 
 
 /********************************************************************
@@ -1040,7 +1066,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    yang_clean_nodeQ (dlq_hdr_t *que);
+    yang_clean_nodeQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -1057,7 +1083,8 @@ extern void
 *    pointer to found node, NULL if not found
 *********************************************************************/
 extern yang_node_t *
-    yang_find_node (const dlq_hdr_t *que,
+    yang_find_node (struct ncx_instance_t_ *instance,
+		    const dlq_hdr_t *que,
 		    const xmlChar *name,
 		    const xmlChar *revision);
 
@@ -1075,7 +1102,8 @@ extern yang_node_t *
 *    pointer to found node, NULL if not found
 *********************************************************************/
 extern void
-    yang_dump_nodeQ (dlq_hdr_t *que,
+    yang_dump_nodeQ (struct ncx_instance_t_ *instance,
+		     dlq_hdr_t *que,
 		     const char *name);
 
 
@@ -1088,7 +1116,7 @@ extern void
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_pcb_t *
-    yang_new_pcb (void);
+    yang_new_pcb (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -1101,7 +1129,7 @@ extern yang_pcb_t *
 *
 *********************************************************************/
 extern void
-    yang_free_pcb (yang_pcb_t *pcb);
+    yang_free_pcb (struct ncx_instance_t_ *instance, yang_pcb_t *pcb);
 
 
 /********************************************************************
@@ -1116,7 +1144,7 @@ extern void
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_stmt_t *
-    yang_new_typ_stmt (typ_template_t *typ);
+    yang_new_typ_stmt (struct ncx_instance_t_ *instance, typ_template_t *typ);
 
 
 /********************************************************************
@@ -1131,7 +1159,7 @@ extern yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_stmt_t *
-    yang_new_grp_stmt (grp_template_t *grp);
+    yang_new_grp_stmt (struct ncx_instance_t_ *instance, grp_template_t *grp);
 
 
 
@@ -1147,7 +1175,7 @@ extern yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_stmt_t *
-    yang_new_ext_stmt (ext_template_t *ext);
+    yang_new_ext_stmt (struct ncx_instance_t_ *instance, ext_template_t *ext);
 
 
 /********************************************************************
@@ -1162,7 +1190,7 @@ extern yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_stmt_t *
-    yang_new_obj_stmt (obj_template_t *obj);
+    yang_new_obj_stmt (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -1177,7 +1205,7 @@ extern yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_stmt_t *
-    yang_new_id_stmt (ncx_identity_t *identity);
+    yang_new_id_stmt (struct ncx_instance_t_ *instance, ncx_identity_t *identity);
 
 
 /********************************************************************
@@ -1192,7 +1220,7 @@ extern yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_stmt_t *
-    yang_new_feature_stmt (ncx_feature_t *feature);
+    yang_new_feature_stmt (struct ncx_instance_t_ *instance, ncx_feature_t *feature);
 
 
 /********************************************************************
@@ -1207,7 +1235,7 @@ extern yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_stmt_t *
-    yang_new_deviation_stmt (obj_deviation_t *deviation);
+    yang_new_deviation_stmt (struct ncx_instance_t_ *instance, obj_deviation_t *deviation);
 
 
 /********************************************************************
@@ -1220,7 +1248,7 @@ extern yang_stmt_t *
 *
 *********************************************************************/
 extern void
-    yang_free_stmt (yang_stmt_t *stmt);
+    yang_free_stmt (struct ncx_instance_t_ *instance, yang_stmt_t *stmt);
 
 
 /********************************************************************
@@ -1233,7 +1261,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    yang_clean_stmtQ (dlq_hdr_t *que);
+    yang_clean_stmtQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -1257,7 +1285,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    yang_validate_date_string (tk_chain_t *tkc,
+    yang_validate_date_string (struct ncx_instance_t_ *instance,
+			      tk_chain_t *tkc,
 			      ncx_module_t *mod,
 			      ncx_error_t *tkerr,
 			      const xmlChar *datestr);
@@ -1274,7 +1303,8 @@ extern status_t
 *    mod == module in progress
 *********************************************************************/
 extern void
-    yang_skip_statement (tk_chain_t *tkc,
+    yang_skip_statement (struct ncx_instance_t_ *instance,
+			 tk_chain_t *tkc,
 			 ncx_module_t *mod);
 
 
@@ -1290,7 +1320,7 @@ extern void
 *   TRUE if a top-level YANG keyword, FALSE otherwise
 *********************************************************************/
 extern boolean
-    yang_top_keyword (const xmlChar *keyword);
+    yang_top_keyword (struct ncx_instance_t_ *instance, const xmlChar *keyword);
 
 
 /********************************************************************
@@ -1307,7 +1337,8 @@ extern boolean
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 extern yang_import_ptr_t *
-    yang_new_import_ptr (const xmlChar *modname,
+    yang_new_import_ptr (struct ncx_instance_t_ *instance,
+			 const xmlChar *modname,
 			 const xmlChar *modprefix,
 			 const xmlChar *revision);
 
@@ -1322,7 +1353,7 @@ extern yang_import_ptr_t *
 *
 *********************************************************************/
 extern void
-    yang_free_import_ptr (yang_import_ptr_t *impptr);
+    yang_free_import_ptr (struct ncx_instance_t_ *instance, yang_import_ptr_t *impptr);
 
 
 /********************************************************************
@@ -1335,7 +1366,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    yang_clean_import_ptrQ (dlq_hdr_t *que);
+    yang_clean_import_ptrQ (struct ncx_instance_t_ *instance, dlq_hdr_t *que);
 
 
 /********************************************************************
@@ -1351,7 +1382,8 @@ extern void
 *    pointer to found node, NULL if not found
 *********************************************************************/
 extern yang_import_ptr_t *
-    yang_find_import_ptr (dlq_hdr_t *que,
+    yang_find_import_ptr (struct ncx_instance_t_ *instance,
+			  dlq_hdr_t *que,
 			  const xmlChar *name);
 
 
@@ -1370,7 +1402,8 @@ extern yang_import_ptr_t *
 *    +1 if revision1 > revision 2   
 *********************************************************************/
 extern int32
-    yang_compare_revision_dates (const xmlChar *revstring1,
+    yang_compare_revision_dates (struct ncx_instance_t_ *instance,
+				 const xmlChar *revstring1,
 				 const xmlChar *revstring2);
 
 
@@ -1390,7 +1423,8 @@ extern int32
 *    NULL if any error
 *********************************************************************/
 extern xmlChar *
-    yang_make_filename (const xmlChar *modname,
+    yang_make_filename (struct ncx_instance_t_ *instance,
+                        const xmlChar *modname,
                         const xmlChar *revision,
                         boolean isyang);
 
@@ -1413,7 +1447,8 @@ extern xmlChar *
 *    NULL if any error
 *********************************************************************/
 extern status_t
-    yang_copy_filename (const xmlChar *modname,
+    yang_copy_filename (struct ncx_instance_t_ *instance,
+                        const xmlChar *modname,
                         const xmlChar *revision,
                         xmlChar *buffer,
                         uint32 bufflen,
@@ -1438,7 +1473,8 @@ extern status_t
 *      different form of the module parameter was used
 *********************************************************************/
 extern boolean
-    yang_split_filename (const xmlChar *filename,
+    yang_split_filename (struct ncx_instance_t_ *instance,
+                         const xmlChar *filename,
                          uint32 *modnamelen);
 
 
@@ -1455,7 +1491,7 @@ extern boolean
 *    FALSE if not
 *********************************************************************/
 extern boolean
-    yang_fileext_is_yang (const xmlChar *filename);
+    yang_fileext_is_yang (struct ncx_instance_t_ *instance, const xmlChar *filename);
 
 
 /********************************************************************
@@ -1471,7 +1507,7 @@ extern boolean
 *    FALSE if not
 *********************************************************************/
 extern boolean
-    yang_fileext_is_yin (const xmlChar *filename);
+    yang_fileext_is_yin (struct ncx_instance_t_ *instance, const xmlChar *filename);
 
 
 /********************************************************************
@@ -1487,7 +1523,7 @@ extern boolean
 *    FALSE if not
 *********************************************************************/
 extern boolean
-    yang_fileext_is_xml (const xmlChar *filename);
+    yang_fileext_is_xml (struct ncx_instance_t_ *instance, const xmlChar *filename);
 
 
 /********************************************************************
@@ -1496,7 +1532,7 @@ extern boolean
 * Check the node malloc and free counts
 *********************************************************************/
 extern void
-    yang_final_memcheck (void);
+    yang_final_memcheck (struct ncx_instance_t_ *instance);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

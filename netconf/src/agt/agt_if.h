@@ -69,7 +69,7 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    agt_if_init (void);
+    agt_if_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -85,7 +85,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_if_init2 (void);
+    agt_if_init2 (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************

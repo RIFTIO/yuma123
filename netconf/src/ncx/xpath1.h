@@ -126,7 +126,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    xpath1_parse_expr (tk_chain_t *tkc,
+    xpath1_parse_expr (struct ncx_instance_t_ *instance,
+		       tk_chain_t *tkc,
 		       ncx_module_t *mod,
 		       xpath_pcb_t *pcb,
 		       xpath_source_t source);
@@ -164,7 +165,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath1_validate_expr (ncx_module_t *mod,
+    xpath1_validate_expr (struct ncx_instance_t_ *instance,
+			  ncx_module_t *mod,
 			  obj_template_t *obj,
 			  xpath_pcb_t *pcb);
 
@@ -202,7 +204,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath1_validate_expr_ex (ncx_module_t *mod,
+    xpath1_validate_expr_ex (struct ncx_instance_t_ *instance,
+                             ncx_module_t *mod,
                              obj_template_t *obj,
                              xpath_pcb_t *pcb,
                              boolean missing_is_error);
@@ -241,7 +244,8 @@ extern status_t
 *   NULL if no result produced (see *res for reason)
 *********************************************************************/
 extern xpath_result_t *
-    xpath1_eval_expr (xpath_pcb_t *pcb,
+    xpath1_eval_expr (struct ncx_instance_t_ *instance,
+		      xpath_pcb_t *pcb,
 		      val_value_t *val,
 		      val_value_t *docroot,
 		      boolean logerrors,
@@ -289,7 +293,8 @@ extern xpath_result_t *
 *   NULL if no result produced (see *res for reason)
 *********************************************************************/
 extern xpath_result_t *
-    xpath1_eval_xmlexpr (xmlTextReaderPtr reader,
+    xpath1_eval_xmlexpr (struct ncx_instance_t_ *instance,
+			 xmlTextReaderPtr reader,
 			 xpath_pcb_t *pcb,
 			 val_value_t *val,
 			 val_value_t *docroot,
@@ -328,7 +333,8 @@ extern const xpath_fncb_t *
 *
 *********************************************************************/
 extern void
-    xpath1_prune_nodeset (xpath_pcb_t *pcb,
+    xpath1_prune_nodeset (struct ncx_instance_t_ *instance,
+			  xpath_pcb_t *pcb,
 			  xpath_result_t *result);
 
 
@@ -353,7 +359,8 @@ extern void
 *    TRUE if found, FALSE otherwise
 *********************************************************************/
 extern boolean
-    xpath1_check_node_exists (xpath_pcb_t *pcb,
+    xpath1_check_node_exists (struct ncx_instance_t_ *instance,
+			      xpath_pcb_t *pcb,
 			      dlq_hdr_t *resultQ,
 			      const val_value_t *val);
 
@@ -379,7 +386,8 @@ extern boolean
 *    TRUE if found, FALSE otherwise
 *********************************************************************/
 extern boolean
-    xpath1_check_node_exists_slow (xpath_pcb_t *pcb,
+    xpath1_check_node_exists_slow (struct ncx_instance_t_ *instance,
+                                   xpath_pcb_t *pcb,
                                    dlq_hdr_t *resultQ,
                                    const val_value_t *val);
 
@@ -405,9 +413,10 @@ extern boolean
 *    TRUE if found, FALSE otherwise
 *********************************************************************/
 extern boolean
-    xpath1_check_node_child_exists_slow (xpath_pcb_t *pcb,
-                                   dlq_hdr_t *resultQ,
-                                   const val_value_t *val);
+    xpath1_check_node_child_exists_slow (struct ncx_instance_t_ *instance,
+                                         xpath_pcb_t *pcb, 
+                                         dlq_hdr_t *resultQ, 
+                                         const val_value_t *val);
 
 
 /********************************************************************
@@ -430,7 +439,8 @@ extern boolean
 *    status, NO_ER or ERR_INTERNAL_MEM, etc.
 *********************************************************************/
 extern status_t
-    xpath1_stringify_nodeset (xpath_pcb_t *pcb,
+    xpath1_stringify_nodeset (struct ncx_instance_t_ *instance,
+			      xpath_pcb_t *pcb,
 			      const xpath_result_t *result,
 			      xmlChar **str);
 
@@ -454,7 +464,8 @@ extern status_t
 *    status, NO_ER or ERR_INTERNAL_MEM, etc.
 *********************************************************************/
 extern status_t
-    xpath1_stringify_node (xpath_pcb_t *pcb,
+    xpath1_stringify_node (struct ncx_instance_t_ *instance,
+			   xpath_pcb_t *pcb,
 			   val_value_t *val,
 			   xmlChar **str);
 
@@ -479,7 +490,8 @@ extern status_t
 *     equality relation result (TRUE or FALSE)
 *********************************************************************/
 extern boolean
-    xpath1_compare_result_to_string (xpath_pcb_t *pcb,
+    xpath1_compare_result_to_string (struct ncx_instance_t_ *instance,
+				     xpath_pcb_t *pcb,
 				     xpath_result_t *result,
 				     xmlChar *strval,
 				     status_t *res);
@@ -506,7 +518,8 @@ extern boolean
 *     equality relation result (TRUE or FALSE)
 *********************************************************************/
 extern boolean
-    xpath1_compare_result_to_number (xpath_pcb_t *pcb,
+    xpath1_compare_result_to_number (struct ncx_instance_t_ *instance,
+				     xpath_pcb_t *pcb,
 				     xpath_result_t *result,
 				     ncx_num_t *numval,
 				     status_t *res);
@@ -533,7 +546,8 @@ extern boolean
 *     equality relation result (TRUE or FALSE)
 *********************************************************************/
 extern boolean
-    xpath1_compare_nodeset_results (xpath_pcb_t *pcb,
+    xpath1_compare_nodeset_results (struct ncx_instance_t_ *instance,
+                                    xpath_pcb_t *pcb,
                                     xpath_result_t *result1,
                                     xpath_result_t *result2,
                                     status_t *res);

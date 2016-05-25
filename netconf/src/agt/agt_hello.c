@@ -82,49 +82,52 @@ static ses_total_stats_t   *mytotals;
 *   status
 *********************************************************************/
 static status_t
-    check_manager_hello (ses_cb_t *scb,
+    check_manager_hello (ncx_instance_t *instance,
+                         ses_cb_t *scb,
                          val_value_t *val)
 {
     val_value_t  *caps, *cap;
 
     /* look for the NETCONF base capability string */
-    caps = val_find_child(val, NC_MODULE, NCX_EL_CAPABILITIES);
+    caps = val_find_child(instance, val, NC_MODULE, NCX_EL_CAPABILITIES);
     if (caps && caps->res == NO_ERR) {
 
-        if (ncx_protocol_enabled(NCX_PROTO_NETCONF11)) {
-            for (cap = val_find_child(caps, NC_MODULE, NCX_EL_CAPABILITY);
+        if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF11)) {
+            for (cap = val_find_child(instance, caps, NC_MODULE, NCX_EL_CAPABILITY);
                  cap != NULL;
-                 cap = val_find_next_child(caps, 
+                 cap = val_find_next_child(instance, 
+                                           caps, 
                                            NC_MODULE, 
                                            NCX_EL_CAPABILITY, 
                                            cap)) {
                 if (cap->res == NO_ERR) {
-                    if (!xml_strcmp(VAL_STR(cap), CAP_BASE_URN11)) {
+                    if (!xml_strcmp(instance, VAL_STR(cap), CAP_BASE_URN11)) {
                         if (LOGDEBUG3) {
-                            log_debug3("\nagt_hello: set "
+                            log_debug3(instance, "\nagt_hello: set "
                                        "protocol to base:1.1");
                         }
-                        ses_set_protocol(scb, NCX_PROTO_NETCONF11);
+                        ses_set_protocol(instance, scb, NCX_PROTO_NETCONF11);
                         return NO_ERR;
                     }
                 }
             }
         }
 
-        if (ncx_protocol_enabled(NCX_PROTO_NETCONF10)) {
-            for (cap = val_find_child(caps, NC_MODULE, NCX_EL_CAPABILITY);
+        if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF10)) {
+            for (cap = val_find_child(instance, caps, NC_MODULE, NCX_EL_CAPABILITY);
                  cap != NULL;
-                 cap = val_find_next_child(caps, 
+                 cap = val_find_next_child(instance, 
+                                           caps, 
                                            NC_MODULE, 
                                            NCX_EL_CAPABILITY, 
                                            cap)) {
                 if (cap->res == NO_ERR) {
-                    if (!xml_strcmp(VAL_STR(cap), CAP_BASE_URN)) {
+                    if (!xml_strcmp(instance, VAL_STR(cap), CAP_BASE_URN)) {
                         if (LOGDEBUG3) {
-                            log_debug3("\nagt_hello: set "
+                            log_debug3(instance, "\nagt_hello: set "
                                        "protocol to base:1.0");
                         }
-                        ses_set_protocol(scb, NCX_PROTO_NETCONF10);
+                        ses_set_protocol(instance, scb, NCX_PROTO_NETCONF10);
                         return NO_ERR;
                     }
                 }
@@ -132,7 +135,7 @@ static status_t
         }
     }
 
-    log_info("\nagt_hello: no NETCONF base:1.0 or base:1.1 URI found");
+    log_info(instance, "\nagt_hello: no NETCONF base:1.0 or base:1.1 URI found");
     return ERR_NCX_MISSING_VAL_INST;
 
 } /* check_manager_hello */
@@ -151,18 +154,19 @@ static status_t
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 status_t 
-    agt_hello_init (void)
+    agt_hello_init (ncx_instance_t *instance)
 {
     status_t  res;
 
     if (!agt_hello_init_done) {
-        res = top_register_node(NC_MODULE, 
+        res = top_register_node(instance, 
+                                NC_MODULE, 
                                 NCX_EL_HELLO, 
                                 agt_hello_dispatch);
         if (res != NO_ERR) {
             return res;
         }
-        mytotals = ses_get_total_stats();
+        mytotals = ses_get_total_stats(instance);
         agt_hello_init_done = TRUE;
     }
     return NO_ERR;
@@ -179,10 +183,10 @@ status_t
 *
 *********************************************************************/
 void 
-    agt_hello_cleanup (void)
+    agt_hello_cleanup (ncx_instance_t *instance)
 {
     if (agt_hello_init_done) {
-        top_unregister_node(NC_MODULE, NCX_EL_HELLO);
+        top_unregister_node(instance, NC_MODULE, NCX_EL_HELLO);
         agt_hello_init_done = FALSE;
     }
 
@@ -199,7 +203,8 @@ void
 *   top == top element descriptor
 *********************************************************************/
 void 
-    agt_hello_dispatch (ses_cb_t *scb,
+    agt_hello_dispatch (ncx_instance_t *instance,
+                        ses_cb_t *scb,
                         xml_node_t *top)
 {
     val_value_t           *val;
@@ -210,29 +215,31 @@ void
 
 #ifdef DEBUG
     if (!scb || !top) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (LOGDEBUG2) {
-        log_debug2("\nagt_hello got node");
+        log_debug2(instance, "\nagt_hello got node");
         if (LOGDEBUG3) {
-            xml_dump_node(top);
+            xml_dump_node(instance, top);
         }
     }
 
     /* only process this message in hello wait state */
     if (scb->state != SES_ST_HELLO_WAIT) {
         if (LOGINFO) {
-            log_info("\nagt_hello dropped, wrong state "
+            log_info(instance,
+                     "\nagt_hello dropped, wrong state "
                      "(%d) for session %d",
                      scb->state, 
                      scb->sid);
         }
         mytotals->inBadHellos++;
         mytotals->droppedSessions++;
-        agt_ses_request_close(scb,
+        agt_ses_request_close(instance,
+                              scb,
                               scb->sid,
                               SES_TR_BAD_HELLO);
         return;
@@ -241,10 +248,10 @@ void
     /* init local vars */
     res = NO_ERR;
     obj = NULL;
-    xml_msg_init_hdr(&msg);
+    xml_msg_init_hdr(instance, &msg);
 
     /* get a value struct to hold the client hello msg */
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         res = ERR_INTERNAL_MEM;
     }
@@ -252,19 +259,20 @@ void
     /* get the type definition from the registry */
     if (res == NO_ERR) {
         obj = NULL;
-        mod = ncx_find_module(NC_MODULE, NULL);
+        mod = ncx_find_module(instance, NC_MODULE, NULL);
         if (mod) {
-            obj = ncx_find_object(mod, CLIENT_HELLO_CON);
+            obj = ncx_find_object(instance, mod, CLIENT_HELLO_CON);
         }
         if (!obj) {
             /* netconf module should have loaded this definition */
-            res = SET_ERROR(ERR_INTERNAL_PTR);
+            res = SET_ERROR(instance, ERR_INTERNAL_PTR);
         }
     }
 
     /* parse a manager hello message */
     if (res == NO_ERR) {
-        res = agt_val_parse_nc(scb, 
+        res = agt_val_parse_nc(instance, 
+                               scb, 
                                &msg, 
                                obj, 
                                top, 
@@ -276,20 +284,22 @@ void
      * and it matches the server protocol version
      */
     if (res == NO_ERR) {
-        res = check_manager_hello(scb, val);
+        res = check_manager_hello(instance, scb, val);
     }
 
     /* report first error and close session */
     if (res != NO_ERR) {
         if (LOGINFO) {
-            log_info("\nagt_connect error "
+            log_info(instance,
+                     "\nagt_connect error "
                      "(%s), dropping session %d",
                      get_error_string(res), 
                      scb->sid);
         }
         mytotals->inBadHellos++;
         mytotals->droppedSessions++;
-        agt_ses_request_close(scb,
+        agt_ses_request_close(instance,
+                              scb,
                               scb->sid,
                               SES_TR_BAD_HELLO);
 
@@ -300,21 +310,22 @@ void
         (void)time(&scb->last_rpc_time);
 
         if (LOGINFO) {
-            log_info("\nSession %d for %s@%s now active", 
+            log_info(instance, 
+                     "\nSession %d for %s@%s now active", 
                      scb->sid, 
                      scb->username, 
                      scb->peeraddr);
-            if (ses_get_protocol(scb) == NCX_PROTO_NETCONF11) {
-                log_info(" (base:1.1)");
+            if (ses_get_protocol(instance, scb) == NCX_PROTO_NETCONF11) {
+                log_info(instance, " (base:1.1)");
             } else {
-                log_info(" (base:1.0)");
+                log_info(instance, " (base:1.0)");
             }
         }
 
     }
 
     if (val) {
-        val_free_value(val);
+        val_free_value(instance, val);
     }
 
 } /* agt_hello_dispatch */
@@ -333,7 +344,7 @@ void
 *   status
 *********************************************************************/
 status_t
-    agt_hello_send (ses_cb_t *scb)
+    agt_hello_send (ncx_instance_t *instance, ses_cb_t *scb)
 {
     val_value_t  *mycaps;
     xml_msg_hdr_t msg;
@@ -345,15 +356,15 @@ status_t
 
 #ifdef DEBUG
     if (!scb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
     anyout = FALSE;
-    xml_msg_init_hdr(&msg);
-    xml_init_attrs(&attrs);
-    nc_id = xmlns_nc_id();
+    xml_msg_init_hdr(instance, &msg);
+    xml_init_attrs(instance, &attrs);
+    nc_id = xmlns_nc_id(instance);
 
     /* start the hello timeout */
     (void)time(&scb->hello_time);
@@ -361,23 +372,24 @@ status_t
     /* get the server caps */
     mycaps = agt_cap_get_capsval();
     if (!mycaps) {
-        res = SET_ERROR(ERR_INTERNAL_PTR);
+        res = SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 
     /* setup the prefix map with the NETCONF and NCX namepsaces */
     if (res == NO_ERR) {
-        res = xml_msg_build_prefix_map(&msg, &attrs, TRUE, FALSE);
+        res = xml_msg_build_prefix_map(instance, &msg, &attrs, TRUE, FALSE);
     }
 
     /* send the <?xml?> directive */
     if (res == NO_ERR) {
-        res = ses_start_msg(scb);
+        res = ses_start_msg(instance, scb);
     }
 
     /* start the hello element */
     if (res == NO_ERR) {
         anyout = TRUE;
-        xml_wr_begin_elem_ex(scb, 
+        xml_wr_begin_elem_ex(instance, 
+                             scb, 
                              &msg, 
                              0, 
                              nc_id, 
@@ -390,7 +402,8 @@ status_t
     
     /* send the capabilities list */
     if (res == NO_ERR) {
-        xml_wr_full_val(scb, 
+        xml_wr_full_val(instance, 
+                        scb, 
                         &msg, 
                         mycaps, 
                         ses_indent_count(scb));
@@ -398,7 +411,8 @@ status_t
 
     /* send the session ID */
     if (res == NO_ERR) {
-        xml_wr_begin_elem(scb, 
+        xml_wr_begin_elem(instance, 
+                          scb, 
                           &msg, 
                           nc_id, 
                           nc_id,
@@ -407,24 +421,24 @@ status_t
     }
     if (res == NO_ERR) {
         snprintf((char *)numbuff, sizeof(numbuff), "%d", scb->sid);
-        ses_putstr(scb, numbuff);
+        ses_putstr(instance, scb, numbuff);
     }
     if (res == NO_ERR) {
-        xml_wr_end_elem(scb, &msg, nc_id, NCX_EL_SESSION_ID, -1);
+        xml_wr_end_elem(instance, scb, &msg, nc_id, NCX_EL_SESSION_ID, -1);
     }
 
     /* finish the hello element */
     if (res == NO_ERR) {
-        xml_wr_end_elem(scb, &msg, nc_id, NCX_EL_HELLO, 0);
+        xml_wr_end_elem(instance, scb, &msg, nc_id, NCX_EL_HELLO, 0);
     }
 
     /* finish the message */
     if (anyout) {
-        ses_finish_msg(scb);
+        ses_finish_msg(instance, scb);
     }
 
-    xml_clean_attrs(&attrs);
-    xml_msg_clean_hdr(&msg);
+    xml_clean_attrs(instance, &attrs);
+    xml_msg_clean_hdr(instance, &msg);
     return res;
 
 } /* agt_hello_send */

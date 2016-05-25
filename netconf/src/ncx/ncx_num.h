@@ -82,7 +82,7 @@ extern "C" {
 *     num == number to initialize
 *********************************************************************/
 extern void
-    ncx_init_num (ncx_num_t *num);
+    ncx_init_num (struct ncx_instance_t_ *instance, ncx_num_t *num);
 
 
 /********************************************************************
@@ -98,7 +98,8 @@ extern void
 *    num == ncx_num_t data structure to clean
 *********************************************************************/
 extern void 
-    ncx_clean_num (ncx_btype_t btyp,
+    ncx_clean_num (struct ncx_instance_t_ *instance,
+		   ncx_btype_t btyp,
 		   ncx_num_t *num);
 
 
@@ -117,7 +118,8 @@ extern void
 *      1 if num1 is > num2
 *********************************************************************/
 extern int32
-    ncx_compare_nums (const ncx_num_t *num1,
+    ncx_compare_nums (struct ncx_instance_t_ *instance,
+		      const ncx_num_t *num1,
 		      const ncx_num_t *num2,
 		      ncx_btype_t  btyp);
 
@@ -133,7 +135,8 @@ extern int32
 *
 *********************************************************************/
 extern void
-    ncx_set_num_min (ncx_num_t *num,
+    ncx_set_num_min (struct ncx_instance_t_ *instance,
+		     ncx_num_t *num,
 		     ncx_btype_t  btyp);
 
 
@@ -148,7 +151,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_set_num_max (ncx_num_t *num,
+    ncx_set_num_max (struct ncx_instance_t_ *instance,
+		     ncx_num_t *num,
 		     ncx_btype_t  btyp);
 
 
@@ -163,7 +167,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_set_num_one (ncx_num_t *num,
+    ncx_set_num_one (struct ncx_instance_t_ *instance,
+		     ncx_num_t *num,
 		     ncx_btype_t  btyp);
 
 
@@ -178,7 +183,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_set_num_zero (ncx_num_t *num,
+    ncx_set_num_zero (struct ncx_instance_t_ *instance,
+		      ncx_num_t *num,
 		      ncx_btype_t  btyp);
 
 
@@ -193,7 +199,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_set_num_nan (ncx_num_t *num,
+    ncx_set_num_nan (struct ncx_instance_t_ *instance,
+		     ncx_num_t *num,
 		     ncx_btype_t  btyp);
 
 
@@ -211,7 +218,8 @@ extern void
 *    FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_num_is_nan (ncx_num_t *num,
+    ncx_num_is_nan (struct ncx_instance_t_ *instance,
+		    ncx_num_t *num,
 		    ncx_btype_t  btyp);
 
 
@@ -229,7 +237,8 @@ extern boolean
 *     FALSE if value is not equal to zero
 *********************************************************************/
 extern boolean
-    ncx_num_zero (const ncx_num_t *num,
+    ncx_num_zero (struct ncx_instance_t_ *instance,
+		  const ncx_num_t *num,
 		  ncx_btype_t  btyp);
 
 
@@ -252,7 +261,8 @@ extern boolean
 *     status
 *********************************************************************/
 extern status_t
-    ncx_convert_num (const xmlChar *numstr,
+    ncx_convert_num (struct ncx_instance_t_ *instance,
+		     const xmlChar *numstr,
 		     ncx_numfmt_t numfmt,
 		     ncx_btype_t  btyp,
 		     ncx_num_t    *val);
@@ -276,7 +286,8 @@ extern status_t
 *     status
 *********************************************************************/
 extern status_t
-    ncx_convert_dec64 (const xmlChar *numstr,
+    ncx_convert_dec64 (struct ncx_instance_t_ *instance,
+		       const xmlChar *numstr,
 		       ncx_numfmt_t numfmt,
 		       uint8 digits,
 		       ncx_num_t *val);
@@ -299,7 +310,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_decode_num (const xmlChar *numstr,
+    ncx_decode_num (struct ncx_instance_t_ *instance,
+		    const xmlChar *numstr,
 		    ncx_btype_t  btyp,
 		    ncx_num_t  *retnum);
 
@@ -321,7 +333,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_decode_dec64 (const xmlChar *numstr,
+    ncx_decode_dec64 (struct ncx_instance_t_ *instance,
+		      const xmlChar *numstr,
 		      uint8 digits,
 		      ncx_num_t  *retnum);
 
@@ -345,7 +358,8 @@ extern status_t
 *     status
 *********************************************************************/
 extern status_t
-    ncx_copy_num (const ncx_num_t *num1,
+    ncx_copy_num (struct ncx_instance_t_ *instance,
+		  const ncx_num_t *num1,
 		  ncx_num_t *num2,
 		  ncx_btype_t  btyp);
 
@@ -373,7 +387,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ncx_cast_num (const ncx_num_t *num1,
+    ncx_cast_num (struct ncx_instance_t_ *instance,
+		  const ncx_num_t *num1,
 		  ncx_btype_t  btyp1,
 		  ncx_num_t *num2,
 		  ncx_btype_t  btyp2);
@@ -402,7 +417,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ncx_num_floor (const ncx_num_t *num1,
+    ncx_num_floor (struct ncx_instance_t_ *instance,
+		   const ncx_num_t *num1,
 		   ncx_num_t *num2,
 		   ncx_btype_t  btyp);
 
@@ -430,7 +446,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ncx_num_ceiling (const ncx_num_t *num1,
+    ncx_num_ceiling (struct ncx_instance_t_ *instance,
+		     const ncx_num_t *num1,
 		     ncx_num_t *num2,
 		     ncx_btype_t  btyp);
 
@@ -458,7 +475,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ncx_round_num (const ncx_num_t *num1,
+    ncx_round_num (struct ncx_instance_t_ *instance,
+		   const ncx_num_t *num1,
 		   ncx_num_t *num2,
 		   ncx_btype_t  btyp);
 
@@ -481,7 +499,8 @@ extern status_t
 *     TRUE if integral, FALSE if not
 *********************************************************************/
 extern boolean
-    ncx_num_is_integral (const ncx_num_t *num,
+    ncx_num_is_integral (struct ncx_instance_t_ *instance,
+			 const ncx_num_t *num,
 			 ncx_btype_t  btyp);
 
 
@@ -499,7 +518,8 @@ extern boolean
 *     int64 representation
 *********************************************************************/
 extern int64
-    ncx_cvt_to_int64 (const ncx_num_t *num,
+    ncx_cvt_to_int64 (struct ncx_instance_t_ *instance,
+		      const ncx_num_t *num,
 		      ncx_btype_t  btyp);
 
 
@@ -517,7 +537,7 @@ extern int64
 *    NCX_NF_NONE, NCX_NF_DEC, NCX_NF_HEX, or NCX_NF_REAL
 *********************************************************************/
 extern ncx_numfmt_t
-    ncx_get_numfmt (const xmlChar *numstr);
+    ncx_get_numfmt (struct ncx_instance_t_ *instance, const xmlChar *numstr);
 
 
 /********************************************************************
@@ -531,7 +551,8 @@ extern ncx_numfmt_t
 *
 *********************************************************************/
 extern void
-    ncx_printf_num (const ncx_num_t *num,
+    ncx_printf_num (struct ncx_instance_t_ *instance,
+		    const ncx_num_t *num,
 		    ncx_btype_t  btyp);
 
 
@@ -546,7 +567,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_alt_printf_num (const ncx_num_t *num,
+    ncx_alt_printf_num (struct ncx_instance_t_ *instance,
+			const ncx_num_t *num,
 			ncx_btype_t  btyp);
 
 
@@ -568,7 +590,8 @@ extern void
 *    status
 *********************************************************************/
 extern status_t
-    ncx_sprintf_num (xmlChar *buff,
+    ncx_sprintf_num (struct ncx_instance_t_ *instance,
+		     xmlChar *buff,
 		     const ncx_num_t *num,
 		     ncx_btype_t  btyp,
 		     uint32  *len);
@@ -588,7 +611,8 @@ extern status_t
 *     FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_is_min (const ncx_num_t *num,
+    ncx_is_min (struct ncx_instance_t_ *instance,
+		const ncx_num_t *num,
 		ncx_btype_t btyp);
 
 
@@ -606,7 +630,8 @@ extern boolean
 *     FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_is_max (const ncx_num_t *num,
+    ncx_is_max (struct ncx_instance_t_ *instance,
+		const ncx_num_t *num,
 		ncx_btype_t btyp);
 
 
@@ -627,7 +652,8 @@ extern boolean
 *     status
 *********************************************************************/
 extern status_t
-    ncx_convert_tkcnum (tk_chain_t *tkc,
+    ncx_convert_tkcnum (struct ncx_instance_t_ *instance,
+			tk_chain_t *tkc,
 			ncx_btype_t  btyp,
 			ncx_num_t *val);
 
@@ -650,7 +676,8 @@ extern status_t
 *     status
 *********************************************************************/
 extern status_t
-    ncx_convert_tkc_dec64 (tk_chain_t *tkc,
+    ncx_convert_tkc_dec64 (struct ncx_instance_t_ *instance,
+			   tk_chain_t *tkc,
 			   uint8 digits,
 			   ncx_num_t *val);
 
@@ -667,7 +694,7 @@ extern status_t
 *   base part of the number
 *********************************************************************/
 extern int64
-    ncx_get_dec64_base (const ncx_num_t *num);
+    ncx_get_dec64_base (struct ncx_instance_t_ *instance, const ncx_num_t *num);
 
 
 /********************************************************************
@@ -682,7 +709,7 @@ extern int64
 *   fraction part of the number
 *********************************************************************/
 extern int64
-    ncx_get_dec64_fraction (const ncx_num_t *num);
+    ncx_get_dec64_fraction (struct ncx_instance_t_ *instance, const ncx_num_t *num);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

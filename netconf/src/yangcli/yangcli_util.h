@@ -80,7 +80,7 @@ extern "C" {
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    is_top_command (const xmlChar *rpcname);
+    is_top_command (struct ncx_instance_t_ *instance, const xmlChar *rpcname);
 
 
 /********************************************************************
@@ -99,7 +99,8 @@ extern boolean
 *   malloced modptr_t struct or NULL of malloc failed
 *********************************************************************/
 extern modptr_t *
-    new_modptr (ncx_module_t *mod,
+    new_modptr (struct ncx_instance_t_ *instance,
+		ncx_module_t *mod,
 		ncx_list_t *feature_list,
 		ncx_list_t *deviation_list);
 
@@ -115,7 +116,7 @@ extern modptr_t *
 *
 *********************************************************************/
 extern void
-    free_modptr (modptr_t *modptr);
+    free_modptr (struct ncx_instance_t_ *instance, modptr_t *modptr);
 
 
 /********************************************************************
@@ -133,7 +134,8 @@ extern void
 *
 *********************************************************************/
 extern modptr_t *
-    find_modptr (dlq_hdr_t *modptrQ,
+    find_modptr (struct ncx_instance_t_ *instance,
+                 dlq_hdr_t *modptrQ,
                  const xmlChar *modname,
                  const xmlChar *revision);
 
@@ -148,7 +150,7 @@ extern modptr_t *
 *                the session data
 *********************************************************************/
 extern void
-    clear_server_cb_session (server_cb_t *server_cb);
+    clear_server_cb_session (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 
 /********************************************************************
@@ -165,7 +167,7 @@ extern void
 *  FALSE if this is CONN mode (or associated states)
 *********************************************************************/
 extern boolean
-    is_top (mgr_io_state_t state);
+    is_top (struct ncx_instance_t_ *instance, mgr_io_state_t state);
 
 
 /********************************************************************
@@ -181,7 +183,7 @@ extern boolean
 *   FALSE if not
 *********************************************************************/
 extern boolean
-    use_servercb (server_cb_t *server_cb);
+    use_servercb (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 
 
@@ -201,7 +203,8 @@ extern boolean
 *   NULL if not found
 *********************************************************************/
 extern ncx_module_t *
-    find_module (server_cb_t *server_cb,
+    find_module (struct ncx_instance_t_ *instance,
+		 server_cb_t *server_cb,
 		 const xmlChar *modname);
 
 
@@ -220,7 +223,8 @@ extern ncx_module_t *
 *   pointer to string !!! THIS IS A MALLOCED COPY !!!
 *********************************************************************/
 extern xmlChar *
-    get_strparm (val_value_t *valset,
+    get_strparm (struct ncx_instance_t_ *instance,
+		 val_value_t *valset,
 		 const xmlChar *modname,
 		 const xmlChar *parmname);
 
@@ -240,7 +244,8 @@ extern xmlChar *
 *   pointer to val_value_t if found
 *********************************************************************/
 extern val_value_t *
-    findparm (val_value_t *valset,
+    findparm (struct ncx_instance_t_ *instance,
+	      val_value_t *valset,
 	      const xmlChar *modname,
 	      const xmlChar *parmname);
 
@@ -258,7 +263,8 @@ extern val_value_t *
 *    status
 *********************************************************************/
 extern status_t
-    add_clone_parm (const val_value_t *val,
+    add_clone_parm (struct ncx_instance_t_ *instance,
+		    const val_value_t *val,
 		    val_value_t *valset);
 
 
@@ -274,7 +280,7 @@ extern status_t
 *  TRUE if this is the YANGCLI namespace ID
 *********************************************************************/
 extern boolean
-    is_yangcli_ns (xmlns_id_t ns);
+    is_yangcli_ns (struct ncx_instance_t_ *instance, xmlns_id_t ns);
 
 
 /********************************************************************
@@ -287,7 +293,7 @@ extern boolean
  *
  *********************************************************************/
 extern void
-    clear_result (server_cb_t *server_cb);
+    clear_result (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 
 /********************************************************************
@@ -309,7 +315,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    check_filespec (server_cb_t *server_cb,
+    check_filespec (struct ncx_instance_t_ *instance,
+		    server_cb_t *server_cb,
 		    const xmlChar *filespec,
 		    const xmlChar *varname);
 
@@ -348,7 +355,8 @@ extern status_t
  *    NULL, check *retres
  *********************************************************************/
 extern val_value_t *
-    get_instanceid_parm (const xmlChar *target,
+    get_instanceid_parm (struct ncx_instance_t_ *instance,
+			 const xmlChar *target,
 			 boolean schemainst,
                          boolean configonly,
 			 obj_template_t **targobj,
@@ -369,7 +377,7 @@ extern val_value_t *
 *   result format enumeration; RF_NONE if some error
 *********************************************************************/
 extern result_format_t
-    get_file_result_format (const xmlChar *filespec);
+    get_file_result_format (struct ncx_instance_t_ *instance, const xmlChar *filespec);
 
 
 /********************************************************************
@@ -395,7 +403,8 @@ extern boolean
  *    cmdstate ==initial  calling state
  *********************************************************************/
 extern void
-    init_completion_state (completion_state_t *completion_state,
+    init_completion_state (struct ncx_instance_t_ *instance,
+			   completion_state_t *completion_state,
 			   server_cb_t *server_cb,
 			   command_state_t  cmdstate);
 
@@ -412,7 +421,8 @@ extern void
  *    cmdstate ==current calling state
  *********************************************************************/
 extern void
-    set_completion_state (completion_state_t *completion_state,
+    set_completion_state (struct ncx_instance_t_ *instance,
+			  completion_state_t *completion_state,
 			  obj_template_t *rpc,
 			  obj_template_t *parm,
 			  command_state_t  cmdstate);
@@ -428,7 +438,8 @@ extern void
  *    parm == parameter being filled in
  *********************************************************************/
 extern void
-    set_completion_state_curparm (completion_state_t *completion_state,
+    set_completion_state_curparm (struct ncx_instance_t_ *instance,
+				  completion_state_t *completion_state,
 				  obj_template_t *parm);
 
 
@@ -452,7 +463,8 @@ extern void
  *    for the specified varbind
 *********************************************************************/
 extern ncx_var_t *
-    xpath_getvar_fn (struct xpath_pcb_t_ *pcb,
+    xpath_getvar_fn (struct ncx_instance_t_ *instance,
+                     struct xpath_pcb_t_ *pcb,
                      const xmlChar *varname,
                      status_t *res);
 
@@ -468,7 +480,7 @@ extern ncx_var_t *
 *    netconf module
 *********************************************************************/
 extern ncx_module_t *
-    get_netconf_mod (server_cb_t *server_cb);
+    get_netconf_mod (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 
 /********************************************************************
@@ -490,7 +502,8 @@ extern ncx_module_t *
 *  status
 *********************************************************************/
 extern status_t
-    clone_old_parm (val_value_t *oldvalset,
+    clone_old_parm (struct ncx_instance_t_ *instance,
+                    val_value_t *oldvalset,
                     val_value_t *newvalset,
                     obj_template_t *parm);
 

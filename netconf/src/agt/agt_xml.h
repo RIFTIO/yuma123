@@ -128,7 +128,8 @@ extern "C" {
 *   Try to fail on fatal errors only
 *********************************************************************/
 extern status_t 
-    agt_xml_consume_node (ses_cb_t *scb,
+    agt_xml_consume_node (struct ncx_instance_t_ *instance,
+			  ses_cb_t *scb,
 			  xml_node_t *node,
 			  ncx_layer_t layer,
 			  xml_msg_hdr_t *msghdr);
@@ -136,7 +137,8 @@ extern status_t
 
 /* consume node but do not generate an EOF error if seen */
 extern status_t 
-    agt_xml_consume_node_noeof (ses_cb_t *scb,
+    agt_xml_consume_node_noeof (struct ncx_instance_t_ *instance,
+				ses_cb_t *scb,
 				xml_node_t *node,
 				ncx_layer_t layer,
 				xml_msg_hdr_t *msghdr);
@@ -146,14 +148,16 @@ extern status_t
  * needed to process subtree filters properly
  */
 extern status_t 
-    agt_xml_consume_node_nons (ses_cb_t *scb,
+    agt_xml_consume_node_nons (struct ncx_instance_t_ *instance,
+			       ses_cb_t *scb,
 			       xml_node_t *node,
 			       ncx_layer_t layer,
 			       xml_msg_hdr_t *msghdr);
 
 /* consume node but do not advance the node pointer */
 extern status_t 
-    agt_xml_consume_node_noadv (ses_cb_t *scb,
+    agt_xml_consume_node_noadv (struct ncx_instance_t_ *instance,
+				ses_cb_t *scb,
 				xml_node_t *node,
 				ncx_layer_t layer,
 				xml_msg_hdr_t *msghdr);
@@ -178,7 +182,8 @@ extern status_t
 *   end node of the specified start node or a fatal error occurs
 *********************************************************************/
 extern status_t 
-    agt_xml_skip_subtree (ses_cb_t *scb,
+    agt_xml_skip_subtree (struct ncx_instance_t_ *instance,
+			  ses_cb_t *scb,
 			  const xml_node_t *startnode);
 
 #ifdef __cplusplus

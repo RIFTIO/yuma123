@@ -222,7 +222,7 @@ typedef struct cap_rec_t_ {
 *    malloced cap_list or NULL if memory error
 *********************************************************************/
 extern cap_list_t *
-    cap_new_caplist (void);
+    cap_new_caplist (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -237,7 +237,7 @@ extern cap_list_t *
 *    status, should always be NO_ERR
 *********************************************************************/
 extern void
-    cap_init_caplist (cap_list_t *caplist);
+    cap_init_caplist (struct ncx_instance_t_ *instance, cap_list_t *caplist);
 
 
 /********************************************************************
@@ -252,7 +252,7 @@ extern void
 *    none, silent programming errors ignored 
 *********************************************************************/
 extern void 
-    cap_clean_caplist (cap_list_t *caplist);
+    cap_clean_caplist (struct ncx_instance_t_ *instance, cap_list_t *caplist);
 
 
 /********************************************************************
@@ -266,7 +266,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    cap_free_caplist (cap_list_t *caplist);
+    cap_free_caplist (struct ncx_instance_t_ *instance, cap_list_t *caplist);
 
 
 /********************************************************************
@@ -281,7 +281,8 @@ extern void
 *    status, should always be NO_ERR
 *********************************************************************/
 extern status_t 
-    cap_add_std (cap_list_t *caplist, 
+    cap_add_std (struct ncx_instance_t_ *instance, 
+		 cap_list_t *caplist, 
 		 cap_stdid_t   capstd);
 
 
@@ -297,7 +298,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cap_add_stdval (val_value_t *caplist,
+    cap_add_stdval (struct ncx_instance_t_ *instance,
+		    val_value_t *caplist,
 		    cap_stdid_t   capstd);
 
 
@@ -316,7 +318,8 @@ extern status_t
 *    any other result is a non-recoverable error
 *********************************************************************/
 extern status_t 
-    cap_add_std_string (cap_list_t *caplist, 
+    cap_add_std_string (struct ncx_instance_t_ *instance, 
+			cap_list_t *caplist, 
 			const xmlChar *uri);
 
 
@@ -335,7 +338,8 @@ extern status_t
 *    any other result is a non-recoverable error
 *********************************************************************/
 extern status_t 
-    cap_add_module_string (cap_list_t *caplist, 
+    cap_add_module_string (struct ncx_instance_t_ *instance, 
+			   cap_list_t *caplist, 
 			   const xmlChar *uri);
 
 
@@ -352,7 +356,8 @@ extern status_t
 *    status, should always be NO_ERR
 *********************************************************************/
 extern status_t 
-    cap_add_url (cap_list_t *caplist, 
+    cap_add_url (struct ncx_instance_t_ *instance, 
+		 cap_list_t *caplist, 
 		 const xmlChar *scheme_list);
 
 
@@ -370,7 +375,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cap_add_urlval (val_value_t *caplist,
+    cap_add_urlval (struct ncx_instance_t_ *instance,
+                    val_value_t *caplist,
                     const xmlChar *scheme_list);
     
 
@@ -387,7 +393,8 @@ extern status_t
 *    status, should always be NO_ERR
 *********************************************************************/
 extern status_t 
-    cap_add_withdef (cap_list_t *caplist, 
+    cap_add_withdef (struct ncx_instance_t_ *instance, 
+		     cap_list_t *caplist, 
 		     const xmlChar *defstyle);
 
 
@@ -405,7 +412,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cap_add_withdefval (val_value_t *caplist,
+    cap_add_withdefval (struct ncx_instance_t_ *instance,
+			val_value_t *caplist,
 			const xmlChar *defstyle);
 
 
@@ -422,7 +430,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    cap_add_ent (cap_list_t *caplist, 
+    cap_add_ent (struct ncx_instance_t_ *instance, 
+		 cap_list_t *caplist, 
 		 const xmlChar *uristr);
 
 
@@ -439,7 +448,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    cap_add_modval (val_value_t *caplist, 
+    cap_add_modval (struct ncx_instance_t_ *instance, 
+		    val_value_t *caplist, 
 		    ncx_module_t *mod);
 
 
@@ -456,7 +466,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    cap_add_devmodval (val_value_t *caplist, 
+    cap_add_devmodval (struct ncx_instance_t_ *instance, 
+                       val_value_t *caplist, 
                        ncx_save_deviations_t *savedev);
 
 
@@ -488,7 +499,8 @@ extern boolean
 *    TRUE if indicated capability is set, FALSE if not
 *********************************************************************/
 extern boolean 
-    cap_set (const cap_list_t *caplist,
+    cap_set (struct ncx_instance_t_ *instance,
+	     const cap_list_t *caplist,
 	     const xmlChar *capuri);
 
 
@@ -504,7 +516,7 @@ extern boolean
 *    pointer to protocols string if any, or NULL if not
 *********************************************************************/
 extern const xmlChar *
-    cap_get_protos (cap_list_t *caplist);
+    cap_get_protos (struct ncx_instance_t_ *instance, cap_list_t *caplist);
 
 
 /********************************************************************
@@ -518,7 +530,7 @@ extern const xmlChar *
 *
 *********************************************************************/
 extern void
-    cap_dump_stdcaps (const cap_list_t *caplist);
+    cap_dump_stdcaps (struct ncx_instance_t_ *instance, const cap_list_t *caplist);
 
 
 /********************************************************************
@@ -531,7 +543,7 @@ extern void
 *    caplist == capability list to print
 *********************************************************************/
 extern void
-    cap_dump_modcaps (const cap_list_t *caplist);
+    cap_dump_modcaps (struct ncx_instance_t_ *instance, const cap_list_t *caplist);
 
 
 /********************************************************************
@@ -545,7 +557,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    cap_dump_entcaps (const cap_list_t *caplist);
+    cap_dump_entcaps (struct ncx_instance_t_ *instance, const cap_list_t *caplist);
 
 
 /********************************************************************
@@ -561,7 +573,7 @@ extern void
 *  NULL if no first record
 *********************************************************************/
 extern cap_rec_t *
-    cap_first_modcap (cap_list_t *caplist);
+    cap_first_modcap (struct ncx_instance_t_ *instance, cap_list_t *caplist);
 
 
 /********************************************************************
@@ -577,7 +589,7 @@ extern cap_rec_t *
 *  NULL if no next record
 *********************************************************************/
 extern cap_rec_t *
-    cap_next_modcap (cap_rec_t *curcap);
+    cap_next_modcap (struct ncx_instance_t_ *instance, cap_rec_t *curcap);
 
 
 /********************************************************************
@@ -600,7 +612,8 @@ extern cap_rec_t *
 *    status
 *********************************************************************/
 extern void
-    cap_split_modcap (cap_rec_t *cap,
+    cap_split_modcap (struct ncx_instance_t_ *instance,
+		      cap_rec_t *cap,
 		      const xmlChar **module,
 		      const xmlChar **revision,
 		      const xmlChar **namespacestr);
@@ -619,7 +632,7 @@ extern void
 *    malloced string containing the URI !!! must be freed later !!!
 *********************************************************************/
 extern xmlChar *
-    cap_make_moduri (ncx_module_t *mod);
+    cap_make_moduri (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

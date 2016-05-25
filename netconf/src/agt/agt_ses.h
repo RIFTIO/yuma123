@@ -90,7 +90,7 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    agt_ses_init (void);
+    agt_ses_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -104,7 +104,7 @@ extern status_t
 *   none
 *********************************************************************/
 extern void 
-    agt_ses_cleanup (void);
+    agt_ses_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -118,7 +118,7 @@ extern void
 *   pointer to initialized dummy SCB, or NULL if malloc error
 *********************************************************************/
 extern ses_cb_t *
-    agt_ses_new_dummy_session (void);
+    agt_ses_new_dummy_session (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -135,7 +135,8 @@ extern ses_cb_t *
 *   status
 *********************************************************************/
 extern status_t
-    agt_ses_set_dummy_session_acm (ses_cb_t *dummy_session,
+    agt_ses_set_dummy_session_acm (struct ncx_instance_t_ *instance,
+                                   ses_cb_t *dummy_session,
                                    ses_id_t  use_sid);
 
 
@@ -150,7 +151,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    agt_ses_free_dummy_session (ses_cb_t *scb);
+    agt_ses_free_dummy_session (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -167,7 +168,8 @@ extern void
 *   not have to be saved by the caller
 *********************************************************************/
 extern ses_cb_t *
-    agt_ses_new_session (ses_transport_t transport,
+    agt_ses_new_session (struct ncx_instance_t_ *instance,
+			 ses_transport_t transport,
 			 int fd);
 
 
@@ -181,7 +183,7 @@ extern ses_cb_t *
 *
 *********************************************************************/
 extern void
-    agt_ses_free_session (ses_cb_t *scb);
+    agt_ses_free_session (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -212,7 +214,8 @@ extern boolean
 *   none
 *********************************************************************/
 extern void
-    agt_ses_request_close (ses_cb_t *scb,
+    agt_ses_request_close (struct ncx_instance_t_ *instance,
+			   ses_cb_t *scb,
 			   ses_id_t killedby,
 			   ses_term_reason_t termreason);
 
@@ -231,7 +234,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    agt_ses_kill_session (ses_cb_t *scb,
+    agt_ses_kill_session (struct ncx_instance_t_ *instance,
+			  ses_cb_t *scb,
 			  ses_id_t killedby,
 			  ses_term_reason_t termreason);
 
@@ -246,7 +250,7 @@ extern void
 *     FALSE if the readyQ was empty
 *********************************************************************/
 extern boolean
-    agt_ses_process_first_ready (void);
+    agt_ses_process_first_ready (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -257,7 +261,7 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    agt_ses_check_timeouts (void);
+    agt_ses_check_timeouts (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -270,7 +274,7 @@ extern void
 *     FALSE if port not allowed
 *********************************************************************/
 extern boolean
-    agt_ses_ssh_port_allowed (uint16 port);
+    agt_ses_ssh_port_allowed (struct ncx_instance_t_ *instance, uint16 port);
 
 
 /********************************************************************
@@ -288,7 +292,8 @@ extern boolean
 *    *maxfdnum may be updated
 *********************************************************************/
 extern void
-    agt_ses_fill_writeset (fd_set *fdset,
+    agt_ses_fill_writeset (struct ncx_instance_t_ *instance,
+			   fd_set *fdset,
 			   int *maxfdnum);
 
 
@@ -304,7 +309,8 @@ extern void
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_inSessions (ses_cb_t *scb,
+    agt_ses_get_inSessions (struct ncx_instance_t_ *instance,
+                            ses_cb_t *scb,
 			    getcb_mode_t cbmode,
 			    const val_value_t *virval,
 			    val_value_t  *dstval);
@@ -322,7 +328,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_inBadHellos (ses_cb_t *scb,
+    agt_ses_get_inBadHellos (struct ncx_instance_t_ *instance,
+                             ses_cb_t *scb,
 			     getcb_mode_t cbmode,
 			     const val_value_t *virval,
 			     val_value_t  *dstval);
@@ -340,10 +347,10 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_inRpcs (ses_cb_t *scb,
+    agt_ses_get_inRpcs (struct ncx_instance_t_ *instance,
+                        ses_cb_t *scb,
 			getcb_mode_t cbmode,
 			const val_value_t *virval,
-
 			val_value_t  *dstval);
 
 
@@ -359,7 +366,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_inBadRpcs (ses_cb_t *scb,
+    agt_ses_get_inBadRpcs (struct ncx_instance_t_ *instance,
+                           ses_cb_t *scb,
 			   getcb_mode_t cbmode,
 			   const val_value_t *virval,
 			   val_value_t  *dstval);
@@ -377,7 +385,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_outRpcErrors (ses_cb_t *scb,
+    agt_ses_get_outRpcErrors (struct ncx_instance_t_ *instance,
+                              ses_cb_t *scb,
 			      getcb_mode_t cbmode,
 			      const val_value_t *virval,
 			      val_value_t  *dstval);
@@ -396,7 +405,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_outNotifications (ses_cb_t *scb,
+    agt_ses_get_outNotifications (struct ncx_instance_t_ *instance,
+                                  ses_cb_t *scb,
 				  getcb_mode_t cbmode,
 				  const val_value_t *virval,
 				  val_value_t  *dstval);
@@ -414,7 +424,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_droppedSessions (ses_cb_t *scb,
+    agt_ses_get_droppedSessions (struct ncx_instance_t_ *instance,
+                                 ses_cb_t *scb,
                                  getcb_mode_t cbmode,
                                  const val_value_t *virval,
                                  val_value_t  *dstval);
@@ -433,7 +444,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_session_inRpcs (ses_cb_t *scb,
+    agt_ses_get_session_inRpcs (struct ncx_instance_t_ *instance,
+                                ses_cb_t *scb,
                                 getcb_mode_t cbmode,
                                 const val_value_t *virval,
                                 val_value_t  *dstval);
@@ -451,7 +463,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_session_inBadRpcs (ses_cb_t *scb,
+    agt_ses_get_session_inBadRpcs (struct ncx_instance_t_ *instance,
+                                   ses_cb_t *scb,
                                    getcb_mode_t cbmode,
                                    const val_value_t *virval,
                                    val_value_t  *dstval);
@@ -469,7 +482,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_session_outRpcErrors (ses_cb_t *scb,
+    agt_ses_get_session_outRpcErrors (struct ncx_instance_t_ *instance,
+                                      ses_cb_t *scb,
                                       getcb_mode_t cbmode,
                                       const val_value_t *virval,
                                       val_value_t  *dstval);
@@ -487,7 +501,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_ses_get_session_outNotifications (ses_cb_t *scb,
+    agt_ses_get_session_outNotifications (struct ncx_instance_t_ *instance,
+                                          ses_cb_t *scb,
                                           getcb_mode_t cbmode,
                                           const val_value_t *virval,
                                           val_value_t  *dstval);

@@ -83,7 +83,7 @@ extern "C" {
 *    none
 *********************************************************************/
 extern void
-    ncx_feature_init (void);
+    ncx_feature_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -97,7 +97,7 @@ extern void
 *    none
 *********************************************************************/
 extern void
-    ncx_feature_cleanup (void);
+    ncx_feature_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -112,7 +112,7 @@ extern void
 *    or NULL if malloc error
 *********************************************************************/
 extern ncx_iffeature_t * 
-    ncx_new_iffeature (void);
+    ncx_new_iffeature (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -125,7 +125,7 @@ extern ncx_iffeature_t *
 *
 *********************************************************************/
 extern void 
-    ncx_free_iffeature (ncx_iffeature_t *iffeature);
+    ncx_free_iffeature (struct ncx_instance_t_ *instance, ncx_iffeature_t *iffeature);
 
 
 /********************************************************************
@@ -140,7 +140,7 @@ extern void
 *    or NULL if malloc error
 *********************************************************************/
 extern ncx_iffeature_t *
-    ncx_clone_iffeature (ncx_iffeature_t *srciff);
+    ncx_clone_iffeature (struct ncx_instance_t_ *instance, ncx_iffeature_t *srciff);
 
 
 /********************************************************************
@@ -153,7 +153,7 @@ extern ncx_iffeature_t *
 *
 *********************************************************************/
 extern void 
-    ncx_clean_iffeatureQ (dlq_hdr_t *iffeatureQ);
+    ncx_clean_iffeatureQ (struct ncx_instance_t_ *instance, dlq_hdr_t *iffeatureQ);
 
 
 /********************************************************************
@@ -168,7 +168,8 @@ extern void
 *    name == feature name string to find
 *********************************************************************/
 extern ncx_iffeature_t *
-    ncx_find_iffeature (dlq_hdr_t *iffeatureQ,
+    ncx_find_iffeature (struct ncx_instance_t_ *instance,
+			dlq_hdr_t *iffeatureQ,
 			const xmlChar *prefix,
 			const xmlChar *name,
 			const xmlChar *modprefix);
@@ -186,7 +187,7 @@ extern ncx_iffeature_t *
 *    or NULL if malloc error
 *********************************************************************/
 extern ncx_feature_t * 
-    ncx_new_feature (void);
+    ncx_new_feature (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -199,7 +200,7 @@ extern ncx_feature_t *
 *
 *********************************************************************/
 extern void 
-    ncx_free_feature (ncx_feature_t *feature);
+    ncx_free_feature (struct ncx_instance_t_ *instance, ncx_feature_t *feature);
 
 
 /********************************************************************
@@ -216,7 +217,8 @@ extern void
 *    pointer to found feature or NULL if not found
 *********************************************************************/
 extern ncx_feature_t *
-    ncx_find_feature (ncx_module_t *mod,
+    ncx_find_feature (struct ncx_instance_t_ *instance,
+		      ncx_module_t *mod,
 		      const xmlChar *name);
 
 
@@ -233,7 +235,8 @@ extern ncx_feature_t *
 *    pointer to found feature or NULL if not found
 *********************************************************************/
 extern ncx_feature_t *
-    ncx_find_feature_que (dlq_hdr_t *featureQ,
+    ncx_find_feature_que (struct ncx_instance_t_ *instance,
+			  dlq_hdr_t *featureQ,
 			  const xmlChar *name);
 
 
@@ -251,7 +254,8 @@ extern ncx_feature_t *
 *    pointer to found feature or NULL if not found
 *********************************************************************/
 extern ncx_feature_t *
-    ncx_find_feature_all (ncx_module_t *mod,
+    ncx_find_feature_all (struct ncx_instance_t_ *instance,
+                          ncx_module_t *mod,
                           const xmlChar *name);
 
 
@@ -269,7 +273,8 @@ extern ncx_feature_t *
 *                   FALSE if all features should invoke callbacks
 *********************************************************************/
 extern void
-    ncx_for_all_features (const ncx_module_t *mod,
+    ncx_for_all_features (struct ncx_instance_t_ *instance,
+			  const ncx_module_t *mod,
 			  ncx_feature_cbfn_t  cbfn,
 			  void *cookie,
 			  boolean enabledonly);
@@ -290,7 +295,8 @@ extern void
 *   total number of features
 *********************************************************************/
 extern uint32
-    ncx_feature_count (const ncx_module_t *mod,
+    ncx_feature_count (struct ncx_instance_t_ *instance,
+		       const ncx_module_t *mod,
 		       boolean enabledonly);
 
 
@@ -308,7 +314,7 @@ extern uint32
 *   FALSE if feature is not enabled, or partially enabled
 *********************************************************************/
 extern boolean
-    ncx_feature_enabled (const ncx_feature_t *feature);
+    ncx_feature_enabled (struct ncx_instance_t_ *instance, const ncx_feature_t *feature);
 
 
 /********************************************************************
@@ -325,7 +331,8 @@ extern boolean
 *    TRUE if feature is enabled
 *********************************************************************/
 extern boolean
-    ncx_feature_enabled_str (const xmlChar *modname,
+    ncx_feature_enabled_str (struct ncx_instance_t_ *instance,
+                             const xmlChar *modname,
                              const xmlChar *revision,
                              const xmlChar *name);
 
@@ -339,7 +346,7 @@ extern boolean
 *   flag == feature enabled flag value
 *********************************************************************/
 extern void
-    ncx_set_feature_enable_default (boolean flag);
+    ncx_set_feature_enable_default (struct ncx_instance_t_ *instance, boolean flag);
 
 
 /********************************************************************
@@ -355,7 +362,7 @@ extern void
 *   code == feature code value
 *********************************************************************/
 extern void
-    ncx_set_feature_code_default (ncx_feature_code_t code);
+    ncx_set_feature_code_default (struct ncx_instance_t_ *instance, ncx_feature_code_t code);
 
 
 /********************************************************************
@@ -376,7 +383,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    ncx_set_feature_code_entry (const xmlChar *featstr,
+    ncx_set_feature_code_entry (struct ncx_instance_t_ *instance,
+                                const xmlChar *featstr,
                                 ncx_feature_code_t featcode);
 
 
@@ -396,7 +404,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ncx_set_feature_enable_entry (const xmlChar *featstr,
+    ncx_set_feature_enable_entry (struct ncx_instance_t_ *instance,
+                                  const xmlChar *featstr,
                                   boolean flag);
 
 
@@ -417,7 +426,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ncx_set_feature_enable (const xmlChar *modname,
+    ncx_set_feature_enable (struct ncx_instance_t_ *instance,
+                            const xmlChar *modname,
                             const xmlChar *name,
                             boolean flag);
 
@@ -435,7 +445,7 @@ extern status_t
 *   feature->code and/or feature->enabled may be set
 *********************************************************************/
 extern void
-    ncx_set_feature_parms (ncx_feature_t *feature);
+    ncx_set_feature_parms (struct ncx_instance_t_ *instance, ncx_feature_t *feature);
 
 
 #ifdef __cplusplus

@@ -149,29 +149,32 @@ date         init     comment
 *   Try to fail on fatal errors only
 *********************************************************************/
 status_t 
-    mgr_xml_consume_node (xmlTextReaderPtr reader,
+    mgr_xml_consume_node (ncx_instance_t *instance,
+                          xmlTextReaderPtr reader,
                           xml_node_t      *node)
 {
-    return xml_consume_node(reader, node, TRUE, TRUE);
+    return xml_consume_node(instance, reader, node, TRUE, TRUE);
 
 }  /* mgr_xml_consume_node */
 
 
 status_t 
-    mgr_xml_consume_node_nons (xmlTextReaderPtr reader,
+    mgr_xml_consume_node_nons (ncx_instance_t *instance,
+                               xmlTextReaderPtr reader,
                                xml_node_t      *node)
 {
-    return xml_consume_node(reader, node, FALSE, TRUE);
+    return xml_consume_node(instance, reader, node, FALSE, TRUE);
 
 }  /* mgr_xml_consume_node_nons */
 
 
 
 status_t 
-    mgr_xml_consume_node_noadv (xmlTextReaderPtr reader,
+    mgr_xml_consume_node_noadv (ncx_instance_t *instance,
+                                xmlTextReaderPtr reader,
                                 xml_node_t      *node)
 {
-    return xml_consume_node(reader, node, TRUE, FALSE);
+    return xml_consume_node(instance, reader, node, TRUE, FALSE);
 
 }  /* mgr_xml_consume_node_noadv */
 
@@ -195,7 +198,8 @@ status_t
 *   end node of the specified start node or a fatal error occurs
 *********************************************************************/
 status_t 
-    mgr_xml_skip_subtree (xmlTextReaderPtr reader,
+    mgr_xml_skip_subtree (ncx_instance_t *instance,
+                          xmlTextReaderPtr reader,
                           const xml_node_t *startnode)
 {
     xml_node_t       node;
@@ -208,7 +212,7 @@ status_t
 
 #ifdef DEBUG
     if (!reader || !startnode) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -225,19 +229,19 @@ status_t
     case XML_NT_END:
         return NO_ERR;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
-    xml_init_node(&node);
-    res = mgr_xml_consume_node_noadv(reader, &node);
+    xml_init_node(instance, &node);
+    res = mgr_xml_consume_node_noadv(instance, reader, &node);
     if (res == NO_ERR) {
-        res = xml_endnode_match(startnode, &node);
+        res = xml_endnode_match(instance, startnode, &node);
         if (res == NO_ERR) {
-            xml_clean_node(&node);
+            xml_clean_node(instance, &node);
             return NO_ERR;
         }
     }
 
-    xml_clean_node(&node);
+    xml_clean_node(instance, &node);
     if (justone) {
         return NO_ERR;
     }
@@ -277,20 +281,21 @@ status_t
              * which doesn't matter in this case
              */
             nsid = 0;
-            (void)xml_check_ns(reader, qname, &nsid, &len, &badns);
+            (void)xml_check_ns(instance, reader, qname, &nsid, &len, &badns);
         } else {
             qname = (const xmlChar *)"";
         }
 
         /* check the normal case to see if the search is done */
         if (depth == startnode->depth &&
-            !xml_strcmp(qname, startnode->qname) &&
+            !xml_strcmp(instance, qname, startnode->qname) &&
             nodetyp == XML_ELEMENT_DECL) {
             done = TRUE;
         }
 
 #ifdef XML_UTIL_DEBUG
-        log_debug3("\nxml_skip: %s L:%d T:%s",
+        log_debug3(instance,
+               "\nxml_skip: %s L:%d T:%s",
                qname, depth, xml_get_node_name(nodetyp));
 #endif
     }

@@ -75,16 +75,16 @@ static cap_list_t    *my_agt_caps = NULL;
 *    none
 *********************************************************************/
 void 
-    agt_cap_cleanup (void)
+    agt_cap_cleanup (ncx_instance_t *instance)
 {
     if (agt_caps) {
-        val_free_value(agt_caps);
+        val_free_value(instance, agt_caps);
         agt_caps = NULL;
     }
 
     if (my_agt_caps) {
-        cap_clean_caplist(my_agt_caps);
-        m__free(my_agt_caps);
+        cap_clean_caplist(instance, my_agt_caps);
+        m__free(instance, my_agt_caps);
         my_agt_caps = NULL;
     }
 
@@ -105,7 +105,8 @@ void
 *    NO_ERR if all goes well
 *********************************************************************/
 status_t 
-    agt_cap_set_caps (ncx_agttarg_t  agttarg,
+    agt_cap_set_caps (ncx_instance_t *instance,
+                      ncx_agttarg_t  agttarg,
                       ncx_agtstart_t agtstart,
                       const xmlChar *defstyle)
 {
@@ -118,21 +119,21 @@ status_t
     res = NO_ERR;
     newcaps = NULL;
 
-    nc_id = xmlns_nc_id();
+    nc_id = xmlns_nc_id(instance);
     oldcaps = agt_caps;
     oldmycaps = my_agt_caps;
 
     agt_profile = agt_get_profile();
 
     /* get a new cap_list */
-    newmycaps = cap_new_caplist();
+    newmycaps = cap_new_caplist(instance);
     if (!newmycaps) {
         res = ERR_INTERNAL_MEM;
     }
 
     /* get a new val_value_t cap list for agent <hello> messages */
     if (res == NO_ERR) {
-        newcaps = xml_val_new_struct(NCX_EL_CAPABILITIES, nc_id);
+        newcaps = xml_val_new_struct(instance, NCX_EL_CAPABILITIES, nc_id);
         if (!newcaps) {
             res = ERR_INTERNAL_MEM;
         }
@@ -140,16 +141,16 @@ status_t
 
     /* add capability for NETCONF version 1.0 and/or 1.1 support */
     if (res == NO_ERR) {
-        if (ncx_protocol_enabled(NCX_PROTO_NETCONF10)) {
-            res = cap_add_std(newmycaps, CAP_STDID_V1);
+        if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF10)) {
+            res = cap_add_std(instance, newmycaps, CAP_STDID_V1);
             if (res == NO_ERR) {
-                res = cap_add_stdval(newcaps, CAP_STDID_V1);
+                res = cap_add_stdval(instance, newcaps, CAP_STDID_V1);
             }
         }
-        if (ncx_protocol_enabled(NCX_PROTO_NETCONF11)) {
-            res = cap_add_std(newmycaps, CAP_STDID_V11);
+        if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF11)) {
+            res = cap_add_std(instance, newmycaps, CAP_STDID_V11);
             if (res == NO_ERR) {
-                res = cap_add_stdval(newcaps, CAP_STDID_V11);
+                res = cap_add_stdval(instance, newcaps, CAP_STDID_V11);
             }
         }
     }
@@ -158,63 +159,67 @@ status_t
         /* set the capabilities based on the native target */
         switch (agttarg) {
         case NCX_AGT_TARG_RUNNING:
-            res = cap_add_std(newmycaps, CAP_STDID_WRITE_RUNNING);
+            res = cap_add_std(instance, newmycaps, CAP_STDID_WRITE_RUNNING);
             if (res == NO_ERR) {
-                res = cap_add_stdval(newcaps, CAP_STDID_WRITE_RUNNING);
+                res = cap_add_stdval(instance, newcaps, CAP_STDID_WRITE_RUNNING);
             }
             break;
         case NCX_AGT_TARG_CANDIDATE:
-            res = cap_add_std(newmycaps, CAP_STDID_CANDIDATE);
+            res = cap_add_std(instance, newmycaps, CAP_STDID_CANDIDATE);
             if (res == NO_ERR) {
-                res = cap_add_stdval(newcaps, CAP_STDID_CANDIDATE);
+                res = cap_add_stdval(instance, newcaps, CAP_STDID_CANDIDATE);
             }
 
             if (res == NO_ERR) {
-                if (ncx_protocol_enabled(NCX_PROTO_NETCONF10)) {
-                    res = cap_add_std(newmycaps, 
+                if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF10)) {
+                    res = cap_add_std(instance, 
+                                      newmycaps, 
                                       CAP_STDID_CONF_COMMIT);
                     if (res == NO_ERR) {
-                        res = cap_add_stdval(newcaps, 
+                        res = cap_add_stdval(instance, 
+                                             newcaps, 
                                              CAP_STDID_CONF_COMMIT);
                     }
                 }
-                if (ncx_protocol_enabled(NCX_PROTO_NETCONF11)) {
-                    res = cap_add_std(newmycaps, 
+                if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF11)) {
+                    res = cap_add_std(instance, 
+                                      newmycaps, 
                                       CAP_STDID_CONF_COMMIT11);
                     if (res == NO_ERR) {
-                        res = cap_add_stdval(newcaps, 
+                        res = cap_add_stdval(instance, 
+                                             newcaps, 
                                              CAP_STDID_CONF_COMMIT11);
                     }
                 }
             }
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             break;
         }
     }
 
     if (res == NO_ERR) {
         /* set the rollback-on-error capability */
-        res = cap_add_std(newmycaps, CAP_STDID_ROLLBACK_ERR);
+        res = cap_add_std(instance, newmycaps, CAP_STDID_ROLLBACK_ERR);
         if (res == NO_ERR) {
-            res = cap_add_stdval(newcaps, CAP_STDID_ROLLBACK_ERR);
+            res = cap_add_stdval(instance, newcaps, CAP_STDID_ROLLBACK_ERR);
         }
     }
 
     if (res == NO_ERR) {
         if (agt_profile->agt_usevalidate) {
             /* set the validate capability */
-            if (ncx_protocol_enabled(NCX_PROTO_NETCONF10)) {
-                res = cap_add_std(newmycaps, CAP_STDID_VALIDATE);
+            if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF10)) {
+                res = cap_add_std(instance, newmycaps, CAP_STDID_VALIDATE);
                 if (res == NO_ERR) {
-                    res = cap_add_stdval(newcaps, CAP_STDID_VALIDATE);
+                    res = cap_add_stdval(instance, newcaps, CAP_STDID_VALIDATE);
                 }
             }
-            if (ncx_protocol_enabled(NCX_PROTO_NETCONF11)) {
-                res = cap_add_std(newmycaps, CAP_STDID_VALIDATE11);
+            if (ncx_protocol_enabled(instance, NCX_PROTO_NETCONF11)) {
+                res = cap_add_std(instance, newmycaps, CAP_STDID_VALIDATE11);
                 if (res == NO_ERR) {
-                    res = cap_add_stdval(newcaps, CAP_STDID_VALIDATE11);
+                    res = cap_add_stdval(instance, newcaps, CAP_STDID_VALIDATE11);
                 }
             }
         }
@@ -223,9 +228,9 @@ status_t
     /* check the startup type for distinct-startup capability */
     if (res == NO_ERR) {
         if (agtstart==NCX_AGT_START_DISTINCT) {
-            res = cap_add_std(newmycaps, CAP_STDID_STARTUP);
+            res = cap_add_std(instance, newmycaps, CAP_STDID_STARTUP);
             if (res == NO_ERR) {
-                res = cap_add_stdval(newcaps, CAP_STDID_STARTUP);
+                res = cap_add_stdval(instance, newcaps, CAP_STDID_STARTUP);
             }
         }
     }
@@ -233,68 +238,69 @@ status_t
     /* set the url capability */
     if (res == NO_ERR) {
         if (agt_profile->agt_useurl) {
-            res = cap_add_url(newmycaps, AGT_URL_SCHEME_LIST);
+            res = cap_add_url(instance, newmycaps, AGT_URL_SCHEME_LIST);
             if (res == NO_ERR) {
-                res = cap_add_urlval(newcaps, AGT_URL_SCHEME_LIST);
+                res = cap_add_urlval(instance, newcaps, AGT_URL_SCHEME_LIST);
             }
         }
     }
 
     /* set the xpath capability */
     if (res == NO_ERR) {
-        res = cap_add_std(newmycaps, CAP_STDID_XPATH);
+        res = cap_add_std(instance, newmycaps, CAP_STDID_XPATH);
         if (res == NO_ERR) {
-            res = cap_add_stdval(newcaps, CAP_STDID_XPATH);
+            res = cap_add_stdval(instance, newcaps, CAP_STDID_XPATH);
         }
     }
 
     /* set the notification capability */
     if (res == NO_ERR) {
-        res = cap_add_std(newmycaps, CAP_STDID_NOTIFICATION);
+        res = cap_add_std(instance, newmycaps, CAP_STDID_NOTIFICATION);
         if (res == NO_ERR) {
-            res = cap_add_stdval(newcaps, CAP_STDID_NOTIFICATION);
+            res = cap_add_stdval(instance, newcaps, CAP_STDID_NOTIFICATION);
         }
     }
 
     /* set the interleave capability */
     if (res == NO_ERR) {
-        res = cap_add_std(newmycaps, CAP_STDID_INTERLEAVE);
+        res = cap_add_std(instance, newmycaps, CAP_STDID_INTERLEAVE);
         if (res == NO_ERR) {
-            res = cap_add_stdval(newcaps, CAP_STDID_INTERLEAVE);
+            res = cap_add_stdval(instance, newcaps, CAP_STDID_INTERLEAVE);
         }
     }
 
     /* set the partial-lock capability */
     if (res == NO_ERR) {
-        res = cap_add_std(newmycaps, CAP_STDID_PARTIAL_LOCK);
+        res = cap_add_std(instance, newmycaps, CAP_STDID_PARTIAL_LOCK);
         if (res == NO_ERR) {
-            res = cap_add_stdval(newcaps, 
+            res = cap_add_stdval(instance, 
+                                 newcaps, 
                                  CAP_STDID_PARTIAL_LOCK);
         }
     }
 
     /* set the with-defaults capability */
     if (res == NO_ERR) {
-        res = cap_add_withdef(newmycaps, defstyle);
+        res = cap_add_withdef(instance, newmycaps, defstyle);
         if (res == NO_ERR) {
-            res = cap_add_withdefval(newcaps, defstyle);
+            res = cap_add_withdefval(instance, newcaps, defstyle);
         }
     }
 
     /* check the return value */
     if (res != NO_ERR) {
         /* toss the new, put back the old */
-        cap_free_caplist(newmycaps);
-        val_free_value(newcaps);
+        cap_free_caplist(instance, newmycaps);
+        val_free_value(instance, newcaps);
         my_agt_caps = oldmycaps;
         agt_caps = oldcaps;
     } else {
         /* toss the old, install the new */
         if (oldmycaps) {
-            cap_free_caplist(oldmycaps);
+            cap_free_caplist(instance, oldmycaps);
         }
         if (oldcaps) {
-            val_free_value(oldcaps);
+            val_free_value(instance, oldcaps);
         }
         my_agt_caps = newmycaps;
         agt_caps = newcaps;
@@ -318,48 +324,49 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    agt_cap_set_modules (agt_profile_t *profile)
+    agt_cap_set_modules (ncx_instance_t *instance, agt_profile_t *profile)
 {
     ncx_module_t          *mod;
     ncx_save_deviations_t *savedev;
     status_t               res;
 
     if (!agt_caps || !my_agt_caps) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
     res = NO_ERR;
 
-    mod = ncx_get_first_module();
+    mod = ncx_get_first_module(instance);
 
     /* add capability for each module loaded in ncxmod */
     while (mod && res == NO_ERR) {
         /* keep internal modules out of the capabilities */
-        if (agt_advertise_module_needed(mod->name)) {
-            res = cap_add_modval(agt_caps, mod);
+        if (agt_advertise_module_needed(instance, mod->name)) {
+            res = cap_add_modval(instance, agt_caps, mod);
         }
-        mod = (ncx_module_t *)dlq_nextEntry(mod);
+        mod = (ncx_module_t *)dlq_nextEntry(instance, mod);
     }
 
     /* add capability for each deviation module, not already
      * listed in the module capabilities so far
      */
     for (savedev = (ncx_save_deviations_t *)
-             dlq_firstEntry(&profile->agt_savedevQ);
+             dlq_firstEntry(instance, &profile->agt_savedevQ);
          savedev != NULL && res == NO_ERR;
          savedev = (ncx_save_deviations_t *)
-             dlq_nextEntry(savedev)) {
+             dlq_nextEntry(instance, savedev)) {
 
-        if (agt_advertise_module_needed(savedev->devmodule)) {
+        if (agt_advertise_module_needed(instance, savedev->devmodule)) {
 
             /* make sure this is not a hard-wired internal module 
              * or a duplicate already loaded as a regular module
              */
-            mod = ncx_find_module(savedev->devmodule,
+            mod = ncx_find_module(instance,
+                                  savedev->devmodule,
                                   savedev->devrevision);
             if (mod == NULL) {
                 /* not already announced in the capabilities */
-                res = cap_add_devmodval(agt_caps, savedev);
+                res = cap_add_devmodval(instance, agt_caps, savedev);
             }
         }
     }
@@ -379,20 +386,20 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    agt_cap_add_module (ncx_module_t *mod)
+    agt_cap_add_module (ncx_instance_t *instance, ncx_module_t *mod)
 {
 #ifdef DEBUG
     if (!mod) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (!agt_caps || !my_agt_caps) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
-    if (agt_advertise_module_needed(mod->name)) {
-        return cap_add_modval(agt_caps, mod);
+    if (agt_advertise_module_needed(instance, mod->name)) {
+        return cap_add_modval(instance, agt_caps, mod);
     } else {
         return NO_ERR;
     }

@@ -66,7 +66,8 @@ extern "C" {
 *   0 if field not changed
 *********************************************************************/
 extern uint32
-    type_changed (yangdiff_diffparms_t *cp,
+    type_changed (struct ncx_instance_t_ *instance,
+		  yangdiff_diffparms_t *cp,
 		  typ_def_t *oldtypdef,
 		  typ_def_t *newtypdef);
 
@@ -86,7 +87,8 @@ extern uint32
  *    0 if field not changed
  *********************************************************************/
 extern uint32
-    typedef_changed (yangdiff_diffparms_t *cp,
+    typedef_changed (struct ncx_instance_t_ *instance,
+		     yangdiff_diffparms_t *cp,
 		     typ_template_t *oldtyp,
 		     typ_template_t *newtyp);
 
@@ -106,7 +108,8 @@ extern uint32
  *    0 if field not changed
  *********************************************************************/
 extern uint32
-    typedefQ_changed (yangdiff_diffparms_t *cp,
+    typedefQ_changed (struct ncx_instance_t_ *instance,
+		      yangdiff_diffparms_t *cp,
 		      dlq_hdr_t *oldQ,
 		      dlq_hdr_t *newQ);
 
@@ -125,7 +128,8 @@ extern uint32
  *
  *********************************************************************/
 extern void
-    output_typedefQ_diff (yangdiff_diffparms_t *cp,
+    output_typedefQ_diff (struct ncx_instance_t_ *instance,
+			  yangdiff_diffparms_t *cp,
 			  dlq_hdr_t *oldQ,
 			  dlq_hdr_t *newQ);
 
@@ -147,7 +151,8 @@ extern void
  *
  *********************************************************************/
 extern void
-    output_one_type_diff (yangdiff_diffparms_t *cp,
+    output_one_type_diff (struct ncx_instance_t_ *instance,
+			  yangdiff_diffparms_t *cp,
 			  typ_def_t *oldtypdef,
 			  typ_def_t *newtypdef);
 

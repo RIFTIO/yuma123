@@ -73,7 +73,7 @@ extern "C" {
 *    none
 *********************************************************************/
 extern void 
-    agt_cap_cleanup (void);
+    agt_cap_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -90,7 +90,8 @@ extern void
 *    NO_ERR if all goes well
 *********************************************************************/
 extern status_t 
-    agt_cap_set_caps (ncx_agttarg_t  agttarg,
+    agt_cap_set_caps (struct ncx_instance_t_ *instance,
+		      ncx_agttarg_t  agttarg,
 		      ncx_agtstart_t agtstart,
 		      const xmlChar *defstyle);
 
@@ -108,7 +109,7 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_cap_set_modules (agt_profile_t *profile);
+    agt_cap_set_modules (struct ncx_instance_t_ *instance, agt_profile_t *profile);
 
 
 /********************************************************************
@@ -121,7 +122,7 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    agt_cap_add_module (ncx_module_t *mod);
+    agt_cap_add_module (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************

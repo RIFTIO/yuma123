@@ -158,11 +158,11 @@ static int32
 *     num == number to initialize
 *********************************************************************/
 void
-    ncx_init_num (ncx_num_t *num)
+    ncx_init_num (ncx_instance_t *instance, ncx_num_t *num)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -185,12 +185,13 @@ void
 *    num == ncx_num_t data structure to clean
 *********************************************************************/
 void 
-    ncx_clean_num (ncx_btype_t btyp,
+    ncx_clean_num (ncx_instance_t *instance,
+                   ncx_btype_t btyp,
                    ncx_num_t *num)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;  
     }
 #endif
@@ -217,7 +218,7 @@ void
         num->d = 0;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 }  /* ncx_clean_num */
@@ -238,7 +239,8 @@ void
 *      1 if num1 is > num2
 *********************************************************************/
 int32
-    ncx_compare_nums (const ncx_num_t *num1,
+    ncx_compare_nums (ncx_instance_t *instance,
+                      const ncx_num_t *num1,
                       const ncx_num_t *num2,
                       ncx_btype_t  btyp)
 {
@@ -247,7 +249,7 @@ int32
 
 #ifdef DEBUG
     if (!num1 || !num2) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -291,8 +293,8 @@ int32
         }
     case NCX_BT_DECIMAL64:
         /* check the base parts first */
-        temp1 = ncx_get_dec64_base(num1);
-        temp2 = ncx_get_dec64_base(num2);
+        temp1 = ncx_get_dec64_base(instance, num1);
+        temp2 = ncx_get_dec64_base(instance, num2);
 
         if (temp1 < temp2) {
             return -1;
@@ -307,8 +309,8 @@ int32
             }
 
             /* check fraction parts next */
-            temp1 = ncx_get_dec64_fraction(num1);
-            temp2 = ncx_get_dec64_fraction(num2);
+            temp1 = ncx_get_dec64_fraction(instance, num1);
+            temp2 = ncx_get_dec64_fraction(instance, num2);
 
             /* normalize these numbers to compare them */
             if (num1->dec.digits > num2->dec.digits) {
@@ -338,7 +340,7 @@ int32
             return 1;
         }
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 0;
     }
     /*NOTREACHED*/
@@ -356,12 +358,13 @@ int32
 *
 *********************************************************************/
 void
-    ncx_set_num_min (ncx_num_t *num,
+    ncx_set_num_min (ncx_instance_t *instance,
+                     ncx_num_t *num,
                      ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -399,7 +402,7 @@ void
 #endif
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 } /* ncx_set_num_min */
@@ -416,12 +419,13 @@ void
 *
 *********************************************************************/
 void
-    ncx_set_num_max (ncx_num_t *num,
+    ncx_set_num_max (ncx_instance_t *instance,
+                     ncx_num_t *num,
                      ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -463,7 +467,7 @@ void
 #endif
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 } /* ncx_set_num_max */
@@ -480,12 +484,13 @@ void
 *
 *********************************************************************/
 void
-    ncx_set_num_one (ncx_num_t *num,
+    ncx_set_num_one (ncx_instance_t *instance,
+                     ncx_num_t *num,
                      ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -513,7 +518,7 @@ void
         num->d = 1;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 } /* ncx_set_num_one */
@@ -530,12 +535,13 @@ void
 *
 *********************************************************************/
 void
-    ncx_set_num_zero (ncx_num_t *num,
+    ncx_set_num_zero (ncx_instance_t *instance,
+                      ncx_num_t *num,
                       ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -563,7 +569,7 @@ void
         num->d = 0;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 } /* ncx_set_num_zero */
@@ -580,12 +586,13 @@ void
 *
 *********************************************************************/
 void
-    ncx_set_num_nan (ncx_num_t *num,
+    ncx_set_num_nan (ncx_instance_t *instance,
+                     ncx_num_t *num,
                      ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -615,12 +622,13 @@ void
 *    FALSE otherwise
 *********************************************************************/
 boolean
-    ncx_num_is_nan (ncx_num_t *num,
+    ncx_num_is_nan (ncx_instance_t *instance,
+                    ncx_num_t *num,
                     ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return TRUE;
     }
 #endif
@@ -651,12 +659,13 @@ boolean
 *     FALSE if value is not equal to zero
 *********************************************************************/
 boolean
-    ncx_num_zero (const ncx_num_t *num,
+    ncx_num_zero (ncx_instance_t *instance,
+                  const ncx_num_t *num,
                   ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -679,7 +688,7 @@ boolean
     case NCX_BT_FLOAT64:
         return (num->d == 0) ? TRUE : FALSE;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -705,7 +714,8 @@ boolean
 *     status
 *********************************************************************/
 status_t
-    ncx_convert_num (const xmlChar *numstr,
+    ncx_convert_num (ncx_instance_t *instance,
+                     const xmlChar *numstr,
                      ncx_numfmt_t   numfmt,
                      ncx_btype_t  btyp,
                      ncx_num_t    *val)
@@ -722,7 +732,7 @@ status_t
 
 #ifdef DEBUG
     if (!numstr || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -738,7 +748,7 @@ status_t
 
     /* check the number format set to don't know */
     if (numfmt==NCX_NF_NONE) {
-        numfmt = ncx_get_numfmt(numstr);
+        numfmt = ncx_get_numfmt(instance, numstr);
     }
 
 
@@ -759,7 +769,7 @@ status_t
         case NCX_NF_REAL:
             return ERR_NCX_WRONG_NUMTYP;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (err && *err) {
@@ -796,7 +806,7 @@ status_t
         case NCX_NF_REAL:
             return ERR_NCX_WRONG_NUMTYP;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (err && *err) {
@@ -820,7 +830,7 @@ status_t
         case NCX_NF_REAL:
             return ERR_NCX_WRONG_NUMTYP;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (err && *err) {
@@ -862,7 +872,7 @@ status_t
         case NCX_NF_REAL:
             return ERR_NCX_WRONG_TKTYPE;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (err && *err) {
@@ -876,7 +886,7 @@ status_t
         val->ul = (uint64)ull;
         break;
     case NCX_BT_DECIMAL64:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     case NCX_BT_FLOAT64:
 #ifdef HAS_FLOAT
         switch (numfmt) {
@@ -893,7 +903,7 @@ status_t
         case NCX_NF_HEX:
             return ERR_NCX_WRONG_NUMTYP;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 #else
         switch (numfmt) {
@@ -921,12 +931,12 @@ status_t
         case NCX_NF_REAL:
             return ERR_NCX_WRONG_NUMTYP;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 #endif
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     return NO_ERR;
 
@@ -951,7 +961,8 @@ status_t
 *     status
 *********************************************************************/
 status_t
-    ncx_convert_dec64 (const xmlChar *numstr,
+    ncx_convert_dec64 (ncx_instance_t *instance,
+                       const xmlChar *numstr,
                        ncx_numfmt_t numfmt,
                        uint8 digits,
                        ncx_num_t *val)
@@ -966,7 +977,7 @@ status_t
 
 #ifdef DEBUG
     if (!numstr || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -985,7 +996,7 @@ status_t
 
     /* check the number format set to don't know */
     if (numfmt==NCX_NF_NONE) {
-        numfmt = ncx_get_numfmt(numstr);
+        numfmt = ncx_get_numfmt(instance, numstr);
     }
 
     /* check the number string for plus or minus sign */
@@ -1004,7 +1015,8 @@ status_t
     if (*str == '.') {
         /* get just the base part now */
         point = str;
-        xml_strncpy(numbuff, 
+        xml_strncpy(instance, 
+                    numbuff, 
                     numstr, 
                     (uint32)(point - numstr));
         basenum = strtoll((const char *)numbuff, &err, 10);
@@ -1037,7 +1049,7 @@ status_t
             basenum = strtoll((const char *)numstr, &err, 16);
             break;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         /* check if strtoll accepted the number string */
@@ -1087,7 +1099,7 @@ status_t
 
         if (numdigits) {
             err = NULL;
-            xml_strncpy(numbuff, point+1, numdigits);
+            xml_strncpy(instance, numbuff, point+1, numdigits);
             fracnum = strtoll((const char *)numbuff, &err, 10);
 
             /* check if strtoll accepted the number string */
@@ -1142,7 +1154,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    ncx_decode_num (const xmlChar *numstr,
+    ncx_decode_num (ncx_instance_t *instance,
+                    const xmlChar *numstr,
                     ncx_btype_t  btyp,
                     ncx_num_t  *retnum)
 {
@@ -1150,13 +1163,14 @@ status_t
 
 #ifdef DEBUG
     if (!numstr || !retnum) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* check if this is a hex number */
     if (*numstr == '0' && NCX_IS_HEX_CH(*(numstr+1))) {
-        return ncx_convert_num(numstr+2, 
+        return ncx_convert_num(instance, 
+                               numstr+2, 
                                NCX_NF_HEX, 
                                btyp, 
                                retnum);
@@ -1168,19 +1182,21 @@ status_t
         str++;
     }
     if (*str) {
-        return ncx_convert_num(numstr, NCX_NF_REAL, btyp, retnum);
+        return ncx_convert_num(instance, numstr, NCX_NF_REAL, btyp, retnum);
     }
 
     /* check octal number */
     if (*numstr == '0' && numstr[1] != '.') {
-        return ncx_convert_num(numstr, 
+        return ncx_convert_num(instance, 
+                               numstr, 
                                NCX_NF_OCTAL, 
                                btyp, 
                                retnum);
     }
 
     /* else assume this is a decimal number */
-    return ncx_convert_num(numstr, 
+    return ncx_convert_num(instance, 
+                           numstr, 
                            NCX_NF_DEC, 
                            btyp, 
                            retnum);
@@ -1205,7 +1221,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    ncx_decode_dec64 (const xmlChar *numstr,
+    ncx_decode_dec64 (ncx_instance_t *instance,
+                      const xmlChar *numstr,
                       uint8  digits,
                       ncx_num_t  *retnum)
 {
@@ -1213,13 +1230,14 @@ status_t
 
 #ifdef DEBUG
     if (!numstr || !retnum) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* check if this is a hex number */
     if (*numstr == '0' && NCX_IS_HEX_CH(*(numstr+1))) {
-        return ncx_convert_dec64(numstr+2, 
+        return ncx_convert_dec64(instance, 
+                                 numstr+2, 
                                  NCX_NF_HEX, 
                                  digits, 
                                  retnum);
@@ -1231,7 +1249,8 @@ status_t
         str++;
     }
     if (*str) {
-        return ncx_convert_dec64(numstr, 
+        return ncx_convert_dec64(instance, 
+                                 numstr, 
                                  NCX_NF_REAL, 
                                  digits, 
                                  retnum);
@@ -1239,14 +1258,16 @@ status_t
 
     /* check octal number */
     if (*numstr == '0') {
-        return ncx_convert_dec64(numstr, 
+        return ncx_convert_dec64(instance, 
+                                 numstr, 
                                  NCX_NF_OCTAL, 
                                  digits, 
                                  retnum);
     }
 
     /* else assume this is a decimal number */
-    return ncx_convert_dec64(numstr, 
+    return ncx_convert_dec64(instance, 
+                             numstr, 
                              NCX_NF_DEC, 
                              digits, 
                              retnum);
@@ -1273,13 +1294,14 @@ status_t
 *     status
 *********************************************************************/
 status_t
-    ncx_copy_num (const ncx_num_t *num1,
+    ncx_copy_num (ncx_instance_t *instance,
+                  const ncx_num_t *num1,
                   ncx_num_t *num2,
                   ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num1 || !num2) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1309,7 +1331,7 @@ status_t
         num2->d = num1->d;
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     return NO_ERR;
 }  /* ncx_copy_num */
@@ -1338,7 +1360,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ncx_cast_num (const ncx_num_t *num1,
+    ncx_cast_num (ncx_instance_t *instance,
+                  const ncx_num_t *num1,
                   ncx_btype_t  btyp1,
                   ncx_num_t *num2,
                   ncx_btype_t  btyp2)
@@ -1348,7 +1371,7 @@ status_t
 
 #ifdef DEBUG
     if (!num1 || !num2) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1392,7 +1415,7 @@ status_t
 #endif
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case NCX_BT_INT64:
@@ -1428,7 +1451,7 @@ status_t
 #endif
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case NCX_BT_UINT8:
@@ -1468,7 +1491,7 @@ status_t
 #endif
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case NCX_BT_UINT64:
@@ -1504,7 +1527,7 @@ status_t
 #endif
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case NCX_BT_DECIMAL64:
@@ -1541,7 +1564,7 @@ status_t
                 num2->d = (double)testbase;
                 break;
             default:
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         break;
@@ -1572,7 +1595,7 @@ status_t
             num2->d = num1->d;
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 #else
         switch (btyp2) {
@@ -1594,12 +1617,12 @@ status_t
             num2->d = num1->d;
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 #endif
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -1630,7 +1653,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ncx_num_floor (const ncx_num_t *num1,
+    ncx_num_floor (ncx_instance_t *instance,
+                   const ncx_num_t *num1,
                    ncx_num_t *num2,
                    ncx_btype_t  btyp)
 {
@@ -1638,7 +1662,7 @@ status_t
 
 #ifdef DEBUG
     if (!num1 || !num2) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1677,7 +1701,7 @@ status_t
 #endif
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -1708,7 +1732,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ncx_num_ceiling (const ncx_num_t *num1,
+    ncx_num_ceiling (ncx_instance_t *instance,
+                     const ncx_num_t *num1,
                      ncx_num_t *num2,
                      ncx_btype_t  btyp)
 {
@@ -1716,7 +1741,7 @@ status_t
 
 #ifdef DEBUG
     if (!num1 || !num2) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1756,7 +1781,7 @@ status_t
 #endif
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -1787,7 +1812,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ncx_round_num (const ncx_num_t *num1,
+    ncx_round_num (ncx_instance_t *instance,
+                   const ncx_num_t *num1,
                    ncx_num_t *num2,
                    ncx_btype_t  btyp)
 {
@@ -1795,7 +1821,7 @@ status_t
 
 #ifdef DEBUG
     if (!num1 || !num2) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1836,7 +1862,7 @@ status_t
 #endif
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -1862,7 +1888,8 @@ status_t
 *     TRUE if integral, FALSE if not
 *********************************************************************/
 boolean
-    ncx_num_is_integral (const ncx_num_t *num,
+    ncx_num_is_integral (ncx_instance_t *instance,
+                         const ncx_num_t *num,
                          ncx_btype_t  btyp)
 {
 #ifdef HAS_FLOAT
@@ -1871,7 +1898,7 @@ boolean
 
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -1888,7 +1915,7 @@ boolean
         return TRUE;
     case NCX_BT_DECIMAL64:
         if (num->dec.digits == 0) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return FALSE;
         }
         if (num->dec.val / (10 * num->dec.digits)) {
@@ -1905,7 +1932,7 @@ boolean
         return TRUE;
 #endif
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -1927,12 +1954,13 @@ boolean
 *     int64 representation
 *********************************************************************/
 int64
-    ncx_cvt_to_int64 (const ncx_num_t *num,
+    ncx_cvt_to_int64 (ncx_instance_t *instance,
+                      const ncx_num_t *num,
                       ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -1952,7 +1980,7 @@ int64
         return (int64)num->ul;
     case NCX_BT_DECIMAL64:
         if (num->dec.digits == 0) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return 0;
         }
         return (int64)(num->dec.val / (10 * num->dec.digits));
@@ -1966,7 +1994,7 @@ int64
         return num->d;
 #endif
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 0;
     }
     /*NOTREACHED*/
@@ -1988,11 +2016,11 @@ int64
 *    NCX_NF_NONE, NCX_NF_DEC, NCX_NF_HEX, or NCX_NF_REAL
 *********************************************************************/
 ncx_numfmt_t
-    ncx_get_numfmt (const xmlChar *numstr)
+    ncx_get_numfmt (ncx_instance_t *instance, const xmlChar *numstr)
 {
 #ifdef DEBUG
     if (!numstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_NF_NONE;
     }
 #endif
@@ -2031,7 +2059,8 @@ ncx_numfmt_t
 *
 *********************************************************************/
 void
-    ncx_printf_num (const ncx_num_t *num,
+    ncx_printf_num (ncx_instance_t *instance,
+                    const ncx_num_t *num,
                     ncx_btype_t  btyp)
 {
     xmlChar   numbuff[VAL_MAX_NUMLEN];
@@ -2040,16 +2069,16 @@ void
 
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    res = ncx_sprintf_num(numbuff, num, btyp, &len);
+    res = ncx_sprintf_num(instance, numbuff, num, btyp, &len);
     if (res != NO_ERR) {
-        log_write("invalid num '%s'", get_error_string(res));
+        log_write(instance, "invalid num '%s'", get_error_string(res));
     } else {
-        log_write("%s", numbuff);
+        log_write(instance, "%s", numbuff);
     }
 
 } /* ncx_printf_num */
@@ -2066,7 +2095,8 @@ void
 *
 *********************************************************************/
 void
-    ncx_alt_printf_num (const ncx_num_t *num,
+    ncx_alt_printf_num (ncx_instance_t *instance,
+                        const ncx_num_t *num,
                         ncx_btype_t  btyp)
 {
     xmlChar   numbuff[VAL_MAX_NUMLEN];
@@ -2075,16 +2105,16 @@ void
 
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    res = ncx_sprintf_num(numbuff, num, btyp, &len);
+    res = ncx_sprintf_num(instance, numbuff, num, btyp, &len);
     if (res != NO_ERR) {
-        log_alt_write("invalid num '%s'", get_error_string(res));
+        log_alt_write(instance, "invalid num '%s'", get_error_string(res));
     } else {
-        log_alt_write("%s", numbuff);
+        log_alt_write(instance, "%s", numbuff);
     }
 
 } /* ncx_alt_printf_num */
@@ -2108,7 +2138,8 @@ void
 *    status
 *********************************************************************/
 status_t
-    ncx_sprintf_num (xmlChar *buff,
+    ncx_sprintf_num (ncx_instance_t *instance,
+                     xmlChar *buff,
                      const ncx_num_t *num,
                      ncx_btype_t  btyp,
                      uint32   *len)
@@ -2124,7 +2155,7 @@ status_t
 
 #ifdef DEBUG
     if (!num || !len) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2153,9 +2184,9 @@ status_t
         break;
     case NCX_BT_DECIMAL64:
         if (num->dec.val == 0) {
-            ilen = xml_strcpy(buff, (const xmlChar *)"0.0");
+            ilen = xml_strcpy(instance, buff, (const xmlChar *)"0.0");
         } else if (num->dec.zeroes > 0) {
-            ilen = xml_strcpy(buff, (const xmlChar *)"0.");
+            ilen = xml_strcpy(instance, buff, (const xmlChar *)"0.");
             i = 1;
             while (i < num->dec.zeroes) {
                 buff[ilen++] = '0';
@@ -2165,7 +2196,7 @@ status_t
                             (long long)num->dec.val);
         } else {
             if (num->dec.digits == 0) {
-                return SET_ERROR(ERR_INTERNAL_VAL);
+                return SET_ERROR(instance, ERR_INTERNAL_VAL);
             } else {
                 /* get the encoded number in the temp buffer */
                 pos = sprintf((char *)decbuff, 
@@ -2173,19 +2204,20 @@ status_t
                               (long long)num->dec.val);
 
                 if (pos <= num->dec.digits) {
-                    return SET_ERROR(ERR_INTERNAL_VAL);
+                    return SET_ERROR(instance, ERR_INTERNAL_VAL);
                 } else {
                     /* find where the decimal point should go */
                     point = &decbuff[pos - num->dec.digits];
 
                     /* copy the base part to the real buffer */
-                    ulen = xml_strncpy(buff, 
+                    ulen = xml_strncpy(instance, 
+                                       buff, 
                                        decbuff, 
                                        (uint32)(point - decbuff));
 
                     buff[ulen] = '.';
 
-                    xml_strcpy(&buff[ulen+1], point);
+                    xml_strcpy(instance, &buff[ulen+1], point);
 
                     /* current length is pos+1
                      * need to check for trailing zeros
@@ -2214,7 +2246,7 @@ status_t
 #endif
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* check the sprintf return value */
@@ -2242,12 +2274,13 @@ status_t
 *     FALSE otherwise
 *********************************************************************/
 boolean
-    ncx_is_min (const ncx_num_t *num,
+    ncx_is_min (ncx_instance_t *instance,
+                const ncx_num_t *num,
                 ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -2277,7 +2310,7 @@ boolean
         return (num->d == NCX_MIN_LONG) ? TRUE : FALSE;
 #endif
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -2299,12 +2332,13 @@ boolean
 *     FALSE otherwise
 *********************************************************************/
 boolean
-    ncx_is_max (const ncx_num_t *num,
+    ncx_is_max (ncx_instance_t *instance,
+                const ncx_num_t *num,
                 ncx_btype_t  btyp)
 {
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -2335,7 +2369,7 @@ boolean
         return (num->d == NCX_MAX_LONG-1) ? TRUE : FALSE;
 #endif
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -2360,43 +2394,48 @@ boolean
 *     status
 *********************************************************************/
 status_t
-    ncx_convert_tkcnum (tk_chain_t *tkc,
+    ncx_convert_tkcnum (ncx_instance_t *instance,
+                        tk_chain_t *tkc,
                         ncx_btype_t btyp,
                         ncx_num_t *val)
 {
     const xmlChar *numstr;
 
     if (btyp == NCX_BT_DECIMAL64) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     switch (TK_CUR_TYP(tkc)) {
     case TK_TT_DNUM:
         numstr = TK_CUR_VAL(tkc);
         if (numstr && *numstr=='0') {
-            return ncx_convert_num(TK_CUR_VAL(tkc), 
+            return ncx_convert_num(instance, 
+                                   TK_CUR_VAL(tkc), 
                                    NCX_NF_OCTAL, 
                                    btyp, 
                                    val);
         } else {
-            return ncx_convert_num(TK_CUR_VAL(tkc), 
+            return ncx_convert_num(instance, 
+                                   TK_CUR_VAL(tkc), 
                                    NCX_NF_DEC, 
                                    btyp, 
                                    val);
         }
     case TK_TT_HNUM:
-        return ncx_convert_num(TK_CUR_VAL(tkc), 
+        return ncx_convert_num(instance, 
+                               TK_CUR_VAL(tkc), 
                                NCX_NF_HEX, 
                                btyp, 
                                val);
     case TK_TT_RNUM:
-        return ncx_convert_num(TK_CUR_VAL(tkc), 
+        return ncx_convert_num(instance, 
+                               TK_CUR_VAL(tkc), 
                                NCX_NF_REAL, 
                                btyp, 
                                val);
     default:
         /* if this is a string, then this might work */
-        return ncx_decode_num(TK_CUR_VAL(tkc), btyp, val);
+        return ncx_decode_num(instance, TK_CUR_VAL(tkc), btyp, val);
     }
 }  /* ncx_convert_tkcnum */
 
@@ -2419,7 +2458,8 @@ status_t
 *     status
 *********************************************************************/
 status_t
-    ncx_convert_tkc_dec64 (tk_chain_t *tkc,
+    ncx_convert_tkc_dec64 (ncx_instance_t *instance,
+                           tk_chain_t *tkc,
                            uint8 digits,
                            ncx_num_t *val)
 {
@@ -2427,7 +2467,7 @@ status_t
 
 #ifdef DEBUG
     if (!tkc || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2435,29 +2475,34 @@ status_t
     case TK_TT_DNUM:
         numstr = TK_CUR_VAL(tkc);
         if (numstr && *numstr=='0' && numstr[1] != '.') {
-            return ncx_convert_dec64(TK_CUR_VAL(tkc), 
+            return ncx_convert_dec64(instance, 
+                                     TK_CUR_VAL(tkc), 
                                      NCX_NF_OCTAL, 
                                      digits, 
                                      val);
         } else {
-            return ncx_convert_dec64(TK_CUR_VAL(tkc), 
+            return ncx_convert_dec64(instance, 
+                                     TK_CUR_VAL(tkc), 
                                      NCX_NF_DEC, 
                                      digits, 
                                      val);
         }
     case TK_TT_HNUM:
-        return ncx_convert_dec64(TK_CUR_VAL(tkc), 
+        return ncx_convert_dec64(instance, 
+                                 TK_CUR_VAL(tkc), 
                                  NCX_NF_HEX, 
                                  digits, 
                                  val);
     case TK_TT_RNUM:
-        return ncx_convert_dec64(TK_CUR_VAL(tkc), 
+        return ncx_convert_dec64(instance, 
+                                 TK_CUR_VAL(tkc), 
                                  NCX_NF_REAL, 
                                  digits, 
                                  val);
     default:
         /* if this is a string, then this might work */
-        return ncx_decode_dec64(TK_CUR_VAL(tkc), 
+        return ncx_decode_dec64(instance, 
+                                TK_CUR_VAL(tkc), 
                                 digits, 
                                 val);
     }
@@ -2476,13 +2521,13 @@ status_t
 *   base part of the number
 *********************************************************************/
 int64
-    ncx_get_dec64_base (const ncx_num_t *num)
+    ncx_get_dec64_base (ncx_instance_t *instance, const ncx_num_t *num)
 {
     int64 temp1;
 
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -2507,13 +2552,13 @@ int64
 *   fraction part of the number
 *********************************************************************/
 int64
-    ncx_get_dec64_fraction (const ncx_num_t *num)
+    ncx_get_dec64_fraction (ncx_instance_t *instance, const ncx_num_t *num)
 {
     int64 temp1;
 
 #ifdef DEBUG
     if (!num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif

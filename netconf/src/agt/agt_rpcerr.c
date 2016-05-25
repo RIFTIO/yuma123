@@ -691,7 +691,8 @@ static rpc_err_t
  *
  * /return the status of the operation
  ********************************************************************/
-static status_t enque_error_info (rpc_err_rec_t* err,
+static status_t enque_error_info (ncx_instance_t *instance,
+                                  rpc_err_rec_t* err,
                                   xmlns_id_t name_nsid,
                                   const xmlChar* name,
                                   boolean isqname,
@@ -706,7 +707,7 @@ static status_t enque_error_info (rpc_err_rec_t* err,
         return ERR_INTERNAL_MEM;
     }
 
-    rpc_err_info_t* errinfo = rpc_err_new_info();
+    rpc_err_info_t* errinfo = rpc_err_new_info(instance);
     if (!errinfo) {
         return ERR_INTERNAL_MEM;
     }
@@ -718,16 +719,16 @@ static status_t enque_error_info (rpc_err_rec_t* err,
     errinfo->val_btype = val_btype;
     errinfo->val_nsid = val_nsid;
     if (badns) {
-        errinfo->badns = xml_strdup(badns);
+        errinfo->badns = xml_strdup(instance, badns);
     }
     if (interr) {
         errinfo->v.numval.u = (uint32)(*interr);
     }
     if (strval) {
-        errinfo->dval = xml_strdup(strval);
+        errinfo->dval = xml_strdup(instance, strval);
         errinfo->v.strval = errinfo->dval;
     }
-    dlq_enque(errinfo, &err->error_info);
+    dlq_enque(instance, errinfo, &err->error_info);
     return NO_ERR;
 
 }  /* enque_error_info */
@@ -760,7 +761,8 @@ static status_t enque_error_info (rpc_err_rec_t* err,
 * RETURNS:
 *   status
 *********************************************************************/
-static status_t add_base_vars (rpc_err_rec_t  *err,
+static status_t add_base_vars (ncx_instance_t *instance,
+                               rpc_err_rec_t  *err,
                                rpc_err_t  rpcerr,
                                const xml_node_t *errnode,
                                const xmlChar *badval,
@@ -787,9 +789,9 @@ static status_t add_base_vars (rpc_err_rec_t  *err,
          * errparm2 == error attribute name
          */
         if (errparm2) {
-            res = enque_error_info(err, xmlns_nc_id(), NCX_EL_BAD_ATTRIBUTE, 
+            res = enque_error_info(instance, err, xmlns_nc_id(instance), NCX_EL_BAD_ATTRIBUTE, 
                                    TRUE, NCX_BT_STRING, badnsid1,
-                                   (badnsid1 == xmlns_inv_id()) ? badns : NULL, 
+                                   (badnsid1 == xmlns_inv_id(instance)) ? badns : NULL, 
                                    (const xmlChar *)errparm2, NULL); 
             if (res != NO_ERR) {
                 return res;
@@ -816,27 +818,27 @@ static status_t add_base_vars (rpc_err_rec_t  *err,
 
         /* generate bad-element value */
         if (badel) {
-            res = enque_error_info(err, xmlns_nc_id(), NCX_EL_BAD_ELEMENT, 
+            res = enque_error_info(instance, err, xmlns_nc_id(instance), NCX_EL_BAD_ELEMENT, 
                                    TRUE, NCX_BT_STRING, badid,
-                                   (badid == xmlns_inv_id()) ? badns : NULL, 
+                                   (badid == xmlns_inv_id(instance)) ? badns : NULL, 
                                    badel, NULL); 
             if (res != NO_ERR) {
                 return res;
             }
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (rpcerr == RPC_ERR_UNKNOWN_NAMESPACE) {
             if (badns) {
-                res = enque_error_info(err, xmlns_nc_id(), NCX_EL_BAD_NAMESPACE,
+                res = enque_error_info(instance, err, xmlns_nc_id(instance), NCX_EL_BAD_NAMESPACE,
                                        FALSE, NCX_BT_STRING, 0, NULL, badns, 
                                        NULL); 
                 if (res != NO_ERR) {
                     return res;
                 }
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         break;
@@ -846,11 +848,11 @@ static status_t add_base_vars (rpc_err_rec_t  *err,
         if (numptr != NULL) {
             sesid = *numptr;
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             sesid = 0;
         }
 
-        res = enque_error_info(err, xmlns_nc_id(), NCX_EL_SESSION_ID, 
+        res = enque_error_info(instance, err, xmlns_nc_id(instance), NCX_EL_SESSION_ID, 
                                FALSE, NCX_BT_UINT32, 0, NULL, NULL, &sesid); 
         if (res != NO_ERR) {
             return res;
@@ -859,7 +861,7 @@ static status_t add_base_vars (rpc_err_rec_t  *err,
     case RPC_ERR_DATA_MISSING:
         if (errparm2 && !badval) {
             /* expecting the obj_template_t of the missing choice */
-            res = enque_error_info(err, xmlns_yang_id(), 
+            res = enque_error_info(instance, err, xmlns_yang_id(instance), 
                                    (const xmlChar *)"missing-choice", FALSE, 
                                    NCX_BT_STRING, 0, NULL, 
                                    (const xmlChar *)errparm2, NULL); 
@@ -874,7 +876,7 @@ static status_t add_base_vars (rpc_err_rec_t  *err,
 
     /* generate NCX extension bad-value */
     if (badval) {
-        res = enque_error_info(err, xmlns_ncx_id(), NCX_EL_BAD_VALUE,
+        res = enque_error_info(instance, err, xmlns_ncx_id(instance), NCX_EL_BAD_VALUE,
                                FALSE, NCX_BT_STRING, 0, NULL, badval, 
                                NULL); 
         if (res != NO_ERR) {
@@ -905,10 +907,11 @@ static status_t add_base_vars (rpc_err_rec_t  *err,
 *   status
 *********************************************************************/
 static status_t
-    add_error_number (rpc_err_rec_t  *err,
+    add_error_number (ncx_instance_t *instance,
+                      rpc_err_rec_t  *err,
                       status_t  interr)
 {
-    status_t res = enque_error_info(err, xmlns_ncx_id(), NCX_EL_ERROR_NUMBER,
+    status_t res = enque_error_info(instance, err, xmlns_ncx_id(instance), NCX_EL_ERROR_NUMBER,
                          FALSE, NCX_BT_UINT32, 0, NULL, NULL, &interr); 
     return res;
 }  /* add_error_number */
@@ -946,14 +949,16 @@ static status_t
 *     val;id info in the parameters 
 *********************************************************************/
 rpc_err_rec_t *
-    agt_rpcerr_gen_error (ncx_layer_t layer,
+    agt_rpcerr_gen_error (ncx_instance_t *instance,
+                          ncx_layer_t layer,
                           status_t   interr,
                           const xml_node_t *errnode,
                           ncx_node_t  parmtyp,
                           const void *error_parm,
                           xmlChar *error_path)
 {
-    return agt_rpcerr_gen_error_ex(layer, 
+    return agt_rpcerr_gen_error_ex(instance, 
+                                   layer, 
                                    interr, 
                                    errnode, 
                                    parmtyp, 
@@ -998,7 +1003,8 @@ rpc_err_rec_t *
 *     val;id info in the parameters 
 *********************************************************************/
 rpc_err_rec_t *
-    agt_rpcerr_gen_error_errinfo (ncx_layer_t layer,
+    agt_rpcerr_gen_error_errinfo (ncx_instance_t *instance,
+                                  ncx_layer_t layer,
                                   status_t   interr,
                                   const xml_node_t *errnode,
                                   ncx_node_t  parmtyp,
@@ -1007,7 +1013,8 @@ rpc_err_rec_t *
                                   const ncx_errinfo_t *errinfo)
 {
 
-    return agt_rpcerr_gen_error_ex(layer, 
+    return agt_rpcerr_gen_error_ex(instance, 
+                                   layer, 
                                    interr, 
                                    errnode, 
                                    parmtyp, 
@@ -1033,7 +1040,8 @@ rpc_err_rec_t *
  * /param error_path the error path
  * /param error_message the error message (may be NULL)
  ********************************************************************/
-static void set_error_record (rpc_err_rec_t* err,
+static void set_error_record (ncx_instance_t *instance,
+                       rpc_err_rec_t* err,
                        status_t error_res,
                        rpc_err_t error_id,
                        ncx_layer_t error_type, 
@@ -1051,7 +1059,7 @@ static void set_error_record (rpc_err_rec_t* err,
     err->error_tag = error_tag;
     err->error_app_tag = error_app_tag;
     err->error_path = error_path;
-    err->error_message = (error_message) ? xml_strdup(error_message) : NULL;
+    err->error_message = (error_message) ? xml_strdup(instance, error_message) : NULL;
     err->error_message_lang = NCX_DEF_LANG;
 }  /* set_error_record */
 
@@ -1091,7 +1099,8 @@ static void set_error_record (rpc_err_rec_t* err,
 *     val;id info in the parameters 
 *********************************************************************/
 rpc_err_rec_t *
-    agt_rpcerr_gen_error_ex (ncx_layer_t layer,
+    agt_rpcerr_gen_error_ex (ncx_instance_t *instance,
+                             ncx_layer_t layer,
                              status_t   interr,
                              const xml_node_t *errnode,
                              ncx_node_t  parmtyp,
@@ -1114,7 +1123,7 @@ rpc_err_rec_t *
     boolean                   just_errnum;
 
     /* get a new error record */
-    err = rpc_err_new_record();
+    err = rpc_err_new_record(instance);
     if (!err) {
         return NULL;
     }
@@ -1143,20 +1152,20 @@ rpc_err_rec_t *
     case ERR_NCX_MISSING_KEY:
     case ERR_NCX_RPC_WHEN_FAILED:
         if (!error_parm) {
-            SET_ERROR(ERR_INTERNAL_PTR);
+            SET_ERROR(instance, ERR_INTERNAL_PTR);
         } else {
             switch (parmtyp) {
             case NCX_NT_OBJ:
                 parm = (const obj_template_t *)error_parm;
                 if (parm) {
-                    badnsid1 = obj_get_nsid(parm);
-                    err2 = (const void *)obj_get_name(parm);
+                    badnsid1 = obj_get_nsid(instance, parm);
+                    err2 = (const void *)obj_get_name(instance, parm);
                 }
                 break;
             case NCX_NT_VAL:
                 valparm = (const val_value_t *)error_parm;
                 if (valparm) {
-                    badnsid1 = val_get_nsid(valparm);
+                    badnsid1 = val_get_nsid(instance, valparm);
                     err2 = (const void *)valparm->name;
                 }
                 break;
@@ -1172,36 +1181,36 @@ rpc_err_rec_t *
                 err2 = (const void *)error_parm;
                 break;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         break;
     case ERR_NCX_LOCK_DENIED:
         if (!error_parm) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else {
             if (parmtyp == NCX_NT_CFG) {
                 badcfg = (const cfg_template_t *)error_parm;
                 if (badcfg != NULL) {
                     err1 = &badcfg->locked_by;
                 } else {
-                    SET_ERROR(ERR_INTERNAL_VAL);
+                    SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             } else if (parmtyp == NCX_NT_UINT32_PTR) {
                 err1 = error_parm;
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         break;
     case ERR_NCX_MISSING_INDEX:
         if (!error_parm || parmtyp != NCX_NT_OBJ) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else {
             in = (const obj_template_t *)error_parm;
             if (in) {
-                badnsid1 = obj_get_nsid(in);
-                err2 = (const void *)obj_get_name(in);
+                badnsid1 = obj_get_nsid(instance, in);
+                err2 = (const void *)obj_get_name(instance, in);
             }
         }
         break;
@@ -1211,7 +1220,7 @@ rpc_err_rec_t *
         } else if (parmtyp == NCX_NT_VAL && error_parm) {
             valparm = (const val_value_t *)error_parm;
             if (valparm) {
-                badnsid1 = val_get_nsid(valparm);
+                badnsid1 = val_get_nsid(instance, valparm);
                 err2 = (const void *)valparm->name;
             }
         }
@@ -1232,16 +1241,16 @@ rpc_err_rec_t *
                 err2 = (const void *)qname->name;
             } else if (parmtyp == NCX_NT_OBJ) {
                 obj = (const obj_template_t *)error_parm;
-                badnsid1 = obj_get_nsid(obj);
-                err2 = (const void *)obj_get_name(obj);
+                badnsid1 = obj_get_nsid(instance, obj);
+                err2 = (const void *)obj_get_name(instance, obj);
             } else if (parmtyp == NCX_NT_STRING) {
                 badnsid1 = 0;
                 err2 = (const void *)error_parm;
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         /* hack: borrow the errnode pointer to use as a string 
@@ -1258,7 +1267,7 @@ rpc_err_rec_t *
             if (nodetyp == NCX_NT_VAL) {
                 /* element nsid:name for the attribute error */
                 valparm = (const val_value_t *)error_path_raw;
-                badnsid2 = val_get_nsid(valparm);
+                badnsid2 = val_get_nsid(instance, valparm);
                 err4 = valparm->name;
             }
         }
@@ -1283,8 +1292,8 @@ rpc_err_rec_t *
     }
 
     /* setup the return record */
-    set_error_record(err, interr, rpcerr, layer, errsev, 
-                     rpc_err_get_errtag(rpcerr), apptag, error_path, msg);
+    set_error_record(instance, err, interr, rpcerr, layer, errsev, 
+                     rpc_err_get_errtag(instance, rpcerr), apptag, error_path, msg);
 
     /* figure out the required error-info 
      * It is possible for an attribute error to be recorded
@@ -1314,7 +1323,7 @@ rpc_err_rec_t *
             badval = NULL;
         } else if (interr == ERR_NCX_MISSING_VAL_INST) {
             if (obj) {
-                badval = obj_get_name(obj);
+                badval = obj_get_name(instance, obj);
             }
         } else {
             just_errnum = TRUE;
@@ -1331,12 +1340,12 @@ rpc_err_rec_t *
     if (!just_errnum) {
         /* add the required error-info, call even if err2 is NULL */
         /* ignore result and use err anyway */
-        add_base_vars(err, rpcerr, errnode, badval, badns, badnsid1, badnsid2,
+        add_base_vars(instance, err, rpcerr, errnode, badval, badns, badnsid1, badnsid2,
                       err1, err2, err4);
     }
 
     /* ignore result and use err anyway */
-    add_error_number(err, interr);
+    add_error_number(instance, err, interr);
 
     return err;
 
@@ -1366,7 +1375,8 @@ rpc_err_rec_t *
 *     val;id info in the parameters 
 *********************************************************************/
 rpc_err_rec_t *
-    agt_rpcerr_gen_insert_error (ncx_layer_t layer,
+    agt_rpcerr_gen_insert_error (ncx_instance_t *instance,
+                                 ncx_layer_t layer,
                                  status_t   interr,
                                  const val_value_t *errval,
                                  xmlChar *error_path)
@@ -1378,16 +1388,16 @@ rpc_err_rec_t *
     assert(errval && "param errval is NULL");
 
     /* get a new error record */
-    err = rpc_err_new_record();
+    err = rpc_err_new_record(instance);
     if (!err) {
         return NULL;
     }
 
     msg = (const xmlChar *)get_error_string(interr);
 
-    set_error_record(err, interr, RPC_ERR_BAD_ATTRIBUTE, layer, 
+    set_error_record(instance, err, interr, RPC_ERR_BAD_ATTRIBUTE, layer, 
                      RPC_ERR_SEV_ERROR, 
-                     rpc_err_get_errtag(RPC_ERR_BAD_ATTRIBUTE), 
+                     rpc_err_get_errtag(instance, RPC_ERR_BAD_ATTRIBUTE), 
                      RPC_ERR_APPTAG_INSERT, error_path, msg);
 
     if (errval->editvars) {
@@ -1402,12 +1412,12 @@ rpc_err_rec_t *
 
     /* add the required error-info, call even if err2 is NULL */
     /* ignore result and use err anyway */
-    add_base_vars(err, RPC_ERR_BAD_ATTRIBUTE, NULL, badval, NULL, 
-                  xmlns_yang_id(), val_get_nsid(errval), NULL, err2, 
+    add_base_vars(instance, err, RPC_ERR_BAD_ATTRIBUTE, NULL, badval, NULL, 
+                  xmlns_yang_id(instance), val_get_nsid(instance, errval), NULL, err2, 
                   (const void *)errval->name);
 
     /* ignore result and use err anyway */
-    add_error_number(err, interr);
+    add_error_number(instance, err, interr);
 
     return err;
 
@@ -1440,7 +1450,8 @@ rpc_err_rec_t *
 *     val;id info in the parameters 
 *********************************************************************/
 rpc_err_rec_t *
-    agt_rpcerr_gen_unique_error (xml_msg_hdr_t *msghdr,
+    agt_rpcerr_gen_unique_error (ncx_instance_t *instance,
+                                 xml_msg_hdr_t *msghdr,
                                  ncx_layer_t layer,
                                  status_t   interr,
                                  const dlq_hdr_t *valuniqueQ,
@@ -1453,7 +1464,7 @@ rpc_err_rec_t *
     status_t                  res;
 
     /* get a new error record */
-    err = rpc_err_new_record();
+    err = rpc_err_new_record(instance);
     if (!err) {
         return NULL;
     }
@@ -1461,43 +1472,43 @@ rpc_err_rec_t *
     msg = (const xmlChar *)get_error_string(interr);
 
     /* setup the return record */
-    set_error_record(err, interr, RPC_ERR_OPERATION_FAILED, layer, 
+    set_error_record(instance, err, interr, RPC_ERR_OPERATION_FAILED, layer, 
                      RPC_ERR_SEV_ERROR, 
-                     rpc_err_get_errtag(RPC_ERR_OPERATION_FAILED),
+                     rpc_err_get_errtag(instance, RPC_ERR_OPERATION_FAILED),
                      RPC_ERR_APPTAG_UNIQUE_FAILED, error_path, msg);
 
-    for (unival = (val_unique_t *)dlq_firstEntry(valuniqueQ);
+    for (unival = (val_unique_t *)dlq_firstEntry(instance, valuniqueQ);
          unival != NULL;
-         unival = (val_unique_t *)dlq_nextEntry(unival)) {
+         unival = (val_unique_t *)dlq_nextEntry(instance, unival)) {
 
         pathbuff = NULL;
-        xpath_resnode_t *resnode = xpath_get_first_resnode(unival->pcb->result);
+        xpath_resnode_t *resnode = xpath_get_first_resnode(instance, unival->pcb->result);
         if (resnode == NULL) {
             // should not happen!
             continue;
         }
-        val_value_t *valptr = xpath_get_resnode_valptr(resnode);
+        val_value_t *valptr = xpath_get_resnode_valptr(instance, resnode);
         if (valptr == NULL) {
             // should not happen!
             continue;
         }
-        res = val_gen_instance_id(msghdr, valptr, NCX_IFMT_XPATH1, 
+        res = val_gen_instance_id(instance, msghdr, valptr, NCX_IFMT_XPATH1, 
                                   &pathbuff);
         if (res == NO_ERR) {
-            res = enque_error_info(err, xmlns_yang_id(), NCX_EL_NON_UNIQUE, 
+            res = enque_error_info(instance, err, xmlns_yang_id(instance), NCX_EL_NON_UNIQUE, 
                                    FALSE, NCX_BT_INSTANCE_ID, 0, NULL, 
                                    pathbuff, NULL);
         }
         if (pathbuff) {
-            m__free(pathbuff);
+            m__free(instance, pathbuff);
         }
         if (res != NO_ERR) {
-            log_error("\nError: could not add unique-error info");
+            log_error(instance, "\nError: could not add unique-error info");
         }
     }
 
     /* ignore result and use err anyway */
-    add_error_number(err, interr);
+    add_error_number(instance, err, interr);
 
     return err;
 
@@ -1527,7 +1538,8 @@ rpc_err_rec_t *
 *     valid info in the parameters to generate an error report
 *********************************************************************/
 rpc_err_rec_t *
-    agt_rpcerr_gen_attr_error (ncx_layer_t layer,
+    agt_rpcerr_gen_attr_error (ncx_instance_t *instance,
+                               ncx_layer_t layer,
                                status_t   interr,
                                const xml_attr_t *attr,
                                const xml_node_t *errnode,
@@ -1544,7 +1556,7 @@ rpc_err_rec_t *
     xmlns_id_t      badnsid1 = 0, badnsid2 = 0;
 
     /* get a new error record */
-    err = rpc_err_new_record();
+    err = rpc_err_new_record(instance);
     if (!err) {
         return NULL;
     }
@@ -1555,7 +1567,7 @@ rpc_err_rec_t *
     }
 
     if (errnode == NULL && errnodeval != NULL) {
-        badnsid2 = val_get_nsid(errnodeval);
+        badnsid2 = val_get_nsid(instance, errnodeval);
         err4 = errnodeval->name;
     }
 
@@ -1576,22 +1588,22 @@ rpc_err_rec_t *
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     } 
 
     /* generate a default error message */
     msg = (const xmlChar *)get_error_string(interr);
 
-    set_error_record(err, interr, rpcerr, layer, errsev, 
-                     rpc_err_get_errtag(rpcerr), apptag, error_path, msg);
+    set_error_record(instance, err, interr, rpcerr, layer, errsev, 
+                     rpc_err_get_errtag(instance, rpcerr), apptag, error_path, msg);
 
     /* add the required error-info */
     /* ignore result and use err anyway */
-    add_base_vars(err, rpcerr, errnode, badval, badns, badnsid1, badnsid2, NULL,
+    add_base_vars(instance, err, rpcerr, errnode, badval, badns, badnsid1, badnsid2, NULL,
                   err2, err4);
 
     /* ignore result and use err anyway */
-    add_error_number(err, interr);
+    add_error_number(instance, err, interr);
 
     return err;
 

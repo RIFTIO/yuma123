@@ -80,22 +80,22 @@ date         init     comment
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 rpc_msg_t *
-    rpc_new_msg (void)
+    rpc_new_msg (ncx_instance_t *instance)
 {
     rpc_msg_t *msg;
 
-    msg = m__getObj(rpc_msg_t);
+    msg = m__getObj(instance, rpc_msg_t);
     if (!msg) {
         return NULL;
     }
 
     memset(msg, 0x0, sizeof(rpc_msg_t));
-    xml_msg_init_hdr(&msg->mhdr);
-    dlq_createSQue(&msg->rpc_dataQ);
+    xml_msg_init_hdr(instance, &msg->mhdr);
+    dlq_createSQue(instance, &msg->rpc_dataQ);
 
-    msg->rpc_input = val_new_value();
+    msg->rpc_input = val_new_value(instance);
     if (!msg->rpc_input) {
-        rpc_free_msg(msg);
+        rpc_free_msg(instance, msg);
         return NULL;
     }
 
@@ -118,11 +118,11 @@ rpc_msg_t *
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 rpc_msg_t *
-    rpc_new_out_msg (void)
+    rpc_new_out_msg (ncx_instance_t *instance)
 {
     rpc_msg_t *msg;
 
-    msg = rpc_new_msg();
+    msg = rpc_new_msg(instance);
     if (!msg) {
         return NULL;
     }
@@ -144,13 +144,13 @@ rpc_msg_t *
 * RETURNS:
 *   none
 *********************************************************************/
-void rpc_free_msg (rpc_msg_t *msg)
+void rpc_free_msg (ncx_instance_t *instance, rpc_msg_t *msg)
 {
     if (!msg) {
         return;
     }
 
-    xml_msg_clean_hdr(&msg->mhdr);
+    xml_msg_clean_hdr(instance, &msg->mhdr);
 
     //msg->rpc_in_attrs = NULL;
     //msg->rpc_method = NULL;
@@ -158,7 +158,7 @@ void rpc_free_msg (rpc_msg_t *msg)
 
     /* clean input parameter set */
     if (msg->rpc_input) {
-        val_free_value(msg->rpc_input);
+        val_free_value(instance, msg->rpc_input);
     }
     //msg->rpc_user1 = NULL;
     //msg->rpc_user2 = NULL;
@@ -168,12 +168,12 @@ void rpc_free_msg (rpc_msg_t *msg)
     //msg->rpc_datacb = NULL;
 
     /* clean data queue */
-    while (!dlq_empty(&msg->rpc_dataQ)) {
-        val_value_t *val = (val_value_t *)dlq_deque(&msg->rpc_dataQ);
-        val_free_value(val);
+    while (!dlq_empty(instance, &msg->rpc_dataQ)) {
+        val_value_t *val = (val_value_t *)dlq_deque(instance, &msg->rpc_dataQ);
+        val_free_value(instance, val);
     }
 
-    m__free(msg);
+    m__free(instance, msg);
 
 } /* rpc_free_msg */
 

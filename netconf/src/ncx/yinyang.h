@@ -79,7 +79,8 @@ extern "C" {
 *   malloced token chain containing the converted YIN file
 *********************************************************************/
 extern tk_chain_t *
-    yinyang_convert_token_chain (const xmlChar *sourcespec,
+    yinyang_convert_token_chain (struct ncx_instance_t_ *instance,
+                                 const xmlChar *sourcespec,
                                  status_t *res);
 
 #ifdef __cplusplus

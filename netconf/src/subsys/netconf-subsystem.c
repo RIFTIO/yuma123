@@ -104,19 +104,19 @@ static char *port;
 static int traceLevel = 0;
 static FILE *errfile;
 
-#define SUBSYS_TRACE1(fmt, ...) if (traceLevel && errfile) \
+#define SUBSYS_TRACE1(instance, fmt, ...) if (traceLevel && errfile) \
                                 { \
                                     fprintf( errfile, fmt, ##__VA_ARGS__); \
                                     fflush( errfile ); \
                                 }
 
-#define SUBSYS_TRACE2(fmt, ...) if (traceLevel > 1 && errfile) \
+#define SUBSYS_TRACE2(instance, fmt, ...) if (traceLevel > 1 && errfile) \
                                 { \
                                     fprintf( errfile, fmt, ##__VA_ARGS__); \
                                     fflush( errfile ); \
                                 }
 
-#define SUBSYS_TRACE3(fmt, ...) if (traceLevel > 2 && errfile) \
+#define SUBSYS_TRACE3(instance, fmt, ...) if (traceLevel > 2 && errfile) \
                                 { \
                                     fprintf( errfile, fmt, ##__VA_ARGS__); \
                                     fflush( errfile ); \
@@ -132,11 +132,12 @@ static char msgbuff[BUFFLEN];
  * arguments to configure debug logging.
  *
  ******************************************************************/
-static void configure_logging( int argc, char** argv )
+static void configure_logging(ncx_instance_t *instance,  int argc, char** argv )
 {
     char* err_filename;
     int arg_idx = 1;
     char  defname[21];
+    (void)instance;
 
     strncpy(defname, "/tmp/subsys-err.log", 20);
     err_filename = defname;
@@ -158,22 +159,22 @@ static void configure_logging( int argc, char** argv )
 
     if ( traceLevel ) {
         errfile = fopen( err_filename, "a" );
-        SUBSYS_TRACE1( "\n*** New netconf Session Started ***\n" );
+        SUBSYS_TRACE1(instance,  "\n*** New netconf Session Started ***\n" );
     }
 
 }
 
-static char* ncxserver_sockname(int argc, char** argv, char* port)
+static char* ncxserver_sockname(int argc, char** argv, char* porta)
 {
     int i;
     char match[] = "--ncxserver-sockname=65535@";
-    sprintf(match,"--ncxserver-sockname=%s@",port);
+    sprintf(match,"--ncxserver-sockname=%s@",porta);
     for(i=1;i<argc;i++) {
         if(strlen(argv[i])>strlen(match) && 0==memcmp(argv[i],match,strlen(match))) {
             return argv[i]+strlen(match);
         }
     }
-    return NCXSERVER_SOCKNAME;
+    return  (char *)NCXSERVER_SOCKNAME;
 }
 
 /********************************************************************
@@ -186,12 +187,13 @@ static char* ncxserver_sockname(int argc, char** argv, char* port)
 *   status
 *********************************************************************/
 static status_t
-    init_subsys (int argc, char** argv)
+    init_subsys (ncx_instance_t *instance, int argc, char** argv)
 {
     char *cp, *con;
     int   ret;
     int name_size;
     int i;
+    (void)instance;
 
     client_addr = NULL;
     port = NULL;
@@ -209,7 +211,7 @@ static status_t
     /* get the client address */
     con = getenv("SSH_CONNECTION");
     if (!con) {
-        SUBSYS_TRACE1( "ERROR: init_subsys(): "
+        SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): "
                        "Get SSH_CONNECTION variable failed\n" );
         return ERR_INTERNAL_VAL;
     }
@@ -217,12 +219,12 @@ static status_t
     /* get the client addr */
     client_addr = strdup(con);
     if (!client_addr) {
-        SUBSYS_TRACE1( "ERROR: init_subsys(): strdup(client_addr) failed\n" );
+        SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): strdup(client_addr) failed\n" );
         return ERR_INTERNAL_MEM;
     }
     cp = strchr(client_addr, ' ');
     if (!cp) {
-        SUBSYS_TRACE1( "ERROR: init_subsys(): "
+        SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): "
                        "Malformed SSH_CONNECTION variable\n" );
         return ERR_INTERNAL_VAL;
     } else {
@@ -235,7 +237,7 @@ static status_t
         port = strdup(++cp);
     }
     if (!port) {
-        SUBSYS_TRACE1( "ERROR: init_subsys(): "
+        SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): "
                        "Malformed SSH_CONNECTION variable\n" );
         return ERR_INTERNAL_VAL;
     }
@@ -243,12 +245,12 @@ static status_t
     /* get the username */
     cp = getenv("USER");
     if (!cp) {
-        SUBSYS_TRACE1( "ERROR: init_subsys(): Get USER variable failed\n");
+        SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): Get USER variable failed\n");
         return ERR_INTERNAL_VAL;
     }
     user = strdup(cp);
     if (!user) {
-        SUBSYS_TRACE1( "ERROR: init_subsys(): strdup(user) failed\n" );
+        SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): strdup(user) failed\n" );
         return ERR_INTERNAL_MEM;
     }
     if(ncxport_inet != -1)
@@ -259,16 +261,16 @@ static status_t
         /* make a socket to connect to the NCX server */
         ncxsock = socket(AF_INET, SOCK_STREAM, 0);
         if (ncxsock < 0) {
-            SUBSYS_TRACE1( "ERROR: init_subsys(): NCX Socket Creation failed\n" );
+            SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): NCX Socket Creation failed\n" );
             return ERR_NCX_CONNECT_FAILED;
         }
 	if (setsockopt(ncxsock, IPPROTO_TCP, TCP_NODELAY, (char*) &tcp_nodelay_option, sizeof(tcp_nodelay_option)) < 0) {
-            SUBSYS_TRACE1( "ERROR: init_subsys(): NCX Socket Creation failed\n" );
+            SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): NCX Socket Creation failed\n" );
             return ERR_NCX_CONNECT_FAILED;
         }
         hp = gethostbyname("localhost");
         if (hp == NULL) {
-            SUBSYS_TRACE1( "ERROR: init_subsys(): NCX Socket Creation failed\n" );
+            SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): NCX Socket Creation failed\n" );
             return ERR_NCX_CONNECT_FAILED;
         }
         memset((char *) &ncxname_inet, 0, sizeof(ncxname_inet));
@@ -282,7 +284,7 @@ static status_t
         /* make a socket to connect to the NCX server */
         ncxsock = socket(PF_LOCAL, SOCK_STREAM, 0);
         if (ncxsock < 0) {
-            SUBSYS_TRACE1( "ERROR: init_subsys(): NCX Socket Creation failed\n" );
+            SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): NCX Socket Creation failed\n" );
             return ERR_NCX_CONNECT_FAILED;
         } 
         ncxname_unix.sun_family = AF_LOCAL;
@@ -298,10 +300,10 @@ static status_t
                   ncxname,
                   name_size);
     if (ret != 0) {
-        SUBSYS_TRACE1( "ERROR: init_subsys(): NCX Socket Connect failed\n" );
+        SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): NCX Socket Connect failed\n" );
         return ERR_NCX_OPERATION_FAILED;
     } else {
-        SUBSYS_TRACE2( "INFO:  init_subsys(): "
+        SUBSYS_TRACE2(instance,  "INFO:  init_subsys(): "
                        "NCX Socket Connected on FD: %d \n", ncxsock );
         ncxconnect = TRUE;
     }
@@ -309,7 +311,7 @@ static status_t
 #ifdef USE_NONBLOCKING_IO
     /* set non-blocking IO */
     if (fcntl(ncxsock, F_SETFD, O_NONBLOCK)) {
-        SUBSYS_TRACE1( "ERROR: init_subsys(): fnctl() failed\n" );
+        SUBSYS_TRACE1(instance,  "ERROR: init_subsys(): fnctl() failed\n" );
     }
 #endif
 
@@ -326,13 +328,13 @@ static status_t
 * 
 *********************************************************************/
 static void
-    cleanup_subsys (void)
+    cleanup_subsys (ncx_instance_t *instance)
 {
     if (client_addr) {
-        m__free(client_addr);
+        m__free(instance, client_addr);
     }
     if (user) {
-        m__free(user);
+        m__free(instance, user);
     }
     if (ncxconnect) {
         close(ncxsock);
@@ -381,13 +383,15 @@ static status_t
 *   return byte count
 *********************************************************************/
 static ssize_t
-    do_read (int readfd, 
+    do_read (ncx_instance_t *instance, 
+             int readfd, 
              char *readbuff, 
              size_t readcnt, 
              status_t *retres)
 {
     boolean   readdone;
     ssize_t   retcnt;
+    (void)instance;
 
     readdone = FALSE;
     retcnt = 0;
@@ -397,14 +401,15 @@ static ssize_t
         retcnt = read(readfd, readbuff, readcnt);
         if (retcnt < 0) {
             if (errno != EAGAIN) {
-                SUBSYS_TRACE1( "ERROR: do_read(): read of FD(%d): "
+                SUBSYS_TRACE1(instance, 
+                                "ERROR: do_read(): read of FD(%d): "
                                "failed with error: %s\n", 
                                readfd, strerror( errno  ) );
                 *retres = ERR_NCX_READ_FAILED;
                 continue;
             }
         } else if (retcnt == 0) {
-            SUBSYS_TRACE1( "INFO: do_read(): closed connection\n");
+            SUBSYS_TRACE1(instance,  "INFO: do_read(): closed connection\n");
             *retres = ERR_NCX_EOF;
             readdone = TRUE;
             continue;
@@ -430,7 +435,7 @@ static ssize_t
 *   status
 *********************************************************************/
 static status_t
-    io_loop (void)
+    io_loop (ncx_instance_t *instance)
 {
     status_t  res;
     boolean   done;
@@ -449,19 +454,19 @@ static status_t
         ret = select(FD_SETSIZE, &fds, NULL, NULL, NULL);
         if (ret < 0) {
             if ( errno != EINTR ) {
-                SUBSYS_TRACE1( "ERROR: io_loop(): select() "
+                SUBSYS_TRACE1(instance,  "ERROR: io_loop(): select() "
                                "failed with error: %s\n", strerror( errno ) );
                 res = ERR_NCX_OPERATION_FAILED;
                 done = TRUE;
             }
             else
             {
-                SUBSYS_TRACE2( "INFO: io_loop(): select() "
+                SUBSYS_TRACE2(instance,  "INFO: io_loop(): select() "
                                "failed with error: %s\n", strerror( errno  ) );
             }
             continue;
         } else if (ret == 0) {
-            SUBSYS_TRACE1( "ERROR: io_loop(): select() "
+            SUBSYS_TRACE1(instance,  "ERROR: io_loop(): select() "
                            "returned 0, exiting...\n" );
             res = NO_ERR;
             done = TRUE;
@@ -471,7 +476,8 @@ static status_t
         /* check any input from client */
         if (FD_ISSET(STDIN_FILENO, &fds)) {
             /* get buff from openssh */
-            retcnt = do_read(STDIN_FILENO, 
+            retcnt = do_read(instance, 
+                             STDIN_FILENO, 
                              msgbuff, 
                              (size_t)BUFFLEN,
                              &res);
@@ -486,7 +492,7 @@ static status_t
                 /* send this buffer to the ncxserver */
                 res = send_buff(ncxsock, msgbuff, (size_t)retcnt);
                 if (res != NO_ERR) {
-                    SUBSYS_TRACE1( "ERROR: io_loop(): send_buff() to ncxserver "
+                    SUBSYS_TRACE1(instance,  "ERROR: io_loop(): send_buff() to ncxserver "
                                    "failed with %s\n", strerror( errno ) );
                     done = TRUE;
                     continue;
@@ -497,7 +503,8 @@ static status_t
         /* check any input from the ncxserver */
         if (FD_ISSET(ncxsock, &fds)) {
             res = NO_ERR;
-            retcnt = do_read(ncxsock, 
+            retcnt = do_read(instance, 
+                             ncxsock, 
                              msgbuff, 
                              (size_t)BUFFLEN,
                              &res);
@@ -512,7 +519,7 @@ static status_t
                 /* send this buffer to STDOUT */
                 res = send_buff(STDOUT_FILENO, msgbuff, (size_t)retcnt);
                 if (res != NO_ERR) {
-                    SUBSYS_TRACE1( "ERROR: io_loop(): send_buff() to client "
+                    SUBSYS_TRACE1(instance,  "ERROR: io_loop(): send_buff() to client "
                                    "failed with %s\n", strerror( errno ) );
                     done = TRUE;
                     continue;
@@ -541,9 +548,11 @@ int main (int argc, char **argv)
     status_t  res;
     const char *msg;
 
-    configure_logging( argc, argv );
+    ncx_instance_t* instance = NULL; // ATTN: Alloc me
 
-    res = init_subsys(argc, argv);
+    configure_logging( instance, argc, argv );
+
+    res = init_subsys(instance, argc, argv);
     if (res != NO_ERR) {
         msg = "init failed";
     }
@@ -556,7 +565,7 @@ int main (int argc, char **argv)
     }
 
     if (res == NO_ERR) {
-        res = io_loop();
+        res = io_loop(instance);
         if (res != NO_ERR) {
             msg = "IO error";
         }
@@ -566,7 +575,7 @@ int main (int argc, char **argv)
         SUBSYS_TRACE1( "ERROR: io_loop(): exited with error %s \n", msg );
     }
 
-    cleanup_subsys();
+    cleanup_subsys(instance);
 
     if (res != NO_ERR) {
         return 1;

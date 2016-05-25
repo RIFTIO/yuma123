@@ -93,12 +93,12 @@ static yangdiff_diffparms_t   diffparms;
 *
 *********************************************************************/
 static void
-    pr_err (status_t  res)
+    pr_err (ncx_instance_t *instance, status_t  res)
 {
     const char *msg;
 
     msg = get_error_string(res);
-    log_error("\n%s: Error exit (%s)\n", YANGDIFF_PROGNAME, msg);
+    log_error(instance, "\n%s: Error exit (%s)\n", YANGDIFF_PROGNAME, msg);
 
 } /* pr_err */
 
@@ -110,9 +110,10 @@ static void
 *
 *********************************************************************/
 static void
-    pr_usage (void)
+    pr_usage (ncx_instance_t *instance)
 {
-    log_error("\nError: No parameters entered."
+    log_error(instance,
+              "\nError: No parameters entered."
               "\nTry '%s --help' for usage details\n",
               YANGDIFF_PROGNAME);
 
@@ -133,51 +134,52 @@ static void
  *
  *********************************************************************/
 static void
-    output_import_diff (yangdiff_diffparms_t *cp,
+    output_import_diff (ncx_instance_t *instance,
+                        yangdiff_diffparms_t *cp,
                         yang_pcb_t *oldpcb,
                         yang_pcb_t *newpcb)
 {
     ncx_import_t *oldimp, *newimp;
 
     /* clear the used flag, for yangdiff reuse */
-    for (newimp = (ncx_import_t *)dlq_firstEntry(&newpcb->top->importQ);
+    for (newimp = (ncx_import_t *)dlq_firstEntry(instance, &newpcb->top->importQ);
          newimp != NULL;
-         newimp = (ncx_import_t *)dlq_nextEntry(newimp)) {
+         newimp = (ncx_import_t *)dlq_nextEntry(instance, newimp)) {
         newimp->used = FALSE;
     }
 
     /* look for matching imports */
-    for (oldimp = (ncx_import_t *)dlq_firstEntry(&oldpcb->top->importQ);
+    for (oldimp = (ncx_import_t *)dlq_firstEntry(instance, &oldpcb->top->importQ);
          oldimp != NULL;
-         oldimp = (ncx_import_t *)dlq_nextEntry(oldimp)) {
+         oldimp = (ncx_import_t *)dlq_nextEntry(instance, oldimp)) {
 
         /* find this import in the new module */
-        newimp = ncx_find_import(newpcb->top, oldimp->module);
+        newimp = ncx_find_import(instance, newpcb->top, oldimp->module);
         if (newimp) {
-            if (xml_strcmp(oldimp->prefix, newimp->prefix)) {
+            if (xml_strcmp(instance, oldimp->prefix, newimp->prefix)) {
                 /* prefix was changed in the new module */
-                output_mstart_line(cp, YANG_K_IMPORT, oldimp->module, TRUE);
+                output_mstart_line(instance, cp, YANG_K_IMPORT, oldimp->module, TRUE);
                 if (cp->edifftype != YANGDIFF_DT_TERSE) {
-                    indent_in(cp);
-                    output_diff(cp, YANG_K_PREFIX, oldimp->prefix, 
+                    indent_in(instance, cp);
+                    output_diff(instance, cp, YANG_K_PREFIX, oldimp->prefix, 
                                 newimp->prefix, TRUE);
-                    indent_out(cp);
+                    indent_out(instance, cp);
                 }
             }
             newimp->used = TRUE;
         } else {
             /* import was removed from the new module */
-            output_diff(cp, YANG_K_IMPORT, oldimp->module, NULL, TRUE);
+            output_diff(instance, cp, YANG_K_IMPORT, oldimp->module, NULL, TRUE);
         }
     }
 
-    for (newimp = (ncx_import_t *)dlq_firstEntry(&newpcb->top->importQ);
+    for (newimp = (ncx_import_t *)dlq_firstEntry(instance, &newpcb->top->importQ);
          newimp != NULL;
-         newimp = (ncx_import_t *)dlq_nextEntry(newimp)) {
+         newimp = (ncx_import_t *)dlq_nextEntry(instance, newimp)) {
 
         if (!newimp->used) {
             /* this import was added in the new revision */
-            output_diff(cp, YANG_K_IMPORT, NULL, newimp->module, TRUE);
+            output_diff(instance, cp, YANG_K_IMPORT, NULL, newimp->module, TRUE);
         }
     }
 
@@ -197,41 +199,42 @@ static void
  *
  *********************************************************************/
 static void
-    output_include_diff (yangdiff_diffparms_t *cp,
+    output_include_diff (ncx_instance_t *instance,
+                         yangdiff_diffparms_t *cp,
                          yang_pcb_t *oldpcb,
                          yang_pcb_t *newpcb)
 {
     ncx_include_t *oldinc, *newinc;
 
     /* clear usexsd field for yangdiff reuse */
-    for (newinc = (ncx_include_t *)dlq_firstEntry(&newpcb->top->includeQ);
+    for (newinc = (ncx_include_t *)dlq_firstEntry(instance, &newpcb->top->includeQ);
          newinc != NULL;
-         newinc = (ncx_include_t *)dlq_nextEntry(newinc)) {
+         newinc = (ncx_include_t *)dlq_nextEntry(instance, newinc)) {
         newinc->usexsd = FALSE;
     }
 
     /* look for matchine entries */
-    for (oldinc = (ncx_include_t *)dlq_firstEntry(&oldpcb->top->includeQ);
+    for (oldinc = (ncx_include_t *)dlq_firstEntry(instance, &oldpcb->top->includeQ);
          oldinc != NULL;
-         oldinc = (ncx_include_t *)dlq_nextEntry(oldinc)) {
+         oldinc = (ncx_include_t *)dlq_nextEntry(instance, oldinc)) {
 
         /* find this include in the new module */
-        newinc = ncx_find_include(newpcb->top, oldinc->submodule);
+        newinc = ncx_find_include(instance, newpcb->top, oldinc->submodule);
         if (newinc) {
             newinc->usexsd = TRUE;
         } else {
             /* include was removed from the new module */
-            output_diff(cp, YANG_K_INCLUDE, oldinc->submodule, NULL, TRUE);
+            output_diff(instance, cp, YANG_K_INCLUDE, oldinc->submodule, NULL, TRUE);
         }
     }
 
-    for (newinc = (ncx_include_t *)dlq_firstEntry(&newpcb->top->includeQ);
+    for (newinc = (ncx_include_t *)dlq_firstEntry(instance, &newpcb->top->includeQ);
          newinc != NULL;
-         newinc = (ncx_include_t *)dlq_nextEntry(newinc)) {
+         newinc = (ncx_include_t *)dlq_nextEntry(instance, newinc)) {
 
         if (!newinc->usexsd) {
             /* this include was added in the new revision */
-            output_diff(cp, YANG_K_INCLUDE, NULL, newinc->submodule, TRUE);
+            output_diff(instance, cp, YANG_K_INCLUDE, NULL, newinc->submodule, TRUE);
         }
     }
 
@@ -251,7 +254,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_revision_diff (yangdiff_diffparms_t *cp,
+    output_revision_diff (ncx_instance_t *instance,
+                         yangdiff_diffparms_t *cp,
                          yang_pcb_t *oldpcb,
                          yang_pcb_t *newpcb)
 {
@@ -263,27 +267,29 @@ static void
     isrev = (cp->edifftype == YANGDIFF_DT_REVISION) ? TRUE : FALSE;
 
     /* clear res field for yangdiff reuse */
-    for (newrev = (ncx_revhist_t *)dlq_firstEntry(&newpcb->top->revhistQ);
+    for (newrev = (ncx_revhist_t *)dlq_firstEntry(instance, &newpcb->top->revhistQ);
          newrev != NULL;
-         newrev = (ncx_revhist_t *)dlq_nextEntry(newrev)) {
+         newrev = (ncx_revhist_t *)dlq_nextEntry(instance, newrev)) {
         newrev->res = ERR_NCX_INVALID_STATUS;
     }
 
-    for (oldrev = (ncx_revhist_t *)dlq_firstEntry(&oldpcb->top->revhistQ);
+    for (oldrev = (ncx_revhist_t *)dlq_firstEntry(instance, &oldpcb->top->revhistQ);
          oldrev != NULL;
-         oldrev = (ncx_revhist_t *)dlq_nextEntry(oldrev)) {
+         oldrev = (ncx_revhist_t *)dlq_nextEntry(instance, oldrev)) {
 
         /* find this revision in the new module */
-        newrev = ncx_find_revhist(newpcb->top, oldrev->version);
+        newrev = ncx_find_revhist(instance, newpcb->top, oldrev->version);
         if (newrev) {
             changecnt = 0;
-            changecnt += str_field_changed(YANG_K_DESCRIPTION,
+            changecnt += str_field_changed(instance,
+                                           YANG_K_DESCRIPTION,
                                            oldrev->descr, 
                                            newrev->descr,
                                            isrev, 
                                            &revcdb[0]);
 
-            changecnt += str_field_changed(YANG_K_REFERENCE,
+            changecnt += str_field_changed(instance,
+                                           YANG_K_REFERENCE,
                                            oldrev->ref, 
                                            newrev->ref,
                                            isrev, 
@@ -294,38 +300,39 @@ static void
                 case YANGDIFF_DT_TERSE:
                 case YANGDIFF_DT_NORMAL:
                 case YANGDIFF_DT_REVISION:
-                    output_mstart_line(cp, 
+                    output_mstart_line(instance, 
+                                       cp, 
                                        YANG_K_REVISION, 
                                        oldrev->version, 
                                        FALSE);
                     if (cp->edifftype != YANGDIFF_DT_TERSE) {
-                        indent_in(cp);
+                        indent_in(instance, cp);
                         for (i=0; i<2; i++) {
                             if (revcdb[i].changed) {
-                                output_cdb_line(cp, &revcdb[i]);
+                                output_cdb_line(instance, cp, &revcdb[i]);
                             }
                         }
-                        indent_out(cp);
+                        indent_out(instance, cp);
                     }
                     break;
                 default:
-                    SET_ERROR(ERR_INTERNAL_VAL);
+                    SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             }
             newrev->res = NO_ERR;
         } else {
             /* revision was removed from the new module */
-            output_diff(cp, YANG_K_REVISION, oldrev->version, NULL, FALSE);
+            output_diff(instance, cp, YANG_K_REVISION, oldrev->version, NULL, FALSE);
         }
     }
 
-    for (newrev = (ncx_revhist_t *)dlq_firstEntry(&newpcb->top->revhistQ);
+    for (newrev = (ncx_revhist_t *)dlq_firstEntry(instance, &newpcb->top->revhistQ);
          newrev != NULL;
-         newrev = (ncx_revhist_t *)dlq_nextEntry(newrev)) {
+         newrev = (ncx_revhist_t *)dlq_nextEntry(instance, newrev)) {
 
         if (newrev->res != NO_ERR) {
             /* this revision-stmt was added in the new version */
-            output_diff(cp, YANG_K_REVISION, NULL, newrev->version, FALSE);
+            output_diff(instance, cp, YANG_K_REVISION, NULL, newrev->version, FALSE);
         }
     }
 
@@ -344,7 +351,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_one_extension_diff (yangdiff_diffparms_t *cp,
+    output_one_extension_diff (ncx_instance_t *instance,
+                               yangdiff_diffparms_t *cp,
                                ext_template_t *oldext,
                                ext_template_t *newext)
 {
@@ -356,17 +364,20 @@ static void
 
     /* figure out what changed */
     changecnt = 0;
-    changecnt += str_field_changed(YANG_K_DESCRIPTION,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_DESCRIPTION,
                                    oldext->descr, 
                                    newext->descr, 
                                    isrev, 
                                    &extcdb[0]);
-    changecnt += str_field_changed(YANG_K_REFERENCE,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_REFERENCE,
                                    oldext->ref, 
                                    newext->ref, 
                                    isrev, 
                                    &extcdb[1]);
-    changecnt += str_field_changed(YANG_K_ARGUMENT,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_ARGUMENT,
                                    oldext->arg, 
                                    newext->arg, 
                                    isrev, 
@@ -376,7 +387,8 @@ static void
                                     newext->argel, 
                                     isrev, 
                                     &extcdb[3]);
-    changecnt += status_field_changed(YANG_K_STATUS,
+    changecnt += status_field_changed(instance,
+                                      YANG_K_STATUS,
                                       oldext->status, 
                                       newext->status, 
                                       isrev, 
@@ -390,19 +402,19 @@ static void
     case YANGDIFF_DT_TERSE:
     case YANGDIFF_DT_NORMAL:
     case YANGDIFF_DT_REVISION:
-        output_mstart_line(cp, YANG_K_EXTENSION, oldext->name, TRUE);
+        output_mstart_line(instance, cp, YANG_K_EXTENSION, oldext->name, TRUE);
         if (cp->edifftype != YANGDIFF_DT_TERSE) {
-            indent_in(cp);
+            indent_in(instance, cp);
             for (i=0; i<5; i++) {
                 if (extcdb[i].changed) {
-                    output_cdb_line(cp, &extcdb[i]);
+                    output_cdb_line(instance, cp, &extcdb[i]);
                 }
             }
-            indent_out(cp);
+            indent_out(instance, cp);
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 } /* output_one_extension_diff */
@@ -421,7 +433,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_extensions_diff (yangdiff_diffparms_t *cp,
+    output_extensions_diff (ncx_instance_t *instance,
+                            yangdiff_diffparms_t *cp,
                             yang_pcb_t *oldpcb,
                             yang_pcb_t *newpcb)
 {
@@ -429,35 +442,35 @@ static void
 
     /* make sure the new 'used' flags are cleared */
     for (newext = (ext_template_t *)
-             dlq_firstEntry(&newpcb->top->extensionQ);
+             dlq_firstEntry(instance, &newpcb->top->extensionQ);
          newext != NULL;
-         newext = (ext_template_t *)dlq_nextEntry(newext)) {
+         newext = (ext_template_t *)dlq_nextEntry(instance, newext)) {
         newext->used = FALSE;
     }
 
     for (oldext = (ext_template_t *)
-             dlq_firstEntry(&oldpcb->top->extensionQ);
+             dlq_firstEntry(instance, &oldpcb->top->extensionQ);
          oldext != NULL;
-         oldext = (ext_template_t *)dlq_nextEntry(oldext)) {
+         oldext = (ext_template_t *)dlq_nextEntry(instance, oldext)) {
 
         /* find this extension in the new module */
-        newext = ext_find_extension(newpcb->top, oldext->name);
+        newext = ext_find_extension(instance, newpcb->top, oldext->name);
         if (newext) {
-            output_one_extension_diff(cp, oldext, newext);
+            output_one_extension_diff(instance, cp, oldext, newext);
             newext->used = TRUE;
         } else {
             /* extension was removed from the new module */
-            output_diff(cp, YANG_K_EXTENSION, oldext->name, NULL, TRUE);
+            output_diff(instance, cp, YANG_K_EXTENSION, oldext->name, NULL, TRUE);
         }
     }
 
     for (newext = (ext_template_t *)
-             dlq_firstEntry(&newpcb->top->extensionQ);
+             dlq_firstEntry(instance, &newpcb->top->extensionQ);
          newext != NULL;
-         newext = (ext_template_t *)dlq_nextEntry(newext)) {
+         newext = (ext_template_t *)dlq_nextEntry(instance, newext)) {
         if (!newext->used) {
             /* this extension-stmt was added in the new version */
-            output_diff(cp, YANG_K_EXTENSION, NULL, newext->name, TRUE);
+            output_diff(instance, cp, YANG_K_EXTENSION, NULL, newext->name, TRUE);
         }
     }
 
@@ -476,7 +489,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_one_feature_diff (yangdiff_diffparms_t *cp,
+    output_one_feature_diff (ncx_instance_t *instance,
+                             yangdiff_diffparms_t *cp,
                              const xmlChar *modprefix,
                              ncx_feature_t *oldfeat,
                              ncx_feature_t *newfeat)
@@ -489,23 +503,27 @@ static void
 
     /* figure out what changed */
     changecnt = 0;
-    changecnt += status_field_changed(YANG_K_STATUS,
+    changecnt += status_field_changed(instance,
+                                      YANG_K_STATUS,
                                       oldfeat->status, 
                                       newfeat->status, 
                                       isrev, 
                                       &featcdb[0]);
-    changecnt += str_field_changed(YANG_K_DESCRIPTION,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_DESCRIPTION,
                                    oldfeat->descr, 
                                    newfeat->descr, 
                                    isrev, 
                                    &featcdb[1]);
-    changecnt += str_field_changed(YANG_K_REFERENCE,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_REFERENCE,
                                    oldfeat->ref, 
                                    newfeat->ref, 
                                    isrev, 
                                    &featcdb[2]);
 
-    changecnt += iffeatureQ_changed(modprefix,
+    changecnt += iffeatureQ_changed(instance,
+                                    modprefix,
                                     &oldfeat->iffeatureQ,
                                     &newfeat->iffeatureQ);
 
@@ -518,26 +536,28 @@ static void
     case YANGDIFF_DT_TERSE:
     case YANGDIFF_DT_NORMAL:
     case YANGDIFF_DT_REVISION:
-        output_mstart_line(cp, 
+        output_mstart_line(instance, 
+                           cp, 
                            YANG_K_FEATURE, 
                            oldfeat->name, 
                            TRUE);
         if (cp->edifftype != YANGDIFF_DT_TERSE) {
-            indent_in(cp);
+            indent_in(instance, cp);
             for (i=0; i<3; i++) {
                 if (featcdb[i].changed) {
-                    output_cdb_line(cp, &featcdb[i]);
+                    output_cdb_line(instance, cp, &featcdb[i]);
                 }
             }
-            output_iffeatureQ_diff(cp,
+            output_iffeatureQ_diff(instance,
+                                   cp,
                                    modprefix,
                                    &oldfeat->iffeatureQ,
                                    &newfeat->iffeatureQ);
-            indent_out(cp);
+            indent_out(instance, cp);
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 } /* output_one_feature_diff */
@@ -556,7 +576,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_features_diff (yangdiff_diffparms_t *cp,
+    output_features_diff (ncx_instance_t *instance,
+                         yangdiff_diffparms_t *cp,
                          yang_pcb_t *oldpcb,
                          yang_pcb_t *newpcb)
 {
@@ -564,38 +585,39 @@ static void
 
     /* make sure the new 'used' flags are cleared */
     for (newfeat = (ncx_feature_t *)
-             dlq_firstEntry(&newpcb->top->featureQ);
+             dlq_firstEntry(instance, &newpcb->top->featureQ);
          newfeat != NULL;
-         newfeat = (ncx_feature_t *)dlq_nextEntry(newfeat)) {
+         newfeat = (ncx_feature_t *)dlq_nextEntry(instance, newfeat)) {
         newfeat->seen = FALSE;
     }
 
     for (oldfeat = (ncx_feature_t *)
-             dlq_firstEntry(&oldpcb->top->featureQ);
+             dlq_firstEntry(instance, &oldpcb->top->featureQ);
          oldfeat != NULL;
-         oldfeat = (ncx_feature_t *)dlq_nextEntry(oldfeat)) {
+         oldfeat = (ncx_feature_t *)dlq_nextEntry(instance, oldfeat)) {
 
         /* find this feature in the new module */
-        newfeat = ncx_find_feature(newpcb->top, oldfeat->name);
+        newfeat = ncx_find_feature(instance, newpcb->top, oldfeat->name);
         if (newfeat) {
-            output_one_feature_diff(cp, 
+            output_one_feature_diff(instance, 
+                                    cp, 
                                     oldpcb->top->prefix,
                                     oldfeat, 
                                     newfeat);
             newfeat->seen = TRUE;
         } else {
             /* feature was removed from the new module */
-            output_diff(cp, YANG_K_FEATURE, oldfeat->name, NULL, TRUE);
+            output_diff(instance, cp, YANG_K_FEATURE, oldfeat->name, NULL, TRUE);
         }
     }
 
     for (newfeat = (ncx_feature_t *)
-             dlq_firstEntry(&newpcb->top->featureQ);
+             dlq_firstEntry(instance, &newpcb->top->featureQ);
          newfeat != NULL;
-         newfeat = (ncx_feature_t *)dlq_nextEntry(newfeat)) {
+         newfeat = (ncx_feature_t *)dlq_nextEntry(instance, newfeat)) {
         if (!newfeat->seen) {
             /* this feature-stmt was added in the new version */
-            output_diff(cp, YANG_K_FEATURE, NULL, newfeat->name, TRUE);
+            output_diff(instance, cp, YANG_K_FEATURE, NULL, newfeat->name, TRUE);
         }
     }
 
@@ -614,7 +636,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_one_identity_diff (yangdiff_diffparms_t *cp,
+    output_one_identity_diff (ncx_instance_t *instance,
+                              yangdiff_diffparms_t *cp,
                               ncx_identity_t *oldident,
                               ncx_identity_t *newident)
 {
@@ -626,28 +649,33 @@ static void
 
     /* figure out what changed */
     changecnt = 0;
-    changecnt += status_field_changed(YANG_K_STATUS,
+    changecnt += status_field_changed(instance,
+                                      YANG_K_STATUS,
                                       oldident->status, 
                                       newident->status, 
                                       isrev, 
                                       &identcdb[0]);
-    changecnt += str_field_changed(YANG_K_DESCRIPTION,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_DESCRIPTION,
                                    oldident->descr, 
                                    newident->descr, 
                                    isrev, 
                                    &identcdb[1]);
-    changecnt += str_field_changed(YANG_K_REFERENCE,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_REFERENCE,
                                    oldident->ref, 
                                    newident->ref, 
                                    isrev, 
                                    &identcdb[2]);
-    changecnt += str_field_changed((const xmlChar *)"base prefix",
+    changecnt += str_field_changed(instance,
+                                   (const xmlChar *)"base prefix",
                                    oldident->baseprefix, 
                                    newident->baseprefix, 
                                    isrev, 
                                    &identcdb[3]);
 
-    changecnt += str_field_changed(YANG_K_BASE,
+    changecnt += str_field_changed(instance,
+                                   YANG_K_BASE,
                                    oldident->basename, 
                                    newident->basename, 
                                    isrev, 
@@ -662,22 +690,23 @@ static void
     case YANGDIFF_DT_TERSE:
     case YANGDIFF_DT_NORMAL:
     case YANGDIFF_DT_REVISION:
-        output_mstart_line(cp, 
+        output_mstart_line(instance, 
+                           cp, 
                            YANG_K_IDENTITY, 
                            oldident->name, 
                            TRUE);
         if (cp->edifftype != YANGDIFF_DT_TERSE) {
-            indent_in(cp);
+            indent_in(instance, cp);
             for (i=0; i<5; i++) {
                 if (identcdb[i].changed) {
-                    output_cdb_line(cp, &identcdb[i]);
+                    output_cdb_line(instance, cp, &identcdb[i]);
                 }
             }
-            indent_out(cp);
+            indent_out(instance, cp);
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 } /* output_one_identity_diff */
@@ -696,7 +725,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_identities_diff (yangdiff_diffparms_t *cp,
+    output_identities_diff (ncx_instance_t *instance,
+                            yangdiff_diffparms_t *cp,
                             yang_pcb_t *oldpcb,
                             yang_pcb_t *newpcb)
 {
@@ -704,39 +734,41 @@ static void
 
     /* make sure the new 'used' flags are cleared */
     for (newident = (ncx_identity_t *)
-             dlq_firstEntry(&newpcb->top->identityQ);
+             dlq_firstEntry(instance, &newpcb->top->identityQ);
          newident != NULL;
-         newident = (ncx_identity_t *)dlq_nextEntry(newident)) {
+         newident = (ncx_identity_t *)dlq_nextEntry(instance, newident)) {
         newident->seen = FALSE;
     }
 
     for (oldident = (ncx_identity_t *)
-             dlq_firstEntry(&oldpcb->top->identityQ);
+             dlq_firstEntry(instance, &oldpcb->top->identityQ);
          oldident != NULL;
-         oldident = (ncx_identity_t *)dlq_nextEntry(oldident)) {
+         oldident = (ncx_identity_t *)dlq_nextEntry(instance, oldident)) {
 
         /* find this identure in the new module */
-        newident = ncx_find_identity(newpcb->top, 
+        newident = ncx_find_identity(instance, 
+                                     newpcb->top, 
                                      oldident->name,
                                      FALSE);
         if (newident) {
-            output_one_identity_diff(cp, 
+            output_one_identity_diff(instance, 
+                                     cp, 
                                      oldident, 
                                      newident);
             newident->seen = TRUE;
         } else {
             /* identure was removed from the new module */
-            output_diff(cp, YANG_K_IDENTITY, oldident->name, NULL, TRUE);
+            output_diff(instance, cp, YANG_K_IDENTITY, oldident->name, NULL, TRUE);
         }
     }
 
     for (newident = (ncx_identity_t *)
-             dlq_firstEntry(&newpcb->top->identityQ);
+             dlq_firstEntry(instance, &newpcb->top->identityQ);
          newident != NULL;
-         newident = (ncx_identity_t *)dlq_nextEntry(newident)) {
+         newident = (ncx_identity_t *)dlq_nextEntry(instance, newident)) {
         if (!newident->seen) {
             /* this identure-stmt was added in the new version */
-            output_diff(cp, YANG_K_IDENTITY, NULL, newident->name, TRUE);
+            output_diff(instance, cp, YANG_K_IDENTITY, NULL, newident->name, TRUE);
         }
     }
 
@@ -756,7 +788,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_hdr_diff (yangdiff_diffparms_t *cp,
+    output_hdr_diff (ncx_instance_t *instance,
+                     yangdiff_diffparms_t *cp,
                      yang_pcb_t *oldpcb,
                      yang_pcb_t *newpcb)
 {
@@ -766,8 +799,9 @@ static void
 
     /* module name, module/submodule mismatch */
     if (oldpcb->top->ismod != newpcb->top->ismod ||
-        xml_strcmp(oldpcb->top->name, newpcb->top->name)) {
-        output_diff(cp, 
+        xml_strcmp(instance, oldpcb->top->name, newpcb->top->name)) {
+        output_diff(instance, 
+                    cp, 
                     oldpcb->top->ismod ? 
                     YANG_K_MODULE : YANG_K_SUBMODULE, 
                     oldpcb->top->name, 
@@ -779,7 +813,8 @@ static void
     if (oldpcb->top->langver != newpcb->top->langver) {
         sprintf(oldnumbuff, "%u", oldpcb->top->langver);
         sprintf(newnumbuff, "%u", newpcb->top->langver);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_YANG_VERSION,
                     (const xmlChar *)oldnumbuff,
                     (const xmlChar *)newnumbuff, 
@@ -787,36 +822,36 @@ static void
     }
 
     /* namespace */
-    output_diff(cp, YANG_K_NAMESPACE, oldpcb->top->ns, newpcb->top->ns, FALSE);
+    output_diff(instance, cp, YANG_K_NAMESPACE, oldpcb->top->ns, newpcb->top->ns, FALSE);
 
     /* prefix */
-    output_diff(cp, YANG_K_PREFIX, oldpcb->top->prefix, newpcb->top->prefix, 
+    output_diff(instance, cp, YANG_K_PREFIX, oldpcb->top->prefix, newpcb->top->prefix, 
                 FALSE);
 
     /* imports */
-    output_import_diff(cp, oldpcb, newpcb);
+    output_import_diff(instance, cp, oldpcb, newpcb);
 
     /* includes */
-    output_include_diff(cp, oldpcb, newpcb);
+    output_include_diff(instance, cp, oldpcb, newpcb);
 
     /* organization */
-    output_diff(cp, YANG_K_ORGANIZATION, oldpcb->top->organization,
+    output_diff(instance, cp, YANG_K_ORGANIZATION, oldpcb->top->organization,
                 newpcb->top->organization, FALSE);
 
     /* contact */
-    output_diff(cp, YANG_K_CONTACT, oldpcb->top->contact_info,
+    output_diff(instance, cp, YANG_K_CONTACT, oldpcb->top->contact_info,
                 newpcb->top->contact_info, FALSE);
 
     /* description */
-    output_diff(cp, YANG_K_DESCRIPTION, oldpcb->top->descr,
+    output_diff(instance, cp, YANG_K_DESCRIPTION, oldpcb->top->descr,
                 newpcb->top->descr, FALSE);
 
     /* reference */
-    output_diff(cp, YANG_K_REFERENCE, oldpcb->top->ref,
+    output_diff(instance, cp, YANG_K_REFERENCE, oldpcb->top->ref,
                 newpcb->top->ref, FALSE);
 
     /* revisions */
-    output_revision_diff(cp, oldpcb, newpcb);
+    output_revision_diff(instance, cp, oldpcb, newpcb);
 
 }  /* output_hdr_diff */
 
@@ -833,7 +868,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_diff_banner (yangdiff_diffparms_t *cp,
+    output_diff_banner (ncx_instance_t *instance,
+                        yangdiff_diffparms_t *cp,
                         yang_pcb_t *oldpcb,
                         yang_pcb_t *newpcb)
 {
@@ -841,60 +877,62 @@ static void
     xmlChar     versionbuffer[NCX_VERSION_BUFFSIZE];
     
     if (!cp->firstdone) {
-        ses_putstr(cp->scb, (const xmlChar *)"\n// Generated by ");
-        ses_putstr(cp->scb, YANGDIFF_PROGNAME);
-        ses_putchar(cp->scb, ' ');
-        res = ncx_get_version(versionbuffer, NCX_VERSION_BUFFSIZE);
+        ses_putstr(instance, cp->scb, (const xmlChar *)"\n// Generated by ");
+        ses_putstr(instance, cp->scb, YANGDIFF_PROGNAME);
+        ses_putchar(instance, cp->scb, ' ');
+        res = ncx_get_version(instance, versionbuffer, NCX_VERSION_BUFFSIZE);
         if (res == NO_ERR) {
-            ses_putstr(cp->scb, versionbuffer);
-            ses_putstr(cp->scb, (const xmlChar *)"\n// ");
-            ses_putstr(cp->scb, (const xmlChar *)COPYRIGHT_STRING);
+            ses_putstr(instance, cp->scb, versionbuffer);
+            ses_putstr(instance, cp->scb, (const xmlChar *)"\n// ");
+            ses_putstr(instance, cp->scb, (const xmlChar *)COPYRIGHT_STRING);
         } else {
-            SET_ERROR(res);
+            SET_ERROR(instance, res);
         }
         cp->firstdone = TRUE;
     }
 
 #ifdef ADD_SEP_LINE
     if (cp->new_isdir) {
-        ses_putstr(cp->scb, YANGDIFF_LINE);
+        ses_putstr(instance, cp->scb, YANGDIFF_LINE);
     }
 #endif
 
-    ses_putstr(cp->scb, (const xmlChar *)"\n// old: ");
-    ses_putstr(cp->scb, oldpcb->top->name);
-    ses_putchar(cp->scb, ' ');
-    ses_putchar(cp->scb, '(');
-    ses_putstr(cp->scb, oldpcb->top->version);
-    ses_putchar(cp->scb, ')');
-    ses_putchar(cp->scb, ' ');
-    ses_putstr(cp->scb,
+    ses_putstr(instance, cp->scb, (const xmlChar *)"\n// old: ");
+    ses_putstr(instance, cp->scb, oldpcb->top->name);
+    ses_putchar(instance, cp->scb, ' ');
+    ses_putchar(instance, cp->scb, '(');
+    ses_putstr(instance, cp->scb, oldpcb->top->version);
+    ses_putchar(instance, cp->scb, ')');
+    ses_putchar(instance, cp->scb, ' ');
+    ses_putstr(instance,
+               cp->scb,
                (cp->old_isdir) ? oldpcb->top->source 
                : oldpcb->top->sourcefn);
 
-    ses_putstr(cp->scb, (const xmlChar *)"\n// new: ");
-    ses_putstr(cp->scb, newpcb->top->name);
-    ses_putchar(cp->scb, ' ');
-        ses_putchar(cp->scb, '(');
-    ses_putstr(cp->scb, newpcb->top->version);
-        ses_putchar(cp->scb, ')');
-    ses_putchar(cp->scb, ' ');
-    ses_putstr(cp->scb,
+    ses_putstr(instance, cp->scb, (const xmlChar *)"\n// new: ");
+    ses_putstr(instance, cp->scb, newpcb->top->name);
+    ses_putchar(instance, cp->scb, ' ');
+        ses_putchar(instance, cp->scb, '(');
+    ses_putstr(instance, cp->scb, newpcb->top->version);
+        ses_putchar(instance, cp->scb, ')');
+    ses_putchar(instance, cp->scb, ' ');
+    ses_putstr(instance,
+               cp->scb,
                (cp->new_isdir) ? newpcb->top->source 
                : newpcb->top->sourcefn);
-    ses_putchar(cp->scb, '\n');
+    ses_putchar(instance, cp->scb, '\n');
 
     if (cp->edifftype == YANGDIFF_DT_REVISION) {
-        indent_in(cp);
-        ses_putstr_indent(cp->scb, (const xmlChar *)"revision ",
+        indent_in(instance, cp);
+        ses_putstr_indent(instance, cp->scb, (const xmlChar *)"revision ",
                           cp->curindent);
-        tstamp_date(cp->buff);
-        ses_putstr(cp->scb, cp->buff);
-        ses_putstr(cp->scb, (const xmlChar *)" {");
-        indent_in(cp);
-        ses_putstr_indent(cp->scb, (const xmlChar *)"description \"",
+        tstamp_date(instance, cp->buff);
+        ses_putstr(instance, cp->scb, cp->buff);
+        ses_putstr(instance, cp->scb, (const xmlChar *)" {");
+        indent_in(instance, cp);
+        ses_putstr_indent(instance, cp->scb, (const xmlChar *)"description \"",
                           cp->curindent);
-        indent_in(cp);
+        indent_in(instance, cp);
     }
 
 }  /* output_diff_banner */
@@ -914,7 +952,8 @@ static void
  *    status
  *********************************************************************/
 static status_t
-    generate_diff_report (yangdiff_diffparms_t *cp,
+    generate_diff_report (ncx_instance_t *instance,
+                          yangdiff_diffparms_t *cp,
                           yang_pcb_t *oldpcb,
                           yang_pcb_t *newpcb)
 {
@@ -923,47 +962,47 @@ static status_t
     res = NO_ERR;
 
     /* generate the banner indicating the start of diff report */
-    output_diff_banner(cp, oldpcb, newpcb);
+    output_diff_banner(instance, cp, oldpcb, newpcb);
 
     /* header fields */
     if (cp->header) {
-        output_hdr_diff(cp, oldpcb, newpcb);
+        output_hdr_diff(instance, cp, oldpcb, newpcb);
     }
 
     /* all extensions */
-    output_extensions_diff(cp, oldpcb, newpcb);
+    output_extensions_diff(instance, cp, oldpcb, newpcb);
 
     /* all features */
-    output_features_diff(cp, oldpcb, newpcb);
+    output_features_diff(instance, cp, oldpcb, newpcb);
 
     /* all identities */
-    output_identities_diff(cp, oldpcb, newpcb);
+    output_identities_diff(instance, cp, oldpcb, newpcb);
 
     /* global typedefs */
-    output_typedefQ_diff(cp, &oldpcb->top->typeQ, &newpcb->top->typeQ);
+    output_typedefQ_diff(instance, cp, &oldpcb->top->typeQ, &newpcb->top->typeQ);
 
     /* global groupings */
-    output_groupingQ_diff(cp, &oldpcb->top->groupingQ, 
+    output_groupingQ_diff(instance, cp, &oldpcb->top->groupingQ, 
                           &newpcb->top->groupingQ);
 
     /* global data definitions */
-    output_datadefQ_diff(cp, &oldpcb->top->datadefQ, 
+    output_datadefQ_diff(instance, cp, &oldpcb->top->datadefQ, 
                          &newpcb->top->datadefQ);
 
     /* finish off revision statement if that is the diff mode */
     if (cp->edifftype == YANGDIFF_DT_REVISION) {
         /* end description clause */
-        indent_out(cp);
-        ses_putstr_indent(cp->scb, (const xmlChar *)"\";",
+        indent_out(instance, cp);
+        ses_putstr_indent(instance, cp->scb, (const xmlChar *)"\";",
                           cp->curindent);
         /* end revision clause */
-        indent_out(cp);
-        ses_putstr_indent(cp->scb, (const xmlChar *)"}",
+        indent_out(instance, cp);
+        ses_putstr_indent(instance, cp->scb, (const xmlChar *)"}",
                           cp->curindent);
-        indent_out(cp);
+        indent_out(instance, cp);
     }
 
-    ses_putchar(cp->scb, '\n');
+    ses_putchar(instance, cp->scb, '\n');
 
     return res;
 
@@ -984,7 +1023,8 @@ static status_t
 *   malloced string or NULL if malloc error
 *********************************************************************/
 static xmlChar *
-    make_curold_filename (const xmlChar *newfn,
+    make_curold_filename (ncx_instance_t *instance,
+                          const xmlChar *newfn,
                           const yangdiff_diffparms_t *cp)
 {
     xmlChar         *buff, *p;
@@ -996,23 +1036,23 @@ static xmlChar *
     /* setup source filespec pointer */
     newstart = newfn;
     if (cp->new_isdir) {
-        newstart += xml_strlen(cp->full_new);
+        newstart += xml_strlen(instance, cp->full_new);
     }
 
     /* check length: subtree mode vs 1 file mode */
     if (cp->old_isdir) {
-        len = xml_strlen(cp->full_old);
+        len = xml_strlen(instance, cp->full_old);
         if ((cp->full_old[len-1] != NCXMOD_PSCHAR) && 
             (*newstart != NCXMOD_PSCHAR)) {
             pslen = 1;
         }
-        len += xml_strlen(newstart);
+        len += xml_strlen(instance, newstart);
     } else {
-        len = xml_strlen(cp->full_old);
+        len = xml_strlen(instance, cp->full_old);
     }
 
     /* get a buffer */
-    buff = m__getMem(len+pslen+1);
+    buff = m__getMem(instance, len+pslen+1);
     if (!buff) {
         return NULL;
     }
@@ -1020,13 +1060,13 @@ static xmlChar *
     /* fill in buffer: subtree mode vs 1 file mode */
     if (cp->old_isdir) {
         p = buff;
-        p += xml_strcpy(p, cp->full_old);
+        p += xml_strcpy(instance, p, cp->full_old);
         if (pslen) {
             *p++ = NCXMOD_PSCHAR;
         }
-        xml_strcpy(p, newstart);
+        xml_strcpy(instance, p, newstart);
     } else {
-        xml_strcpy(buff, cp->full_old);
+        xml_strcpy(instance, buff, cp->full_old);
     }
 
     return buff;
@@ -1051,7 +1091,7 @@ static xmlChar *
  *   status
  *********************************************************************/
 static status_t
-    compare_one (yangdiff_diffparms_t *cp)
+    compare_one (ncx_instance_t *instance, yangdiff_diffparms_t *cp)
 {
     yang_pcb_t        *oldpcb, *newpcb;
     const xmlChar     *logsource, *modpath, *revision;
@@ -1070,29 +1110,30 @@ static status_t
     modparm = (cp->curnew) ? cp->curnew : cp->new;
 
     /* force modules to be reloaded */
-    ncx_set_cur_modQ(&cp->newmodQ);
+    ncx_set_cur_modQ(instance, &cp->newmodQ);
 
     /* pick which module source path to use */
     modpath = NULL;
     if (cp->newpath) {
-        ncxmod_set_modpath(cp->newpath);
+        ncxmod_set_modpath(instance, cp->newpath);
     } else if (cp->curnew) {
         modpath = cp->full_new;
     } else if (cp->modpath) {
-        ncxmod_set_modpath(cp->modpath);
+        ncxmod_set_modpath(instance, cp->modpath);
     } else {
         /* clear out any old value */
-        ncxmod_set_modpath(EMPTY_STRING);
+        ncxmod_set_modpath(instance, EMPTY_STRING);
     }
 
-    if (yang_split_filename(modparm, &modlen)) {
+    if (yang_split_filename(instance, modparm, &modlen)) {
         savestr = &modparm[modlen];
         savechar = *savestr;
         *savestr = '\0';
         revision = savestr + 1;
     }
 
-    newpcb = ncxmod_load_module_diff(modparm,
+    newpcb = ncxmod_load_module_diff(instance,
+                                     modparm,
                                      revision,
                                      FALSE, 
                                      modpath,
@@ -1104,7 +1145,7 @@ static status_t
 
     if (res == ERR_NCX_SKIPPED) {
         if (newpcb) {
-            yang_free_pcb(newpcb);
+            yang_free_pcb(instance, newpcb);
         }
         return NO_ERR;
     } else if (res != NO_ERR) {
@@ -1112,24 +1153,26 @@ static status_t
             logsource = (LOGDEBUG) ? newpcb->top->source 
                 : newpcb->top->sourcefn;
             if (newpcb->top->errors) {
-                log_error("\n*** %s: %u Errors, %u Warnings\n", 
+                log_error(instance, 
+                          "\n+++ %s: %u Errors, %u Warnings\n", 
                           logsource, 
                           newpcb->top->errors, 
                           newpcb->top->warnings);
             } else if (newpcb->top->warnings) {
-                log_warn("\n*** %s: %u Errors, %u Warnings\n", 
+                log_warn(instance, 
+                         "\n+++ %s: %u Errors, %u Warnings\n", 
                          logsource, 
                          newpcb->top->errors, 
                          newpcb->top->warnings);
             }
         } else {
             /* make sure next task starts on a newline */
-            log_error("\n");   
+            log_error(instance, "\n");   
         }
 
         if (!newpcb || !newpcb->top || newpcb->top->errors) {
             if (newpcb) {
-                yang_free_pcb(newpcb);
+                yang_free_pcb(instance, newpcb);
             }
             return res;
         }  else {
@@ -1137,7 +1180,8 @@ static status_t
             res = NO_ERR;
         }
     } else if (LOGDEBUG && newpcb && newpcb->top) {
-        log_debug("\n*** %s: %u Errors, %u Warnings\n", 
+        log_debug(instance, 
+                  "\n+++ %s: %u Errors, %u Warnings\n", 
                   newpcb->top->source,
                   newpcb->top->errors,
                   newpcb->top->warnings);
@@ -1145,16 +1189,17 @@ static status_t
 
     /* figure out where to get the requested 'old' file */
     if (cp->old) {
-        cp->curold = xml_strdup(cp->old);
+        cp->curold = xml_strdup(instance, cp->old);
     } else {
-        cp->curold = make_curold_filename((cp->new_isdir) ? 
+        cp->curold = make_curold_filename(instance, 
+                                          (cp->new_isdir) ? 
                                           cp->curnew : newpcb->top->sourcefn, 
                                           cp);
     }
     if (!cp->curold) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(NULL, NULL, res);
-        yang_free_pcb(newpcb);
+        ncx_print_errormsg(instance, NULL, NULL, res);
+        yang_free_pcb(instance, newpcb);
         return res;
     }
 
@@ -1163,7 +1208,7 @@ static status_t
     savechar ='\0';
     revision = NULL;
     
-    if (yang_split_filename(cp->curold, &modlen)) {
+    if (yang_split_filename(instance, cp->curold, &modlen)) {
         savestr = &cp->curold[modlen];
         savechar = *savestr;
         *savestr = '\0';
@@ -1171,25 +1216,26 @@ static status_t
     }
 
     /* force modules to be reloaded */
-    ncx_set_cur_modQ(&cp->oldmodQ);
+    ncx_set_cur_modQ(instance, &cp->oldmodQ);
 
     /* pick which module source path to use */
     modpath = NULL;
     if (cp->oldpath) {
-        ncxmod_set_modpath(cp->oldpath);
+        ncxmod_set_modpath(instance, cp->oldpath);
     } else if (cp->full_old) {
         modpath = cp->full_old;
     } else if (cp->modpath) {
-        ncxmod_set_modpath(cp->modpath);
+        ncxmod_set_modpath(instance, cp->modpath);
     } else {
-        ncxmod_set_modpath(EMPTY_STRING);
+        ncxmod_set_modpath(instance, EMPTY_STRING);
     }
 
     /* load in the requested 'old' module to compare
      * if this is a subtree call, then the curnew pointer
      * will be set, otherwise the 'new' pointer must be set
      */
-    oldpcb = ncxmod_load_module_diff(cp->curold, 
+    oldpcb = ncxmod_load_module_diff(instance, 
+                                     cp->curold, 
                                      revision,
                                      FALSE, 
                                      modpath,
@@ -1201,12 +1247,13 @@ static status_t
 
     if (res == ERR_NCX_SKIPPED) {
         /* this is probably a submodule being skipped in subtree mode */
-        log_debug("\nyangdiff: New PCB OK but old PCB skipped (%s)",
+        log_debug(instance,
+                  "\nyangdiff: New PCB OK but old PCB skipped (%s)",
                   newpcb->top->sourcefn);
         if (oldpcb) {
-            yang_free_pcb(oldpcb);
+            yang_free_pcb(instance, oldpcb);
         }
-        yang_free_pcb(newpcb);
+        yang_free_pcb(instance, newpcb);
         return NO_ERR;
     } else if (res != NO_ERR) {
         if (oldpcb && oldpcb->top) {
@@ -1214,27 +1261,29 @@ static status_t
                 : oldpcb->top->sourcefn;
 
             if (oldpcb->top->errors) {
-                log_error("\n*** %s: %u Errors, %u Warnings\n", 
+                log_error(instance, 
+                          "\n+++ %s: %u Errors, %u Warnings\n", 
                           logsource,
                           oldpcb->top->errors, 
                           oldpcb->top->warnings);
             } else if (oldpcb->top->warnings) {
-                log_warn("\n*** %s: %u Errors, %u Warnings\n", 
+                log_warn(instance, 
+                         "\n+++ %s: %u Errors, %u Warnings\n", 
                          logsource,
                          oldpcb->top->errors, 
                          oldpcb->top->warnings);
             }
         } else {
             /* make sure next task starts on a newline */
-            log_error("\n");
+            log_error(instance, "\n");
         }
 
         if (!oldpcb || !oldpcb->top || oldpcb->top->errors) {
             if (newpcb) {
-                yang_free_pcb(newpcb);
+                yang_free_pcb(instance, newpcb);
             }
             if (oldpcb) {
-                yang_free_pcb(oldpcb);
+                yang_free_pcb(instance, oldpcb);
             }
             return res;
         }  else {
@@ -1243,18 +1292,19 @@ static status_t
         }
         return res;
     } else if (LOGDEBUG && oldpcb && oldpcb->top) {
-        log_debug("\n*** %s: %u Errors, %u Warnings\n", 
+        log_debug(instance, 
+                  "\n+++ %s: %u Errors, %u Warnings\n", 
                   oldpcb->top->source,
                   oldpcb->top->errors,
                   oldpcb->top->warnings);
     }
 
     /* allow new modules to be available for ncx_find_module */
-    ncx_set_cur_modQ(&cp->newmodQ);
+    ncx_set_cur_modQ(instance, &cp->newmodQ);
 
     /* check if old and new files parsed okay */
-    if (ncx_any_dependency_errors(newpcb->top)) {
-        log_error("\nError: one or more modules imported into new '%s' "
+    if (ncx_any_dependency_errors(instance, newpcb->top)) {
+        log_error(instance, "\nError: one or more modules imported into new '%s' "
                   "had errors", newpcb->top->sourcefn);
         skipreport = TRUE;
     } else {
@@ -1262,10 +1312,11 @@ static status_t
     }
 
     /* allow old modules to be available for ncx_find_module */
-    ncx_set_cur_modQ(&cp->oldmodQ);
+    ncx_set_cur_modQ(instance, &cp->oldmodQ);
 
-    if (ncx_any_dependency_errors(oldpcb->top)) {
-        log_error("\nError: one or more modules imported into old '%s' "
+    if (ncx_any_dependency_errors(instance, oldpcb->top)) {
+        log_error(instance, 
+                  "\nError: one or more modules imported into old '%s' "
                   "had errors", 
                   oldpcb->top->sourcefn);
         skipreport = TRUE;
@@ -1275,22 +1326,22 @@ static status_t
 
     /* generate compare output to the dummy session */
     if (!skipreport) {
-        res = generate_diff_report(cp, oldpcb, newpcb);
+        res = generate_diff_report(instance, cp, oldpcb, newpcb);
     } else {
         res = ERR_NCX_IMPORT_ERRORS;
-        ncx_print_errormsg(NULL, NULL, res);
+        ncx_print_errormsg(instance, NULL, NULL, res);
     }
 
     /* clean up the parser control blocks */
     if (newpcb) {
-        yang_free_pcb(newpcb);
+        yang_free_pcb(instance, newpcb);
     }
     if (oldpcb) {
-        yang_free_pcb(oldpcb);
+        yang_free_pcb(instance, oldpcb);
     }
 
     /* cleanup the altered module Q */
-    ncx_reset_modQ();
+    ncx_reset_modQ(instance);
 
     return res;
 
@@ -1319,7 +1370,8 @@ static status_t
  *    recoverable error, just log and move on
  *********************************************************************/
 static status_t
-    subtree_callback (const char *fullspec,
+    subtree_callback (ncx_instance_t *instance,
+                      const char *fullspec,
                       void *cookie)
 {
     yangdiff_diffparms_t *cp;
@@ -1329,15 +1381,15 @@ static status_t
     res = NO_ERR;
 
     if (cp->curnew) {
-        m__free(cp->curnew);
+        m__free(instance, cp->curnew);
     }
-    cp->curnew = ncx_get_source((const xmlChar *)fullspec, &res);
+    cp->curnew = ncx_get_source(instance, (const xmlChar *)fullspec, &res);
     if (!cp->curnew) {
         return res;
     }
 
-    log_debug2("\nStart subtree file:\n%s\n", fullspec);
-    res = compare_one(cp);
+    log_debug2(instance, "\nStart subtree file:\n%s\n", fullspec);
+    res = compare_one(instance, cp);
     if (res != NO_ERR) {
         if (!NEED_EXIT(res)) {
             res = NO_ERR;
@@ -1361,39 +1413,39 @@ static status_t
 *   malloced string or NULL if malloc error
 *********************************************************************/
 static xmlChar *
-    make_output_filename (const yangdiff_diffparms_t *cp)
+    make_output_filename (ncx_instance_t *instance, const yangdiff_diffparms_t *cp)
 {
     xmlChar        *buff, *p;
     uint32          len;
 
     if (cp->output && *cp->output) {
-        len = xml_strlen(cp->output);
+        len = xml_strlen(instance, cp->output);
         if (cp->output_isdir) {
             if (cp->output[len-1] != NCXMOD_PSCHAR) {
                 len++;
             }
-            len += xml_strlen(YANGDIFF_DEF_FILENAME);
+            len += xml_strlen(instance, YANGDIFF_DEF_FILENAME);
         }
     } else {
-        len = xml_strlen(YANGDIFF_DEF_FILENAME);
+        len = xml_strlen(instance, YANGDIFF_DEF_FILENAME);
     }
 
-    buff = m__getMem(len+1);
+    buff = m__getMem(instance, len+1);
     if (!buff) {
         return NULL;
     }
 
     if (cp->output && *cp->output) {
         p = buff;
-        p += xml_strcpy(p, cp->output);
+        p += xml_strcpy(instance, p, cp->output);
         if (cp->output_isdir) {
             if (*(p-1) != NCXMOD_PSCHAR) {
                 *p++ = NCXMOD_PSCHAR;
             }
-            xml_strcpy(p, YANGDIFF_DEF_FILENAME);
+            xml_strcpy(instance, p, YANGDIFF_DEF_FILENAME);
         }
     } else {
-        xml_strcpy(buff, YANGDIFF_DEF_FILENAME);
+        xml_strcpy(instance, buff, YANGDIFF_DEF_FILENAME);
     }
 
     return buff;
@@ -1418,7 +1470,8 @@ static xmlChar *
  *   pointer to new session control block, or NULL if some error
  *********************************************************************/
 static ses_cb_t *
-    get_output_session (yangdiff_diffparms_t *cp,
+    get_output_session (ncx_instance_t *instance,
+                        yangdiff_diffparms_t *cp,
                         status_t  *res)
 {
     FILE            *fp;
@@ -1432,7 +1485,7 @@ static ses_cb_t *
 
     /* open the output file if not STDOUT */
     if (cp->output && *cp->output) {
-        namebuff = make_output_filename(cp);
+        namebuff = make_output_filename(instance, cp);
         if (!namebuff) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
@@ -1441,13 +1494,13 @@ static ses_cb_t *
         fp = fopen((const char *)namebuff, "w");
         if (!fp) {
             *res = ERR_FIL_OPEN;
-            m__free(namebuff);
+            m__free(instance, namebuff);
             return NULL;
         }
     }
 
     /* get a dummy session control block */
-    scb = ses_new_dummy_scb();
+    scb = ses_new_dummy_scb(instance);
     if (!scb) {
         *res = ERR_INTERNAL_MEM;
     } else {
@@ -1456,7 +1509,7 @@ static ses_cb_t *
     }
 
     if (namebuff) {
-        m__free(namebuff);
+        m__free(instance, namebuff);
     }
 
     return scb;
@@ -1473,7 +1526,7 @@ static ses_cb_t *
 *   status
 *********************************************************************/
 static status_t
-    main_run (void)
+    main_run (ncx_instance_t *instance)
 {
     status_t  res;
     xmlChar   versionbuffer[NCX_VERSION_BUFFSIZE];
@@ -1481,15 +1534,16 @@ static status_t
     res = NO_ERR;
 
     if (diffparms.versionmode) {
-        res = ncx_get_version(versionbuffer, NCX_VERSION_BUFFSIZE);
+        res = ncx_get_version(instance, versionbuffer, NCX_VERSION_BUFFSIZE);
         if (res == NO_ERR) {
-            log_write("yangdiff %s\n", versionbuffer);
+            log_write(instance, "yangdiff %s\n", versionbuffer);
         } else {
-            SET_ERROR(res);
+            SET_ERROR(instance, res);
         }
     }
     if (diffparms.helpmode) {
-        help_program_module(YANGDIFF_MOD, 
+        help_program_module(instance, 
+                            YANGDIFF_MOD, 
                             YANGDIFF_CONTAINER, 
                             diffparms.helpsubmode);
     }
@@ -1499,11 +1553,11 @@ static status_t
 
     /* check if subdir search suppression is requested */
     if (!diffparms.subdirs) {
-        ncxmod_set_subdirs(FALSE);
+        ncxmod_set_subdirs(instance, FALSE);
     }
 
     /* setup the output session to a file or STDOUT */
-    diffparms.scb = get_output_session(&diffparms, &res);
+    diffparms.scb = get_output_session(instance, &diffparms, &res);
     if (!diffparms.scb || res != NO_ERR) {
         return res;
     }
@@ -1513,51 +1567,52 @@ static status_t
     
     /* make sure the mandatory parameters are set */
     if (!diffparms.old) {
-        log_error("\nError: The 'old' parameter is required.");
+        log_error(instance, "\nError: The 'old' parameter is required.");
         res = ERR_NCX_MISSING_PARM;
-        ncx_print_errormsg(NULL, NULL, res);
+        ncx_print_errormsg(instance, NULL, NULL, res);
     }
     if (!diffparms.new) {
-        log_error("\nError: The 'new' parameter is required.");
+        log_error(instance, "\nError: The 'new' parameter is required.");
         res = ERR_NCX_MISSING_PARM;
-        ncx_print_errormsg(NULL, NULL, res);
+        ncx_print_errormsg(instance, NULL, NULL, res);
     }
     if (!diffparms.difftype) {
-        log_error("\nError: The 'difftype' parameter is required.");
+        log_error(instance, "\nError: The 'difftype' parameter is required.");
         res = ERR_NCX_MISSING_PARM;
-        ncx_print_errormsg(NULL, NULL, res);
+        ncx_print_errormsg(instance, NULL, NULL, res);
     }
     if (diffparms.edifftype==YANGDIFF_DT_NONE) {
-        log_error("\nError: Invalid 'difftype' parameter value.");
+        log_error(instance, "\nError: Invalid 'difftype' parameter value.");
         res = ERR_NCX_INVALID_VALUE;
-        ncx_print_errormsg(NULL, NULL, res);
+        ncx_print_errormsg(instance, NULL, NULL, res);
     }
     if (diffparms.new_isdir && !diffparms.old_isdir) {
-        log_error("\nError: The 'old' parameter "
+        log_error(instance, "\nError: The 'old' parameter "
                   "must identify a directory.");
         res = ERR_NCX_INVALID_VALUE;
-        ncx_print_errormsg(NULL, NULL, res);
+        ncx_print_errormsg(instance, NULL, NULL, res);
     }
     if (diffparms.old != NULL &&
         diffparms.new != NULL &&
-        !xml_strcmp(diffparms.old, diffparms.new)) {
-        log_error("\nError: The 'old' and 'new' "
+        !xml_strcmp(instance, diffparms.old, diffparms.new)) {
+        log_error(instance, "\nError: The 'old' and 'new' "
                   "parameters must be different.");
         res = ERR_NCX_INVALID_VALUE;
-        ncx_print_errormsg(NULL, NULL, res);
+        ncx_print_errormsg(instance, NULL, NULL, res);
     }
 
     if (res == NO_ERR) {
         /* prevent back-ptrs in corner-case error parse modes */
-        ncx_set_use_deadmodQ();
+        ncx_set_use_deadmodQ(instance);
 
         /* compare one file to another or 1 subtree to another */
         if (diffparms.new_isdir) {
-            res = ncxmod_process_subtree((const char *)diffparms.new,
+            res = ncxmod_process_subtree(instance,
+                                         (const char *)diffparms.new,
                                          subtree_callback,
                                          &diffparms);
         } else {
-            res = compare_one(&diffparms);
+            res = compare_one(instance, &diffparms);
         }
     }
 
@@ -1588,7 +1643,8 @@ static status_t
 *    NO_ERR if all goes well
 *********************************************************************/
 static status_t
-    process_cli_input (int argc,
+    process_cli_input (ncx_instance_t *instance,
+                       int argc,
                        char *argv[],
                        yangdiff_diffparms_t  *cp)
 {
@@ -1600,7 +1656,7 @@ static status_t
     res = NO_ERR;
     valset = NULL;
 
-    cp->buff = m__getMem(YANGDIFF_BUFFSIZE);
+    cp->buff = m__getMem(instance, YANGDIFF_BUFFSIZE);
     if (!cp->buff) {
         return ERR_INTERNAL_MEM;
     }
@@ -1610,9 +1666,9 @@ static status_t
 
     /* find the parmset definition in the registry */
     obj = NULL;
-    mod = ncx_find_module(YANGDIFF_MOD, NULL);
+    mod = ncx_find_module(instance, YANGDIFF_MOD, NULL);
     if (mod) {
-        obj = ncx_find_object(mod, YANGDIFF_CONTAINER);
+        obj = ncx_find_object(instance, mod, YANGDIFF_CONTAINER);
     }
     if (!obj) {
         res = ERR_NCX_NOT_FOUND;
@@ -1620,7 +1676,8 @@ static status_t
 
     /* parse the command line against the PSD */
     if (res == NO_ERR) {
-        valset = cli_parse(NULL,
+        valset = cli_parse(instance,
+                           NULL,
                            argc, 
                            argv, 
                            obj,
@@ -1632,24 +1689,26 @@ static status_t
     }
     if (res != NO_ERR) {
         if (valset) {
-            val_free_value(valset);
+            val_free_value(instance, valset);
         }
         return res;
     } else if (!valset) {
-        pr_usage();
+        pr_usage(instance);
         return ERR_NCX_SKIPPED;
     } else {
         cli_val = valset;
     }
 
     /* next get any params from the conf file */
-    val = val_find_child(valset, 
+    val = val_find_child(instance, 
+                         valset, 
                          YANGDIFF_MOD, 
                          YANGDIFF_PARM_CONFIG);
     if (val) {
         /* try the specified config location */
         cp->config = VAL_STR(val);
-        res = conf_parse_val_from_filespec(cp->config, 
+        res = conf_parse_val_from_filespec(instance, 
+                                           cp->config, 
                                            valset, 
                                            TRUE, 
                                            TRUE);
@@ -1658,7 +1717,8 @@ static status_t
         }
     } else {
         /* try default config location */
-        res = conf_parse_val_from_filespec(YANGDIFF_DEF_CONFIG,
+        res = conf_parse_val_from_filespec(instance,
+                                           YANGDIFF_DEF_CONFIG,
                                            valset, 
                                            TRUE, 
                                            FALSE);
@@ -1668,28 +1728,28 @@ static status_t
     }
 
     /* set the logging control parameters */
-    val_set_logging_parms(valset);
+    val_set_logging_parms(instance, valset);
 
     /* set the file search path parameters */
-    val_set_path_parms(valset);
+    val_set_path_parms(instance, valset);
 
     /* set the warning control parameters */
-    val_set_warning_parms(valset);
+    val_set_warning_parms(instance, valset);
 
     /* set the feature code generation parameters */
-    val_set_feature_parms(valset);
+    val_set_feature_parms(instance, valset);
 
     /*** ORDER DOES NOT MATTER FOR REST OF PARAMETERS ***/
 
     /* difftype parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, YANGDIFF_PARM_DIFFTYPE);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, YANGDIFF_PARM_DIFFTYPE);
     if (val && val->res == NO_ERR) {
         cp->difftype = VAL_STR(val);
-        if (!xml_strcmp(cp->difftype, YANGDIFF_DIFFTYPE_TERSE)) {
+        if (!xml_strcmp(instance, cp->difftype, YANGDIFF_DIFFTYPE_TERSE)) {
             cp->edifftype = YANGDIFF_DT_TERSE;
-        } else if (!xml_strcmp(cp->difftype, YANGDIFF_DIFFTYPE_NORMAL)) {
+        } else if (!xml_strcmp(instance, cp->difftype, YANGDIFF_DIFFTYPE_NORMAL)) {
             cp->edifftype = YANGDIFF_DT_NORMAL;
-        } else if (!xml_strcmp(cp->difftype, YANGDIFF_DIFFTYPE_REVISION)) {
+        } else if (!xml_strcmp(instance, cp->difftype, YANGDIFF_DIFFTYPE_REVISION)) {
             cp->edifftype = YANGDIFF_DT_REVISION;
         } else {
             cp->edifftype = YANGDIFF_DT_NONE;
@@ -1700,7 +1760,7 @@ static status_t
     }
 
     /* indent parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, YANGDIFF_PARM_INDENT);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, YANGDIFF_PARM_INDENT);
     if (val && val->res == NO_ERR) {
         cp->indent = (int32)VAL_UINT(val);
     } else {
@@ -1708,18 +1768,18 @@ static status_t
     }
 
     /* help parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, NCX_EL_HELP);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, NCX_EL_HELP);
     if (val && val->res == NO_ERR) {
         cp->helpmode = TRUE;
     }
 
     /* help submode parameter (brief/normal/full) */
-    val = val_find_child(valset, YANGDIFF_MOD, NCX_EL_BRIEF);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, NCX_EL_BRIEF);
     if (val && val->res == NO_ERR) {
         cp->helpsubmode = HELP_MODE_BRIEF;
     } else {
         /* full parameter */
-        val = val_find_child(valset, YANGDIFF_MOD, NCX_EL_FULL);
+        val = val_find_child(instance, valset, YANGDIFF_MOD, NCX_EL_FULL);
         if (val) {
             cp->helpsubmode = HELP_MODE_FULL;
         } else {
@@ -1728,18 +1788,18 @@ static status_t
     }
 
     /* modpath parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, NCX_EL_MODPATH);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, NCX_EL_MODPATH);
     if (val && val->res == NO_ERR) {
         cp->modpath = VAL_STR(val);
-        ncxmod_set_modpath(VAL_STR(val));
+        ncxmod_set_modpath(instance, VAL_STR(val));
     }
 
     /* old parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, YANGDIFF_PARM_OLD);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, YANGDIFF_PARM_OLD);
     if (val && val->res == NO_ERR) {
         cp->old = VAL_STR(val);
         res = NO_ERR;
-        cp->full_old = ncx_get_source_ex(VAL_STR(val), FALSE, &res);
+        cp->full_old = ncx_get_source_ex(instance, VAL_STR(val), FALSE, &res);
         if (!cp->full_old) {
             return res;
         } else {
@@ -1748,11 +1808,11 @@ static status_t
     }
 
     /* new parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, YANGDIFF_PARM_NEW);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, YANGDIFF_PARM_NEW);
     if (val && val->res == NO_ERR) {
         cp->new = VAL_STR(val);
         res = NO_ERR;
-        cp->full_new = ncx_get_source_ex(VAL_STR(val), FALSE, &res);
+        cp->full_new = ncx_get_source_ex(instance, VAL_STR(val), FALSE, &res);
         if (!cp->full_new) {
             return res;
         } else {
@@ -1763,19 +1823,20 @@ static status_t
     /***** THESE 2 PARMS ARE NOT VISIBLE IN yangdiff.yang *****/
 
     /* oldpath parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, YANGDIFF_PARM_OLDPATH);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, YANGDIFF_PARM_OLDPATH);
     if (val && val->res == NO_ERR) {
         cp->oldpath = VAL_STR(val);
     }
 
     /* newpath parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, YANGDIFF_PARM_NEWPATH);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, YANGDIFF_PARM_NEWPATH);
     if (val && val->res == NO_ERR) {
         cp->newpath = VAL_STR(val);
     }
 
     /* header parameter */
-    val = val_find_child(valset, 
+    val = val_find_child(instance, 
+                         valset, 
                          YANGDIFF_MOD, 
                          YANGDIFF_PARM_HEADER);
     if (val && val->res == NO_ERR) {
@@ -1785,7 +1846,8 @@ static status_t
     }
 
     /* subdirs parameter */
-    val = val_find_child(valset, 
+    val = val_find_child(instance, 
+                         valset, 
                          YANGDIFF_MOD, 
                          NCX_EL_SUBDIRS);
     if (val && val->res == NO_ERR) {
@@ -1795,11 +1857,11 @@ static status_t
     }
 
     /* output parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, YANGDIFF_PARM_OUTPUT);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, YANGDIFF_PARM_OUTPUT);
     if (val && val->res == NO_ERR) {
         cp->output = VAL_STR(val);
         res = NO_ERR;
-        cp->full_output = ncx_get_source_ex(VAL_STR(val), FALSE, &res);
+        cp->full_output = ncx_get_source_ex(instance, VAL_STR(val), FALSE, &res);
         if (!cp->full_output) {
             return res;
         } else {
@@ -1808,7 +1870,7 @@ static status_t
     } /* else use default output -- STDOUT */
 
     /* version parameter */
-    val = val_find_child(valset, YANGDIFF_MOD, NCX_EL_VERSION);
+    val = val_find_child(instance, valset, YANGDIFF_MOD, NCX_EL_VERSION);
     if (val && val->res == NO_ERR) {
         cp->versionmode = TRUE;
     }
@@ -1825,15 +1887,16 @@ static status_t
  * 
  *********************************************************************/
 static status_t 
-    main_init (int argc,
+    main_init (ncx_instance_t *instance,
+               int argc,
                char *argv[])
 {
     status_t       res;
 
     /* init module static variables */
     memset(&diffparms, 0x0, sizeof(yangdiff_diffparms_t));
-    dlq_createSQue(&diffparms.oldmodQ);
-    dlq_createSQue(&diffparms.newmodQ);
+    dlq_createSQue(instance, &diffparms.oldmodQ);
+    dlq_createSQue(instance, &diffparms.newmodQ);
 
     cli_val = NULL;
 
@@ -1843,19 +1906,19 @@ static status_t
      * parm(TRUE) indicates all description clauses should be saved
      * Set debug cutoff filter to user errors
      */
-    res = ncx_init(TRUE, LOG_DEBUG_INFO, FALSE, NULL, argc, argv);
+    res = ncx_init(instance, TRUE, LOG_DEBUG_INFO, FALSE, NULL, argc, argv);
 
     if (res == NO_ERR) {
         /* load in the YANG converter CLI definition file */
-        res = ncxmod_load_module(YANGDIFF_MOD, NULL, NULL, NULL);
+        res = ncxmod_load_module(instance, YANGDIFF_MOD, NULL, NULL, NULL);
     }
 
     if (res == NO_ERR) {
-        res = process_cli_input(argc, argv, &diffparms);
+        res = process_cli_input(instance, argc, argv, &diffparms);
     }
 
     if (res != NO_ERR && res != ERR_NCX_SKIPPED) {
-        pr_err(res);
+        pr_err(instance, res);
     }
 
     return res;
@@ -1870,49 +1933,49 @@ static status_t
  * 
  *********************************************************************/
 static void
-    main_cleanup (void)
+    main_cleanup (ncx_instance_t *instance)
 {
     ncx_module_t  *mod;
 
     if (cli_val) {
-        val_free_value(cli_val);
+        val_free_value(instance, cli_val);
     }
 
-    while (!dlq_empty(&diffparms.oldmodQ)) {
-        mod = dlq_deque(&diffparms.oldmodQ);
-        ncx_free_module(mod);
+    while (!dlq_empty(instance, &diffparms.oldmodQ)) {
+        mod = dlq_deque(instance, &diffparms.oldmodQ);
+        ncx_free_module(instance, mod);
     }
 
-    while (!dlq_empty(&diffparms.newmodQ)) {
-        mod = dlq_deque(&diffparms.newmodQ);
-        ncx_free_module(mod);
+    while (!dlq_empty(instance, &diffparms.newmodQ)) {
+        mod = dlq_deque(instance, &diffparms.newmodQ);
+        ncx_free_module(instance, mod);
     }
 
     /* free the input parameters */
     if (diffparms.scb) {
-        ses_free_scb(diffparms.scb);
+        ses_free_scb(instance, diffparms.scb);
     }
     if (diffparms.curold) {
-        m__free(diffparms.curold);
+        m__free(instance, diffparms.curold);
     }
     if (diffparms.curnew) {
-        m__free(diffparms.curnew);
+        m__free(instance, diffparms.curnew);
     }
     if (diffparms.buff) {
-        m__free(diffparms.buff);
+        m__free(instance, diffparms.buff);
     }
     if (diffparms.full_old) {
-        m__free(diffparms.full_old);
+        m__free(instance, diffparms.full_old);
     }
     if (diffparms.full_new) {
-        m__free(diffparms.full_new);
+        m__free(instance, diffparms.full_new);
     }
     if (diffparms.full_output) {
-        m__free(diffparms.full_output);
+        m__free(instance, diffparms.full_output);
     }
 
     /* cleanup the NCX engine and registries */
-    ncx_cleanup();
+    ncx_cleanup(instance);
 
 }  /* main_cleanup */
 
@@ -1932,28 +1995,28 @@ int
     mtrace();
 #endif
 
-    res = main_init(argc, argv);
+    ncx_instance_t* instance = ncx_alloc();
+
+    res = main_init(instance, argc, argv);
 
     if (res == NO_ERR) {
-        res = main_run();
+        res = main_run(instance);
     }
 
     /* if warnings+ are enabled, then res could be NO_ERR and still
      * have output to STDOUT
      */
     if (res == NO_ERR) {
-        log_warn("\n");   /*** producing extra blank lines ***/
+        log_warn(instance, "\n");   /*** producing extra blank lines ***/
     } else {
-        pr_err(res);
+        pr_err(instance, res);
     }
 
-    print_errors();
+    print_errors(instance);
 
-    print_error_count();
+    print_error_count(instance);
 
-    main_cleanup();
-
-    print_error_count();
+    main_cleanup(instance);
 
 #ifdef MEMORY_DEBUG
     muntrace();

@@ -85,7 +85,8 @@ date         init     comment
  *   status
  *********************************************************************/
 static status_t
-    show_user_var (server_cb_t *server_cb,
+    show_user_var (ncx_instance_t *instance,
+                   server_cb_t *server_cb,
                    const xmlChar *varname,
                    var_type_t vartype,
                    val_value_t *val,
@@ -113,24 +114,24 @@ static status_t
     case VAR_TYP_SESSION:
     case VAR_TYP_SYSTEM:
     case VAR_TYP_CONFIG:
-        if (xml_strcmp(varname, val->name)) {
+        if (xml_strcmp(instance, varname, val->name)) {
             doubleindent = 2;
 
-            (*logfn)("\n   %s ", varname);
+            (*logfn)(instance, "\n   %s ", varname);
 
-            if (val->obj && obj_is_data_db(val->obj)) {
-                res = obj_gen_object_id(val->obj, &objbuff);
+            if (val->obj && obj_is_data_db(instance, val->obj)) {
+                res = obj_gen_object_id(instance, val->obj, &objbuff);
                 if (res != NO_ERR) {
-                    (*logfn)("[no object id]\n   ");
+                    (*logfn)(instance, "[no object id]\n   ");
                 } else {
-                    (*logfn)("[%s]\n   ", objbuff);
-                    m__free(objbuff);
+                    (*logfn)(instance, "[%s]\n   ", objbuff);
+                    m__free(instance, objbuff);
                 }
             }
         } else if (server_cb->display_mode == NCX_DISPLAY_MODE_JSON) {
-            (*logfn)("\n   %s: ", varname);
-            if (!typ_is_simple(val->btyp)) {
-                (*logfn)("\n");
+            (*logfn)(instance, "\n   %s: ", varname);
+            if (!typ_is_simple(instance, val->btyp)) {
+                (*logfn)(instance, "\n");
             }
         }
         break;
@@ -138,17 +139,18 @@ static status_t
         ;
     }
 
-    if (!typ_is_simple(val->btyp) && mode == HELP_MODE_BRIEF) {
+    if (!typ_is_simple(instance, val->btyp) && mode == HELP_MODE_BRIEF) {
         if (doubleindent == 1) {
-            (*logfn)("\n   %s (%s)",
+            (*logfn)(instance, "\n   %s (%s)",
                      varname,
                      tk_get_btype_sym(val->btyp));
         } else {
-            (*logfn)("\n      (%s)", 
+            (*logfn)(instance, "\n      (%s)", 
                      tk_get_btype_sym(val->btyp));
         }
     } else {
-        val_dump_value_max(val, 
+        val_dump_value_max(instance, 
+                           val, 
                            server_cb->defindent * doubleindent,
                            server_cb->defindent,
                            (imode) ? DUMP_VAL_STDOUT : DUMP_VAL_LOG,
@@ -171,7 +173,7 @@ static status_t
  *  server_cb == server control block to use
  *********************************************************************/
 static void
-    do_show_cli (server_cb_t *server_cb)
+    do_show_cli (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     val_value_t  *mgrset;
     logfn_t       logfn;
@@ -187,18 +189,19 @@ static void
     mgrset = get_mgr_cli_valset();
 
     /* CLI Parameters */
-    if (mgrset && val_child_cnt(mgrset)) {
-        (*logfn)("\nCLI Variables\n");
-        val_dump_value_max(mgrset, 
+    if (mgrset && val_child_cnt(instance, mgrset)) {
+        (*logfn)(instance, "\nCLI Variables\n");
+        val_dump_value_max(instance, 
+                           mgrset, 
                            0,
                            server_cb->defindent,
                            (imode) ? DUMP_VAL_STDOUT : DUMP_VAL_LOG,
                            server_cb->display_mode,
                            FALSE,
                            FALSE);
-        (*logfn)("\n");
+        (*logfn)(instance, "\n");
     } else {
-        (*logfn)("\nNo CLI variables\n");
+        (*logfn)(instance, "\nNo CLI variables\n");
     }
 
 }  /* do_show_cli */
@@ -214,7 +217,8 @@ static void
  *  mode == help mode
  *********************************************************************/
 static void
-    do_show_session (server_cb_t *server_cb,
+    do_show_session (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      help_mode_t mode)
 {
     ses_cb_t     *scb;
@@ -222,13 +226,13 @@ static void
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (scb == NULL) {
         /* session was dropped */
-        log_write("\nError: No session available."
+        log_write(instance, "\nError: No session available."
                   " Not connected to any server.\n");
         return;
     }
 
-    report_capabilities(server_cb, scb, FALSE, mode);
-    log_write("\n");
+    report_capabilities(instance, server_cb, scb, FALSE, mode);
+    log_write(instance, "\n");
 
 }  /* do_show_session */
 
@@ -243,7 +247,8 @@ static void
  *  mode == help mode
  *********************************************************************/
 static void
-    do_show_system (server_cb_t *server_cb,
+    do_show_system (ncx_instance_t *instance,
+                    server_cb_t *server_cb,
                     help_mode_t mode)
 {
     ncx_var_t    *var;
@@ -259,56 +264,58 @@ static void
     }
 
     /* System Script Variables */
-    que = runstack_get_que(server_cb->runstack_context, ISGLOBAL);
+    que = runstack_get_que(instance, server_cb->runstack_context, ISGLOBAL);
     first = TRUE;
-    for (var = (ncx_var_t *)dlq_firstEntry(que);
+    for (var = (ncx_var_t *)dlq_firstEntry(instance, que);
          var != NULL;
-         var = (ncx_var_t *)dlq_nextEntry(var)) {
+         var = (ncx_var_t *)dlq_nextEntry(instance, var)) {
         
         if (var->vartype != VAR_TYP_SYSTEM) {
             continue;
         }
 
         if (first) {
-            (*logfn)("\nRead-only environment variables\n");
+            (*logfn)(instance, "\nRead-only environment variables\n");
             first = FALSE;
         }
-        show_user_var(server_cb,
+        show_user_var(instance,
+                      server_cb,
                       var->name, 
                       var->vartype,
                       var->val,
                       mode);
     }
     if (first) {
-        (*logfn)("\nNo read-only environment variables\n");
+        (*logfn)(instance, "\nNo read-only environment variables\n");
     }
-    (*logfn)("\n");
+    (*logfn)(instance, "\n");
 
     /* System Config Variables */
-    que = runstack_get_que(server_cb->runstack_context, ISGLOBAL);
+    que = runstack_get_que(instance, server_cb->runstack_context, ISGLOBAL);
     first = TRUE;
-    for (var = (ncx_var_t *)dlq_firstEntry(que);
+    for (var = (ncx_var_t *)dlq_firstEntry(instance, que);
          var != NULL;
-         var = (ncx_var_t *)dlq_nextEntry(var)) {
+         var = (ncx_var_t *)dlq_nextEntry(instance, var)) {
 
         if (var->vartype != VAR_TYP_CONFIG) {
             continue;
         }
 
         if (first) {
-            (*logfn)("\nRead-write system variables\n");
+            (*logfn)(instance, "\nRead-write system variables\n");
             first = FALSE;
         }
-        show_user_var(server_cb,
+        show_user_var(instance,
+                      server_cb,
                       var->name,
                       var->vartype,
                       var->val,
                       mode);
     }
     if (first) {
-        (*logfn)("\nNo system config variables\n");
+        (*logfn)(instance, "\nNo system config variables\n");
     }
-    (*logfn)("\n");
+    (*logfn)(instance, "\n");
 
 }  /* do_show_system */
 
@@ -332,7 +339,8 @@ static void
  *   status
  *********************************************************************/
 static status_t
-    do_show_vars (server_cb_t *server_cb,
+    do_show_vars (ncx_instance_t *instance,
+                  server_cb_t *server_cb,
                   help_mode_t mode,
                   boolean shortmode,
                   boolean isglobal,
@@ -353,57 +361,57 @@ static status_t
 
     if (mode > HELP_MODE_BRIEF && !shortmode) {
         /* CLI Parameters */
-        do_show_cli(server_cb);
+        do_show_cli(instance, server_cb);
     }
 
     /* System Script Variables */
     if (!shortmode) {
-        do_show_system(server_cb, mode);
+        do_show_system(instance, server_cb, mode);
     }
 
     /* Global Script Variables */
     if (!shortmode || isglobal) {
-        que = runstack_get_que(server_cb->runstack_context, ISGLOBAL);
+        que = runstack_get_que(instance, server_cb->runstack_context, ISGLOBAL);
         first = TRUE;
-        for (var = (ncx_var_t *)dlq_firstEntry(que);
+        for (var = (ncx_var_t *)dlq_firstEntry(instance, que);
              var != NULL;
-             var = (ncx_var_t *)dlq_nextEntry(var)) {
+             var = (ncx_var_t *)dlq_nextEntry(instance, var)) {
 
             if (var->vartype != VAR_TYP_GLOBAL) {
                 continue;
             }
 
             if (first) {
-                (*logfn)("\nGlobal variables\n");
+                (*logfn)(instance, "\nGlobal variables\n");
                 first = FALSE;
             }
-            show_user_var(server_cb, var->name,  var->vartype,
+            show_user_var(instance, server_cb, var->name,  var->vartype,
                           var->val, mode);
         }
         if (first) {
-            (*logfn)("\nNo global variables\n");
+            (*logfn)(instance, "\nNo global variables\n");
         }
-        (*logfn)("\n");
+        (*logfn)(instance, "\n");
     }
 
     /* Local Script Variables */
     if (!shortmode || !isglobal || isany) {
-        que = runstack_get_que(server_cb->runstack_context, ISLOCAL);
+        que = runstack_get_que(instance, server_cb->runstack_context, ISLOCAL);
         first = TRUE;
-        for (var = (ncx_var_t *)dlq_firstEntry(que);
+        for (var = (ncx_var_t *)dlq_firstEntry(instance, que);
              var != NULL;
-             var = (ncx_var_t *)dlq_nextEntry(var)) {
+             var = (ncx_var_t *)dlq_nextEntry(instance, var)) {
             if (first) {
-                (*logfn)("\nLocal variables\n");
+                (*logfn)(instance, "\nLocal variables\n");
                 first = FALSE;
             }
-            show_user_var(server_cb, var->name, var->vartype,
+            show_user_var(instance, server_cb, var->name, var->vartype,
                           var->val, mode);
         }
         if (first) {
-            (*logfn)("\nNo local variables\n");
+            (*logfn)(instance, "\nNo local variables\n");
         }
-        (*logfn)("\n");
+        (*logfn)(instance, "\n");
     }
 
     return NO_ERR;
@@ -428,7 +436,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_show_var (server_cb_t *server_cb,
+    do_show_var (ncx_instance_t *instance,
+                 server_cb_t *server_cb,
                  const xmlChar *name,
                  var_type_t vartype,
                  boolean isany,
@@ -447,22 +456,26 @@ static status_t
 
     if (isany) {
         /* skipping VAR_TYP_SESSION for now */
-        val = var_get_local(server_cb->runstack_context,
+        val = var_get_local(instance,
+                            server_cb->runstack_context,
                             name);
         if (val) {
             vartype = VAR_TYP_LOCAL;
         } else {
-            val = var_get(server_cb->runstack_context,
+            val = var_get(instance,
+                          server_cb->runstack_context,
                           name, VAR_TYP_GLOBAL);
             if (val) {
                 vartype = VAR_TYP_GLOBAL;
             } else {
-                val = var_get(server_cb->runstack_context,
+                val = var_get(instance,
+                              server_cb->runstack_context,
                               name, VAR_TYP_CONFIG);
                 if (val) {
                     vartype = VAR_TYP_CONFIG;
                 } else {
-                    val = var_get(server_cb->runstack_context,
+                    val = var_get(instance,
+                                  server_cb->runstack_context,
                                   name, VAR_TYP_SYSTEM);
                     if (val) {
                         vartype = VAR_TYP_SYSTEM;
@@ -471,14 +484,14 @@ static status_t
             }
         }
     } else {
-        val = var_get(server_cb->runstack_context, name, vartype);
+        val = var_get(instance, server_cb->runstack_context, name, vartype);
     }
 
     if (val) {
-        show_user_var(server_cb, name, vartype, val, mode);
-        (*logfn)("\n");
+        show_user_var(instance, server_cb, name, vartype, val, mode);
+        (*logfn)(instance, "\n");
     } else {
-        (*logfn)("\nVariable '%s' not found", name);
+        (*logfn)(instance, "\nVariable '%s' not found", name);
         return ERR_NCX_DEF_NOT_FOUND;
     }
 
@@ -500,10 +513,11 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_show_module (const ncx_module_t *mod,
+    do_show_module (ncx_instance_t *instance,
+                    const ncx_module_t *mod,
                     help_mode_t mode)
 {
-    help_data_module(mod, mode);
+    help_data_module(instance, mod, mode);
     return NO_ERR;
 
 } /* do_show_module */
@@ -522,7 +536,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_show_one_module (ncx_module_t *mod,
+    do_show_one_module (ncx_instance_t *instance,
+                        ncx_module_t *mod,
                         help_mode_t mode)
 {
     boolean        imode;
@@ -531,31 +546,33 @@ static status_t
 
     if (mode == HELP_MODE_BRIEF) {
         if (imode) {
-            log_stdout("\n  %s", mod->name); 
+            log_stdout(instance, "\n  %s", mod->name); 
         } else {
-            log_write("\n  %s", mod->name); 
+            log_write(instance, "\n  %s", mod->name); 
         }
     } else if (mode == HELP_MODE_NORMAL) {
         if (imode) {
             if (mod->version) {
-                log_stdout("\n  %s:%s@%s", 
+                log_stdout(instance, 
+                           "\n  %s:%s@%s", 
                            ncx_get_mod_xmlprefix(mod), 
                            mod->name, 
                            mod->version);
             } else {
-                log_stdout("\n  %s:%s", 
+                log_stdout(instance, 
+                           "\n  %s:%s", 
                            ncx_get_mod_xmlprefix(mod), 
                            mod->name);
             }
         } else {
             if (mod->version) {
-                log_write("\n  %s@%s", mod->name, mod->version);
+                log_write(instance, "\n  %s@%s", mod->name, mod->version);
             } else {
-                log_write("\n  %s", mod->name);
+                log_write(instance, "\n  %s", mod->name);
             }
         }
     } else {
-        help_data_module(mod, HELP_MODE_BRIEF);
+        help_data_module(instance, mod, HELP_MODE_BRIEF);
     }
 
     return NO_ERR;
@@ -576,7 +593,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_show_modules (server_cb_t *server_cb,
+    do_show_modules (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      help_mode_t mode)
 {
     ncx_module_t  *mod;
@@ -588,41 +606,41 @@ static status_t
     anyout = FALSE;
     res = NO_ERR;
 
-    if (use_servercb(server_cb)) {
-        for (modptr = (modptr_t *)dlq_firstEntry(&server_cb->modptrQ);
+    if (use_servercb(instance, server_cb)) {
+        for (modptr = (modptr_t *)dlq_firstEntry(instance, &server_cb->modptrQ);
              modptr != NULL && res == NO_ERR;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            res = do_show_one_module(modptr->mod, mode);
+            res = do_show_one_module(instance, modptr->mod, mode);
             anyout = TRUE;
         }
-        for (modptr = (modptr_t *)dlq_firstEntry(get_mgrloadQ());
+        for (modptr = (modptr_t *)dlq_firstEntry(instance, get_mgrloadQ());
              modptr != NULL && res == NO_ERR;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            res = do_show_one_module(modptr->mod, mode);
+            res = do_show_one_module(instance, modptr->mod, mode);
             anyout = TRUE;
         }
     } else {
-        mod = ncx_get_first_module();
+        mod = ncx_get_first_module(instance);
         while (mod && res == NO_ERR) {
-            res = do_show_one_module(mod, mode);
+            res = do_show_one_module(instance, mod, mode);
             anyout = TRUE;
-            mod = ncx_get_next_module(mod);
+            mod = ncx_get_next_module(instance, mod);
         }
     }
 
     if (anyout) {
         if (imode) {
-            log_stdout("\n");
+            log_stdout(instance, "\n");
         } else {
-            log_write("\n");
+            log_write(instance, "\n");
         }
     } else {
         if (imode) {
-            log_stdout("\nyangcli: no modules loaded\n");
+            log_stdout(instance, "\nyangcli: no modules loaded\n");
         } else {
-            log_error("\nyangcli: no modules loaded\n");
+            log_error(instance, "\nyangcli: no modules loaded\n");
         }
     }
 
@@ -648,7 +666,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_show_one_object (obj_template_t *obj,
+    do_show_one_object (ncx_instance_t *instance,
+                        obj_template_t *obj,
                         help_mode_t mode,
                         boolean *anyout)
 {
@@ -656,22 +675,24 @@ static status_t
 
     imode = interactive_mode();
 
-    if (obj_is_data_db(obj) && 
-        obj_has_name(obj) &&
-        !obj_is_hidden(obj) && !obj_is_abstract(obj)) {
+    if (obj_is_data_db(instance, obj) && 
+        obj_has_name(instance, obj) &&
+        !obj_is_hidden(instance, obj) && !obj_is_abstract(instance, obj)) {
 
         if (mode == HELP_MODE_BRIEF) {
             if (imode) {
-                log_stdout("\n%s:%s",
-                           obj_get_mod_name(obj),
-                           obj_get_name(obj));
+                log_stdout(instance,
+                           "\n%s:%s",
+                           obj_get_mod_name(instance, obj),
+                           obj_get_name(instance, obj));
             } else {
-                log_write("\n%s:%s",
-                          obj_get_mod_name(obj),
-                          obj_get_name(obj));
+                log_write(instance,
+                          "\n%s:%s",
+                          obj_get_mod_name(instance, obj),
+                          obj_get_name(instance, obj));
             }
         } else {
-            obj_dump_template(obj, mode-1, 0, 0); 
+            obj_dump_template(instance, obj, mode-1, 0, 0); 
         }
         *anyout = TRUE;
     }
@@ -694,7 +715,8 @@ static status_t
  *    status
  *********************************************************************/
 static status_t
-    do_show_objects (server_cb_t *server_cb,
+    do_show_objects (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      help_mode_t mode)
 {
     ncx_module_t         *mod;
@@ -707,49 +729,49 @@ static status_t
     anyout = FALSE;
     res = NO_ERR;
 
-    if (use_servercb(server_cb)) {
+    if (use_servercb(instance, server_cb)) {
         for (modptr = (modptr_t *)
-                 dlq_firstEntry(&server_cb->modptrQ);
+                 dlq_firstEntry(instance, &server_cb->modptrQ);
              modptr != NULL;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            for (obj = ncx_get_first_object(modptr->mod);
+            for (obj = ncx_get_first_object(instance, modptr->mod);
                  obj != NULL && res == NO_ERR;
-                 obj = ncx_get_next_object(modptr->mod, obj)) {
+                 obj = ncx_get_next_object(instance, modptr->mod, obj)) {
 
-                res = do_show_one_object(obj, mode, &anyout);
+                res = do_show_one_object(instance, obj, mode, &anyout);
             }
         }
 
         for (modptr = (modptr_t *)
-                 dlq_firstEntry(get_mgrloadQ());
+                 dlq_firstEntry(instance, get_mgrloadQ());
              modptr != NULL;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            for (obj = ncx_get_first_object(modptr->mod);
+            for (obj = ncx_get_first_object(instance, modptr->mod);
                  obj != NULL && res == NO_ERR;
-                 obj = ncx_get_next_object(modptr->mod, obj)) {
+                 obj = ncx_get_next_object(instance, modptr->mod, obj)) {
 
-                res = do_show_one_object(obj, mode, &anyout);
+                res = do_show_one_object(instance, obj, mode, &anyout);
             }
         }
     } else {
-        mod = ncx_get_first_module();
+        mod = ncx_get_first_module(instance);
         while (mod) {
-            for (obj = ncx_get_first_object(mod);
+            for (obj = ncx_get_first_object(instance, mod);
                  obj != NULL && res == NO_ERR;
-                 obj = ncx_get_next_object(mod, obj)) {
+                 obj = ncx_get_next_object(instance, mod, obj)) {
 
-                res = do_show_one_object(obj, mode, &anyout);
+                res = do_show_one_object(instance, obj, mode, &anyout);
             }
-            mod = (ncx_module_t *)ncx_get_next_module(mod);
+            mod = (ncx_module_t *)ncx_get_next_module(instance, mod);
         }
     }
     if (anyout) {
         if (imode) {
-            log_stdout("\n");
+            log_stdout(instance, "\n");
         } else {
-            log_write("\n");
+            log_write(instance, "\n");
         }
     }
 
@@ -778,7 +800,8 @@ static status_t
  *   status
  *********************************************************************/
 status_t
-    do_show (server_cb_t *server_cb,
+    do_show (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len)
@@ -792,17 +815,17 @@ status_t
 
     res = NO_ERR;
     imode = interactive_mode();
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     if (valset && res == NO_ERR) {
         mode = HELP_MODE_NORMAL;
 
         /* check if the 'brief' flag is set first */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_BRIEF);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_BRIEF);
         if (parm && parm->res == NO_ERR) {
             mode = HELP_MODE_BRIEF;
         } else {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_FULL);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_FULL);
             if (parm && parm->res == NO_ERR) {
                 mode = HELP_MODE_FULL;
             }
@@ -812,17 +835,17 @@ status_t
         done = FALSE;
 
         /* show cli */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_CLI);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_CLI);
         if (parm) {
-            do_show_cli(server_cb);
+            do_show_cli(instance, server_cb);
             done = TRUE;
         }
 
         /* show local <foo> */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_LOCAL);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_LOCAL);
             if (parm) {
-                res = do_show_var(server_cb, VAL_STR(parm),  VAR_TYP_LOCAL, 
+                res = do_show_var(instance, server_cb, VAL_STR(parm),  VAR_TYP_LOCAL, 
                                   FALSE, mode);
                 done = TRUE;
             }
@@ -830,27 +853,27 @@ status_t
 
         /* show locals */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_LOCALS);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_LOCALS);
             if (parm) {
-                res = do_show_vars(server_cb, mode, TRUE, FALSE, FALSE);
+                res = do_show_vars(instance, server_cb, mode, TRUE, FALSE, FALSE);
                 done = TRUE;
             }
         }
 
         /* show objects */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_OBJECTS);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_OBJECTS);
             if (parm) {
-                res = do_show_objects(server_cb, mode);
+                res = do_show_objects(instance, server_cb, mode);
                 done = TRUE;
             }
         }
 
         /* show global */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_GLOBAL);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_GLOBAL);
             if (parm) {
-                res = do_show_var(server_cb, VAL_STR(parm), VAR_TYP_GLOBAL, 
+                res = do_show_var(instance, server_cb, VAL_STR(parm), VAR_TYP_GLOBAL, 
                                   FALSE, mode);
                 done = TRUE;
             }
@@ -858,32 +881,32 @@ status_t
 
         /* show globals */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_GLOBALS);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_GLOBALS);
             if (parm) {
-                res = do_show_vars(server_cb, mode, TRUE, TRUE, FALSE);
+                res = do_show_vars(instance, server_cb, mode, TRUE, TRUE, FALSE);
                 done = TRUE;
             }
         }
 
         /* show session */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_SESSION);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_SESSION);
         if (parm) {
-            do_show_session(server_cb, mode);
+            do_show_session(instance, server_cb, mode);
             done = TRUE;
         }
 
         /* show system */
-        parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_SYSTEM);
+        parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_SYSTEM);
         if (parm) {
-            do_show_system(server_cb, mode);
+            do_show_system(instance, server_cb, mode);
             done = TRUE;
         }
 
         /* show var <foo> */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_VAR);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_VAR);
             if (parm) {
-                res = do_show_var(server_cb, VAL_STR(parm), VAR_TYP_NONE, 
+                res = do_show_var(instance, server_cb, VAL_STR(parm), VAR_TYP_NONE, 
                                   TRUE, mode);
                 done = TRUE;
             }
@@ -891,26 +914,28 @@ status_t
 
         /* show vars */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_VARS);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_VARS);
             if (parm) {
-                res = do_show_vars(server_cb, mode, FALSE, FALSE, TRUE);
+                res = do_show_vars(instance, server_cb, mode, FALSE, FALSE, TRUE);
                 done = TRUE;
             }
         }
 
         /* show module <foo> */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_MODULE);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_MODULE);
             if (parm) {
-                mod = find_module(server_cb, VAL_STR(parm));
+                mod = find_module(instance, server_cb, VAL_STR(parm));
                 if (mod) {
-                    res = do_show_module(mod, mode);
+                    res = do_show_module(instance, mod, mode);
                 } else {
                     if (imode) {
-                        log_stdout("\nyangcli: module (%s) not loaded",
+                        log_stdout(instance,
+                                   "\nyangcli: module (%s) not loaded",
                                    VAL_STR(parm));
                     } else {
-                        log_error("\nyangcli: module (%s) not loaded",
+                        log_error(instance,
+                                  "\nyangcli: module (%s) not loaded",
                                   VAL_STR(parm));
                     }
                 }
@@ -920,23 +945,23 @@ status_t
 
         /* show modules */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, YANGCLI_MODULES);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, YANGCLI_MODULES);
             if (parm) {
-                res = do_show_modules(server_cb, mode);
+                res = do_show_modules(instance, server_cb, mode);
                 done = TRUE;
             }
         }
 
         /* show version */
         if (!done) {
-            parm = val_find_child(valset, YANGCLI_MOD, NCX_EL_VERSION);
+            parm = val_find_child(instance, valset, YANGCLI_MOD, NCX_EL_VERSION);
             if (parm) {
-                res = ncx_get_version(versionbuffer, NCX_VERSION_BUFFSIZE);
+                res = ncx_get_version(instance, versionbuffer, NCX_VERSION_BUFFSIZE);
                 if (res == NO_ERR) {
                     if (imode) {
-                        log_stdout("\nyangcli version %s\n", versionbuffer);
+                        log_stdout(instance, "\nyangcli version %s\n", versionbuffer);
                     } else {
-                        log_write("\nyangcli version %s\n", versionbuffer);
+                        log_write(instance, "\nyangcli version %s\n", versionbuffer);
                     }
                 }
                 done = TRUE;
@@ -945,7 +970,7 @@ status_t
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;

@@ -32,22 +32,22 @@
 #include "xpath1.h"
 #include "xpath_yang.h"
 #include "yangconst.h"
+#include "val_set_cplxval_obj.h"
 
-
-status_t val_set_cplxval_obj(val_value_t *val, obj_template_t *obj, char* xmlstr)
+status_t val_set_cplxval_obj(ncx_instance_t *instance, val_value_t *val, obj_template_t *obj, char* xmlstr)
 {
     FILE* fp;
     status_t res;
     val_value_t* tmp_val;
 
     fp = fmemopen((void*)xmlstr, strlen(xmlstr), "r");
-    res = xml_rd_open_file (fp, obj, &tmp_val);
+    res = xml_rd_open_file (instance, fp, obj, &tmp_val);
     if(res!=NO_ERR) {
         return NO_ERR;
     }
-    val_move_children(tmp_val,val);
+    val_move_children(instance, tmp_val,val);
 
-    val_free_value(tmp_val);
+    val_free_value(instance, tmp_val);
 
     fclose(fp);
     return NO_ERR;

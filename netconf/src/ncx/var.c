@@ -88,7 +88,8 @@ date         init     comment
 *    to be freed later
 *********************************************************************/
 static ncx_var_t *
-    new_var (const xmlChar *name,
+    new_var (ncx_instance_t *instance,
+             const xmlChar *name,
              uint32 namelen,
              val_value_t *val,
              var_type_t vartype,
@@ -96,7 +97,7 @@ static ncx_var_t *
 {
     ncx_var_t  *var;
 
-    var = m__getObj(ncx_var_t);
+    var = m__getObj(instance, ncx_var_t);
     if (!var) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -106,9 +107,9 @@ static ncx_var_t *
 
     var->vartype = vartype;
 
-    var->name = xml_strndup(name, namelen);
+    var->name = xml_strndup(instance, name, namelen);
     if (!var->name) {
-        m__free(var);
+        m__free(instance, var);
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
@@ -130,15 +131,15 @@ static ncx_var_t *
 *    var == user var struct to free
 *********************************************************************/
 static void
-    free_var (ncx_var_t *var)
+    free_var (ncx_instance_t *instance, ncx_var_t *var)
 {
     if (var->name) {
-        m__free(var->name);
+        m__free(instance, var->name);
     }
     if (var->val) {
-        val_free_value(var->val);
+        val_free_value(instance, var->val);
     }
-    m__free(var);
+    m__free(instance, var);
 
 } /* free_var */
 
@@ -158,21 +159,22 @@ static void
 *   correct que header or NULL if internal error
 *********************************************************************/
 static dlq_hdr_t *
-    get_que (runstack_context_t *rcxt,
+    get_que (ncx_instance_t *instance,
+             runstack_context_t *rcxt,
              var_type_t vartype,
              const xmlChar *name)
 {
     if (isdigit((int)*name)) {
-        return runstack_get_parm_que(rcxt);
+        return runstack_get_parm_que(instance, rcxt);
     } else {
         switch (vartype) {
         case VAR_TYP_LOCAL:
         case VAR_TYP_SESSION:   /****/
-            return runstack_get_que(rcxt, FALSE);
+            return runstack_get_que(instance, rcxt, FALSE);
         case VAR_TYP_CONFIG:
         case VAR_TYP_GLOBAL:
         case VAR_TYP_SYSTEM:
-            return runstack_get_que(rcxt, TRUE);
+            return runstack_get_que(instance, rcxt, TRUE);
         default:
             return NULL;
         }
@@ -193,27 +195,28 @@ static dlq_hdr_t *
 *   status
 *********************************************************************/
 static status_t
-    insert_var (ncx_var_t *var,
+    insert_var (ncx_instance_t *instance,
+                ncx_var_t *var,
                 dlq_hdr_t *que)
 {
     ncx_var_t  *cur;
     int         ret;
 
-    for (cur = (ncx_var_t *)dlq_firstEntry(que);
+    for (cur = (ncx_var_t *)dlq_firstEntry(instance, que);
          cur != NULL;
-         cur = (ncx_var_t *)dlq_nextEntry(cur)) {
+         cur = (ncx_var_t *)dlq_nextEntry(instance, cur)) {
 
-        ret = xml_strcmp(var->name, cur->name);
+        ret = xml_strcmp(instance, var->name, cur->name);
         if (ret < 0) {
-            dlq_insertAhead(var, cur);
+            dlq_insertAhead(instance, var, cur);
             return NO_ERR;
         } else if (ret == 0) {
-            return SET_ERROR(ERR_NCX_DUP_ENTRY);
+            return SET_ERROR(instance, ERR_NCX_DUP_ENTRY);
         } /* else keep going */
     }
 
     /* if we get here, then new first entry */
-    dlq_enque(var, que);
+    dlq_enque(instance, var, que);
     return NO_ERR;
 
 }  /* insert_var */
@@ -236,7 +239,8 @@ static status_t
 *   found var struct or NULL if not found
 *********************************************************************/
 static ncx_var_t *
-    remove_var (runstack_context_t *rcxt,
+    remove_var (ncx_instance_t *instance,
+                runstack_context_t *rcxt,
                 dlq_hdr_t *varQ,
                 const xmlChar *name,
                 uint32 namelen,
@@ -247,24 +251,24 @@ static ncx_var_t *
     int         ret;
 
     if (!varQ) {
-        varQ = get_que(rcxt, vartype, name);
+        varQ = get_que(instance, rcxt, vartype, name);
         if (!varQ) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return NULL;
         }
     }
 
-    for (cur = (ncx_var_t *)dlq_firstEntry(varQ);
+    for (cur = (ncx_var_t *)dlq_firstEntry(instance, varQ);
          cur != NULL;
-         cur = (ncx_var_t *)dlq_nextEntry(cur)) {
+         cur = (ncx_var_t *)dlq_nextEntry(instance, cur)) {
 
         if (nsid && cur->nsid && nsid != cur->nsid) {
             continue;
         }
 
-        ret = xml_strncmp(name, cur->name, namelen);
-        if (ret == 0 && xml_strlen(cur->name)==namelen) {
-            dlq_remove(cur);
+        ret = xml_strncmp(instance, name, cur->name, namelen);
+        if (ret == 0 && xml_strlen(instance, cur->name)==namelen) {
+            dlq_remove(instance, cur);
             return cur;
         } /* else keep going */
     }
@@ -291,7 +295,8 @@ static ncx_var_t *
 *   found var struct or NULL if not found
 *********************************************************************/
 static ncx_var_t *
-    find_var (runstack_context_t *rcxt,
+    find_var (ncx_instance_t *instance,
+              runstack_context_t *rcxt,
               dlq_hdr_t *varQ,
               const xmlChar *name,
               uint32  namelen,
@@ -302,22 +307,22 @@ static ncx_var_t *
     int         ret;
 
     if (!varQ) {
-        varQ = get_que(rcxt, vartype, name);
+        varQ = get_que(instance, rcxt, vartype, name);
         if (!varQ) {
             return NULL;
         }
     }
 
-    for (cur = (ncx_var_t *)dlq_firstEntry(varQ);
+    for (cur = (ncx_var_t *)dlq_firstEntry(instance, varQ);
          cur != NULL;
-         cur = (ncx_var_t *)dlq_nextEntry(cur)) {
+         cur = (ncx_var_t *)dlq_nextEntry(instance, cur)) {
 
         if (nsid && cur->nsid && nsid != cur->nsid) {
             continue;
         }
 
-        ret = xml_strncmp(name, cur->name, namelen);
-        if (ret == 0 && xml_strlen(cur->name)==namelen) {
+        ret = xml_strncmp(instance, name, cur->name, namelen);
+        if (ret == 0 && xml_strlen(instance, cur->name)==namelen) {
             return cur;
         } /* else keep going */
     }
@@ -340,23 +345,24 @@ static ncx_var_t *
 *   status
 *********************************************************************/
 static status_t
-    modify_str( val_value_t *val,
+    modify_str(ncx_instance_t *instance,
+                 val_value_t *val,
                 ncx_var_t* var,
                 var_type_t vartype )
 {
    status_t res = NO_ERR;
 
    if (var->vartype == VAR_TYP_SYSTEM) {
-       log_error("\nError: system variables cannot be changed");
-       val_free_value( val );
+       log_error(instance, "\nError: system variables cannot be changed");
+       val_free_value(instance,  val );
        return ERR_NCX_VAR_READ_ONLY;
    }
 
    /* only allow user vars to change the data type */
    if ( (vartype == VAR_TYP_CONFIG) &&
         (val->btyp != var->val->btyp) ) {
-       log_error("\nError: cannot change the variable data type");
-       val_free_value( val );
+       log_error(instance, "\nError: cannot change the variable data type");
+       val_free_value(instance,  val );
        return ERR_NCX_WRONG_TYPE;
    }
 
@@ -367,26 +373,27 @@ static status_t
        /* do not replace this typdef since it might
         * not be generic like all the user variables
         */
-       res = val_sprintf_simval_nc(NULL, val, &len);
+       res = val_sprintf_simval_nc(instance, NULL, val, &len);
        if ( NO_ERR == res ) {
-           buffer = m__getMem(len+1);
+           buffer = m__getMem(instance, len+1);
            if (buffer == NULL) {
                res = ERR_INTERNAL_MEM;
            } 
            else {
-               res = val_sprintf_simval_nc(buffer, val, &len);
+               res = val_sprintf_simval_nc(instance, buffer, val, &len);
 
                if (res == NO_ERR) {
-                   res = val_set_simval(var->val,
+                   res = val_set_simval(instance,
+                                        var->val,
                                         var->val->typdef,
                                         var->val->nsid,
                                         var->val->name,
                                         buffer);
                }
-               m__free(buffer);
+               m__free(instance, buffer);
            }
        }
-       val_free_value( val );
+       val_free_value(instance,  val );
    } else {
        val_value_t  *tempval;
 
@@ -396,10 +403,11 @@ static status_t
        var->val->nsid = tempval->nsid;
 
        /* make sure the name stays the same */
-       val_set_name(var->val, 
+       val_set_name(instance, 
+                    var->val, 
                     tempval->name, 
-                    xml_strlen(tempval->name));
-       val_free_value(tempval);
+                    xml_strlen(instance, tempval->name));
+       val_free_value(instance, tempval);
    }
 
    return res;
@@ -422,7 +430,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    insert_new_str( runstack_context_t *rcxt,
+    insert_new_str(ncx_instance_t *instance,
+                     runstack_context_t *rcxt,
                     dlq_hdr_t *varQ,
                     const xmlChar *name,
                     uint32 namelen,
@@ -433,26 +442,26 @@ static status_t
     status_t      res;
 
     if (!varQ) {
-        varQ = get_que(rcxt, vartype, name);
+        varQ = get_que(instance, rcxt, vartype, name);
         if (!varQ) {
-            val_free_value( val );
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            val_free_value(instance,  val );
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
     /* create a new value */
-    var = new_var(name, namelen, val, vartype, &res);
+    var = new_var(instance, name, namelen, val, vartype, &res);
     if (!var ) {
-        val_free_value( val );
+        val_free_value(instance,  val );
         return ERR_INTERNAL_MEM;
     }
 
     if ( NO_ERR == res  ) {
-        res = insert_var(var, varQ);
+        res = insert_var(instance, var, varQ);
     }
 
     if (res != NO_ERR) {
-        free_var(var);
+        free_var(instance, var);
     }
 
     return res;
@@ -480,7 +489,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    set_str (runstack_context_t *rcxt,
+    set_str (ncx_instance_t *instance,
+             runstack_context_t *rcxt,
              dlq_hdr_t *varQ,
              const xmlChar *name,
              uint32 namelen,
@@ -495,15 +505,15 @@ static status_t
     }
 
     if (!val->name) {
-        val_set_name(val, name, namelen);
+        val_set_name(instance, val, name, namelen);
     }
 
     /* try to find this var */
-    var = find_var(rcxt, varQ, name, namelen, 0, vartype);
+    var = find_var(instance, rcxt, varQ, name, namelen, 0, vartype);
     if (var) {
-       res = modify_str( val, var, vartype );
+       res = modify_str(instance,  val, var, vartype );
     } else {
-       res = insert_new_str( rcxt, varQ, name, namelen, val, vartype );
+       res = insert_new_str(instance,  rcxt, varQ, name, namelen, val, vartype );
     }
 
     return res;
@@ -526,7 +536,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    set_val_from_var (obj_template_t *obj,
+    set_val_from_var (ncx_instance_t *instance,
+                      obj_template_t *obj,
                       val_value_t *varval,
                       val_value_t *new_parm)
 {
@@ -544,18 +555,19 @@ static status_t
             /* check if a child of any case is named with the 
              * varval value 
              */
-            targobj = obj_find_child(obj,
+            targobj = obj_find_child(instance,
+                                     obj,
                                      NULL,
                                      VAL_STR(varval));
             if (targobj != NULL &&
-                obj_get_basetype(targobj) == NCX_BT_EMPTY) {
+                obj_get_basetype(instance, targobj) == NCX_BT_EMPTY) {
                 /* found a match so create a value node */
-                newchild = val_new_value();
+                newchild = val_new_value(instance);
                 if (!newchild) {
                     return ERR_INTERNAL_MEM;
                 } else {
-                    val_init_from_template(newchild, targobj);
-                    val_add_child(newchild, new_parm);
+                    val_init_from_template(instance, newchild, targobj);
+                    val_add_child(instance, newchild, new_parm);
                     return NO_ERR;
                 }
             }
@@ -567,9 +579,9 @@ static status_t
             /* look for the first real child that is
              * a root parameter
              */
-            for (testobj = obj_first_child_deep(obj);
+            for (testobj = obj_first_child_deep(instance, obj);
                  testobj != NULL && targobj == NULL;
-                 testobj = obj_next_child_deep(testobj)) {
+                 testobj = obj_next_child_deep(instance, testobj)) {
                 if (obj_is_root(testobj)) {
                     targobj = testobj;
                 }
@@ -581,34 +593,34 @@ static status_t
              * the same name, and replace the choice or case value
              * with a case child node and its contents from varval
              */
-            targobj = obj_find_child(obj, NULL, varval->name);
+            targobj = obj_find_child(instance, obj, NULL, varval->name);
         }
 
         if (targobj != NULL) {
-            cloneval = val_clone(varval);
+            cloneval = val_clone(instance, varval);
             if (!cloneval) {
                 return ERR_INTERNAL_MEM;
             } else {
                 if (obj_is_root(targobj)) {
-                    newchild = val_new_value();
+                    newchild = val_new_value(instance);
                     if (!newchild) {
-                        val_free_value(cloneval);
+                        val_free_value(instance, cloneval);
                         return ERR_INTERNAL_MEM;
                     } else {
-                        val_init_from_template(newchild, targobj);
+                        val_init_from_template(instance, newchild, targobj);
                     }
-                    val_move_children(cloneval, newchild);
+                    val_move_children(instance, cloneval, newchild);
 
                     if (new_parm->btyp == NCX_BT_CONTAINER) {
-                        val_add_child(newchild, new_parm);
+                        val_add_child(instance, newchild, new_parm);
                     } else {
-                        res = val_replace(newchild, new_parm);
-                        val_free_value(newchild);
+                        res = val_replace(instance, newchild, new_parm);
+                        val_free_value(instance, newchild);
                     }
                 } else {
-                    res = val_replace(cloneval, new_parm);
+                    res = val_replace(instance, cloneval, new_parm);
                 }
-                val_free_value(cloneval);
+                val_free_value(instance, cloneval);
                 return res;
             }
         }
@@ -618,14 +630,14 @@ static status_t
         /* check that the var and the useval have
          * the same basic type
          */
-        if (typ_is_simple(varval->btyp) && 
-            typ_is_simple(new_parm->btyp)) {
-            cloneval = val_clone(varval);
+        if (typ_is_simple(instance, varval->btyp) && 
+            typ_is_simple(instance, new_parm->btyp)) {
+            cloneval = val_clone(instance, varval);
             if (!cloneval) {
                 res = ERR_INTERNAL_MEM;
             } else {
-                res = val_replace(cloneval, new_parm);
-                val_free_value(cloneval);
+                res = val_replace(instance, cloneval, new_parm);
+                val_free_value(instance, cloneval);
             }
         } else {
             res = ERR_NCX_WRONG_DATATYP;
@@ -634,14 +646,15 @@ static status_t
     case OBJ_TYP_LIST:
     case OBJ_TYP_CONTAINER:
         if (varval->btyp == new_parm->btyp) {
-            cloneval = val_clone(varval);
+            cloneval = val_clone(instance, varval);
             if (!cloneval) {
                 res = ERR_INTERNAL_MEM;
             } else {
-                val_move_children(cloneval, new_parm);
-                val_free_value(cloneval);
+                val_move_children(instance, cloneval, new_parm);
+                val_free_value(instance, cloneval);
                 if (new_parm->btyp == NCX_BT_LIST) {
-                    res = val_gen_index_chain(new_parm->obj,
+                    res = val_gen_index_chain(instance,
+                                               new_parm->obj,
                                                new_parm);
                 }                            
             }
@@ -650,22 +663,22 @@ static status_t
         }
         break;
     case OBJ_TYP_ANYXML:
-        if (!typ_is_simple(varval->btyp)) {
-            cloneval = val_clone(varval);
+        if (!typ_is_simple(instance, varval->btyp)) {
+            cloneval = val_clone(instance, varval);
             if (!cloneval) {
                 res = ERR_INTERNAL_MEM;
             } else {
                 /* hack: just move the entire node as a child of new_parm
                  * but only for the yangcli:value parameter
                  */
-                if (!xml_strcmp(obj_get_mod_name(obj), NCXMOD_YANGCLI) &&
-                    !xml_strcmp(obj_get_name(obj), NCX_EL_VALUE)) {
+                if (!xml_strcmp(instance, obj_get_mod_name(instance, obj), NCXMOD_YANGCLI) &&
+                    !xml_strcmp(instance, obj_get_name(instance, obj), NCX_EL_VALUE)) {
                     /* adding a container to a complex parm like 'value' */
-                    val_add_child(cloneval, new_parm);
+                    val_add_child(instance, cloneval, new_parm);
                 } else {
                     /* the old code moved the children to the anyxml container */
-                    val_move_children(cloneval, new_parm);
-                    val_free_value(cloneval);
+                    val_move_children(instance, cloneval, new_parm);
+                    val_free_value(instance, cloneval);
 
                     /* change the new_parm->btyp from ANYXML to CONTAINER */
                     new_parm->btyp = NCX_BT_CONTAINER;
@@ -676,11 +689,11 @@ static status_t
              * ANYXML is allowed to change from complex
              * to a simple type
              */
-            res = val_replace(varval, new_parm);
+            res = val_replace(instance, varval, new_parm);
         }
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -701,22 +714,22 @@ static status_t
 * 
 *********************************************************************/
 void
-    var_free (ncx_var_t *var)
+    var_free (ncx_instance_t *instance, ncx_var_t *var)
 {
 #ifdef DEBUG
     if (!var) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (var->val) {
-        val_free_value(var->val);
+        val_free_value(instance, var->val);
     }
     if (var->name) {
-        m__free(var->name);
+        m__free(instance, var->name);
     }
-    m__free(var);
+    m__free(instance, var);
 
 }  /* var_free */
 
@@ -731,20 +744,20 @@ void
 * 
 *********************************************************************/
 void
-    var_clean_varQ (dlq_hdr_t *varQ)
+    var_clean_varQ (ncx_instance_t *instance, dlq_hdr_t *varQ)
 {
     ncx_var_t *var;
 
 #ifdef DEBUG
     if (!varQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    while (!dlq_empty(varQ)) {
-        var = (ncx_var_t *)dlq_deque(varQ);
-        var_free(var);
+    while (!dlq_empty(instance, varQ)) {
+        var = (ncx_var_t *)dlq_deque(instance, varQ);
+        var_free(instance, var);
     }
 
 }  /* var_clean_varQ */
@@ -760,26 +773,27 @@ void
 *   vartype == variable type to delete
 *********************************************************************/
 void
-    var_clean_type_from_varQ (dlq_hdr_t *varQ, 
+    var_clean_type_from_varQ (ncx_instance_t *instance, 
+                              dlq_hdr_t *varQ, 
                               var_type_t vartype)
 {
     ncx_var_t *var, *nextvar;
 
 #ifdef DEBUG
     if (!varQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    for (var = (ncx_var_t *)dlq_firstEntry(varQ);
+    for (var = (ncx_var_t *)dlq_firstEntry(instance, varQ);
          var != NULL;
          var = nextvar) {
 
-        nextvar = (ncx_var_t *)dlq_nextEntry(var);
+        nextvar = (ncx_var_t *)dlq_nextEntry(instance, var);
         if (var->vartype == vartype) {
-            dlq_remove(var);
-            var_free(var);
+            dlq_remove(instance, var);
+            var_free(instance, var);
         }
     }
 
@@ -802,7 +816,8 @@ void
 *   status
 *********************************************************************/
 status_t
-    var_set_str (runstack_context_t *rcxt,
+    var_set_str (ncx_instance_t *instance,
+                 runstack_context_t *rcxt,
                  const xmlChar *name,
                  uint32 namelen,
                  const val_value_t *value,
@@ -812,10 +827,10 @@ status_t
 
 #ifdef DEBUG
     if (!name || !value) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!namelen) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
@@ -823,12 +838,12 @@ status_t
         return ERR_NCX_INVALID_VALUE;
     }
 
-    val = val_clone(value);
+    val = val_clone(instance, value);
     if (!val) {
         return ERR_INTERNAL_MEM;
     }
 
-    return set_str(rcxt, NULL, name, namelen, val, vartype);
+    return set_str(instance, rcxt, NULL, name, namelen, val, vartype);
 }  /* var_set_str */
 
 
@@ -847,20 +862,22 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    var_set (runstack_context_t *rcxt,
+    var_set (ncx_instance_t *instance,
+             runstack_context_t *rcxt,
              const xmlChar *name,
              const val_value_t *value,
              var_type_t vartype)
 {
 #ifdef DEBUG
     if (!name) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return var_set_str(rcxt,
+    return var_set_str(instance,
+                       rcxt,
                        name, 
-                       xml_strlen(name),
+                       xml_strlen(instance, name),
                        value, 
                        vartype);
 
@@ -882,7 +899,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    var_set_str_que (dlq_hdr_t *varQ,
+    var_set_str_que (ncx_instance_t *instance,
+                     dlq_hdr_t *varQ,
                      const xmlChar *name,
                      uint32 namelen,
                      const val_value_t *value)
@@ -891,19 +909,19 @@ status_t
 
 #ifdef DEBUG
     if (!varQ || !name || !value) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!namelen) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
-    val = val_clone(value);
+    val = val_clone(instance, value);
     if (!val) {
         return ERR_INTERNAL_MEM;
     }
 
-    return set_str(NULL, varQ, name, namelen, val, VAR_TYP_QUEUE);
+    return set_str(instance, NULL, varQ, name, namelen, val, VAR_TYP_QUEUE);
 }  /* var_set_str_que */
 
 
@@ -921,17 +939,18 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    var_set_que (dlq_hdr_t *varQ,
+    var_set_que (ncx_instance_t *instance,
+                 dlq_hdr_t *varQ,
                  const xmlChar *name,
                  const val_value_t *value)
 {
 #ifdef DEBUG
     if (!varQ || !name) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return var_set_str_que(varQ, name, xml_strlen(name), value);
+    return var_set_str_que(instance, varQ, name, xml_strlen(instance, name), value);
 
 }  /* var_set_que */
 
@@ -950,7 +969,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    var_set_move_que (dlq_hdr_t *varQ,
+    var_set_move_que (ncx_instance_t *instance,
+                      dlq_hdr_t *varQ,
                       const xmlChar *name,
                       val_value_t *value)
 {
@@ -960,12 +980,12 @@ status_t
 
 #ifdef DEBUG
     if (!varQ || !name) {
-        val_free_value( value );
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        val_free_value(instance,  value );
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return set_str(NULL, varQ, name, xml_strlen(name), 
+    return set_str(instance, NULL, varQ, name, xml_strlen(instance, name), 
                   value,   /* pass off value memory here */
                   VAR_TYP_QUEUE);
 }  /* var_set_move_que */
@@ -989,7 +1009,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    var_set_move (runstack_context_t *rcxt,
+    var_set_move (ncx_instance_t *instance,
+                  runstack_context_t *rcxt,
                   const xmlChar *name,
                   uint32 namelen,
                   var_type_t vartype,
@@ -1001,21 +1022,21 @@ status_t
 
 #ifdef DEBUG
     if (!name ) {
-        val_free_value( value );
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        val_free_value(instance,  value );
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!namelen) {
-        val_free_value( value );
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        val_free_value(instance,  value );
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     if (vartype == VAR_TYP_NONE || vartype > VAR_TYP_SYSTEM) {
-        val_free_value( value );
+        val_free_value(instance,  value );
         return ERR_NCX_INVALID_VALUE;
     }
 
-    return set_str(rcxt, NULL, name, namelen, value, vartype);
+    return set_str(instance, rcxt, NULL, name, namelen, value, vartype);
 
 }  /* var_set_move */
 
@@ -1034,7 +1055,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    var_set_sys (runstack_context_t *rcxt,
+    var_set_sys (ncx_instance_t *instance,
+                 runstack_context_t *rcxt,
                  const xmlChar *name,
                  const val_value_t *value)
 {
@@ -1043,23 +1065,24 @@ status_t
 
 #ifdef DEBUG
     if (!name || !value) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    val = val_clone(value);
+    val = val_clone(instance, value);
     if (!val) {
         return ERR_INTERNAL_MEM;
     }
 
-    res = set_str(rcxt, 
+    res = set_str(instance, 
+                  rcxt, 
                   NULL, 
                   name, 
-                  xml_strlen(name), 
+                  xml_strlen(instance, name), 
                   val, 
                   VAR_TYP_SYSTEM);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
     }
     return res;
 
@@ -1082,7 +1105,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    var_set_from_string (runstack_context_t *rcxt,
+    var_set_from_string (ncx_instance_t *instance,
+                         runstack_context_t *rcxt,
                          const xmlChar *name,
                          const xmlChar *valstr,
                          var_type_t vartype)
@@ -1093,7 +1117,7 @@ status_t
 
 #ifdef DEBUG
     if (!name) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1101,36 +1125,37 @@ status_t
         return ERR_NCX_INVALID_VALUE;
     }
 
-    genstr = ncx_get_gen_string();
+    genstr = ncx_get_gen_string(instance);
     if (!genstr) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* create a value struct to store */
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         return ERR_INTERNAL_MEM;
     }
 
-    val_init_from_template(val, genstr);
+    val_init_from_template(instance, val, genstr);
 
     /* create a string value */
-    res = val_set_string(val, name, valstr);
+    res = val_set_string(instance, val, name, valstr);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return res;
     }
 
     /* change the name of the value to the variable node
      * instead of the generic 'string'
      */
-    val_set_name(val, name, xml_strlen(name));
+    val_set_name(instance, val, name, xml_strlen(instance, name));
 
     /* save the variable */
-    res = set_str(rcxt, 
+    res = set_str(instance, 
+                  rcxt, 
                   NULL, 
                   name, 
-                  xml_strlen(name), 
+                  xml_strlen(instance, name), 
                   val, 
                   vartype);
 
@@ -1156,7 +1181,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    var_unset (runstack_context_t *rcxt,
+    var_unset (ncx_instance_t *instance,
+               runstack_context_t *rcxt,
                const xmlChar *name,
                uint32 namelen,
                var_type_t vartype)
@@ -1166,31 +1192,31 @@ status_t
 
 #ifdef DEBUG
     if (!name) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!namelen) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     if (vartype == VAR_TYP_NONE || vartype > VAR_TYP_SYSTEM) {
-        log_error("\nError: invalid variable type");
+        log_error(instance, "\nError: invalid variable type");
         return ERR_NCX_WRONG_TYPE;
     }
 
-    var = find_var(rcxt, NULL, name, namelen, 0, vartype);
+    var = find_var(instance, rcxt, NULL, name, namelen, 0, vartype);
     if (var && (var->vartype == VAR_TYP_SYSTEM ||
                 var->vartype == VAR_TYP_CONFIG)) {
-        log_error("\nError: variable cannot be removed");
+        log_error(instance, "\nError: variable cannot be removed");
         return ERR_NCX_OPERATION_FAILED;
     }
 
     if (var) {
-        dlq_remove(var);
-        free_var(var);
+        dlq_remove(instance, var);
+        free_var(instance, var);
         return NO_ERR;
     } else {
-        log_error("\nunset: Variable %s not found", name);
+        log_error(instance, "\nunset: Variable %s not found", name);
         return ERR_NCX_VAR_NOT_FOUND;
     }
 
@@ -1210,7 +1236,8 @@ status_t
 * 
 *********************************************************************/
 status_t
-    var_unset_que (dlq_hdr_t *varQ,
+    var_unset_que (ncx_instance_t *instance,
+                   dlq_hdr_t *varQ,
                    const xmlChar *name,
                    uint32 namelen,
                    xmlns_id_t  nsid)
@@ -1219,19 +1246,19 @@ status_t
 
 #ifdef DEBUG
     if (!varQ || !name) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!namelen) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
-    var = remove_var(NULL, varQ, name, namelen, nsid, VAR_TYP_QUEUE);
+    var = remove_var(instance, NULL, varQ, name, namelen, nsid, VAR_TYP_QUEUE);
     if (var) {
-        free_var(var);
+        free_var(instance, var);
         return NO_ERR;
     } else {
-        log_error("\nunset: Variable %s not found", name);
+        log_error(instance, "\nunset: Variable %s not found", name);
         return ERR_NCX_VAR_NOT_FOUND;
     }
 
@@ -1253,7 +1280,8 @@ status_t
 *   pointer to value, or NULL if not found
 *********************************************************************/
 val_value_t *
-    var_get_str (runstack_context_t *rcxt,
+    var_get_str (ncx_instance_t *instance,
+                 runstack_context_t *rcxt,
                  const xmlChar *name,
                  uint32 namelen,
                  var_type_t vartype)
@@ -1262,11 +1290,11 @@ val_value_t *
 
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (!namelen) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
@@ -1275,11 +1303,11 @@ val_value_t *
         return NULL;
     }
 
-    var = find_var(rcxt, NULL, name, namelen, 0, vartype);
+    var = find_var(instance, rcxt, NULL, name, namelen, 0, vartype);
     if (var) {
         return var->val;
     } else if (vartype == VAR_TYP_LOCAL) {
-        var = find_var(rcxt, NULL, name, namelen, 0, VAR_TYP_GLOBAL);
+        var = find_var(instance, rcxt, NULL, name, namelen, 0, VAR_TYP_GLOBAL);
         if (var) {
             return var->val;
         }
@@ -1303,18 +1331,19 @@ val_value_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 val_value_t *
-    var_get (runstack_context_t *rcxt,
+    var_get (ncx_instance_t *instance,
+             runstack_context_t *rcxt,
              const xmlChar *name,
              var_type_t vartype)
 {
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return var_get_str(rcxt, name, xml_strlen(name), vartype);
+    return var_get_str(instance, rcxt, name, xml_strlen(instance, name), vartype);
 
 }  /* var_get */
 
@@ -1335,7 +1364,8 @@ val_value_t *
 *   var type if found, or VAR_TYP_NONE
 *********************************************************************/
 var_type_t
-    var_get_type_str (runstack_context_t *rcxt,
+    var_get_type_str (ncx_instance_t *instance,
+                      runstack_context_t *rcxt,
                       const xmlChar *name,
                       uint32 namelen,
                       boolean globalonly)
@@ -1344,23 +1374,23 @@ var_type_t
 
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return VAR_TYP_NONE;
     }
     if (!namelen) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return VAR_TYP_NONE;
     }
 #endif
 
     if (!globalonly) {
-        var = find_var(rcxt, NULL, name, namelen, 0, VAR_TYP_LOCAL);
+        var = find_var(instance, rcxt, NULL, name, namelen, 0, VAR_TYP_LOCAL);
         if (var) {
             return var->vartype;
         }
     } 
 
-    var = find_var(rcxt, NULL, name, namelen, 0, VAR_TYP_GLOBAL);
+    var = find_var(instance, rcxt, NULL, name, namelen, 0, VAR_TYP_GLOBAL);
     if (var) {
         return var->vartype;
     }
@@ -1385,20 +1415,22 @@ var_type_t
 *   var type or VAR_TYP_NONE if not found
 *********************************************************************/
 var_type_t
-    var_get_type (runstack_context_t *rcxt,
+    var_get_type (ncx_instance_t *instance,
+                  runstack_context_t *rcxt,
                   const xmlChar *name,
                   boolean globalonly)
 {
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return VAR_TYP_NONE;
     }
 #endif
 
-    return var_get_type_str(rcxt,
+    return var_get_type_str(instance,
+                            rcxt,
                             name, 
-                            xml_strlen(name),
+                            xml_strlen(instance, name),
                             globalonly);
 
 }  /* var_get_type */
@@ -1419,7 +1451,8 @@ var_type_t
 *   pointer to value, or NULL if not found
 *********************************************************************/
 val_value_t *
-    var_get_str_que (dlq_hdr_t *varQ,
+    var_get_str_que (ncx_instance_t *instance,
+                     dlq_hdr_t *varQ,
                      const xmlChar *name,
                      uint32 namelen,
                      xmlns_id_t  nsid)
@@ -1428,16 +1461,17 @@ val_value_t *
 
 #ifdef DEBUG
     if (!varQ || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (!namelen) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
-    var = find_var(NULL,
+    var = find_var(instance,
+                   NULL,
                    varQ, 
                    name, 
                    namelen, 
@@ -1466,7 +1500,8 @@ val_value_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 val_value_t *
-    var_get_que (dlq_hdr_t *varQ,
+    var_get_que (ncx_instance_t *instance,
+                 dlq_hdr_t *varQ,
                  const xmlChar *name,
                  xmlns_id_t nsid)
 {
@@ -1474,15 +1509,16 @@ val_value_t *
 
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    var = find_var(NULL,
+    var = find_var(instance,
+                   NULL,
                    varQ, 
                    name, 
-                   xml_strlen(name), 
+                   xml_strlen(instance, name), 
                    nsid, 
                    VAR_TYP_QUEUE);
     if (var) {
@@ -1509,21 +1545,23 @@ val_value_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 ncx_var_t *
-    var_get_que_raw (dlq_hdr_t *varQ,
+    var_get_que_raw (ncx_instance_t *instance,
+                     dlq_hdr_t *varQ,
                      xmlns_id_t  nsid,
                      const xmlChar *name)
 {
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return find_var(NULL,
+    return find_var(instance,
+                    NULL,
                     varQ, 
                     name, 
-                    xml_strlen(name), 
+                    xml_strlen(instance, name), 
                     nsid, 
                     VAR_TYP_QUEUE);
 
@@ -1543,22 +1581,24 @@ ncx_var_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 val_value_t *
-    var_get_local (runstack_context_t *rcxt,
+    var_get_local (ncx_instance_t *instance,
+                   runstack_context_t *rcxt,
                    const xmlChar *name)
 {
     ncx_var_t  *var;
 
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    var = find_var(rcxt,
+    var = find_var(instance,
+                   rcxt,
                    NULL, 
                    name, 
-                   xml_strlen(name), 
+                   xml_strlen(instance, name), 
                    0, 
                    VAR_TYP_LOCAL);
     if (var) {
@@ -1582,7 +1622,8 @@ val_value_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 val_value_t *
-    var_get_local_str (runstack_context_t *rcxt,
+    var_get_local_str (ncx_instance_t *instance,
+                       runstack_context_t *rcxt,
                        const xmlChar *name,
                        uint32 namelen)
 {
@@ -1590,12 +1631,13 @@ val_value_t *
 
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    var = find_var(rcxt,
+    var = find_var(instance,
+                   rcxt,
                    NULL, 
                    name, 
                    namelen, 
@@ -1641,7 +1683,8 @@ val_value_t *
 *    status   
 *********************************************************************/
 status_t
-    var_check_ref (runstack_context_t *rcxt,
+    var_check_ref (ncx_instance_t *instance,
+                   runstack_context_t *rcxt,
                    const xmlChar *line,
                    var_side_t side,
                    uint32   *len,
@@ -1656,7 +1699,7 @@ status_t
 
 #ifdef DEBUG
     if (!line || !len || !vartype || !name || !namelen) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1712,7 +1755,8 @@ status_t
     /* check the global var further */
     if (*vartype == VAR_TYP_GLOBAL) {
         /* VAR_TYP_GLOBAL selects anything in the globalQ */
-        testvar = find_var(rcxt,
+        testvar = find_var(instance,
+                           rcxt,
                            NULL, 
                            *name, 
                            *namelen, 
@@ -1761,14 +1805,15 @@ status_t
 *   If no error, then returns pointer to new val or filled in 'val'
 *********************************************************************/
 val_value_t *
-    var_get_script_val (runstack_context_t *rcxt,
+    var_get_script_val (ncx_instance_t *instance,
+                        runstack_context_t *rcxt,
                         obj_template_t *obj,
                         val_value_t *val,
                         const xmlChar *strval,
                         boolean istop,
                         status_t *res)
 {
-    return var_get_script_val_ex (rcxt, NULL, obj, val, strval, istop, NULL, 
+    return var_get_script_val_ex (instance, rcxt, NULL, obj, val, strval, istop, NULL, 
                                   res);
 }  /* var_get_script_val */
                                  
@@ -1810,7 +1855,8 @@ val_value_t *
 *   If no error, then returns pointer to new val or filled in 'val'
 *********************************************************************/
 val_value_t *
-    var_get_script_val_ex (runstack_context_t *rcxt,
+    var_get_script_val_ex (ncx_instance_t *instance,
+                           runstack_context_t *rcxt,
                            obj_template_t *parentobj,
                            obj_template_t *obj,
                            val_value_t *val,
@@ -1834,7 +1880,7 @@ val_value_t *
     useval = NULL;
     *res = NO_ERR;
 
-    simtyp = typ_is_simple(obj_get_basetype(obj));
+    simtyp = typ_is_simple(instance, obj_get_basetype(instance, obj));
 
     if (fillval != NULL && simtyp) {
         useval = NULL;
@@ -1847,7 +1893,7 @@ val_value_t *
         /* the obj and val->obj templates may not be the same */
         useval = val;
     } else {
-        newval = val_new_value();
+        newval = val_new_value(instance);
         if (!newval) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
@@ -1855,16 +1901,16 @@ val_value_t *
 
         if (obj->objtype == OBJ_TYP_CHOICE || obj->objtype == OBJ_TYP_CASE) {
             if (parentobj) {
-                val_init_from_template(newval, parentobj);
+                val_init_from_template(instance, newval, parentobj);
             } else {
-                log_error("\nError: container parent not provided for "
+                log_error(instance, "\nError: container parent not provided for "
                           "complex type");
-                val_free_value(newval);
+                val_free_value(instance, newval);
                 *res = ERR_NCX_INVALID_VALUE;
                 return NULL;
             }
         } else {
-            val_init_from_template(newval, obj);
+            val_init_from_template(instance, newval, obj);
         }
         useval = newval;
     }
@@ -1872,24 +1918,25 @@ val_value_t *
     /* check if strval is NULL */
     if (strval == NULL) {
         if (fillval != NULL) {
-            fillcopy = val_clone(fillval);
+            fillcopy = val_clone(instance, fillval);
             if (fillcopy == NULL) {
                 *res = ERR_INTERNAL_MEM;
             } else {
                 if (simtyp) {
                     useval = fillcopy;
                 } else {
-                    val_add_child(fillcopy, useval);
+                    val_add_child(instance, fillcopy, useval);
                 }
             }
         } else if (simtyp) {
-            *res = val_set_simval(useval,
+            *res = val_set_simval(instance,
+                                  useval,
                                   obj_get_typdef(obj),
-                                  obj_get_nsid(obj),
-                                  obj_get_name(obj),
+                                  obj_get_nsid(instance, obj),
+                                  obj_get_name(instance, obj),
                                   NULL);
         } else if (obj->objtype == OBJ_TYP_ANYXML) {
-            *res = val_replace_str(NULL, 0, useval);
+            *res = val_replace_str(instance, NULL, 0, useval);
         } else {
             *res = ERR_NCX_WRONG_DATATYP;
         }
@@ -1899,16 +1946,16 @@ val_value_t *
          * treat this as a source file name which
          * may need to be expanded (e.g., ~/foo.xml)
          */
-        sourcefile = ncx_get_source_ex(&strval[1], FALSE, res);
+        sourcefile = ncx_get_source_ex(instance, &strval[1], FALSE, res);
         if (*res == NO_ERR && sourcefile != NULL) {
-            fname = ncxmod_find_data_file(sourcefile, TRUE, res);
+            fname = ncxmod_find_data_file(instance, sourcefile, TRUE, res);
             if (fname) {
                 /* hand off the malloced 'fname' to be freed later */
-                val_set_extern(useval, fname);
+                val_set_extern(instance, useval, fname);
             } /* else res already set */
         }
         if (sourcefile != NULL) {
-            m__free(sourcefile);
+            m__free(instance, sourcefile);
             sourcefile = NULL;
         }
     } else if (*strval == NCX_VAR_CH) {
@@ -1920,15 +1967,15 @@ val_value_t *
         vartype = VAR_TYP_NONE;
         name = NULL;
         namelen = 0;
-        *res = var_check_ref(rcxt, strval, ISRIGHT, &len, &vartype, 
+        *res = var_check_ref(instance, rcxt, strval, ISRIGHT, &len, &vartype, 
                              &name, &namelen);
         if (*res == NO_ERR) {
             /* this is a var-reference, so get the variable */
-            varval = var_get_str(rcxt, name, namelen, vartype);
+            varval = var_get_str(instance, rcxt, name, namelen, vartype);
             if (!varval) {
                 *res = ERR_NCX_VAR_NOT_FOUND;
             } else {
-                *res = set_val_from_var(obj, varval, useval);
+                *res = set_val_from_var(instance, obj, varval, useval);
             }
         }
     } else if (*strval == NCX_QUOTE_CH || *strval == NCX_SQUOTE_CH) {
@@ -1941,14 +1988,16 @@ val_value_t *
             /* set the counted string and leave off the last char
              * which is the ending quote
              */
-            *res = val_set_string2(useval, 
-                                   obj_get_name(obj), 
+            *res = val_set_string2(instance, 
+                                   useval, 
+                                   obj_get_name(instance, obj), 
                                    obj_get_typdef(obj), 
                                    strval, 
-                                   xml_strlen(strval)-1); 
+                                   xml_strlen(instance, strval)-1); 
         } else if (obj->objtype == OBJ_TYP_ANYXML) {
-            *res = val_replace_str(strval, 
-                                   xml_strlen(strval)-1,
+            *res = val_replace_str(instance, 
+                                   strval, 
+                                   xml_strlen(instance, strval)-1,
                                    useval);
         }
     } else if ((*strval == NCX_XML1a_CH) &&
@@ -1962,11 +2011,11 @@ val_value_t *
                !((*str==NCX_XML2a_CH) && (str[1]==NCX_XML2b_CH))) {
             str++;
         }
-        intbuff = xml_strndup(strval+1, (uint32)(str-strval));
+        intbuff = xml_strndup(instance, strval+1, (uint32)(str-strval));
         if (!intbuff) {
             *res = ERR_INTERNAL_MEM;
         } else {
-            val_set_intern(useval, intbuff);
+            val_set_intern(instance, useval, intbuff);
         }
     } else if (istop && ncx_valid_fname_ch(*strval)) {
         /* this is a regular string, treated as a function
@@ -1975,16 +2024,17 @@ val_value_t *
          */
         *res = NO_ERR;
         if (newval) {
-            val_free_value(newval);
+            val_free_value(instance, newval);
         }
         return NULL;
-    } else if (obj_is_leafy(obj)) {
+    } else if (obj_is_leafy(instance, obj)) {
         /* this is a regular string, but not a valid NcxName,
          * so just treat as a string instead of potential RPC method
          */
-        *res = val_set_simval(useval, 
+        *res = val_set_simval(instance, 
+                              useval, 
                               obj_get_typdef(obj), 
-                              val_get_nsid(useval), 
+                              val_get_nsid(instance, useval), 
                               useval->name, 
                               strval);
     } else if (obj->objtype == OBJ_TYP_ANYXML) {
@@ -1995,9 +2045,10 @@ val_value_t *
             memset(&useval->v.childQ, 0x0, sizeof(dlq_hdr_t));
             useval->btyp = NCX_BT_STRING;
         }
-        *res = val_set_simval(useval, 
-                              typ_get_basetype_typdef(NCX_BT_STRING), 
-                              val_get_nsid(useval), 
+        *res = val_set_simval(instance, 
+                              useval, 
+                              typ_get_basetype_typdef(instance, NCX_BT_STRING), 
+                              val_get_nsid(instance, useval), 
                               useval->name, 
                               strval);
     } else {
@@ -2007,7 +2058,7 @@ val_value_t *
     /* clean up and exit */
     if (*res != NO_ERR) {
         if (newval) {
-            val_free_value(newval);
+            val_free_value(instance, newval);
         }
         useval = NULL;
     }
@@ -2044,7 +2095,8 @@ val_value_t *
 *   If error, then returns NULL
 *********************************************************************/
 val_value_t *
-    var_check_script_val (runstack_context_t *rcxt,
+    var_check_script_val (ncx_instance_t *instance,
+                          runstack_context_t *rcxt,
                           obj_template_t *obj,
                           const xmlChar *strval,
                           boolean istop,
@@ -2060,7 +2112,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!res || !strval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -2076,7 +2128,8 @@ val_value_t *
          * get the value and clone it for the new value
          * flag an error if variable not found
          */
-        *res = var_check_ref(rcxt,
+        *res = var_check_ref(instance,
+                             rcxt,
                              strval, 
                              ISRIGHT, 
                              &len, 
@@ -2084,11 +2137,11 @@ val_value_t *
                              &name, 
                              &namelen);
         if (*res == NO_ERR) {
-            varval = var_get_str(rcxt, name, namelen, vartype);
+            varval = var_get_str(instance, rcxt, name, namelen, vartype);
             if (!varval) {
                 *res = ERR_NCX_DEF_NOT_FOUND;
             } else {
-                newval = val_clone(varval);
+                newval = val_clone(instance, varval);
                 if (!newval) {
                     *res = ERR_INTERNAL_MEM;
                 }
@@ -2101,30 +2154,30 @@ val_value_t *
     if (obj) {
         useobj = obj;
     } else {
-        useobj = ncx_get_gen_string();
+        useobj = ncx_get_gen_string(instance);
         if (!useobj) {
-            *res = SET_ERROR(ERR_INTERNAL_VAL);
+            *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             return NULL;
         }
     }
 
     /* malloc and init a new value struct for the result */
-    newval = val_new_value();
+    newval = val_new_value(instance);
     if (!newval) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_from_template(newval, useobj);
+    val_init_from_template(instance, newval, useobj);
 
     /* check the string for the appopriate value assignment */
     if (*strval==NCX_AT_CH) {
         /* this is a NCX_BT_EXTERNAL value
          * find the file with the raw XML data
          */
-        fname = ncxmod_find_data_file(&strval[1], TRUE, res);
+        fname = ncxmod_find_data_file(instance, &strval[1], TRUE, res);
         if (fname) {
             /* hand off the malloced 'fname' to be freed later */
-            val_set_extern(newval, fname);
+            val_set_extern(instance, newval, fname);
             
         } /* else res already set */
     } else if (strval && *strval == NCX_QUOTE_CH) {
@@ -2136,7 +2189,8 @@ val_value_t *
         while (*str && *str != NCX_QUOTE_CH) {
             str++;
         }
-        *res = val_set_string2(newval, 
+        *res = val_set_string2(instance, 
+                               newval, 
                                NULL, 
                                obj_get_typdef(useobj), 
                                strval, 
@@ -2150,7 +2204,8 @@ val_value_t *
         while (*str && *str != NCX_SQUOTE_CH) {
             str++;
         }
-        *res = val_set_string2(newval, 
+        *res = val_set_string2(instance, 
+                               newval, 
                                NULL, 
                                obj_get_typdef(useobj), 
                                strval, 
@@ -2166,11 +2221,11 @@ val_value_t *
                !((*str==NCX_XML2a_CH) && (str[1]==NCX_XML2b_CH))) {
             str++;
         }
-        intbuff = xml_strndup(strval+1, (uint32)(str-strval));
+        intbuff = xml_strndup(instance, strval+1, (uint32)(str-strval));
         if (!intbuff) {
             *res = ERR_INTERNAL_MEM;
         } else {
-            val_set_intern(newval, intbuff);
+            val_set_intern(instance, newval, intbuff);
         }
     } else if (strval && istop && ncx_valid_fname_ch(*strval)) {
         /* this is a regular string, treated as a function
@@ -2179,16 +2234,17 @@ val_value_t *
          * an RPC method needs to be checked
          */
         *res = NO_ERR;
-        val_free_value(newval);
+        val_free_value(instance, newval);
         return NULL;
-    } else if (typ_is_simple(obj_get_basetype(useobj))) {
+    } else if (typ_is_simple(instance, obj_get_basetype(instance, useobj))) {
         /* this is a regular string, treated as a string
          * when used within an RPC function  parameter
          */
-        *res = val_set_simval(newval,
+        *res = val_set_simval(instance,
+                              newval,
                               obj_get_typdef(useobj), 
-                              obj_get_nsid(useobj),
-                              obj_get_name(useobj), 
+                              obj_get_nsid(instance, useobj),
+                              obj_get_name(instance, useobj), 
                               strval);
     } else {
         /* need to convert the value to a simple value
@@ -2197,17 +2253,19 @@ val_value_t *
          * issue a warning that the old data type is
          * getting changed to generic string
          */
-        if (ncx_warning_enabled(ERR_NCX_USING_STRING)) {
-            log_warn("\nWarning: changing object type from '%s' "
+        if (ncx_warning_enabled(instance, ERR_NCX_USING_STRING)) {
+            log_warn(instance,
+                     "\nWarning: changing object type from '%s' "
                      "to 'string' for var '%s'",
-                     obj_get_typestr(useobj),
+                     obj_get_typestr(instance, useobj),
                      newval->name);
         }
 
-        useobj = ncx_get_gen_string();
-        *res = val_set_simval(newval,
+        useobj = ncx_get_gen_string(instance);
+        *res = val_set_simval(instance,
+                              newval,
                               obj_get_typdef(useobj), 
-                              val_get_nsid(newval),
+                              val_get_nsid(instance, newval),
                               newval->name,
                               strval);
     }
@@ -2216,7 +2274,7 @@ val_value_t *
      *  TBD: extended error reporting by returning the value anyways
      */
     if (*res != NO_ERR) {
-        val_free_value(newval);
+        val_free_value(instance, newval);
         newval = NULL;
     }
     return newval;
@@ -2235,26 +2293,26 @@ val_value_t *
 *
 *********************************************************************/
 void
-    var_cvt_generic (dlq_hdr_t *varQ)
+    var_cvt_generic (ncx_instance_t *instance, dlq_hdr_t *varQ)
 {
     ncx_var_t  *cur;
     status_t    res;
 
 #ifdef DEBUG
     if (varQ == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    for (cur = (ncx_var_t *)dlq_firstEntry(varQ);
+    for (cur = (ncx_var_t *)dlq_firstEntry(instance, varQ);
          cur != NULL;
-         cur = (ncx_var_t *)dlq_nextEntry(cur)) {
+         cur = (ncx_var_t *)dlq_nextEntry(instance, cur)) {
 
         if (cur->val) {
-            res = val_cvt_generic(cur->val);
+            res = val_cvt_generic(instance, cur->val);
             if (res != NO_ERR) {
-                SET_ERROR(res);
+                SET_ERROR(instance, res);
             }
         }
     }
@@ -2276,7 +2334,8 @@ void
 *   pointer to ncx_var_t for the first match found (local or global)
 *********************************************************************/
 extern ncx_var_t *
-    var_find (runstack_context_t *rcxt,
+    var_find (ncx_instance_t *instance,
+              runstack_context_t *rcxt,
               const xmlChar *varname,
               xmlns_id_t nsid)
 {
@@ -2285,24 +2344,26 @@ extern ncx_var_t *
 
 #ifdef DEBUG
     if (varname == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    namelen = xml_strlen(varname);
+    namelen = xml_strlen(instance, varname);
     if (namelen == 0) {
         return NULL;
     }
 
-    retvar = find_var(rcxt,
+    retvar = find_var(instance,
+                      rcxt,
                       NULL, 
                       varname, 
                       namelen, 
                       nsid, 
                       VAR_TYP_LOCAL);
     if (retvar == NULL) {
-        retvar = find_var(rcxt,
+        retvar = find_var(instance,
+                          rcxt,
                           NULL, 
                           varname, 
                           namelen, 

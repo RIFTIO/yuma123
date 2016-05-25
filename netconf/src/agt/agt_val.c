@@ -76,7 +76,8 @@ date         init     comment
 
 /* recursive callback function foward decls */
 static status_t
-    invoke_btype_cb (agt_cbtyp_t cbtyp,
+    invoke_btype_cb (struct ncx_instance_t_ *instance,
+                     agt_cbtyp_t cbtyp,
                      op_editop_t editop,
                      ses_cb_t  *scb,
                      rpc_msg_t  *msg,
@@ -87,7 +88,8 @@ static status_t
 
 
 static status_t
-    handle_user_callback (agt_cbtyp_t cbtyp,
+    handle_user_callback (struct ncx_instance_t_ *instance,
+                          agt_cbtyp_t cbtyp,
                           op_editop_t editop,
                           ses_cb_t  *scb,
                           rpc_msg_t  *msg,
@@ -97,7 +99,8 @@ static status_t
                           boolean indelete);
 
 static status_t
-    apply_commit_deletes (ses_cb_t  *scb,
+    apply_commit_deletes (struct ncx_instance_t_ *instance,
+                          ses_cb_t  *scb,
                           rpc_msg_t  *msg,
                           cfg_template_t *target,
                           val_value_t *candval,
@@ -181,16 +184,16 @@ static op_editop_t cvt_editop( op_editop_t editop,
 *   TRUE if object should be skipped
 *   FALSE if object should not be skipped
 *********************************************************************/
-static boolean skip_obj_commit_test(obj_template_t *obj)
+static boolean skip_obj_commit_test(ncx_instance_t *instance, obj_template_t *obj)
 {
-    if (obj_is_cli(obj) || 
-        !obj_has_name(obj) ||
-        !obj_is_config(obj) ||
-        (obj_is_abstract(obj) && !obj_is_root(obj)) ||
+    if (obj_is_cli(instance, obj) || 
+        !obj_has_name(instance, obj) ||
+        !obj_is_config(instance, obj) ||
+        (obj_is_abstract(instance, obj) && !obj_is_root(obj)) ||
         /* removed because ncx_delete_all_obsolete_objects() has
          * already been called
          * obj_get_status(obj) == NCX_STATUS_OBSOLETE || */
-        !obj_is_enabled(obj)) {
+        !obj_is_enabled(instance, obj)) {
         return TRUE;
     }
     return FALSE;
@@ -208,7 +211,7 @@ static boolean skip_obj_commit_test(obj_template_t *obj)
 *
 *********************************************************************/
 static void
-    clean_node (val_value_t *val)
+    clean_node (ncx_instance_t *instance, val_value_t *val)
 
 {
     if (val == NULL) {
@@ -220,10 +223,10 @@ static void
     }
 
     if (val->parent) {
-        clean_node(val->parent);
+        clean_node(instance, val->parent);
     }
 
-    val_free_editvars(val);
+    val_free_editvars(instance, val);
 
 }  /* clean_node */
 
@@ -243,7 +246,8 @@ static void
  * \param curnode top cur value node involved in edit
  *********************************************************************/
 static void
-    handle_audit_record (op_editop_t editop,
+    handle_audit_record (ncx_instance_t *instance,
+                         op_editop_t editop,
                          ses_cb_t  *scb,
                          rpc_msg_t *msg,
                          val_value_t *newnode,
@@ -268,7 +272,7 @@ static void
 
     if (msg && msg->rpc_txcb) {
         cfgid = msg->rpc_txcb->cfg_id;
-        name = cfg_get_config_name(cfgid);
+        name = cfg_get_config_name(instance, cfgid);
         txid = msg->rpc_txcb->txid;
     } else {
         cfgid = NCX_CFGID_RUNNING;
@@ -277,26 +281,29 @@ static void
     }
 
     /* generate a log record */
-    tstamp_datetime(tbuff);
+    tstamp_datetime(instance, tbuff);
 
     val_value_t *usenode = newnode ? newnode : curnode;
     if (usenode) {
-        status_t res = val_gen_instance_id(NULL, usenode, NCX_IFMT_XPATH1, 
+        status_t res = val_gen_instance_id(instance, NULL, usenode, NCX_IFMT_XPATH1, 
                                            &ibuff);
         if (res != NO_ERR) {
-            log_error("\nError: Generate instance id failed (%s)",
+            log_error(instance,
+                      "\nError: Generate instance id failed (%s)",
                       get_error_string(res));
         }
     }
 
-    log_info( "\nedit-transaction %llu: operation %s on session %d by %s@%s"
+    log_info(instance,
+               "\nedit-transaction %llu: operation %s on session %d by %s@%s"
               "\n  at %s on target '%s'\n  data: %s\n",
               (unsigned long long)txid, op_editop_name(editop), sid,
               username, peeraddr, tbuff, name, 
               (ibuff) ? (const char *)ibuff : "??" );
 
-    if (cfgid == NCX_CFGID_RUNNING && log_audit_is_open()) {
-        log_audit_write( "\nedit-transaction %llu: operation %s on "
+    if (cfgid == NCX_CFGID_RUNNING && log_audit_is_open(instance)) {
+        log_audit_write(instance,
+                          "\nedit-transaction %llu: operation %s on "
                          "session %d by %s@%s\n  at %s on target 'running'"
                          "\n  data: %s\n",
                          (unsigned long long)txid, op_editop_name(editop),
@@ -306,16 +313,16 @@ static void
 
     /* generate a sysConfigChange notification */
     if ( cfgid == NCX_CFGID_RUNNING && msg && msg->rpc_txcb && ibuff ) {
-        agt_cfg_audit_rec_t *auditrec = agt_cfg_new_auditrec(ibuff, editop);
+        agt_cfg_audit_rec_t *auditrec = agt_cfg_new_auditrec(instance, ibuff, editop);
         if ( !auditrec ) {
-            log_error("\nError: malloc failed for audit record");
+            log_error(instance, "\nError: malloc failed for audit record");
         } else {
-            dlq_enque(auditrec, &msg->rpc_txcb->auditQ);
+            dlq_enque(instance, auditrec, &msg->rpc_txcb->auditQ);
         }
     }
 
     if (ibuff) {
-        m__free(ibuff);
+        m__free(instance, ibuff);
     }
 
 } /* handle_audit_record */
@@ -341,7 +348,8 @@ static void
 *   NO USER CALLBACK FOUND == NO_ERR
 *********************************************************************/
 static status_t
-    handle_subtree_node_callback (agt_cbtyp_t cbtyp,
+    handle_subtree_node_callback (ncx_instance_t *instance,
+                                  agt_cbtyp_t cbtyp,
                                   op_editop_t editop,
                                   ses_cb_t  *scb,
                                   rpc_msg_t  *msg,
@@ -378,13 +386,14 @@ static status_t
              */
             retval = -1;
         } else {
-            retval = val_compare_ex(newnode, curnode, TRUE);
+            retval = val_compare_ex(instance, newnode, curnode, TRUE);
             if (retval == 0) {
                 /* apply here but nothing to do,
                  * so skip this entire subtree
                  */
                 if (LOGDEBUG) {
-                    log_debug("\nagt_val: Skipping subtree node "
+                    log_debug(instance,
+                              "\nagt_val: Skipping subtree node "
                               "'%s', no changes",
                               (name) ? name : (const xmlChar *)"--");
                 }
@@ -395,7 +404,7 @@ static status_t
         }
     }
 
-    res = handle_user_callback(cbtyp, editop, scb, msg, newnode, 
+    res = handle_user_callback(instance, cbtyp, editop, scb, msg, newnode, 
                                curnode, FALSE,
                                (editop == OP_EDITOP_DELETE) ? TRUE : FALSE);
 
@@ -423,7 +432,8 @@ static status_t
 *   NO USER CALLBACK FOUND == NO_ERR
 *********************************************************************/
 static status_t
-    handle_subtree_callback (agt_cbtyp_t cbtyp,
+    handle_subtree_callback (ncx_instance_t *instance,
+                             agt_cbtyp_t cbtyp,
                              op_editop_t editop,
                              ses_cb_t  *scb,
                              rpc_msg_t  *msg,
@@ -434,23 +444,23 @@ static status_t
     status_t      res = NO_ERR;
 
     if (newnode == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
-    for (newchild = val_get_first_child(newnode);
+    for (newchild = val_get_first_child(instance, newnode);
          newchild != NULL;
-         newchild = val_get_next_child(newchild)) {
+         newchild = val_get_next_child(instance, newchild)) {
 
-        if (!obj_is_config(newchild->obj)) {
+        if (!obj_is_config(instance, newchild->obj)) {
             continue;
         }
 
         if (curnode != NULL) {
-            curchild = val_first_child_match(curnode, newchild);
+            curchild = val_first_child_match(instance, curnode, newchild);
         } else {
             curchild = NULL;
         }
 
-        res = handle_subtree_node_callback(cbtyp, editop, scb,
+        res = handle_subtree_node_callback(instance, cbtyp, editop, scb,
                                            msg, newchild, curchild);
         if (res != NO_ERR) {
             return res;
@@ -461,17 +471,17 @@ static status_t
         return NO_ERR;
     }
 
-    for (curchild = val_get_first_child(curnode);
+    for (curchild = val_get_first_child(instance, curnode);
          curchild != NULL;
-         curchild = val_get_next_child(curchild)) {
+         curchild = val_get_next_child(instance, curchild)) {
 
-        if (!obj_is_config(curchild->obj)) {
+        if (!obj_is_config(instance, curchild->obj)) {
             continue;
         }
 
-        newchild = val_first_child_match(newnode, curchild);
+        newchild = val_first_child_match(instance, newnode, curchild);
         if (newchild == NULL) {
-            res = handle_subtree_node_callback(cbtyp, OP_EDITOP_DELETE,
+            res = handle_subtree_node_callback(instance, cbtyp, OP_EDITOP_DELETE,
                                                scb, msg, NULL, curchild);
             if (res != NO_ERR) {
                 return res;
@@ -506,7 +516,8 @@ static status_t
 *   NO USER CALLBACK FOUND == NO_ERR
 *********************************************************************/
 static status_t
-    delete_children_first (agt_cbtyp_t cbtyp,
+    delete_children_first (ncx_instance_t *instance,
+                           agt_cbtyp_t cbtyp,
                            ses_cb_t  *scb,
                            rpc_msg_t  *msg,
                            val_value_t *curnode)
@@ -515,29 +526,29 @@ static status_t
     status_t      res = NO_ERR;
 
     if (curnode == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (LOGDEBUG2) {
-        log_debug2("\nEnter delete_children_first for '%s'", curnode->name);
+        log_debug2(instance, "\nEnter delete_children_first for '%s'", curnode->name);
     }
 
-    for (curchild = val_get_first_child(curnode);
+    for (curchild = val_get_first_child(instance, curnode);
          curchild != NULL;
-         curchild = val_get_next_child(curchild)) {
+         curchild = val_get_next_child(instance, curchild)) {
 
-        if (!obj_is_config(curchild->obj)) {
+        if (!obj_is_config(instance, curchild->obj)) {
             continue;
         }
 
-        if (obj_is_leafy(curchild->obj)) {
+        if (obj_is_leafy(instance, curchild->obj)) {
             continue;
         }
 
-        if (obj_is_sil_delete_children_first(curchild->obj)) {
-            res = delete_children_first(cbtyp, scb, msg, curchild);
+        if (obj_is_sil_delete_children_first(instance, curchild->obj)) {
+            res = delete_children_first(instance, cbtyp, scb, msg, curchild);
         } else {
-            res = handle_subtree_node_callback(cbtyp, OP_EDITOP_DELETE, scb,
+            res = handle_subtree_node_callback(instance, cbtyp, OP_EDITOP_DELETE, scb,
                                                msg, NULL, curchild);
         }
         if (res != NO_ERR) {
@@ -545,8 +556,8 @@ static status_t
         }
     }
 
-    if (!obj_is_leafy(curnode->obj)) {
-        res = handle_subtree_node_callback(cbtyp, OP_EDITOP_DELETE, scb,
+    if (!obj_is_leafy(instance, curnode->obj)) {
+        res = handle_subtree_node_callback(instance, cbtyp, OP_EDITOP_DELETE, scb,
                                            msg, NULL, curnode);
     }
 
@@ -579,7 +590,8 @@ static status_t
 *   NO USER CALLBACK FOUND == NO_ERR
 *********************************************************************/
 static status_t
-    handle_user_callback (agt_cbtyp_t cbtyp,
+    handle_user_callback (ncx_instance_t *instance,
+                          agt_cbtyp_t cbtyp,
                           op_editop_t editop,
                           ses_cb_t  *scb,
                           rpc_msg_t  *msg,
@@ -598,7 +610,7 @@ static status_t
     } else if (curnode) {
         val = curnode;
     } else {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (obj_is_root(val->obj)) {
@@ -606,10 +618,11 @@ static status_t
     }
 
     if (LOGDEBUG4) {
-        log_debug4("\nChecking for %s user callback for %s edit on %s:%s",
-                   agt_cbtype_name(cbtyp),
+        log_debug4(instance,
+                   "\nChecking for %s user callback for %s edit on %s:%s",
+                   agt_cbtype_name(instance, cbtyp),
                    op_editop_name(editop),
-                   val_get_mod_name(val),
+                   val_get_mod_name(instance, val),
                    val->name);
     }
 
@@ -627,12 +640,12 @@ static status_t
      * SIL callback is found for the current node
      * Only call during COMMIT phase
      */
-    if (obj_is_sil_delete_children_first(val->obj) &&
-        !obj_is_leafy(val->obj) &&
+    if (obj_is_sil_delete_children_first(instance, val->obj) &&
+        !obj_is_leafy(instance, val->obj) &&
         !indelete && 
         editop == OP_EDITOP_DELETE &&
         cbtyp == AGT_CB_COMMIT) {
-        res = delete_children_first(cbtyp, scb, msg, curnode);
+        res = delete_children_first(instance, cbtyp, scb, msg, curnode);
         return res;
     }
 
@@ -646,27 +659,29 @@ static status_t
         if (cbset != NULL && cbset->cbfn[cbtyp] != NULL) {
 
             if (LOGDEBUG2) {
-                log_debug2("\nFound %s user callback for %s:%s",
-                           agt_cbtype_name(cbtyp),
+                log_debug2(instance,
+                           "\nFound %s user callback for %s:%s",
+                           agt_cbtype_name(instance, cbtyp),
                            op_editop_name(editop),
-                           val_get_mod_name(val),
+                           val_get_mod_name(instance, val),
                            val->name);
             }
 
             editop = cvt_editop(editop, newnode, curnode);
 
-            res = (*cbset->cbfn[cbtyp])(scb, msg, cbtyp, editop, 
+            res = (*cbset->cbfn[cbtyp])(instance, scb, msg, cbtyp, editop, 
                                         newnode, curnode);
             if (val->res == NO_ERR) {
                 val->res = res;
             }
 
             if (LOGDEBUG && res != NO_ERR) {
-                log_debug("\n%s user callback failed (%s) for %s on %s:%s",
-                          agt_cbtype_name(cbtyp),
+                log_debug(instance,
+                          "\n%s user callback failed (%s) for %s on %s:%s",
+                          agt_cbtype_name(instance, cbtyp),
                           get_error_string(res),
                           op_editop_name(editop),
-                          val_get_mod_name(val),
+                          val_get_mod_name(instance, val),
                           val->name);
             }
             if (res == NO_ERR) {
@@ -676,7 +691,7 @@ static status_t
                 case OP_EDITOP_REPLACE:
                 case OP_EDITOP_LOAD:
                     if (cbtyp != AGT_CB_VALIDATE) {
-                        res = handle_subtree_callback(cbtyp, editop, scb, msg,
+                        res = handle_subtree_callback(instance, cbtyp, editop, scb, msg,
                                                       newnode, curnode);
                     }
                     break;
@@ -689,7 +704,7 @@ static status_t
             done = TRUE;
         } else if (val->parent != NULL &&
                    !obj_is_root(val->parent->obj) &&
-                   val_get_nsid(val) == val_get_nsid(val->parent)) {
+                   val_get_nsid(instance, val) == val_get_nsid(instance, val->parent)) {
             val = val->parent;
         } else {
             done = TRUE;
@@ -722,7 +737,8 @@ static status_t
 *   items need to be added; NULL on ERR_INTERNAL_MEM error
 *********************************************************************/
 static agt_cfg_undo_rec_t *
-    add_undo_node (rpc_msg_t *msg,
+    add_undo_node (ncx_instance_t *instance,
+                   rpc_msg_t *msg,
                    op_editop_t editop,
                    val_value_t *newnode,
                    val_value_t *newnode_marker,
@@ -733,7 +749,7 @@ static agt_cfg_undo_rec_t *
     agt_cfg_undo_rec_t *undo;
 
     /* create an undo record for this merge */
-    undo = agt_cfg_new_undorec();
+    undo = agt_cfg_new_undorec(instance);
     if (!undo) {
         return NULL;
     }
@@ -741,10 +757,10 @@ static agt_cfg_undo_rec_t *
     /* save a copy of the current value in case it gets modified
      * in a merge operation;; done for leafs only!!!
      */
-    if (curnode && obj_is_leafy(curnode->obj)) {
-        undo->curnode_clone = val_clone(curnode);
+    if (curnode && obj_is_leafy(instance, curnode->obj)) {
+        undo->curnode_clone = val_clone(instance, curnode);
         if (!undo->curnode_clone) {
-            agt_cfg_free_undorec(undo);
+            agt_cfg_free_undorec(instance, undo);
             return NULL;
         }
     }
@@ -756,7 +772,7 @@ static agt_cfg_undo_rec_t *
     undo->curnode_marker = curnode_marker;
     undo->parentnode = parentnode;
 
-    dlq_enque(undo, &msg->rpc_txcb->undoQ);
+    dlq_enque(instance, undo, &msg->rpc_txcb->undoQ);
     return undo;
 
 } /* add_undo_node */
@@ -795,7 +811,8 @@ static agt_cfg_undo_rec_t *
 *    status
 *********************************************************************/
 static status_t
-    add_child_clean (val_editvars_t *editvars,
+    add_child_clean (ncx_instance_t *instance,
+                     val_editvars_t *editvars,
                      val_value_t *child,
                      val_value_t *parent,
                      dlq_hdr_t *cleanQ)
@@ -804,24 +821,25 @@ static status_t
     agt_cfg_nodeptr_t *nodeptr;
 
     if (child->casobj) {
-        for (testval = val_get_first_child(parent);
+        for (testval = val_get_first_child(instance, parent);
              testval != NULL;
              testval = nextval) {
 
-            nextval = val_get_next_child(testval);
+            nextval = val_get_next_child(instance, testval);
             if (testval->casobj && 
                 (testval->casobj->parent == child->casobj->parent)) {
 
                 if (testval->casobj != child->casobj) {
-                    log_debug3("\nagt_val: clean old case member '%s'"
+                    log_debug3(instance,
+                               "\nagt_val: clean old case member '%s'"
                                " from parent '%s'",
                                testval->name, parent->name);
 
-                    nodeptr = agt_cfg_new_nodeptr(testval);
+                    nodeptr = agt_cfg_new_nodeptr(instance, testval);
                     if (nodeptr == NULL) {
                         return ERR_INTERNAL_MEM;
                     }
-                    dlq_enque(nodeptr, cleanQ);
+                    dlq_enque(instance, nodeptr, cleanQ);
                     VAL_MARK_DELETED(testval);
                 }
             }
@@ -844,17 +862,17 @@ static status_t
     if (doins) {
         switch (insertop) {
         case OP_INSOP_FIRST:
-            testval = val_find_child(parent, val_get_mod_name(child),
+            testval = val_find_child(instance, parent, val_get_mod_name(instance, child),
                                      child->name);
             if (testval) {
-                dlq_insertAhead(child, testval);
+                dlq_insertAhead(instance, child, testval);
             } else {
-                val_add_child_sorted(child, parent);
+                val_add_child_sorted(instance, child, parent);
             }
             break;
         case OP_INSOP_LAST:
         case OP_INSOP_NONE:
-            val_add_child_sorted(child, parent);
+            val_add_child_sorted(instance, child, parent);
             break;
         case OP_INSOP_BEFORE:
         case OP_INSOP_AFTER:
@@ -868,26 +886,26 @@ static status_t
                 if (editvars && editvars->insertval) {
                     testval = editvars->insertval;
                     if (editvars->insertop == OP_INSOP_BEFORE) {
-                        dlq_insertAhead(child, testval);
+                        dlq_insertAhead(instance, child, testval);
                     } else {
-                        dlq_insertAfter(child, testval);
+                        dlq_insertAfter(instance, child, testval);
                     }
                 } else {
-                    SET_ERROR(ERR_NCX_INSERT_MISSING_INSTANCE);
-                    val_add_child_sorted(child, parent);
+                    SET_ERROR(instance, ERR_NCX_INSERT_MISSING_INSTANCE);
+                    val_add_child_sorted(instance, child, parent);
                 }
             } else {
                 /* wrong object type */
-                SET_ERROR(ERR_INTERNAL_VAL);
-                val_add_child_sorted(child, parent);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
+                val_add_child_sorted(instance, child, parent);
             }
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
-            val_add_child_sorted(child, parent);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
+            val_add_child_sorted(instance, child, parent);
         }
     } else {
-        val_add_child_sorted(child, parent);
+        val_add_child_sorted(instance, child, parent);
     }
     return NO_ERR;
 
@@ -916,25 +934,27 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    add_child_node (val_value_t  *child,
+    add_child_node (ncx_instance_t *instance,
+                    val_value_t  *child,
                     val_value_t  *marker,
                     val_value_t  *parent,
                     rpc_msg_t *msg,
                     op_editop_t editop)
 {
     if (LOGDEBUG3) {
-        log_debug3("\nAdd child '%s' to parent '%s'",
+        log_debug3(instance,
+                   "\nAdd child '%s' to parent '%s'",
                    child->name, 
                    parent->name);
     }
 
-    agt_cfg_undo_rec_t *undo = add_undo_node(msg, editop, child, marker,
+    agt_cfg_undo_rec_t *undo = add_undo_node(instance, msg, editop, child, marker,
                                              NULL, NULL, parent);
     if (undo == NULL) {
-        val_free_value(marker);
+        val_free_value(instance, marker);
         return ERR_INTERNAL_MEM;
     }
-    undo->apply_res = add_child_clean(child->editvars, child, parent, 
+    undo->apply_res = add_child_clean(instance, child->editvars, child, parent, 
                                       &undo->extra_deleteQ);
     undo->edit_action = AGT_CFG_EDIT_ACTION_ADD;
     return undo->apply_res;
@@ -965,7 +985,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    move_child_node (val_value_t  *newchild,
+    move_child_node (ncx_instance_t *instance,
+                     val_value_t  *newchild,
                      val_value_t  *newchild_marker,
                      val_value_t  *curchild,
                      val_value_t  *parent,
@@ -973,24 +994,25 @@ static status_t
                      op_editop_t editop)
 {
     if (LOGDEBUG3) {
-        log_debug3("\nMove child '%s' in parent '%s'",
+        log_debug3(instance,
+                   "\nMove child '%s' in parent '%s'",
                    newchild->name, 
                    parent->name);
     }
 
-    agt_cfg_undo_rec_t *undo = add_undo_node(msg, editop, newchild, 
+    agt_cfg_undo_rec_t *undo = add_undo_node(instance, msg, editop, newchild, 
                                              newchild_marker, curchild, 
                                              NULL, parent);
     if (undo == NULL) {
         /* no detailed rpc-error is recorded here!!!
          * relying on catch-all operation-failed in agt_rpc_dispatch */
-        val_free_value(newchild_marker);
+        val_free_value(instance, newchild_marker);
         return ERR_INTERNAL_MEM;
     }
 
     VAL_MARK_DELETED(curchild);
 
-    undo->apply_res = add_child_clean(newchild->editvars, newchild, parent, 
+    undo->apply_res = add_child_clean(instance, newchild->editvars, newchild, parent, 
                                       &undo->extra_deleteQ);
     undo->edit_action = AGT_CFG_EDIT_ACTION_MOVE;
     return undo->apply_res;
@@ -1020,24 +1042,26 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    move_mergedlist_node (val_value_t  *newchild,
+    move_mergedlist_node (ncx_instance_t *instance,
+                          val_value_t  *newchild,
                           val_value_t  *curchild,
                           val_value_t  *parent,
                           agt_cfg_undo_rec_t *undo)
 {
     if (LOGDEBUG3) {
-        log_debug3("\nMove list '%s' in parent '%s'",
+        log_debug3(instance,
+                   "\nMove list '%s' in parent '%s'",
                    newchild->name, 
                    parent->name);
     }
 
-    val_value_t *marker = val_new_deleted_value();
+    val_value_t *marker = val_new_deleted_value(instance);
     if (marker == NULL) {
         return ERR_INTERNAL_MEM;
     }
     undo->curnode_marker = marker;
-    val_swap_child(marker, curchild);
-    undo->apply_res = add_child_clean(newchild->editvars, curchild, parent,
+    val_swap_child(instance, marker, curchild);
+    undo->apply_res = add_child_clean(instance, newchild->editvars, curchild, parent,
                                       &undo->extra_deleteQ);
     undo->edit_action = AGT_CFG_EDIT_ACTION_MOVE;
     return undo->apply_res;
@@ -1054,15 +1078,15 @@ static status_t
 *   undo == undo record to use
 *********************************************************************/
 static void
-    restore_newnode (agt_cfg_undo_rec_t *undo)
+    restore_newnode (ncx_instance_t *instance, agt_cfg_undo_rec_t *undo)
 {
     if (undo->newnode_marker) {
         if (undo->newnode) {
-            val_swap_child(undo->newnode, undo->newnode_marker);
+            val_swap_child(instance, undo->newnode, undo->newnode_marker);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
-        val_free_value(undo->newnode_marker);
+        val_free_value(instance, undo->newnode_marker);
         undo->newnode_marker = NULL;
     }
 
@@ -1080,13 +1104,14 @@ static void
 *   newval_marker == marker for newval in source tree
 *********************************************************************/
 static void
-    restore_newnode2 (val_value_t *newval,
+    restore_newnode2 (ncx_instance_t *instance,
+                      val_value_t *newval,
                       val_value_t *newval_marker)
 {
     if (newval && newval_marker) {
-        val_swap_child(newval, newval_marker);
+        val_swap_child(instance, newval, newval_marker);
     }
-    val_free_value(newval_marker);
+    val_free_value(instance, newval_marker);
 
 }  /* restore_newnode2 */
 
@@ -1101,7 +1126,8 @@ static void
 *   target == target database being edited
 *********************************************************************/
 static void
-    restore_curnode (agt_cfg_undo_rec_t *undo,
+    restore_curnode (ncx_instance_t *instance,
+                     agt_cfg_undo_rec_t *undo,
                      cfg_template_t *target)
 {
     if (undo->curnode == NULL) {
@@ -1113,28 +1139,28 @@ static void
         undo->free_curnode = FALSE;
         if (undo->commit_res != ERR_NCX_SKIPPED &&
             target->cfg_id == NCX_CFGID_RUNNING) {
-            val_check_swap_resnode(undo->newnode, undo->curnode);
+            val_check_swap_resnode(instance, undo->newnode, undo->curnode);
         }
     } else if (undo->curnode_clone) {
         /* node is a leaf or leaf-list that was merged */
         if (undo->commit_res != ERR_NCX_SKIPPED &&
             target->cfg_id == NCX_CFGID_RUNNING) {
-            val_check_swap_resnode(undo->newnode, undo->curnode_clone);
+            val_check_swap_resnode(instance, undo->newnode, undo->curnode_clone);
         }
         if (undo->curnode_marker) {
             /* the curnode was moved so move it back */
-            val_remove_child(undo->curnode);
-            val_swap_child(undo->curnode_clone, undo->curnode_marker);
-            val_free_value(undo->curnode_marker);
+            val_remove_child(instance, undo->curnode);
+            val_swap_child(instance, undo->curnode_clone, undo->curnode_marker);
+            val_free_value(instance, undo->curnode_marker);
             undo->curnode_marker = NULL;
         } else {
-            val_swap_child(undo->curnode_clone, undo->curnode);
+            val_swap_child(instance, undo->curnode_clone, undo->curnode);
         }
         undo->curnode_clone = NULL;
         undo->free_curnode = TRUE;
     } else {
         // should not happen 
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 }  /* restore_curnode */
@@ -1149,17 +1175,17 @@ static void
 *   nodeptrQ == Q of agt_cfg_nodeptr_t records to use
 *********************************************************************/
 static void
-    restore_extra_deletes (dlq_hdr_t *nodeptrQ)
+    restore_extra_deletes (ncx_instance_t *instance, dlq_hdr_t *nodeptrQ)
 {
 
-    while (!dlq_empty(nodeptrQ)) {
-        agt_cfg_nodeptr_t *nodeptr = (agt_cfg_nodeptr_t *)dlq_deque(nodeptrQ);
+    while (!dlq_empty(instance, nodeptrQ)) {
+        agt_cfg_nodeptr_t *nodeptr = (agt_cfg_nodeptr_t *)dlq_deque(instance, nodeptrQ);
         if (nodeptr && nodeptr->node) {
             VAL_UNMARK_DELETED(nodeptr->node);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
-        agt_cfg_free_nodeptr(nodeptr);
+        agt_cfg_free_nodeptr(instance, nodeptr);
     }
 
 }  /* restore_extra_deletes */
@@ -1175,26 +1201,27 @@ static void
 *   undo == undo record to use
 *********************************************************************/
 static void
-    finish_extra_deletes (ncx_cfg_t cfgid,
+    finish_extra_deletes (ncx_instance_t *instance,
+                          ncx_cfg_t cfgid,
                           agt_cfg_undo_rec_t *undo)
 {
 
-    while (!dlq_empty(&undo->extra_deleteQ)) {
+    while (!dlq_empty(instance, &undo->extra_deleteQ)) {
         agt_cfg_nodeptr_t *nodeptr = (agt_cfg_nodeptr_t *)
-            dlq_deque(&undo->extra_deleteQ);
+            dlq_deque(instance, &undo->extra_deleteQ);
         if (nodeptr && nodeptr->node) {
             /* mark ancestor nodes dirty before deleting this node */
             if (cfgid == NCX_CFGID_RUNNING) {
-                val_clear_dirty_flag(nodeptr->node);
+                val_clear_dirty_flag(instance, nodeptr->node);
             } else {
-                val_set_dirty_flag(nodeptr->node);
+                val_set_dirty_flag(instance, nodeptr->node);
             }
-            val_remove_child(nodeptr->node);
-            val_free_value(nodeptr->node);
+            val_remove_child(instance, nodeptr->node);
+            val_free_value(instance, nodeptr->node);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
-        agt_cfg_free_nodeptr(nodeptr);
+        agt_cfg_free_nodeptr(instance, nodeptr);
     }
 
 }  /* finish_extra_deletes */
@@ -1215,7 +1242,8 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    check_insert_attr (ses_cb_t  *scb,
+    check_insert_attr (ncx_instance_t *instance,
+                       ses_cb_t  *scb,
                        rpc_msg_t  *msg,
                        val_value_t  *newval,
                        val_value_t *curparent)
@@ -1235,7 +1263,7 @@ static status_t
     }
 
     if (newval->obj == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     switch (newval->obj->objtype) {
@@ -1257,9 +1285,10 @@ static status_t
             return NO_ERR;
         }
 
-        if (obj_is_system_ordered(newval->obj)) {
+        if (obj_is_system_ordered(instance, newval->obj)) {
             res = ERR_NCX_UNEXPECTED_INSERT_ATTRS;
-            agt_record_error(scb,
+            agt_record_error(instance,
+                             scb,
                              &msg->mhdr,
                              NCX_LAYER_CONTENT,
                              res,
@@ -1275,10 +1304,11 @@ static status_t
          * make a value node to compare in the
          * value space instead of the lexicographical space
          */
-        simval = val_make_simval_obj(newval->obj,
+        simval = val_make_simval_obj(instance,
+                                     newval->obj,
                                      newval->editvars->insertstr, &res);
         if (res == NO_ERR && simval) {
-            testval = val_first_child_match(curparent, simval);
+            testval = val_first_child_match(instance, curparent, simval);
             if (!testval) {
                 /* sibling leaf-list with the specified
                  * value was not found (13.7)
@@ -1290,7 +1320,7 @@ static status_t
         }
                     
         if (simval) {
-            val_free_value(simval);
+            val_free_value(instance, simval);
         }
         break;
     case OBJ_TYP_LIST:
@@ -1313,9 +1343,10 @@ static status_t
             return NO_ERR;
         }
 
-        if (obj_is_system_ordered(newval->obj)) {
+        if (obj_is_system_ordered(instance, newval->obj)) {
             res = ERR_NCX_UNEXPECTED_INSERT_ATTRS;
-            agt_record_error(scb,
+            agt_record_error(instance,
+                             scb,
                              &msg->mhdr,
                              NCX_LAYER_CONTENT,
                              res,
@@ -1330,7 +1361,8 @@ static status_t
         if (newval->editvars->insertxpcb->validateres != NO_ERR) {
             res = newval->editvars->insertxpcb->validateres;
         } else {
-            res = xpath_yang_validate_xmlkey(scb->reader,
+            res = xpath_yang_validate_xmlkey(instance,
+                                             scb->reader,
                                              newval->editvars->insertxpcb,
                                              newval->obj, FALSE);
         }
@@ -1339,10 +1371,10 @@ static status_t
              * referenced. It should be valid objects
              * and well-formed from passing the previous test
              */
-            testval = val_make_from_insertxpcb(newval, &res);
+            testval = val_make_from_insertxpcb(instance, newval, &res);
             if (res == NO_ERR && testval) {
-                val_set_canonical_order(testval);
-                insertval = val_first_child_match(curparent,  testval);
+                val_set_canonical_order(instance, testval);
+                insertval = val_first_child_match(instance,  curparent,  testval);
                 if (!insertval) {
                     /* sibling list with the specified
                      * key value was not found (13.7)
@@ -1353,7 +1385,7 @@ static status_t
                 }
             }
             if (testval) {
-                val_free_value(testval);
+                val_free_value(instance, testval);
                 testval = NULL;
             }
         }
@@ -1361,7 +1393,8 @@ static status_t
     default:
         if (newval->editvars && newval->editvars->insertop != OP_INSOP_NONE) {
             res = ERR_NCX_UNEXPECTED_INSERT_ATTRS;
-            agt_record_error(scb,
+            agt_record_error(instance,
+                             scb,
                              &msg->mhdr,
                              NCX_LAYER_CONTENT,
                              res,
@@ -1376,7 +1409,7 @@ static status_t
     }
              
     if (res != NO_ERR) {
-        agt_record_insert_error(scb, &msg->mhdr, res, newval);
+        agt_record_insert_error(instance, scb, &msg->mhdr, res, newval);
     }
 
     return res;
@@ -1403,7 +1436,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    commit_delete_allowed (ses_cb_t  *scb,
+    commit_delete_allowed (ncx_instance_t *instance,
+                           ses_cb_t  *scb,
                            rpc_msg_t  *msg,
                            val_value_t *deleteval,
                            boolean isfirst)
@@ -1419,7 +1453,7 @@ static status_t
      * can be deleted by the current session right now
      */
     if (deleteval->parent) {
-        res = commit_delete_allowed(scb, msg, deleteval->parent, FALSE);
+        res = commit_delete_allowed(instance, scb, msg, deleteval->parent, FALSE);
         if (res != NO_ERR) {
             return res;
         }
@@ -1428,19 +1462,19 @@ static status_t
     op_editop_t op = (isfirst) ? OP_EDITOP_DELETE : OP_EDITOP_MERGE;
 
     /* check if access control allows the delete */
-    if (!agt_acm_val_write_allowed(&msg->mhdr, scb->username, 
+    if (!agt_acm_val_write_allowed(instance, &msg->mhdr, scb->username, 
                                    NULL, deleteval, op)) {
         res = ERR_NCX_ACCESS_DENIED;
-        agt_record_error(scb, &msg->mhdr, NCX_LAYER_OPERATION, res, NULL, 
+        agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_OPERATION, res, NULL, 
                          NCX_NT_NONE, NULL, NCX_NT_NONE, NULL);
         return res;
     }
 
     /* check if this curval is partially locked */
     uint32 lockid = 0;
-    res = val_write_ok(deleteval, op, SES_MY_SID(scb), TRUE, &lockid);
+    res = val_write_ok(instance, deleteval, op, SES_MY_SID(scb), TRUE, &lockid);
     if (res != NO_ERR) {
-        agt_record_error(scb, &msg->mhdr, NCX_LAYER_CONTENT, res,
+        agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_CONTENT, res,
                          NULL, NCX_NT_UINT32_PTR, &lockid,
                          NCX_NT_VAL, deleteval);
         return res;
@@ -1470,7 +1504,8 @@ static status_t
 *   none
 *********************************************************************/
 static status_t
-    check_commit_deletes (ses_cb_t  *scb,
+    check_commit_deletes (ncx_instance_t *instance,
+                          ses_cb_t  *scb,
                           rpc_msg_t  *msg,
                           val_value_t *candval,
                           val_value_t *runval)
@@ -1479,23 +1514,23 @@ static status_t
         return NO_ERR;
     }
 
-    log_debug3("\ncheck_commit_deletes: start %s ", runval->name);
+    log_debug3(instance, "\ncheck_commit_deletes: start %s ", runval->name);
 
     /* go through running config
      * if the matching node is not in the candidate,
      * then delete that node in the running config as well
      */
     status_t res = NO_ERR;
-    val_value_t *curval = val_get_first_child(runval);
-    for (; curval != NULL; curval = val_get_next_child(curval)) {
+    val_value_t *curval = val_get_first_child(instance, runval);
+    for (; curval != NULL; curval = val_get_next_child(instance, curval)) {
 
         /* check only database config nodes */
-        if (obj_is_data_db(curval->obj) && obj_is_config(curval->obj)) {
+        if (obj_is_data_db(instance, curval->obj) && obj_is_config(instance, curval->obj)) {
 
             /* check if node deleted in source */
-            val_value_t *matchval = val_first_child_match(candval, curval);
+            val_value_t *matchval = val_first_child_match(instance, candval, curval);
             if (!matchval) {
-                res = commit_delete_allowed(scb, msg, curval, TRUE);
+                res = commit_delete_allowed(instance, scb, msg, curval, TRUE);
                 if (res != NO_ERR) {
                     return res;         /* errors recorded */
                 }
@@ -1534,7 +1569,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    apply_write_val (op_editop_t  editop,
+    apply_write_val (ncx_instance_t *instance,
+                     op_editop_t  editop,
                      ses_cb_t  *scb,
                      rpc_msg_t  *msg,
                      cfg_template_t *target,
@@ -1560,7 +1596,7 @@ static status_t
         name = curval->name;
     } else {
         *done = TRUE;
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* check if this is a top-level replace via <copy-config> or
@@ -1570,7 +1606,7 @@ static status_t
         topreplace = TRUE;
     }
 
-    log_debug4("\napply_write_val: %s start", name);
+    log_debug4(instance, "\napply_write_val: %s start", name);
 
     /* check if this node needs the edit operation applied */
     if (*done || (newval && obj_is_root(newval->obj))) {
@@ -1578,13 +1614,13 @@ static status_t
     } else if (cur_editop == OP_EDITOP_COMMIT) {
         /* make sure the VAL_FL_DIRTY flag is set, not just
          * the VAL_FL_SUBTREE_DIRTY flag   */
-        applyhere = (newval) ? val_get_dirty_flag(newval) : FALSE;
+        applyhere = (newval) ? val_get_dirty_flag(instance, newval) : FALSE;
         *done = applyhere;
     } else if (editop == OP_EDITOP_DELETE || editop == OP_EDITOP_REMOVE) {
         applyhere = TRUE;
         *done = TRUE;
     } else {
-        applyhere = agt_apply_this_node(cur_editop, newval, curval);
+        applyhere = agt_apply_this_node(instance, cur_editop, newval, curval);
         *done = applyhere;
     }
 
@@ -1592,13 +1628,13 @@ static status_t
         /* check corner case applying to the config root */
         if (obj_is_root(newval->obj)) {
             ;
-        } else if (!typ_is_simple(newval->btyp) && !add_defs_done && 
+        } else if (!typ_is_simple(instance, newval->btyp) && !add_defs_done && 
                    editop != OP_EDITOP_DELETE && editop != OP_EDITOP_REMOVE) {
 
-            res = val_add_defaults(newval, (target) ? target->root : NULL,
+            res = val_add_defaults(instance, newval, (target) ? target->root : NULL,
                                    curval, FALSE);
             if (res != NO_ERR) {
-                log_error("\nError: add defaults failed");
+                log_error(instance, "\nError: add defaults failed");
                 applyhere = FALSE;
             }
         }
@@ -1619,17 +1655,19 @@ static status_t
             }
             if (logval) {
                 xmlChar *buff = NULL;
-                res = val_gen_instance_id(&msg->mhdr, logval,
+                res = val_gen_instance_id(instance, &msg->mhdr, logval,
                                           NCX_IFMT_XPATH1, &buff);
                 if (res == NO_ERR) {
-                    log_debug("\napply_write_val: apply %s on %s",
+                    log_debug(instance,
+                              "\napply_write_val: apply %s on %s",
                               op_editop_name(editop), buff);
                 } else {
-                    log_debug("\napply_write_val: apply %s on %s", 
+                    log_debug(instance, 
+                              "\napply_write_val: apply %s on %s", 
                               op_editop_name(editop), name);
                 }
                 if (buff) {
-                    m__free(buff);
+                    m__free(instance, buff);
                 }
             }
         }
@@ -1642,7 +1680,7 @@ static status_t
              * Also there is no corresponding callback
              * to cleanup the candidate if <discard-changes>
              * is invoked by the client or the server */
-            res = handle_user_callback(AGT_CB_APPLY, editop, scb, msg, 
+            res = handle_user_callback(instance, AGT_CB_APPLY, editop, scb, msg, 
                                        newval, curval, TRUE, FALSE);
             if (res != NO_ERR) {
                 /* assuming SIL added an rpc-error already
@@ -1654,10 +1692,10 @@ static status_t
         /* exit here if the edited node is a virtual value
          * it is assumed that the user callback handled its own
          * internal representation of this node any subtrees */
-        if (curval && val_is_virtual(curval)) {
+        if (curval && val_is_virtual(instance, curval)) {
             /* update the last change time; assume the virtual
              * node contents changed  */
-            cfg_update_last_ch_time(target);
+            cfg_update_last_ch_time(instance, target);
             return NO_ERR;
         }
 
@@ -1679,9 +1717,9 @@ static status_t
         default:
             /* remove newval node; swap with newval_marker for undo */
             if (newval) {
-                newval_marker = val_new_deleted_value();
+                newval_marker = val_new_deleted_value(instance);
                 if (newval_marker) {
-                    val_swap_child(newval_marker, newval);
+                    val_swap_child(instance, newval_marker, newval);
                 } else {
                     return ERR_INTERNAL_MEM;
                 }
@@ -1698,31 +1736,31 @@ static status_t
                  * for merge, in case there are any read-only descendant
                  * nodes already     */
                 if (newval && newval->editvars && newval->editvars->insertstr) {
-                    res = move_child_node(newval, newval_marker, curval,
+                    res = move_child_node(instance, newval, newval_marker, curval,
                                           parent, msg, cur_editop);
                 } else if (newval) {
                     /* merging a simple leaf or leaf-list
                      * make a copy of the current node first */
-                    undo = add_undo_node(msg, cur_editop, newval, 
+                    undo = add_undo_node(instance, msg, cur_editop, newval, 
                                          newval_marker, curval, NULL, parent);
                     if (undo == NULL) {
                         /* no detailed rpc-error is recorded here!!!
                          * relying on catch-all operation-failed in 
                          * agt_rpc_dispatch */
-                        restore_newnode2(newval, newval_marker);
+                        restore_newnode2(instance, newval, newval_marker);
                         return ERR_INTERNAL_MEM;
                      }
-                     undo->apply_res = res = val_merge(newval, curval);
+                     undo->apply_res = res = val_merge(instance, newval, curval);
                      undo->edit_action = AGT_CFG_EDIT_ACTION_SET;
-                     restore_newnode(undo);
+                     restore_newnode(instance, undo);
                 } else {
-                    res = SET_ERROR(ERR_INTERNAL_VAL);
+                    res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             } else if (newval) {
-                res = add_child_node(newval, newval_marker, parent, msg, 
+                res = add_child_node(instance, newval, newval_marker, parent, msg, 
                                      cur_editop);
             } else {
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
             break;
         case OP_EDITOP_REPLACE:
@@ -1730,70 +1768,70 @@ static status_t
             if (curval) {
                  if (newval && newval->editvars && 
                      newval->editvars->insertstr) {
-                     res = move_child_node(newval, newval_marker, curval,
+                     res = move_child_node(instance, newval, newval_marker, curval,
                                            parent, msg, cur_editop);
                  } else if (newval) {
-                     undo = add_undo_node(msg, cur_editop, newval, 
+                     undo = add_undo_node(instance, msg, cur_editop, newval, 
                                           newval_marker, curval, NULL, parent);
                      if (undo == NULL) {
                          /* no detailed rpc-error is recorded here!!!
                           * relying on catch-all operation-failed in 
                           * agt_rpc_dispatch */
-                         restore_newnode2(newval, newval_marker);
+                         restore_newnode2(instance, newval, newval_marker);
                          return ERR_INTERNAL_MEM;
                      }
 
-                     if (obj_is_leafy(curval->obj)) {
-                         undo->apply_res = res = val_merge(newval, curval);
+                     if (obj_is_leafy(instance, curval->obj)) {
+                         undo->apply_res = res = val_merge(instance, newval, curval);
                          undo->edit_action = AGT_CFG_EDIT_ACTION_SET;
-                         restore_newnode(undo);
+                         restore_newnode(instance, undo);
                      } else {
-                         val_insert_child(newval, curval, parent);
+                         val_insert_child(instance, newval, curval, parent);
                          VAL_MARK_DELETED(curval);
                          undo->edit_action = AGT_CFG_EDIT_ACTION_REPLACE;
                          undo->free_curnode = TRUE;
                      }
                  } else {
-                     res = SET_ERROR(ERR_INTERNAL_VAL);
+                     res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                  }
             } else if (newval) {
-                 res = add_child_node(newval, newval_marker, parent, msg,
+                 res = add_child_node(instance, newval, newval_marker, parent, msg,
                                       cur_editop);
             } else {
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
              break;
          case OP_EDITOP_CREATE:
              if (newval && curval) {
                  /* there must be a default leaf */
-                 undo = add_undo_node(msg, cur_editop, newval, 
+                 undo = add_undo_node(instance, msg, cur_editop, newval, 
                                       newval_marker, curval, NULL, parent);
                  if (undo == NULL) {
                      /* no detailed rpc-error is recorded here!!!
                       * relying on catch-all operation-failed in 
                       * agt_rpc_dispatch */
-                     restore_newnode2(newval, newval_marker);
+                     restore_newnode2(instance, newval, newval_marker);
                      return ERR_INTERNAL_MEM;
                  }
-                 undo->apply_res = res = val_merge(newval, curval);
+                 undo->apply_res = res = val_merge(instance, newval, curval);
                  undo->edit_action = AGT_CFG_EDIT_ACTION_SET;
-                 restore_newnode(undo);
+                 restore_newnode(instance, undo);
              } else if (newval) {
-                 res = add_child_node(newval, newval_marker, parent, msg,
+                 res = add_child_node(instance, newval, newval_marker, parent, msg,
                                       cur_editop);
              } else {
-                 res = SET_ERROR(ERR_INTERNAL_VAL);
+                 res = SET_ERROR(instance, ERR_INTERNAL_VAL);
              }
              break;
          case OP_EDITOP_LOAD:
              assert( newval && "newval NULL in LOAD" );
-             undo = add_undo_node(msg, cur_editop, newval, newval_marker, 
+             undo = add_undo_node(instance, msg, cur_editop, newval, newval_marker, 
                                   curval, NULL, parent);
              if (undo == NULL) {
                  /* no detailed rpc-error is recorded here!!!
                   * relying on catch-all operation-failed in 
                   * agt_rpc_dispatch */
-                 restore_newnode2(newval, newval_marker);
+                 restore_newnode2(instance, newval, newval_marker);
                  return ERR_INTERNAL_MEM;
              }
              break;
@@ -1804,23 +1842,23 @@ static status_t
                  break;
              }
 
-             undo = add_undo_node(msg, cur_editop, newval, newval_marker,
+             undo = add_undo_node(instance, msg, cur_editop, newval, newval_marker,
                                   curval, NULL, parent);
              if (undo == NULL) {
                  /* no detailed rpc-error is recorded here!!!
                   * relying on catch-all operation-failed in agt_rpc_dispatch */
-                 restore_newnode2(newval, newval_marker);
+                 restore_newnode2(instance, newval, newval_marker);
                  return ERR_INTERNAL_MEM;
              }
 
              if (curval->parent) {
-                 val_set_dirty_flag(curval->parent);
+                 val_set_dirty_flag(instance, curval->parent);
              }
 
              /* check if this is a leaf with a default */
-             if (obj_get_default(curval->obj)) {
+             if (obj_get_default(instance, curval->obj)) {
                  /* convert this leaf to its default value */
-                 res = val_delete_default_leaf(curval);
+                 res = val_delete_default_leaf(instance, curval);
                  undo->edit_action = AGT_CFG_EDIT_ACTION_DELETE_DEFAULT;
              } else {
                  /* mark this node as deleted */
@@ -1830,7 +1868,7 @@ static status_t
              }
              break;
          default:
-             return SET_ERROR(ERR_INTERNAL_VAL);
+             return SET_ERROR(instance, ERR_INTERNAL_VAL);
          }
      }
 
@@ -1838,24 +1876,24 @@ static status_t
          newval->btyp == NCX_BT_LIST && cur_editop == OP_EDITOP_MERGE) {
 
          if (undo == NULL) {
-             undo = add_undo_node(msg, editop, newval, newval_marker,
+             undo = add_undo_node(instance, msg, editop, newval, newval_marker,
                                   curval, NULL, parent);
              if (undo == NULL) {
-                 restore_newnode2(newval, newval_marker);
+                 restore_newnode2(instance, newval, newval_marker);
                  res = ERR_INTERNAL_MEM;
              }
          }
          if (res == NO_ERR) {
              /* move the list entry after the merge is done */
-             res = move_mergedlist_node(newval, curval, parent, undo);
+             res = move_mergedlist_node(instance, newval, curval, parent, undo);
          }
      }
 
      if (res == NO_ERR && newval && curval) {
          if (topreplace ||
-             (editop == OP_EDITOP_COMMIT && !typ_is_simple(newval->btyp) &&
-              val_get_subtree_dirty_flag(newval))) {
-             res = apply_commit_deletes(scb, msg, target, newval, curval);
+             (editop == OP_EDITOP_COMMIT && !typ_is_simple(instance, newval->btyp) &&
+              val_get_subtree_dirty_flag(instance, newval))) {
+             res = apply_commit_deletes(instance, scb, msg, target, newval, curval);
          }
      }
 
@@ -1865,8 +1903,8 @@ static status_t
          editop == OP_EDITOP_LOAD) {
          /* there is no newval_marker for this root node newval
           * so this operation cannot be undone   */
-         val_remove_child(newval);
-         cfg_apply_load_root(target, newval);
+         val_remove_child(instance, newval);
+         cfg_apply_load_root(instance, target, newval);
      }
 
      return res;
@@ -1888,7 +1926,8 @@ static status_t
  *   status
  *********************************************************************/
  static status_t
-     check_withdef_default (ses_cb_t  *scb,
+     check_withdef_default (ncx_instance_t *instance,
+                            ses_cb_t  *scb,
                             rpc_msg_t  *msg,
                             val_value_t  *newval)
  {
@@ -1903,12 +1942,12 @@ static status_t
          res = ERR_NCX_WRONG_NODETYP;
      } else {
          /* check leaf has a schema default */
-         const xmlChar *defstr = obj_get_default(newval->obj);
+         const xmlChar *defstr = obj_get_default(instance, newval->obj);
          if (defstr == NULL) {
              res = ERR_NCX_NO_DEFAULT;
          } else {
              /* check value provided is the same as the default */
-             int32 ret = val_compare_to_string(newval, defstr, &res);
+             int32 ret = val_compare_to_string(instance, newval, defstr, &res);
              if (res == NO_ERR && ret != 0) {
                  res = ERR_NCX_INVALID_VALUE;
              }
@@ -1916,7 +1955,7 @@ static status_t
          }
 
     if (res != NO_ERR) {
-        agt_record_error(scb, &msg->mhdr, NCX_LAYER_CONTENT, res, NULL, 
+        agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_CONTENT, res, NULL, 
                          NCX_NT_VAL, newval, NCX_NT_VAL, newval);
     }
 
@@ -1937,7 +1976,8 @@ static status_t
  *   
  * \return status
  *********************************************************************/
-static status_t invoke_simval_cb_validate( op_editop_t editop,
+static status_t invoke_simval_cb_validate(ncx_instance_t *instance,
+                                            op_editop_t editop,
                                            ses_cb_t  *scb,
                                            rpc_msg_t  *msg,
                                            val_value_t  *newval,
@@ -1946,16 +1986,17 @@ static status_t invoke_simval_cb_validate( op_editop_t editop,
 {
     assert ( newval && "newval is NULL!" );
 
-    log_debug4( "\ninvoke_simval:validate: %s:%s start", 
-                obj_get_mod_name(newval->obj), newval->name);
+    log_debug4(instance, 
+                 "\ninvoke_simval:validate: %s:%s start", 
+                obj_get_mod_name(instance, newval->obj), newval->name);
 
     /* check and adjust the operation attribute */
     boolean is_validate = msg->rpc_txcb->is_validate;
-    ncx_iqual_t iqual = val_get_iqualval(newval);
+    ncx_iqual_t iqual = val_get_iqualval(instance, newval);
     op_editop_t cur_editop = OP_EDITOP_NONE;
     op_editop_t cvtop = cvt_editop(editop, newval, curval);
-    status_t res = agt_check_editop( cvtop, &cur_editop, newval, curval, 
-                                     iqual, ses_get_protocol(scb) );
+    status_t res = agt_check_editop(instance,  cvtop, &cur_editop, newval, curval, 
+                                     iqual, ses_get_protocol(instance, scb) );
     if (cur_editop == OP_EDITOP_NONE) {
         cur_editop = editop;
     }
@@ -1966,24 +2007,24 @@ static status_t invoke_simval_cb_validate( op_editop_t editop,
     if (res == ERR_NCX_BAD_ATTRIBUTE) {
         xml_attr_t             errattr;
         memset(&errattr, 0x0, sizeof(xml_attr_t));
-        errattr.attr_ns = xmlns_nc_id();
+        errattr.attr_ns = xmlns_nc_id(instance);
         errattr.attr_name = NC_OPERATION_ATTR_NAME;
         errattr.attr_val = (xmlChar *)NULL;
 
-        agt_record_attr_error( scb, &msg->mhdr, NCX_LAYER_CONTENT, res, 
+        agt_record_attr_error(instance,  scb, &msg->mhdr, NCX_LAYER_CONTENT, res, 
                                &errattr, NULL, NULL, NCX_NT_VAL, newval );
         return res;
     } else if (res != NO_ERR) {
-        agt_record_error( scb, &msg->mhdr, NCX_LAYER_CONTENT, res, NULL,
+        agt_record_error(instance,  scb, &msg->mhdr, NCX_LAYER_CONTENT, res, NULL,
                           NCX_NT_NONE, NULL, NCX_NT_VAL, newval );
         return res;
     }
 
     /* check the operation against the object definition and whether or not 
      * the entry currently exists */
-    res = agt_check_max_access(newval, (curval != NULL));
+    res = agt_check_max_access(instance, newval, (curval != NULL));
     if ( res != NO_ERR ) {
-        agt_record_error( scb, &msg->mhdr, NCX_LAYER_CONTENT, res, NULL, 
+        agt_record_error(instance,  scb, &msg->mhdr, NCX_LAYER_CONTENT, res, NULL, 
                           NCX_NT_VAL, newval, NCX_NT_VAL, newval );
         return res;
     }
@@ -1995,16 +2036,16 @@ static status_t invoke_simval_cb_validate( op_editop_t editop,
      * later, and this is a useless corner-case so clients should not do it */
     if (curval) {
         uint32   lockid = 0;
-        res = val_write_ok( curval, cur_editop, SES_MY_SID(scb),
+        res = val_write_ok(instance,  curval, cur_editop, SES_MY_SID(scb),
                             FALSE, &lockid );
         if (res != NO_ERR) {
-            agt_record_error( scb, &msg->mhdr, NCX_LAYER_OPERATION, res, NULL, 
+            agt_record_error(instance,  scb, &msg->mhdr, NCX_LAYER_OPERATION, res, NULL, 
                               NCX_NT_UINT32_PTR, &lockid, NCX_NT_VAL, curval );
             return res;
         }
     }
 
-    res = check_insert_attr(scb, msg, newval, curparent);
+    res = check_insert_attr(instance, scb, msg, newval, curparent);
     if (res != NO_ERR) {
         /* error already recorded */
         return res;
@@ -2013,8 +2054,8 @@ static status_t invoke_simval_cb_validate( op_editop_t editop,
     /* check if the wd:default attribute is present and if so, that it is used 
      * properly; this needs to be done after the effective operation is set for 
      * newval */
-    if ( val_has_withdef_default(newval) ) {
-         res = check_withdef_default( scb, msg, newval );
+    if ( val_has_withdef_default(instance, newval) ) {
+         res = check_withdef_default(instance,  scb, msg, newval );
          if (res != NO_ERR) {
               return res;
          }
@@ -2022,8 +2063,8 @@ static status_t invoke_simval_cb_validate( op_editop_t editop,
 
     /* check the user callback only if there is some operation in 
      * affect already */
-    if ( agt_apply_this_node(cur_editop, newval, curval)) {
-        res = handle_user_callback( AGT_CB_VALIDATE, cur_editop,  scb, msg,
+    if ( agt_apply_this_node(instance, cur_editop, newval, curval)) {
+        res = handle_user_callback(instance,  AGT_CB_VALIDATE, cur_editop,  scb, msg,
                                     newval, curval, TRUE, FALSE );
     }
     return res;
@@ -2042,7 +2083,8 @@ static status_t invoke_simval_cb_validate( op_editop_t editop,
  * \return status
  *********************************************************************/
 static status_t 
-    invoke_simval_cb_apply_commit_check( op_editop_t editop,
+    invoke_simval_cb_apply_commit_check(ncx_instance_t *instance,
+                                          op_editop_t editop,
                                          ses_cb_t *scb,
                                          rpc_msg_t *msg,
                                          cfg_template_t *target,
@@ -2062,7 +2104,7 @@ static status_t
         }
     }
 
-    return apply_write_val( cureditop, scb, msg, target, curparent, 
+    return apply_write_val(instance,  cureditop, scb, msg, target, curparent, 
                             newval, curval, &done );
 }
 
@@ -2083,7 +2125,8 @@ static status_t
  * \return status
  *********************************************************************/
 static status_t
-    invoke_simval_cb (agt_cbtyp_t cbtyp,
+    invoke_simval_cb (ncx_instance_t *instance,
+                      agt_cbtyp_t cbtyp,
                       op_editop_t editop,
                       ses_cb_t  *scb,
                       rpc_msg_t  *msg,
@@ -2097,12 +2140,12 @@ static status_t
     /* check the 'operation' attribute in VALIDATE phase */
     switch (cbtyp) {
     case AGT_CB_VALIDATE:
-        res = invoke_simval_cb_validate( editop, scb, msg, newval, curval,
+        res = invoke_simval_cb_validate(instance,  editop, scb, msg, newval, curval,
                                          curparent );
         break;
 
     case AGT_CB_APPLY:
-        res = invoke_simval_cb_apply_commit_check( editop, scb, msg, target,
+        res = invoke_simval_cb_apply_commit_check(instance,  editop, scb, msg, target,
                                                    newval, curval, curparent );
         break;
 
@@ -2133,7 +2176,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    check_keys_present (ses_cb_t  *scb,
+    check_keys_present (ncx_instance_t *instance,
+                        ses_cb_t  *scb,
                         rpc_msg_t  *msg,
                         val_value_t  *newval)
 {
@@ -2144,19 +2188,20 @@ static status_t
         return NO_ERR;
     }
     if (newval->obj->objtype != OBJ_TYP_LIST) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
-    for (objkey = obj_first_key(newval->obj);
+    for (objkey = obj_first_key(instance, newval->obj);
          objkey != NULL;
-         objkey = obj_next_key(objkey)) {
+         objkey = obj_next_key(instance, objkey)) {
 
-        if (val_find_child(newval, obj_get_mod_name(objkey->keyobj),
-                           obj_get_name(objkey->keyobj))) {
+        if (val_find_child(instance, newval, obj_get_mod_name(instance, objkey->keyobj),
+                           obj_get_name(instance, objkey->keyobj))) {
             continue;
         }
 
         res = ERR_NCX_MISSING_KEY;
-        agt_record_error(scb, 
+        agt_record_error(instance, 
+                         scb, 
                          &msg->mhdr, 
                          NCX_LAYER_CONTENT, 
                          res,
@@ -2195,7 +2240,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    invoke_cpxval_cb (agt_cbtyp_t cbtyp,
+    invoke_cpxval_cb (ncx_instance_t *instance,
+                      agt_cbtyp_t cbtyp,
                       op_editop_t  editop,
                       ses_cb_t  *scb,
                       rpc_msg_t  *msg,
@@ -2217,22 +2263,23 @@ static status_t
         isroot = obj_is_root(newval->obj);
 
         if (LOGDEBUG4 && !isroot) {
-            log_debug4("\ninvoke_cpxval:validate: %s:%s start", 
-                       obj_get_mod_name(newval->obj),
+            log_debug4(instance, 
+                       "\ninvoke_cpxval:validate: %s:%s start", 
+                       obj_get_mod_name(instance, newval->obj),
                        newval->name);
         }
 
         if (editop == OP_EDITOP_COMMIT) {
-            isdirty = val_get_dirty_flag(newval);
+            isdirty = val_get_dirty_flag(instance, newval);
         }
         if (!isroot && isdirty) {
             /* check and adjust the operation attribute */
-            ncx_iqual_t iqual = val_get_iqualval(newval);
+            ncx_iqual_t iqual = val_get_iqualval(instance, newval);
 
             cvtop = cvt_editop(editop, newval, curval);
 
-            res = agt_check_editop(cvtop, &cur_editop, newval, curval, 
-                                   iqual, ses_get_protocol(scb));
+            res = agt_check_editop(instance, cvtop, &cur_editop, newval, curval, 
+                                   iqual, ses_get_protocol(instance, scb));
 
             if (editop != OP_EDITOP_COMMIT ) {
                 /* need to check the max-access but not over-write
@@ -2244,7 +2291,7 @@ static status_t
                 op_editop_t saveop = editop;
                 newval->editop = cur_editop;
                 if (res == NO_ERR) {
-                    res = agt_check_max_access(newval, (curval != NULL));
+                    res = agt_check_max_access(instance, newval, (curval != NULL));
                 }
                 if (is_validate) {
                     newval->editop = saveop;
@@ -2255,14 +2302,14 @@ static status_t
         if (res == NO_ERR) {
             if (!isroot && editop != OP_EDITOP_COMMIT &&
                 cur_editop != OP_EDITOP_LOAD) {
-                res = check_insert_attr(scb, msg, newval, curparent);
+                res = check_insert_attr(instance, scb, msg, newval, curparent);
                 CHK_EXIT(res, retres);
                 res = NO_ERR;   /* any error already recorded */
             }
         }
 
         if (res != NO_ERR) {
-            agt_record_error(scb, &msg->mhdr, NCX_LAYER_CONTENT, res, 
+            agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_CONTENT, res, 
                              NULL, NCX_NT_VAL, newval, NCX_NT_VAL, newval);
             CHK_EXIT(res, retres);
         }
@@ -2271,13 +2318,14 @@ static status_t
             /* make sure all the keys are present since this
              * was not done in agt_val_parse.c
              */
-            if (editop == OP_EDITOP_NONE && !agt_any_operations_set(newval)) {
+            if (editop == OP_EDITOP_NONE && !agt_any_operations_set(instance, newval)) {
                 if (LOGDEBUG3) {
-                    log_debug3("\nSkipping key_check for '%s'; no edit ops",
+                    log_debug3(instance,
+                               "\nSkipping key_check for '%s'; no edit ops",
                                newval->name);
                 }
             } else {
-                res = check_keys_present(scb, msg, newval);
+                res = check_keys_present(instance, scb, msg, newval);
                 /* errors recorded if any */
             }
         }
@@ -2286,8 +2334,8 @@ static status_t
          * it will be an error
          */
         if (res == NO_ERR && !isroot && editop != OP_EDITOP_COMMIT) {
-            if (val_has_withdef_default(newval)) {
-                res = check_withdef_default(scb, msg, newval);
+            if (val_has_withdef_default(instance, newval)) {
+                res = check_withdef_default(instance, scb, msg, newval);
             }
         }
 
@@ -2318,11 +2366,11 @@ static status_t
             } else if (editop == OP_EDITOP_COMMIT && !isdirty) {
                 ;  // no write requested on this node
             } else {
-                res = val_write_ok(useval, cur_editop, SES_MY_SID(scb),
+                res = val_write_ok(instance, useval, cur_editop, SES_MY_SID(scb),
                                    FALSE, &lockid);
             }
             if (res != NO_ERR) {
-                agt_record_error(scb, &msg->mhdr, NCX_LAYER_OPERATION, res, 
+                agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_OPERATION, res, 
                                  NULL, NCX_NT_UINT32_PTR, &lockid, NCX_NT_VAL, 
                                  useval);
             }
@@ -2332,8 +2380,8 @@ static status_t
          * operation in affect already
          */
         if (res == NO_ERR && !isroot && isdirty &&
-            agt_apply_this_node(cur_editop, newval, curval)) {
-            res = handle_user_callback(AGT_CB_VALIDATE, cur_editop, scb,
+            agt_apply_this_node(instance, cur_editop, newval, curval)) {
+            res = handle_user_callback(instance, AGT_CB_VALIDATE, cur_editop, scb,
                                        msg, newval, curval, TRUE, FALSE);
         }
         if (res != NO_ERR) {
@@ -2355,7 +2403,7 @@ static status_t
             cur_editop = editop;
         }
 
-        res = apply_write_val(cur_editop, scb, msg, target,
+        res = apply_write_val(instance, cur_editop, scb, msg, target,
                               curparent, newval, curval, &done);
         if (res != NO_ERR) {
             retres = res;
@@ -2365,7 +2413,7 @@ static status_t
     case AGT_CB_ROLLBACK:
         break;
     default:
-        retres = SET_ERROR(ERR_INTERNAL_VAL);
+        retres = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* change the curparent parameter to the current nodes
@@ -2376,21 +2424,21 @@ static status_t
         } else if (curval) {
             curparent = curval;
         } else {
-            retres = SET_ERROR(ERR_INTERNAL_VAL);
+            retres = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
     /* check all the child nodes next */
     if (retres == NO_ERR && !done && curparent) {
         val_value_t      *chval, *curch, *nextch;
-        for (chval = val_get_first_child(curparent);
+        for (chval = val_get_first_child(instance, curparent);
              chval != NULL && retres == NO_ERR;
              chval = nextch) {
 
-            nextch = val_get_next_child(chval);
+            nextch = val_get_next_child(instance, chval);
 
             if (curval) {
-                curch = val_first_child_match(curval, chval);
+                curch = val_first_child_match(instance, curval, chval);
             } else {
                 curch = NULL;
             }
@@ -2399,7 +2447,7 @@ static status_t
             if (cur_editop == OP_EDITOP_NONE) {
                 cur_editop = editop;
             }
-            res = invoke_btype_cb(cbtyp, cur_editop, scb, msg, target, 
+            res = invoke_btype_cb(instance, cbtyp, cur_editop, scb, msg, target, 
                                   chval, curch, curval);
             //if (chval->res == NO_ERR) {
             //    chval->res = res;
@@ -2431,7 +2479,8 @@ static status_t
 * RETURNS:
 *   status
 *********************************************************************/
-static status_t invoke_btype_cb( agt_cbtyp_t cbtyp,
+static status_t invoke_btype_cb(ncx_instance_t *instance,
+                                  agt_cbtyp_t cbtyp,
                                  op_editop_t editop,
                                  ses_cb_t  *scb,
                                  rpc_msg_t  *msg,
@@ -2447,23 +2496,24 @@ static status_t invoke_btype_cb( agt_cbtyp_t cbtyp,
     } else if (curval != NULL) {
         useval = curval;
     } else {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     boolean is_root = obj_is_root(useval->obj);
 
-    if (editop == OP_EDITOP_COMMIT && !is_root && !val_dirty_subtree(useval)) {
-        log_debug2("\nSkipping unaffected %s in %s commit for %s:%s",
-                   obj_get_typestr(useval->obj), 
-                   agt_cbtype_name(cbtyp),
-                   val_get_mod_name(useval), 
+    if (editop == OP_EDITOP_COMMIT && !is_root && !val_dirty_subtree(instance, useval)) {
+        log_debug2(instance,
+                   "\nSkipping unaffected %s in %s commit for %s:%s",
+                   obj_get_typestr(instance, useval->obj), 
+                   agt_cbtype_name(instance, cbtyp),
+                   val_get_mod_name(instance, useval), 
                    useval->name);
         return NO_ERR;
     }
     
     val_value_t *v_val = NULL;
     status_t res = NO_ERR;
-    boolean has_children = !typ_is_simple(useval->btyp);
+    boolean has_children = !typ_is_simple(instance, useval->btyp);
 
     if (cbtyp == AGT_CB_VALIDATE) {
         boolean check_acm = TRUE;
@@ -2479,27 +2529,27 @@ static status_t invoke_btype_cb( agt_cbtyp_t cbtyp,
                 break;
             case OP_EDITOP_MERGE:
             case OP_EDITOP_REPLACE:
-                if (!val_get_dirty_flag(useval)) {
+                if (!val_get_dirty_flag(instance, useval)) {
                     check_acm = FALSE;
                 }
                 break;
             default:
-                return SET_ERROR(ERR_INTERNAL_VAL);
+                return SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
 
         /* check if allowed access to this node */
         if (check_acm && scb &&
-            !agt_acm_val_write_allowed(&msg->mhdr, scb->username, 
+            !agt_acm_val_write_allowed(instance, &msg->mhdr, scb->username, 
                                        newval, curval, cvtop)) {
             res = ERR_NCX_ACCESS_DENIED;
-            agt_record_error(scb,&msg->mhdr, NCX_LAYER_OPERATION, res,
+            agt_record_error(instance,scb,&msg->mhdr, NCX_LAYER_OPERATION, res,
                              NULL, NCX_NT_NONE, NULL, NCX_NT_NONE, NULL);
             return res;
         }
 
-        if (curval && val_is_virtual(curval)) {
-            v_val = val_get_virtual_value(scb, curval, &res);
+        if (curval && val_is_virtual(instance, curval)) {
+            v_val = val_get_virtual_value(instance, scb, curval, &res);
 
             if (res == ERR_NCX_SKIPPED) {
                 res = NO_ERR;
@@ -2511,7 +2561,7 @@ static status_t invoke_btype_cb( agt_cbtyp_t cbtyp,
         /* check if there are commit deletes to validate */
         if (has_children && 
             msg->rpc_txcb->edit_type == AGT_CFG_EDIT_TYPE_FULL) {
-            res = check_commit_deletes(scb, msg, newval, 
+            res = check_commit_deletes(instance, scb, msg, newval, 
                                        v_val ? v_val : curval);
             if (res != NO_ERR) {
                 return res;
@@ -2521,8 +2571,8 @@ static status_t invoke_btype_cb( agt_cbtyp_t cbtyp,
     } else if (cbtyp == AGT_CB_APPLY && editop == OP_EDITOP_COMMIT &&
                has_children) {
 
-        if (curval && val_is_virtual(curval)) {
-            v_val = val_get_virtual_value(scb, curval, &res);
+        if (curval && val_is_virtual(instance, curval)) {
+            v_val = val_get_virtual_value(instance, scb, curval, &res);
 
             if (res == ERR_NCX_SKIPPED) {
                 res = NO_ERR;
@@ -2534,10 +2584,10 @@ static status_t invoke_btype_cb( agt_cbtyp_t cbtyp,
 
     /* first traverse all the nodes until leaf nodes are reached */
     if (has_children) {
-        res = invoke_cpxval_cb(cbtyp,  editop, scb, msg, target, newval, 
+        res = invoke_cpxval_cb(instance,  cbtyp,  editop, scb, msg, target, newval, 
                                (v_val) ? v_val : curval, curparent, FALSE);
     } else {
-        res = invoke_simval_cb(cbtyp, editop, scb, msg, target, newval, 
+        res = invoke_simval_cb(instance, cbtyp, editop, scb, msg, target, newval, 
                                (v_val) ? v_val : curval, curparent );
         if (newval != NULL && res != NO_ERR) {
             VAL_MARK_DELETED(newval);
@@ -2563,7 +2613,8 @@ static status_t invoke_btype_cb( agt_cbtyp_t cbtyp,
 *
 *********************************************************************/
 static void
-    commit_edit (ses_cb_t *scb,
+    commit_edit (ncx_instance_t *instance,
+                 ses_cb_t *scb,
                  rpc_msg_t *msg,
                  agt_cfg_undo_rec_t *undo)
 {
@@ -2574,19 +2625,19 @@ static void
         return;
     }
 
-    handle_audit_record(undo->editop, scb, msg, undo->newnode, undo->curnode);
+    handle_audit_record(instance, undo->editop, scb, msg, undo->newnode, undo->curnode);
 
     /* check if the newval marker was placed in the source tree */
     if (undo->newnode_marker) {
-        dlq_remove(undo->newnode_marker);
-        val_free_value(undo->newnode_marker);
+        dlq_remove(instance, undo->newnode_marker);
+        val_free_value(instance, undo->newnode_marker);
         undo->newnode_marker = NULL;
     }
 
     /* check if the curval marker was placed in the target tree */
     if (undo->curnode_marker) {
-        dlq_remove(undo->curnode_marker);
-        val_free_value(undo->curnode_marker);
+        dlq_remove(instance, undo->curnode_marker);
+        val_free_value(instance, undo->curnode_marker);
         undo->curnode_marker = NULL;
     }
 
@@ -2594,12 +2645,12 @@ static void
         switch (undo->editop) {
         case OP_EDITOP_REPLACE:
         case OP_EDITOP_COMMIT:
-            val_check_swap_resnode(undo->curnode, undo->newnode);
+            val_check_swap_resnode(instance, undo->curnode, undo->newnode);
             break;
         case OP_EDITOP_DELETE:
         case OP_EDITOP_REMOVE:
             if (undo->curnode) {
-                val_check_delete_resnode(undo->curnode);
+                val_check_delete_resnode(instance, undo->curnode);
             }
             break;
         default:
@@ -2609,34 +2660,34 @@ static void
 
     if (undo->newnode) {
         if (msg->rpc_txcb->cfg_id == NCX_CFGID_RUNNING) {
-            val_clear_dirty_flag(undo->newnode);
+            val_clear_dirty_flag(instance, undo->newnode);
         } else {
-            val_set_dirty_flag(undo->newnode);
+            val_set_dirty_flag(instance, undo->newnode);
         }
     }
 
     if (undo->curnode) {
         if (msg->rpc_txcb->cfg_id == NCX_CFGID_RUNNING) {
-            val_clear_dirty_flag(undo->curnode);
+            val_clear_dirty_flag(instance, undo->curnode);
         } else {
-            val_set_dirty_flag(undo->curnode);
+            val_set_dirty_flag(instance, undo->curnode);
         }
         if (undo->free_curnode) {
             if (VAL_IS_DELETED(undo->curnode)) {
-                val_remove_child(undo->curnode);
+                val_remove_child(instance, undo->curnode);
              }
             if (undo->curnode_clone) {
                 /* do not need curnode as a backup for redo-restore */
-                val_free_value(undo->curnode);
+                val_free_value(instance, undo->curnode);
                 undo->curnode = NULL;
             }
         }
     }
 
-    clean_node(undo->newnode);
-    clean_node(undo->curnode);
+    clean_node(instance, undo->newnode);
+    clean_node(instance, undo->curnode);
 
-    finish_extra_deletes(msg->rpc_txcb->cfg_id, undo);
+    finish_extra_deletes(instance, msg->rpc_txcb->cfg_id, undo);
 
     /* rest of cleanup will be done in agt_cfg_free_undorec;
      * Saving curnode_clone or curnode and the entire extra_deleteQ
@@ -2662,17 +2713,19 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    reverse_edit (agt_cfg_undo_rec_t *undo,
+    reverse_edit (ncx_instance_t *instance,
+                  agt_cfg_undo_rec_t *undo,
                   ses_cb_t  *scb,
                   rpc_msg_t  *msg)
 {
     agt_cfg_transaction_t *txcb = msg->rpc_txcb;
     if (LOGDEBUG3) {
         val_value_t *logval = undo->newnode ? undo->newnode : undo->curnode;
-        log_debug3("\nReverse transaction %llu, %s edit on %s:%s",
+        log_debug3(instance,
+                   "\nReverse transaction %llu, %s edit on %s:%s",
                    (unsigned long long)txcb->txid,
                    op_editop_name(undo->editop),
-                   val_get_mod_name(logval),
+                   val_get_mod_name(instance, logval),
                    logval->name);
     }
 
@@ -2685,7 +2738,7 @@ static status_t
     
     switch (undo->edit_action) {
     case AGT_CFG_EDIT_ACTION_NONE:
-        log_warn("\nError: undo record has no action set");
+        log_warn(instance, "\nError: undo record has no action set");
         return NO_ERR;
 
     case AGT_CFG_EDIT_ACTION_ADD:
@@ -2743,14 +2796,14 @@ static status_t
         break;
 
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    res = handle_user_callback(AGT_CB_APPLY, editop, scb, msg, 
+    res = handle_user_callback(instance, AGT_CB_APPLY, editop, scb, msg, 
                                newval, curval, lookparent, indelete);
 
     if (res == NO_ERR) {
-        res = handle_user_callback(AGT_CB_COMMIT, editop, scb, msg, 
+        res = handle_user_callback(instance, AGT_CB_COMMIT, editop, scb, msg, 
                                    newval, curval, lookparent, indelete);
     }
 
@@ -2762,27 +2815,28 @@ static status_t
         indelete = FALSE;
 
         agt_cfg_nodeptr_t *nodeptr = (agt_cfg_nodeptr_t *)
-            dlq_firstEntry(&undo->extra_deleteQ);
+            dlq_firstEntry(instance, &undo->extra_deleteQ);
         for (; nodeptr && res == NO_ERR; 
-             nodeptr = (agt_cfg_nodeptr_t *)dlq_nextEntry(nodeptr)) {
+             nodeptr = (agt_cfg_nodeptr_t *)dlq_nextEntry(instance, nodeptr)) {
             if (nodeptr && nodeptr->node) {
                 newval = nodeptr->node;
-                res = handle_user_callback(AGT_CB_APPLY, editop, scb, msg, 
+                res = handle_user_callback(instance, AGT_CB_APPLY, editop, scb, msg, 
                                            newval, curval, lookparent, 
                                            indelete);
                 if (res == NO_ERR) {
-                    res = handle_user_callback(AGT_CB_COMMIT, editop, scb, msg, 
+                    res = handle_user_callback(instance, AGT_CB_COMMIT, editop, scb, msg, 
                                                newval, curval, lookparent, 
                                                indelete);
                 }
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
     }
 
     if (res != NO_ERR) {
-        log_error("\nError: SIL rejected reverse edit (%s)",
+        log_error(instance,
+                  "\nError: SIL rejected reverse edit (%s)",
                   get_error_string(res));
     }
 
@@ -2806,7 +2860,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    rollback_edit (agt_cfg_undo_rec_t *undo,
+    rollback_edit (ncx_instance_t *instance,
+                   agt_cfg_undo_rec_t *undo,
                    ses_cb_t  *scb,
                    rpc_msg_t  *msg,
                    cfg_template_t *target)
@@ -2817,15 +2872,16 @@ static status_t
 
     if (LOGDEBUG2) {
         val_value_t *logval = undo->newnode ? undo->newnode : undo->curnode;
-        log_debug2("\nRollback transaction %llu, %s edit on %s:%s",
+        log_debug2(instance,
+                   "\nRollback transaction %llu, %s edit on %s:%s",
                    (unsigned long long)msg->rpc_txcb->txid,
                    op_editop_name(undo->editop),
-                   val_get_mod_name(logval),
+                   val_get_mod_name(instance, logval),
                    logval->name);
     }
 
     if (undo->editop == OP_EDITOP_LOAD) {
-        log_debug3("\nSkipping rollback edit of LOAD operation");
+        log_debug3(instance, "\nSkipping rollback edit of LOAD operation");
         undo->newnode = NULL;
         return NO_ERR;
     }
@@ -2839,7 +2895,7 @@ static status_t
     switch (undo->commit_res) {
     case NO_ERR:
         /* need a redo edit since the SIL already completed the commit */
-        res = reverse_edit(undo, scb, msg);
+        res = reverse_edit(instance, undo, scb, msg);
         break;
 
     case ERR_NCX_SKIPPED:
@@ -2847,16 +2903,18 @@ static status_t
          * first call the SIL with the ROLLBACK request
          */
         if (cfgid == NCX_CFGID_RUNNING) {
-            undo->rollback_res = handle_user_callback(AGT_CB_ROLLBACK, 
+            undo->rollback_res = handle_user_callback(instance, 
+                                                      AGT_CB_ROLLBACK, 
                                                       undo->editop,
                                                       scb, msg, undo->newnode, 
                                                       curval, TRUE, FALSE);
             if (undo->rollback_res != NO_ERR) {
                 val_value_t *logval = undo->newnode ? undo->newnode : curval;
-                log_warn("\nWarning: SIL rollback for %s:%s in transaction "
+                log_warn(instance,
+                         "\nWarning: SIL rollback for %s:%s in transaction "
                          "%llu failed (%s)",
                          (unsigned long long)msg->rpc_txcb->txid,
-                         val_get_mod_name(logval), 
+                         val_get_mod_name(instance, logval), 
                          logval->name,
                          get_error_string(undo->rollback_res));
                 res = undo->rollback_res;
@@ -2892,33 +2950,33 @@ static status_t
     case OP_EDITOP_CREATE:
         /* delete the node from the tree; if there was a default
          * leaf before then restore curval as well   */
-        val_remove_child(undo->newnode);
-        restore_newnode(undo);
-        restore_curnode(undo, target);
+        val_remove_child(instance, undo->newnode);
+        restore_newnode(instance, undo);
+        restore_curnode(instance, undo, target);
         break;
     case OP_EDITOP_DELETE:
     case OP_EDITOP_REMOVE:
         /* no need to restore newnode */
-        restore_curnode(undo, target);
+        restore_curnode(instance, undo, target);
         break;
     case OP_EDITOP_MERGE:
     case OP_EDITOP_REPLACE:
         /* check if the old node needs to be swapped back
          * or if the new node is just removed
          */
-        restore_curnode(undo, target);
+        restore_curnode(instance, undo, target);
 
         /* undo newval that was a new or merged child node */
         if (undo->newnode_marker) {
-            val_remove_child(undo->newnode);
+            val_remove_child(instance, undo->newnode);
         }
-        restore_newnode(undo);
+        restore_newnode(instance, undo);
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    restore_extra_deletes(&undo->extra_deleteQ);
+    restore_extra_deletes(instance, &undo->extra_deleteQ);
 
     return res;
 
@@ -2944,7 +3002,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    attempt_commit (ses_cb_t *scb,
+    attempt_commit (ncx_instance_t *instance,
+                    ses_cb_t *scb,
                     rpc_msg_t *msg,
                     cfg_template_t *target)
 {
@@ -2952,7 +3011,7 @@ static status_t
     agt_cfg_transaction_t *txcb = msg->rpc_txcb;
 
     if (LOGDEBUG) {
-        uint32 editcnt = dlq_count(&txcb->undoQ);
+        uint32 editcnt = dlq_count(instance, &txcb->undoQ);
         const xmlChar *cntstr = NULL;
         switch (editcnt) {
         case 0:
@@ -2964,11 +3023,12 @@ static status_t
             cntstr = (const xmlChar *)"edits";
         }
         if (editcnt) {
-            log_debug("\nStart full commit of transaction %llu: %d"
+            log_debug(instance, "\nStart full commit of transaction %llu: %d"
                       " %s on %s config", txcb->txid,
                       editcnt, cntstr, target->name);
         } else {
-            log_debug("\nStart full commit of transaction %llu:"
+            log_debug(instance,
+                      "\nStart full commit of transaction %llu:"
                       " LOAD operation on %s config",
                       txcb->txid, target->name);
         }
@@ -2976,8 +3036,8 @@ static status_t
 
     /* first make sure all SIL callbacks accept the commit */
     if (target->cfg_id == NCX_CFGID_RUNNING) {
-        undo = (agt_cfg_undo_rec_t *)dlq_firstEntry(&txcb->undoQ);
-        for (; undo != NULL; undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(undo)) {
+        undo = (agt_cfg_undo_rec_t *)dlq_firstEntry(instance, &txcb->undoQ);
+        for (; undo != NULL; undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(instance, undo)) {
 
             if (undo->curnode && undo->curnode->parent == NULL) {
                 /* node was actually removed in delete operation */
@@ -2985,16 +3045,17 @@ static status_t
             }
 
             undo->commit_res = 
-                handle_user_callback(AGT_CB_COMMIT, undo->editop, scb, msg, 
+                handle_user_callback(instance, AGT_CB_COMMIT, undo->editop, scb, msg, 
                                      undo->newnode, undo->curnode, TRUE, FALSE);
             if (undo->commit_res != NO_ERR) {
                 val_value_t *logval = undo->newnode ? undo->newnode : 
                     undo->curnode;
                 if (LOGDEBUG) {
-                    log_debug("\nHalting commit %llu: %s:%s SIL returned error"
+                    log_debug(instance,
+                              "\nHalting commit %llu: %s:%s SIL returned error"
                               " (%s)",
                               (unsigned long long)txcb->txid,
-                              val_get_mod_name(logval), 
+                              val_get_mod_name(instance, logval), 
                               logval->name,
                               get_error_string(undo->commit_res));
                 }
@@ -3006,35 +3067,35 @@ static status_t
     /* all SIL commit callbacks accepted and finalized the commit
      * now go through and finalize the edit; this step should not fail 
      * first, finish deleting any false when-stmt nodes then commit edits */
-    while (!dlq_empty(&txcb->deadnodeQ)) {
+    while (!dlq_empty(instance, &txcb->deadnodeQ)) {
         agt_cfg_nodeptr_t *nodeptr = (agt_cfg_nodeptr_t *)
-            dlq_deque(&txcb->deadnodeQ);
+            dlq_deque(instance, &txcb->deadnodeQ);
         if (nodeptr && nodeptr->node) {
             /* mark ancestor nodes dirty before deleting this node */
-            val_remove_child(nodeptr->node);
-            val_free_value(nodeptr->node);
+            val_remove_child(instance, nodeptr->node);
+            val_free_value(instance, nodeptr->node);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
-        agt_cfg_free_nodeptr(nodeptr);
+        agt_cfg_free_nodeptr(instance, nodeptr);
     }
-    undo = (agt_cfg_undo_rec_t *)dlq_firstEntry(&txcb->undoQ);
-    for (; undo != NULL; undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(undo)) {
-        commit_edit(scb, msg, undo);
+    undo = (agt_cfg_undo_rec_t *)dlq_firstEntry(instance, &txcb->undoQ);
+    for (; undo != NULL; undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(instance, undo)) {
+        commit_edit(instance, scb, msg, undo);
     }
 
     /* update the last change time
      * this will only apply here to candidate or running
      */
-    cfg_update_last_ch_time(target);
+    cfg_update_last_ch_time(instance, target);
     cfg_update_last_txid(target, txcb->txid);
-    cfg_set_dirty_flag(target);
+    cfg_set_dirty_flag(instance, target);
 
     agt_profile_t *profile = agt_get_profile();
     profile->agt_config_state = AGT_CFG_STATE_OK;
 
     if (LOGDEBUG) {
-        log_debug("\nComplete commit OK of transaction %llu"
+        log_debug(instance,  "\nComplete commit OK of transaction %llu"
                   " on %s database",  (unsigned long long)txcb->txid,
                   target->name);
     }
@@ -3064,7 +3125,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    attempt_rollback (ses_cb_t  *scb,
+    attempt_rollback (ncx_instance_t *instance,
+                      ses_cb_t  *scb,
                       rpc_msg_t  *msg,
                       cfg_template_t *target)
 {
@@ -3073,7 +3135,7 @@ static status_t
     agt_cfg_transaction_t *txcb = msg->rpc_txcb;
 
     if (LOGDEBUG) {
-        uint32 editcnt = dlq_count(&txcb->undoQ);
+        uint32 editcnt = dlq_count(instance, &txcb->undoQ);
         const xmlChar *cntstr = NULL;
         switch (editcnt) {
         case 0:
@@ -3085,23 +3147,24 @@ static status_t
             cntstr = (const xmlChar *)"edits";
         }
         if (editcnt) {
-            log_debug("\nStart full rollback of transaction %llu: %d"
+            log_debug(instance, "\nStart full rollback of transaction %llu: %d"
                       " %s on %s config", txcb->txid,
                       editcnt, cntstr, target->name);
         } else {
-            log_debug("\nStart full rollback of transaction %llu:"
+            log_debug(instance,
+                      "\nStart full rollback of transaction %llu:"
                       " LOAD operation on %s config",
                       txcb->txid, target->name);
         }
     }
 
-    restore_extra_deletes(&txcb->deadnodeQ);
+    restore_extra_deletes(instance, &txcb->deadnodeQ);
 
     agt_cfg_undo_rec_t  *undo = (agt_cfg_undo_rec_t *)
-        dlq_firstEntry(&txcb->undoQ);
-    for (; undo != NULL; undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(undo)) {
+        dlq_firstEntry(instance, &txcb->undoQ);
+    for (; undo != NULL; undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(instance, undo)) {
         /* rollback the edit operation */
-        undo->rollback_res = rollback_edit(undo, scb, msg, target);
+        undo->rollback_res = rollback_edit(instance, undo, scb, msg, target);
         if (undo->rollback_res != NO_ERR) {
             res = undo->rollback_res;
         }
@@ -3131,7 +3194,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    handle_callback (agt_cbtyp_t cbtyp,
+    handle_callback (ncx_instance_t *instance,
+                     agt_cbtyp_t cbtyp,
                      op_editop_t editop,
                      ses_cb_t  *scb,
                      rpc_msg_t  *msg,
@@ -3148,35 +3212,37 @@ static status_t
 
     if (LOGDEBUG2) {
         if (editop == OP_EDITOP_DELETE) {
-            log_debug2("\n\n***** start commit_deletes for "
+            log_debug2(instance,
+                       "\n\n***** start commit_deletes for "
                        "session %d, transaction %llu *****\n",
                        scb ? SES_MY_SID(scb) : 0, 
                        (unsigned long long)txcb->txid);
         } else {
-            log_debug2("\n\n***** start %s callback phase for "
+            log_debug2(instance,
+                       "\n\n***** start %s callback phase for "
                        "session %d, transaction %llu *****\n",
-                       agt_cbtype_name(cbtyp), scb ? SES_MY_SID(scb) : 0,
+                       agt_cbtype_name(instance, cbtyp), scb ? SES_MY_SID(scb) : 0,
                        (unsigned long long)txcb->txid);
         }
     }
 
     /* get the node to check */
     if (newval == NULL && curval == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* check if trying to write to a config=false node */
-    if (newval != NULL && !val_is_config_data(newval)) {
+    if (newval != NULL && !val_is_config_data(instance, newval)) {
         res = ERR_NCX_ACCESS_READ_ONLY;
-        agt_record_error(scb, &msg->mhdr, NCX_LAYER_OPERATION, res,
+        agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_OPERATION, res,
                          NULL, NCX_NT_NONE, NULL, NCX_NT_VAL, newval);
         return res;
     }
 
     /* check if trying to delete a config=false node */
-    if (newval == NULL && curval != NULL && !val_is_config_data(curval)) {
+    if (newval == NULL && curval != NULL && !val_is_config_data(instance, curval)) {
         res = ERR_NCX_ACCESS_READ_ONLY;
-        agt_record_error(scb, &msg->mhdr, NCX_LAYER_OPERATION, res, NULL, 
+        agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_OPERATION, res, NULL, 
                          NCX_NT_NONE, NULL, NCX_NT_VAL, curval);
         return res;
     }
@@ -3186,18 +3252,19 @@ static status_t
     case AGT_CB_VALIDATE:
     case AGT_CB_APPLY:
         /* keep checking until all the child nodes have been processed */
-        res = invoke_btype_cb(cbtyp, editop, scb, msg, target, newval, curval,
+        res = invoke_btype_cb(instance, cbtyp, editop, scb, msg, target, newval, curval,
                               curparent);
         if (cbtyp == AGT_CB_APPLY) {
             txcb->apply_res = res;
         }
         break;
     case AGT_CB_COMMIT:
-        txcb->commit_res = res = attempt_commit(scb, msg, target);
+        txcb->commit_res = res = attempt_commit(instance, scb, msg, target);
         if (res != NO_ERR) {
-            txcb->rollback_res = attempt_rollback(scb, msg, target);
+            txcb->rollback_res = attempt_rollback(instance, scb, msg, target);
             if (txcb->rollback_res != NO_ERR) {
-                log_warn("\nWarning: Recover rollback of transaction "
+                log_warn(instance,
+                         "\nWarning: Recover rollback of transaction "
                          "%llu failed (%s)",
                          (unsigned long long)txcb->txid,
                          get_error_string(txcb->rollback_res));
@@ -3205,16 +3272,17 @@ static status_t
         }
         break;
     case AGT_CB_ROLLBACK:
-        txcb->rollback_res = res = attempt_rollback(scb, msg, target);
+        txcb->rollback_res = res = attempt_rollback(instance, scb, msg, target);
         if (res != NO_ERR) {
-            log_warn("\nWarning: Apply rollback of transaction "
+            log_warn(instance,
+                     "\nWarning: Apply rollback of transaction "
                      "%llu failed (%s)",
                      (unsigned long long)txcb->txid,
                      get_error_string(res));
         }
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -3245,7 +3313,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    apply_commit_deletes (ses_cb_t  *scb,
+    apply_commit_deletes (ncx_instance_t *instance,
+                          ses_cb_t  *scb,
                           rpc_msg_t  *msg,
                           cfg_template_t *target,
                           val_value_t *candval,
@@ -3262,24 +3331,24 @@ static status_t
      * if the matching node is not in the candidate,
      * then delete that node in the running config as well
      */
-    for (curval = val_get_first_child(runval);
+    for (curval = val_get_first_child(instance, runval);
          curval != NULL && res == NO_ERR; 
          curval = nextval) {
 
-        nextval = val_get_next_child(curval);
+        nextval = val_get_next_child(instance, curval);
 
         /* check only database config nodes */
-        if (obj_is_data_db(curval->obj) &&
-            obj_is_config(curval->obj)) {
+        if (obj_is_data_db(instance, curval->obj) &&
+            obj_is_config(instance, curval->obj)) {
 
             /* check if node deleted in source */
-            val_value_t *matchval = val_first_child_match(candval, curval);
+            val_value_t *matchval = val_first_child_match(instance, candval, curval);
             if (!matchval) {
                 /* prevent the agt_val code from ignoring this node */
-                val_set_dirty_flag(curval);
+                val_set_dirty_flag(instance, curval);
 
                 /* deleted in the source, so delete in the target */
-                res = handle_callback(AGT_CB_APPLY, OP_EDITOP_DELETE, 
+                res = handle_callback(instance, AGT_CB_APPLY, OP_EDITOP_DELETE, 
                                       scb, msg, target, NULL, curval, runval);
             }
         }  /* else skip non-config database node */
@@ -3304,16 +3373,18 @@ static status_t
 *   FALSE if compare test not equal
 *********************************************************************/
 static boolean
-    compare_unique_testsets (dlq_hdr_t *uni1Q,
+    compare_unique_testsets (ncx_instance_t *instance,
+                             dlq_hdr_t *uni1Q,
                              dlq_hdr_t *uni2Q)
 {
     /* compare the 2 Qs of values */
-    val_unique_t *uni1 = (val_unique_t *)dlq_firstEntry(uni1Q);
-    val_unique_t *uni2 = (val_unique_t *)dlq_firstEntry(uni2Q);
+    val_unique_t *uni1 = (val_unique_t *)dlq_firstEntry(instance, uni1Q);
+    val_unique_t *uni2 = (val_unique_t *)dlq_firstEntry(instance, uni2Q);
 
     while (uni1 && uni2) {
         status_t res = NO_ERR;
-        boolean cmpval = xpath1_compare_nodeset_results(uni1->pcb,
+        boolean cmpval = xpath1_compare_nodeset_results(instance,
+                                                        uni1->pcb,
                                                         uni1->pcb->result,
                                                         uni2->pcb->result,
                                                         &res);
@@ -3324,8 +3395,8 @@ static boolean
         if (!cmpval) {
             return FALSE;
         }
-        uni1 = (val_unique_t *)dlq_nextEntry(uni1);
-        uni2 = (val_unique_t *)dlq_nextEntry(uni2);
+        uni1 = (val_unique_t *)dlq_nextEntry(instance, uni1);
+        uni2 = (val_unique_t *)dlq_nextEntry(instance, uni2);
     }
     return TRUE;
 
@@ -3338,15 +3409,15 @@ static boolean
  *
  * \return the malloced data structure
  *********************************************************************/
-static unique_set_t * new_unique_set (void)
+static unique_set_t * new_unique_set (ncx_instance_t *instance)
 {
-    unique_set_t *uset = m__getObj(unique_set_t);
+    unique_set_t *uset = m__getObj(instance, unique_set_t);
     if (uset == NULL) {
         return NULL;
     }
 
     memset(uset, 0x0, sizeof(unique_set_t));
-    dlq_createSQue(&uset->uniqueQ);
+    dlq_createSQue(instance, &uset->uniqueQ);
     return uset;
 }  /* new_unique_set */
 
@@ -3357,18 +3428,18 @@ static unique_set_t * new_unique_set (void)
  *
  * \param uset the data structure to clean and free
  *********************************************************************/
-static void free_unique_set (unique_set_t *uset)
+static void free_unique_set (ncx_instance_t *instance, unique_set_t *uset)
 {
     if (uset == NULL) {
         return;
     }
 
     val_unique_t *unival;
-    while (!dlq_empty(&uset->uniqueQ)) {
-        unival = (val_unique_t *)dlq_deque(&uset->uniqueQ);
-        val_free_unique(unival);
+    while (!dlq_empty(instance, &uset->uniqueQ)) {
+        unival = (val_unique_t *)dlq_deque(instance, &uset->uniqueQ);
+        val_free_unique(instance, unival);
     }
-    m__free(uset);
+    m__free(instance, uset);
 
 }   /* free_unique_set */
 
@@ -3398,7 +3469,8 @@ static void free_unique_set (unique_set_t *uset)
 *   status of the operation, NO_ERR if all nodes found and stored OK
 *********************************************************************/
 static status_t 
-    make_unique_testset (val_value_t *curval,
+    make_unique_testset (ncx_instance_t *instance,
+                         val_value_t *curval,
                          obj_unique_t *unidef,
                          val_value_t *root,
                          dlq_hdr_t *resultQ,
@@ -3406,13 +3478,13 @@ static status_t
 {
     /* need to get a non-const pointer to the module */
     if (curval->obj == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     ncx_module_t       *mod = curval->obj->tkerr.mod;
     status_t            retres = NO_ERR;
 
-    obj_unique_comp_t  *unicomp = obj_first_unique_comp(unidef);
+    obj_unique_comp_t  *unicomp = obj_first_unique_comp(instance, unidef);
     if (!unicomp) {
         /* really should not happen */
         return ERR_NCX_CANCELED;
@@ -3423,41 +3495,41 @@ static status_t
      */
     while (unicomp && retres == NO_ERR) {
         if (unicomp->isduplicate) {
-            unicomp = obj_next_unique_comp(unicomp);
+            unicomp = obj_next_unique_comp(instance, unicomp);
             continue;
         }
 
         xpath_pcb_t *targpcb = NULL;
-        status_t res = xpath_find_val_unique(curval, mod, unicomp->xpath,
+        status_t res = xpath_find_val_unique(instance, curval, mod, unicomp->xpath,
                                              root, FALSE, &targpcb);
         if (res != NO_ERR) {
             retres = ERR_NCX_CANCELED;
-            xpath_free_pcb(targpcb);
+            xpath_free_pcb(instance, targpcb);
             continue;
         }
 
         /* skip the entire unique test for this list entry
          * if this is an empty node-set */
-        if (xpath_get_first_resnode(targpcb->result) == NULL) {
+        if (xpath_get_first_resnode(instance, targpcb->result) == NULL) {
             retres = ERR_NCX_CANCELED;
-            xpath_free_pcb(targpcb);
+            xpath_free_pcb(instance, targpcb);
             continue;
         }
 
-        val_unique_t *unival = (val_unique_t *)dlq_deque(freeQ);
+        val_unique_t *unival = (val_unique_t *)dlq_deque(instance, freeQ);
         if (!unival) {
-            unival = val_new_unique();
+            unival = val_new_unique(instance);
             if (!unival) {
                 retres = ERR_INTERNAL_MEM;
-                xpath_free_pcb(targpcb);
+                xpath_free_pcb(instance, targpcb);
                 continue;
             }
         }
 
         unival->pcb = targpcb;
-        dlq_enque(unival, resultQ);
+        dlq_enque(instance, unival, resultQ);
 
-        unicomp = obj_next_unique_comp(unicomp);
+        unicomp = obj_next_unique_comp(instance, unicomp);
     }
 
     return retres;
@@ -3489,7 +3561,8 @@ static status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    one_unique_stmt_check (ses_cb_t *scb,
+    one_unique_stmt_check (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            xml_msg_hdr_t *msg,
                            agt_cfg_commit_test_t *ct,
                            val_value_t *root,
@@ -3506,52 +3579,53 @@ static status_t
     assert( unidef->xpath && "xpath is NULL!" );
 
     status_t retres = NO_ERR;
-    dlq_createSQue(&uniQ);   // Q of val_unique_t 
-    dlq_createSQue(&freeQ);  // Q of val_unique_t
-    dlq_createSQue(&usetQ);  // Q of unique_set_t
+    dlq_createSQue(instance, &uniQ);   // Q of val_unique_t 
+    dlq_createSQue(instance, &freeQ);  // Q of val_unique_t
+    dlq_createSQue(instance, &usetQ);  // Q of unique_set_t
 
     if (LOGDEBUG3) {
-        log_debug3("\nunique_chk: %s:%s start unique # %u (%s)", 
-                   obj_get_mod_name(ct->obj), obj_get_name(ct->obj),
+        log_debug3(instance, 
+                   "\nunique_chk: %s:%s start unique # %u (%s)", 
+                   obj_get_mod_name(instance, ct->obj), obj_get_name(instance, ct->obj),
                    uninum, unidef->xpath);
     }
 
     /* create a unique test set for each list instance that has
      * complete tuple to test; skip all instances with partial tuples */
-    xpath_resnode_t *resnode = xpath_get_first_resnode(ct->result);
+    xpath_resnode_t *resnode = xpath_get_first_resnode(instance, ct->result);
     for (; resnode && retres == NO_ERR; 
-         resnode = xpath_get_next_resnode(resnode)) {
+         resnode = xpath_get_next_resnode(instance, resnode)) {
 
-        val_value_t *valnode = xpath_get_resnode_valptr(resnode);
+        val_value_t *valnode = xpath_get_resnode_valptr(instance, resnode);
 
-        status_t res = make_unique_testset(valnode, unidef, root, &uniQ,
+        status_t res = make_unique_testset(instance, valnode, unidef, root, &uniQ,
                                            &freeQ);
         if (res == NO_ERR) {
             /* this valnode provided a complete tuple so it will be
              * used in the compare test   */
-            uset = new_unique_set();
+            uset = new_unique_set(instance);
             if (uset == NULL) {
                 retres = ERR_INTERNAL_MEM;
                 continue;
             }
-            dlq_block_enque(&uniQ, &uset->uniqueQ);
+            dlq_block_enque(instance, &uniQ, &uset->uniqueQ);
             uset->valnode = valnode;
-            dlq_enque(uset, &usetQ);
+            dlq_enque(instance, uset, &usetQ);
         } else if (res == ERR_NCX_CANCELED) {
-            dlq_block_enque(&uniQ, &freeQ);
+            dlq_block_enque(instance, &uniQ, &freeQ);
         } else {
             retres = res;
         }
     }
 
     /* done with these 2 queues */
-    while (!dlq_empty(&uniQ)) {
-        unival = (val_unique_t *)dlq_deque(&uniQ);
-        val_free_unique(unival);
+    while (!dlq_empty(instance, &uniQ)) {
+        unival = (val_unique_t *)dlq_deque(instance, &uniQ);
+        val_free_unique(instance, unival);
     }
-    while (!dlq_empty(&freeQ)) {
-        unival = (val_unique_t *)dlq_deque(&freeQ);
-        val_free_unique(unival);
+    while (!dlq_empty(instance, &freeQ)) {
+        unival = (val_unique_t *)dlq_deque(instance, &freeQ);
+        val_free_unique(instance, unival);
     }
 
     if (retres == NO_ERR) {
@@ -3560,33 +3634,34 @@ static status_t
          * through the list until all entries have been compared to
          * each other and all unique violations recorded;
          * As compare is done, delete old set1 since no longer needed */
-        while (!dlq_empty(&usetQ)) {
-            unique_set_t *set1 = (unique_set_t *)dlq_deque(&usetQ);
+        while (!dlq_empty(instance, &usetQ)) {
+            unique_set_t *set1 = (unique_set_t *)dlq_deque(instance, &usetQ);
             if (set1 && set1->valnode->res != ERR_NCX_UNIQUE_TEST_FAILED) {
-                unique_set_t *set2 = (unique_set_t *)dlq_firstEntry(&usetQ);
-                for (; set2; set2 = (unique_set_t *)dlq_nextEntry(set2)) {
+                unique_set_t *set2 = (unique_set_t *)dlq_firstEntry(instance, &usetQ);
+                for (; set2; set2 = (unique_set_t *)dlq_nextEntry(instance, set2)) {
                     if (set2->valnode->res == ERR_NCX_UNIQUE_TEST_FAILED) {
                         // already compared this to rest of list instances
                         // if it is flagged with a unique-test failed error
                         continue;
                     }
-                    if (compare_unique_testsets(&set1->uniqueQ, 
+                    if (compare_unique_testsets(instance, 
+                                                &set1->uniqueQ, 
                                                 &set2->uniqueQ)) {
                         /* 2 lists have the same values so generate an error */
-                        agt_record_unique_error(scb, msg, set1->valnode,
+                        agt_record_unique_error(instance, scb, msg, set1->valnode,
                                                 &set1->uniqueQ);
                         set1->valnode->res = ERR_NCX_UNIQUE_TEST_FAILED;
                         retres = ERR_NCX_UNIQUE_TEST_FAILED;
                     }
                 }
             }
-            free_unique_set(set1);
+            free_unique_set(instance, set1);
         }
     }
 
-    while (!dlq_empty(&usetQ)) {
-        uset = (unique_set_t *)dlq_deque(&usetQ);
-        free_unique_set(uset);
+    while (!dlq_empty(instance, &usetQ)) {
+        uset = (unique_set_t *)dlq_deque(instance, &usetQ);
+        free_unique_set(instance, uset);
     }
 
     return retres;
@@ -3617,12 +3692,13 @@ static status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    unique_stmt_check (ses_cb_t *scb,
+    unique_stmt_check (ncx_instance_t *instance,
+                       ses_cb_t *scb,
                        xml_msg_hdr_t *msg,
                        agt_cfg_commit_test_t *ct,
                        val_value_t *root)
 {
-    obj_unique_t *unidef = obj_first_unique(ct->obj);
+    obj_unique_t *unidef = obj_first_unique(instance, ct->obj);
     uint32 uninum = 0;
     status_t retres = NO_ERR;
 
@@ -3632,12 +3708,12 @@ static status_t
         ++uninum;
 
         if (unidef->isconfig) {
-            status_t res = one_unique_stmt_check(scb, msg, ct, root,
+            status_t res = one_unique_stmt_check(instance, scb, msg, ct, root,
                                                  unidef, uninum);
             CHK_EXIT(res, retres);
         }
 
-        unidef = obj_next_unique(unidef);
+        unidef = obj_next_unique(instance, unidef);
     }
 
     return retres;
@@ -3671,7 +3747,8 @@ static status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    instance_xpath_check (ses_cb_t *scb,
+    instance_xpath_check (ncx_instance_t *instance,
+                          ses_cb_t *scb,
                           xml_msg_hdr_t *msg,
                           val_value_t *val,
                           val_value_t *root,
@@ -3694,9 +3771,9 @@ static status_t
          * instance that matched; this is always constrained
          * to 1 of the instances that exists at commit-time
          */
-        xpcb = typ_get_leafref_pcb(typdef);
+        xpcb = typ_get_leafref_pcb(instance, typdef);
         if (!val->xpathpcb) {
-            val->xpathpcb = xpath_clone_pcb(xpcb);
+            val->xpathpcb = xpath_clone_pcb(instance, xpcb);
             if (!val->xpathpcb) {
                 res = ERR_INTERNAL_MEM;
             }
@@ -3704,7 +3781,7 @@ static status_t
 
         if (res == NO_ERR) {
             assert( scb && "scb is NULL!" );
-            result = xpath1_eval_xmlexpr(scb->reader, val->xpathpcb, 
+            result = xpath1_eval_xmlexpr(instance, scb->reader, val->xpathpcb, 
                                          val, root, FALSE, TRUE, &res);
             if (result && res == NO_ERR) {
                 /* check result: the string value in 'val'
@@ -3712,7 +3789,7 @@ static status_t
                  * result set
                  */
                 fnresult = 
-                    xpath1_compare_result_to_string(val->xpathpcb, result, 
+                    xpath1_compare_result_to_string(instance, val->xpathpcb, result, 
                                                     VAL_STR(val), &res);
 
                 if (res == NO_ERR && !fnresult) {
@@ -3722,12 +3799,12 @@ static status_t
                     res = ERR_NCX_MISSING_VAL_INST;
                 }
             }
-            xpath_free_result(result);
+            xpath_free_result(instance, result);
         }
 
         if (res != NO_ERR) {
             val->res = res;
-            agt_record_error_errinfo(scb, msg, layer, res, NULL, NCX_NT_OBJ,
+            agt_record_error_errinfo(instance, scb, msg, layer, res, NULL, NCX_NT_OBJ,
                                      val->obj, NCX_NT_VAL, val, errinfo);
         }
         break;
@@ -3737,15 +3814,15 @@ static status_t
          * require-instance flag
          */
         result = NULL;
-        constrained = typ_get_constrained(typdef);
+        constrained = typ_get_constrained(instance, typdef);
 
         validateres = val->xpathpcb->validateres;
         if (validateres == NO_ERR) {
             assert( scb && "scb is NULL!" );
-            result = xpath1_eval_xmlexpr(scb->reader, val->xpathpcb,
+            result = xpath1_eval_xmlexpr(instance, scb->reader, val->xpathpcb,
                                          val, root, FALSE, FALSE, &res);
             if (result) {
-                xpath_free_result(result);
+                xpath_free_result(instance, result);
             }
 
             if (!constrained) {
@@ -3756,7 +3833,7 @@ static status_t
 
             if (res != NO_ERR) {
                 val->res = res;
-                agt_record_error(scb, msg, layer, res, NULL, NCX_NT_OBJ,
+                agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_OBJ,
                                  val->obj, NCX_NT_VAL, val);
             }
         }
@@ -3799,7 +3876,8 @@ static status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    instance_check (ses_cb_t *scb,
+    instance_check (ncx_instance_t *instance,
+                    ses_cb_t *scb,
                     xml_msg_hdr_t *msg,
                     obj_template_t *obj,
                     val_value_t *val,
@@ -3807,10 +3885,11 @@ static status_t
                     ncx_layer_t layer)
 {
     /* skip this node if it is non-config */
-    if (!obj_is_config(val->obj)) {
+    if (!obj_is_config(instance, val->obj)) {
         if (LOGDEBUG3) {
-            log_debug3("\ninstance_chk: skipping r/o node '%s:%s'",
-                       obj_get_mod_name(val->obj),
+            log_debug3(instance,
+                       "\ninstance_chk: skipping r/o node '%s:%s'",
+                       obj_get_mod_name(instance, val->obj),
                        val->name);
         }
         return NO_ERR;
@@ -3821,11 +3900,12 @@ static status_t
      * and ignores mandatory read-only nodes;
      * otherwise the test on candidate would always fail
      */
-    if (!obj_is_config(obj)) {
+    if (!obj_is_config(instance, obj)) {
         if (LOGDEBUG3) {
-            log_debug3("\ninstance_chk: skipping r/o node '%s:%s'",
-                       obj_get_mod_name(obj),
-                       obj_get_name(obj));
+            log_debug3(instance,
+                       "\ninstance_chk: skipping r/o node '%s:%s'",
+                       obj_get_mod_name(instance, obj),
+                       obj_get_name(instance, obj));
         }
         return NO_ERR;
     }
@@ -3836,7 +3916,7 @@ static status_t
 
     // do not need to check again to see if conditional object is present
     //iqual = val_get_cond_iqualval(val, valroot, obj);
-    ncx_iqual_t iqual = obj_get_iqualval(obj);
+    ncx_iqual_t iqual = obj_get_iqualval(instance, obj);
     boolean cond = FALSE;
     boolean whendone = FALSE;
     uint32 whencnt = 0;
@@ -3844,11 +3924,11 @@ static status_t
     boolean maxerr = FALSE;
     uint32 minelems = 0;
     uint32 maxelems = 0;
-    boolean minset = obj_get_min_elements(obj, &minelems);
-    boolean maxset = obj_get_max_elements(obj, &maxelems);
+    boolean minset = obj_get_min_elements(instance, obj, &minelems);
+    boolean maxset = obj_get_max_elements(instance, obj, &maxelems);
 
-    uint32 cnt = val_instance_count(val, obj_get_mod_name(obj), 
-                                    obj_get_name(obj));
+    uint32 cnt = val_instance_count(instance, val, obj_get_mod_name(instance, obj), 
+                                    obj_get_name(instance, obj));
 
     if (LOGDEBUG3) {
         if (!minset) {
@@ -3862,7 +3942,7 @@ static status_t
                 minelems = 0;
                 break;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
 
@@ -3877,7 +3957,7 @@ static status_t
                 maxelems = 0;
                 break;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
 
@@ -3886,11 +3966,12 @@ static status_t
             snprintf(buff, sizeof(buff), "%u", maxelems);
         }
 
-        log_debug3("\ninstance_check '%s:%s' against '%s:%s'\n"
+        log_debug3(instance,
+                   "\ninstance_check '%s:%s' against '%s:%s'\n"
                    "    (cnt=%u, min=%u, max=%s)",
-                   obj_get_mod_name(obj),
-                   obj_get_name(obj),
-                   obj_get_mod_name(val->obj),
+                   obj_get_mod_name(instance, obj),
+                   obj_get_name(instance, obj),
+                   obj_get_mod_name(instance, val->obj),
                    val->name, 
                    cnt, 
                    minelems, 
@@ -3902,20 +3983,20 @@ static status_t
             if (cnt == 0) {
                 /* need to check if this node is conditional because
                  * of when stmt, and if so, whether when-cond is false  */
-                res = val_check_obj_when(val, valroot, NULL, obj, 
+                res = val_check_obj_when(instance, val, valroot, NULL, obj, 
                                          &cond, &whencnt);
                 if (res == NO_ERR) {
                     whendone = TRUE;
                     if (whencnt && !cond) {
                         if (LOGDEBUG2) {
-                            log_debug2("\nwhen_chk: skip false when-stmt for "
-                                       "node '%s:%s'", obj_get_mod_name(obj), 
-                                       obj_get_name(obj));
+                            log_debug2(instance, "\nwhen_chk: skip false when-stmt for "
+                                       "node '%s:%s'", obj_get_mod_name(instance, obj), 
+                                       obj_get_name(instance, obj));
                         }
                         return NO_ERR;
                     }
                 } else {
-                    agt_record_error(scb, msg, layer, res, NULL, NCX_NT_NONE, 
+                    agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_NONE, 
                                      NULL, NCX_NT_VAL, errval);
                     return res;
                 }
@@ -3930,28 +4011,28 @@ static status_t
                 /* use the first child instance as the
                  * value node for the error-path
                  */
-                errval = val_find_child(val, obj_get_mod_name(obj),
-                                        obj_get_name(obj));
-                agt_record_error(scb, msg, layer, res, NULL, NCX_NT_NONE, 
+                errval = val_find_child(instance, val, obj_get_mod_name(instance, obj),
+                                        obj_get_name(instance, obj));
+                agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_NONE, 
                                  NULL, NCX_NT_VAL, errval);
 
 
             } else {
                 /* need to construct a string error-path */
                 instbuff = NULL;
-                res2 = val_gen_split_instance_id(msg, val, NCX_IFMT_XPATH1,
-                                                 obj_get_nsid(obj),
-                                                 obj_get_name(obj),
+                res2 = val_gen_split_instance_id(instance, msg, val, NCX_IFMT_XPATH1,
+                                                 obj_get_nsid(instance, obj),
+                                                 obj_get_name(instance, obj),
                                                  FALSE, &instbuff);
                 if (res2 == NO_ERR && instbuff) {
-                    agt_record_error(scb, msg, layer, res, NULL, NCX_NT_NONE, 
+                    agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_NONE, 
                                      NULL, NCX_NT_STRING, instbuff);
                 } else {
-                    agt_record_error(scb, msg, layer, res, NULL, NCX_NT_NONE, 
+                    agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_NONE, 
                                      NULL, NCX_NT_VAL, val);
                 }
                 if (instbuff) {
-                    m__free(instbuff);
+                    m__free(instance, instbuff);
                 }
             }
         }
@@ -3968,21 +4049,21 @@ static status_t
              * and mark the extras as errors or they will
              * not get removed later
              */
-            val_set_extra_instance_errors(val, obj_get_mod_name(obj),
-                                          obj_get_name(obj),
+            val_set_extra_instance_errors(instance, val, obj_get_mod_name(instance, obj),
+                                          obj_get_name(instance, obj),
                                           maxelems);
             /* use the first extra child instance as the
              * value node for the error-path
              * this should always find a node, since 'cnt' > 0 
              */
-            errval = val_find_child(val, obj_get_mod_name(obj),
-                                    obj_get_name(obj));
+            errval = val_find_child(instance, val, obj_get_mod_name(instance, obj),
+                                    obj_get_name(instance, obj));
             uint32 i = 1;
             while (errval && i <= maxelems) {
-                errval = val_get_next_child(errval);
+                errval = val_get_next_child(instance, errval);
                 i++;
             }
-            agt_record_error(scb, msg, layer, res, NULL, NCX_NT_OBJ, obj, 
+            agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_OBJ, obj, 
                              NCX_NT_VAL, (errval) ? errval : val);
         }
     }
@@ -3996,19 +4077,19 @@ static status_t
             if (!whendone) {
                 cond = FALSE;
                 whencnt = 0;
-                res = val_check_obj_when(val, valroot, NULL, obj, 
+                res = val_check_obj_when(instance, val, valroot, NULL, obj, 
                                          &cond, &whencnt);
                 if (res == NO_ERR) {
                     if (whencnt && !cond) {
                         if (LOGDEBUG2) {
-                            log_debug2("\nwhen_chk: skip false when-stmt for "
-                                       "node '%s:%s'", obj_get_mod_name(obj), 
-                                       obj_get_name(obj));
+                            log_debug2(instance, "\nwhen_chk: skip false when-stmt for "
+                                       "node '%s:%s'", obj_get_mod_name(instance, obj), 
+                                       obj_get_name(instance, obj));
                         }
                         return NO_ERR;
                     }
                 } else {
-                    agt_record_error(scb, msg, layer, res, NULL, NCX_NT_NONE, 
+                    agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_NONE, 
                                      NULL, NCX_NT_VAL, errval);
                     return res;
                 }
@@ -4020,8 +4101,8 @@ static status_t
              * !!! together can be enforced if the context node does
              * !!! not exist; creating a dummy context node changes
              * !!! the data model.    */
-            if (obj_is_np_container(obj) &&
-                !obj_is_mandatory_when_ex(obj, TRUE)) {
+            if (obj_is_np_container(instance, obj) &&
+                !obj_is_mandatory_when_ex(instance, obj, TRUE)) {
                 /* this NP container is mandatory but there are when-stmts
                  * that go with the mandatory nodes, so do not generate
                  * an error for this NP container.  If this container
@@ -4035,20 +4116,20 @@ static status_t
 
                 /* need to construct a string error-path */
                 instbuff = NULL;
-                res2 = val_gen_split_instance_id(msg, val, NCX_IFMT_XPATH1,
-                                                 obj_get_nsid(obj),
-                                                 obj_get_name(obj),
+                res2 = val_gen_split_instance_id(instance, msg, val, NCX_IFMT_XPATH1,
+                                                 obj_get_nsid(instance, obj),
+                                                 obj_get_name(instance, obj),
                                                  FALSE, &instbuff);
                 if (res2 == NO_ERR && instbuff) {
-                    agt_record_error(scb, msg, layer, res, NULL, NCX_NT_OBJ,
+                    agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_OBJ,
                                      obj, NCX_NT_STRING, instbuff);
                 } else {
-                    agt_record_error(scb, msg, layer, res, NULL, NCX_NT_OBJ,
+                    agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_OBJ,
                                      obj, NCX_NT_VAL, val);
                 }
 
                 if (instbuff) {
-                    m__free(instbuff);
+                    m__free(instance, instbuff);
                 }
             }
         }
@@ -4059,31 +4140,31 @@ static status_t
     case NCX_IQUAL_OPT:
         if (cnt > 1 && !maxerr) {
             /* too many parameters */
-            val_set_extra_instance_errors(val, obj_get_mod_name(obj),
-                                          obj_get_name(obj), 1);
+            val_set_extra_instance_errors(instance, val, obj_get_mod_name(instance, obj),
+                                          obj_get_name(instance, obj), 1);
             res = ERR_NCX_EXTRA_VAL_INST;
             val->res = res;
 
             /* use the first extra child instance as the
              * value node for the error-path
              */
-            errval = val_find_child(val, obj_get_mod_name(obj),
-                                    obj_get_name(obj));
+            errval = val_find_child(instance, val, obj_get_mod_name(instance, obj),
+                                    obj_get_name(instance, obj));
             uint32 i = 1;
             while (errval && i < maxelems) {
-                errval = val_get_next_child(errval);
+                errval = val_get_next_child(instance, errval);
                 i++;
             }
-            agt_record_error(scb, msg, layer, res, NULL, NCX_NT_OBJ,
+            agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_OBJ,
                              obj, NCX_NT_VAL, (errval) ? errval : val);
         }
         break;
     case NCX_IQUAL_ZMORE:
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         val->res = res;
-        agt_record_error(scb, msg, layer, res, NULL, NCX_NT_OBJ, obj, 
+        agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_OBJ, obj, 
                          NCX_NT_VAL, val);
 
     }
@@ -4126,7 +4207,8 @@ static status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    choice_check_agt (ses_cb_t  *scb,
+    choice_check_agt (ncx_instance_t *instance,
+                      ses_cb_t  *scb,
                       xml_msg_hdr_t *msg,
                       obj_template_t *choicobj,
                       val_value_t *val,
@@ -4136,10 +4218,11 @@ static status_t
     status_t               res = NO_ERR, retres = NO_ERR;
 
     if (LOGDEBUG3) {
-        log_debug3("\nchoice_check_agt: check '%s:%s' against '%s:%s'",
-                   obj_get_mod_name(choicobj),
-                   obj_get_name(choicobj), 
-                   obj_get_mod_name(val->obj),
+        log_debug3(instance,
+                   "\nchoice_check_agt: check '%s:%s' against '%s:%s'",
+                   obj_get_mod_name(instance, choicobj),
+                   obj_get_name(instance, choicobj), 
+                   obj_get_mod_name(instance, val->obj),
                    val->name);
     }
 
@@ -4153,12 +4236,12 @@ static status_t
      * and the accessible case nodes will be child nodes
      * of that complex parent type
      */
-    val_value_t *chval = val_get_choice_first_set(val, choicobj);
+    val_value_t *chval = val_get_choice_first_set(instance, val, choicobj);
     if (!chval) {
-        if (obj_is_mandatory(choicobj)) {
+        if (obj_is_mandatory(instance, choicobj)) {
             /* error missing choice (13.6) */
             res = ERR_NCX_MISSING_CHOICE;
-            agt_record_error(scb, msg, layer, res, NULL, NCX_NT_VAL, val, 
+            agt_record_error(instance, scb, msg, layer, res, NULL, NCX_NT_VAL, val, 
                                  NCX_NT_VAL, val);
         }
         return res;
@@ -4168,23 +4251,23 @@ static status_t
      * first make sure all the mandatory case 
      * objects are present
      */
-    obj_template_t *testobj = obj_first_child(chval->casobj);
-    for (; testobj != NULL; testobj = obj_next_child(testobj)) {
-        res = instance_check(scb, msg, testobj, val, valroot, layer);
+    obj_template_t *testobj = obj_first_child(instance, chval->casobj);
+    for (; testobj != NULL; testobj = obj_next_child(instance, testobj)) {
+        res = instance_check(instance, scb, msg, testobj, val, valroot, layer);
         CHK_EXIT(res, retres);
         /* errors already recorded if other than NO_ERR */
     }
 
     /* check if any objects from other cases are present */
-    val_value_t *testval = val_get_choice_next_set(choicobj, chval);
+    val_value_t *testval = val_get_choice_next_set(instance, choicobj, chval);
     while (testval) {
         if (testval->casobj != chval->casobj) {
             /* error: extra case object in this choice */
             retres = res = ERR_NCX_EXTRA_CHOICE;
-            agt_record_error(scb, msg, layer, res, NULL, 
+            agt_record_error(instance, scb, msg, layer, res, NULL, 
                              NCX_NT_OBJ, choicobj, NCX_NT_VAL, testval);
         }
-        testval = val_get_choice_next_set(choicobj, testval);
+        testval = val_get_choice_next_set(instance, choicobj, testval);
     }
 
     if (val->res == NO_ERR) {
@@ -4210,7 +4293,8 @@ static status_t
 * \return NO_ERR if there are no validation errors.
 
 *********************************************************************/
-static status_t must_stmt_check ( ses_cb_t *scb,
+static status_t must_stmt_check (ncx_instance_t *instance,
+                                   ses_cb_t *scb,
                                   xml_msg_hdr_t *msg,
                                   val_value_t *root,
                                   val_value_t *curval )
@@ -4218,44 +4302,47 @@ static status_t must_stmt_check ( ses_cb_t *scb,
     status_t res = NO_ERR;
 
     obj_template_t *obj = curval->obj;
-    if ( !obj_is_config(obj) ) {
+    if ( !obj_is_config(instance, obj) ) {
         return NO_ERR;
     }
 
-    dlq_hdr_t *mustQ = obj_get_mustQ(obj);
-    if ( !mustQ || dlq_empty( mustQ ) ) {
+    dlq_hdr_t *mustQ = obj_get_mustQ(instance, obj);
+    if ( !mustQ || dlq_empty(instance,  mustQ ) ) {
         /* There are no must statements, return NO ERR */
         return NO_ERR;
     }
 
     /* execute all the must tests top down, so* foo/bar errors are reported 
      * before /foo/bar/child */
-    xpath_pcb_t *must = (xpath_pcb_t *)dlq_firstEntry(mustQ);
-    for ( ; must; must = (xpath_pcb_t *)dlq_nextEntry(must)) {
+    xpath_pcb_t *must = (xpath_pcb_t *)dlq_firstEntry(instance, mustQ);
+    for ( ; must; must = (xpath_pcb_t *)dlq_nextEntry(instance, must)) {
         res = NO_ERR;
-        xpath_result_t *result = xpath1_eval_expr( must, curval, root, FALSE, 
+        xpath_result_t *result = xpath1_eval_expr(instance,  must, curval, root, FALSE, 
                                                    TRUE, &res );
         if ( !result || res != NO_ERR ) {
-            log_error("\nmust_chk: failed for %s:%s (%s) expr '%s'", 
-                    obj_get_mod_name(obj), curval->name, get_error_string(res),
+            log_error(instance, 
+                    "\nmust_chk: failed for %s:%s (%s) expr '%s'", 
+                    obj_get_mod_name(instance, obj), curval->name, get_error_string(res),
                     must->exprstr );
 
             if (res == NO_ERR) {
                 res = ERR_INTERNAL_VAL;
-                SET_ERROR( res );
+                SET_ERROR(instance,  res );
             }
-        } else if (!xpath_cvt_boolean(result)) {
-            log_debug2("\nmust_chk: false for %s:%s expr '%s'", 
-                    obj_get_mod_name(obj), curval->name, must->exprstr);
+        } else if (!xpath_cvt_boolean(instance, result)) {
+            log_debug2(instance, 
+                    "\nmust_chk: false for %s:%s expr '%s'", 
+                    obj_get_mod_name(instance, obj), curval->name, must->exprstr);
 
             res = ERR_NCX_MUST_TEST_FAILED;
         } else {
-            log_debug3("\nmust_chk: OK for %s:%s expr '%s'", 
-                    obj_get_mod_name(obj), curval->name, must->exprstr);
+            log_debug3(instance, 
+                    "\nmust_chk: OK for %s:%s expr '%s'", 
+                    obj_get_mod_name(instance, obj), curval->name, must->exprstr);
         }
 
         if ( NO_ERR != res ) {
-            agt_record_error_errinfo(scb, msg, NCX_LAYER_CONTENT, res, NULL, 
+            agt_record_error_errinfo(instance, scb, msg, NCX_LAYER_CONTENT, res, NULL, 
                     NCX_NT_STRING, must->exprstr, NCX_NT_VAL, curval, 
                     ( ( ncx_errinfo_set( &must->errinfo) ) ? &must->errinfo 
                                                            : NULL ) );
@@ -4265,7 +4352,7 @@ static status_t must_stmt_check ( ses_cb_t *scb,
             }
             curval->res = res;
         }
-        xpath_free_result(result);
+        xpath_free_result(instance, result);
     }
 
     return res;
@@ -4300,7 +4387,8 @@ static status_t must_stmt_check ( ses_cb_t *scb,
 *   status of the operation, NO_ERR or ERR_INTERNAL_MEM most likely
 *********************************************************************/
 static status_t 
-    run_when_stmt_check (ses_cb_t *scb,
+    run_when_stmt_check (ncx_instance_t *instance,
+                         ses_cb_t *scb,
                          xml_msg_hdr_t *msg,
                          agt_cfg_transaction_t *txcb,
                          val_value_t *root,
@@ -4311,63 +4399,68 @@ static status_t
     boolean                condresult = FALSE;
     uint32                 whencount = 0;
 
-    res = val_check_obj_when(curval->parent, root, curval, obj, &condresult,
+    res = val_check_obj_when(instance, curval->parent, root, curval, obj, &condresult,
                              &whencount);
     if (res != NO_ERR) {
-        log_error("\nError: when_check: failed for %s:%s (%s)",
-                  obj_get_mod_name(obj),
-                  obj_get_name(obj),
+        log_error(instance,
+                  "\nError: when_check: failed for %s:%s (%s)",
+                  obj_get_mod_name(instance, obj),
+                  obj_get_name(instance, obj),
                   get_error_string(res));
-        agt_record_error(scb, msg, NCX_LAYER_OPERATION, res, NULL, 
+        agt_record_error(instance, scb, msg, NCX_LAYER_OPERATION, res, NULL, 
                          NCX_NT_NONE, NULL, NCX_NT_VAL, curval);
     } else if (whencount == 0) {
         if (LOGDEBUG) {
-            log_debug("\nwhen_chk: no when-tests found for node '%s:%s'", 
-                       obj_get_mod_name(obj), curval->name);
+            log_debug(instance, 
+                       "\nwhen_chk: no when-tests found for node '%s:%s'", 
+                       obj_get_mod_name(instance, obj), curval->name);
         }
     } else if (!condresult) {
         if (LOGDEBUG2) {
-            log_debug2("\nwhen_chk: test false for node '%s:%s'", 
-                       obj_get_mod_name(obj), curval->name);
+            log_debug2(instance, 
+                       "\nwhen_chk: test false for node '%s:%s'", 
+                       obj_get_mod_name(instance, obj), curval->name);
         }
         /* check if this session is allowed to delete this node
          * and make sure this node is not partially locked  */
-        if (!agt_acm_val_write_allowed(msg, scb->username, NULL, curval,
+        if (!agt_acm_val_write_allowed(instance, msg, scb->username, NULL, curval,
                                        OP_EDITOP_DELETE)) {
             res = ERR_NCX_ACCESS_DENIED;
-            agt_record_error(scb, msg, NCX_LAYER_OPERATION, res,
+            agt_record_error(instance, scb, msg, NCX_LAYER_OPERATION, res,
                              NULL, NCX_NT_NONE, NULL, NCX_NT_NONE, NULL);
             return res;
         }
 
         uint32 lockid = 0;
-        res = val_write_ok(curval, OP_EDITOP_DELETE, SES_MY_SID(scb),
+        res = val_write_ok(instance, curval, OP_EDITOP_DELETE, SES_MY_SID(scb),
                            TRUE, &lockid);
         if (res != NO_ERR) {
-            agt_record_error(scb, msg, NCX_LAYER_OPERATION, res, 
+            agt_record_error(instance, scb, msg, NCX_LAYER_OPERATION, res, 
                              NULL, NCX_NT_UINT32_PTR, &lockid, 
                              NCX_NT_VAL, curval);
             return res;
         }
 
         /* need to delete the current value */
-        agt_cfg_nodeptr_t *nodeptr = agt_cfg_new_nodeptr(curval);
+        agt_cfg_nodeptr_t *nodeptr = agt_cfg_new_nodeptr(instance, curval);
         if (nodeptr == NULL) {
             res = ERR_INTERNAL_MEM;
-            agt_record_error(scb, msg, NCX_LAYER_OPERATION, res, 
+            agt_record_error(instance, scb, msg, NCX_LAYER_OPERATION, res, 
                              NULL, NCX_NT_NONE, NULL, NCX_NT_NONE, NULL);
             return res;
         }
-        log_debug("\nMarking false when-stmt as deleted %s:%s",
-                  obj_get_mod_name(obj),
-                  obj_get_name(obj));
+        log_debug(instance,
+                  "\nMarking false when-stmt as deleted %s:%s",
+                  obj_get_mod_name(instance, obj),
+                  obj_get_name(instance, obj));
                   
-        dlq_enque(nodeptr, &txcb->deadnodeQ);
+        dlq_enque(instance, nodeptr, &txcb->deadnodeQ);
         VAL_MARK_DELETED(curval);
     } else {
         if (LOGDEBUG3) {
-            log_debug3("\nwhen_chk: test passed for node '%s:%s'", 
-                       obj_get_mod_name(obj), curval->name);
+            log_debug3(instance, 
+                       "\nwhen_chk: test passed for node '%s:%s'", 
+                       obj_get_mod_name(instance, obj), curval->name);
         }
     }
     return res;
@@ -4400,7 +4493,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    rpc_when_stmt_check (ses_cb_t *scb,
+    rpc_when_stmt_check (ncx_instance_t *instance,
+                         ses_cb_t *scb,
                          rpc_msg_t *rpcmsg,
                          xml_msg_hdr_t *msg,
                          val_value_t *root,
@@ -4411,34 +4505,36 @@ static status_t
     boolean          condresult = FALSE;
     uint32           whencount = 0;
 
-    retres = val_check_obj_when(curval->parent, root, curval, obj, &condresult,
+    retres = val_check_obj_when(instance, curval->parent, root, curval, obj, &condresult,
                                 &whencount);
     if (retres != NO_ERR) {
-        log_error("\nError: when_check: failed for %s:%s (%s)",
-                  obj_get_mod_name(obj), obj_get_name(obj),
+        log_error(instance,
+                  "\nError: when_check: failed for %s:%s (%s)",
+                  obj_get_mod_name(instance, obj), obj_get_name(instance, obj),
                   get_error_string(retres));
-        agt_record_error(scb, msg, NCX_LAYER_OPERATION, retres, NULL, 
+        agt_record_error(instance, scb, msg, NCX_LAYER_OPERATION, retres, NULL, 
                          NCX_NT_NONE, NULL, NCX_NT_VAL, curval);
         return retres;
     } else if (whencount && !condresult) {
         retres = ERR_NCX_RPC_WHEN_FAILED;
-        agt_record_error(scb, msg, NCX_LAYER_OPERATION,
+        agt_record_error(instance, scb, msg, NCX_LAYER_OPERATION,
                          retres, NULL, NCX_NT_VAL,
                          curval, NCX_NT_VAL, curval);
         return retres;
     } else {
         if (LOGDEBUG3 && whencount) {
-            log_debug3("\nwhen_chk: test passed for node '%s:%s'", 
-                       obj_get_mod_name(obj), curval->name);
+            log_debug3(instance, 
+                       "\nwhen_chk: test passed for node '%s:%s'", 
+                       obj_get_mod_name(instance, obj), curval->name);
         }
     }
 
     /* recurse for every child node until leafs are hit */
-    val_value_t *chval = val_get_first_child(curval);
+    val_value_t *chval = val_get_first_child(instance, curval);
     for (; chval != NULL && retres == NO_ERR; 
-         chval = val_get_next_child(chval)) {
+         chval = val_get_next_child(instance, chval)) {
 
-        if (!obj_is_config(chval->obj)) {
+        if (!obj_is_config(instance, chval->obj)) {
             continue;
         }
 
@@ -4449,7 +4545,7 @@ static status_t
             continue;
         }
 
-        retres = rpc_when_stmt_check(scb, rpcmsg, msg, root, chval);
+        retres = rpc_when_stmt_check(instance, scb, rpcmsg, msg, root, chval);
     }
 
     return retres;
@@ -4472,7 +4568,8 @@ static status_t
 * \return NO_ERR if there are no validation errors.
 
 *********************************************************************/
-static status_t rpc_must_stmt_check ( ses_cb_t *scb,
+static status_t rpc_must_stmt_check (ncx_instance_t *instance,
+                                       ses_cb_t *scb,
                                       xml_msg_hdr_t *msg,
                                       val_value_t *root,
                                       val_value_t *curval )
@@ -4481,44 +4578,47 @@ static status_t rpc_must_stmt_check ( ses_cb_t *scb,
     status_t firstError = NO_ERR;
 
     obj_template_t *obj = curval->obj;
-    if ( !obj_is_config(obj) ) {
+    if ( !obj_is_config(instance, obj) ) {
         return NO_ERR;
     }
 
-    dlq_hdr_t *mustQ = obj_get_mustQ(obj);
-    if ( !mustQ || dlq_empty( mustQ ) ) {
+    dlq_hdr_t *mustQ = obj_get_mustQ(instance, obj);
+    if ( !mustQ || dlq_empty(instance,  mustQ ) ) {
         /* There are no must statements, return NO ERR */
         return NO_ERR;
     }
 
     /* execute all the must tests top down, so* foo/bar errors are reported 
      * before /foo/bar/child */
-    xpath_pcb_t *must = (xpath_pcb_t *)dlq_firstEntry(mustQ);
-    for ( ; must; must = (xpath_pcb_t *)dlq_nextEntry(must)) {
+    xpath_pcb_t *must = (xpath_pcb_t *)dlq_firstEntry(instance, mustQ);
+    for ( ; must; must = (xpath_pcb_t *)dlq_nextEntry(instance, must)) {
         res = NO_ERR;
-        xpath_result_t *result = xpath1_eval_expr( must, curval, root, FALSE, 
+        xpath_result_t *result = xpath1_eval_expr(instance,  must, curval, root, FALSE, 
                                                    TRUE, &res );
         if ( !result || res != NO_ERR ) {
-            log_error("\nrpc_must_chk: failed for %s:%s (%s) expr '%s'", 
-                    obj_get_mod_name(obj), curval->name, get_error_string(res),
+            log_error(instance, 
+                    "\nrpc_must_chk: failed for %s:%s (%s) expr '%s'", 
+                    obj_get_mod_name(instance, obj), curval->name, get_error_string(res),
                     must->exprstr );
 
             if (res == NO_ERR) {
                 res = ERR_INTERNAL_VAL;
-                SET_ERROR( res );
+                SET_ERROR(instance,  res );
             }
-        } else if (!xpath_cvt_boolean(result)) {
-            log_debug2("\nrpc_must_chk: false for %s:%s expr '%s'", 
-                    obj_get_mod_name(obj), curval->name, must->exprstr);
+        } else if (!xpath_cvt_boolean(instance, result)) {
+            log_debug2(instance, 
+                    "\nrpc_must_chk: false for %s:%s expr '%s'", 
+                    obj_get_mod_name(instance, obj), curval->name, must->exprstr);
 
             res = ERR_NCX_MUST_TEST_FAILED;
         } else {
-            log_debug3("\nrpc_must_chk: OK for %s:%s expr '%s'", 
-                    obj_get_mod_name(obj), curval->name, must->exprstr);
+            log_debug3(instance, 
+                    "\nrpc_must_chk: OK for %s:%s expr '%s'", 
+                    obj_get_mod_name(instance, obj), curval->name, must->exprstr);
         }
 
         if ( NO_ERR != res ) {
-            agt_record_error_errinfo(scb, msg, NCX_LAYER_CONTENT, res, NULL, 
+            agt_record_error_errinfo(instance, scb, msg, NCX_LAYER_CONTENT, res, NULL, 
                     NCX_NT_STRING, must->exprstr, NCX_NT_VAL, curval, 
                     ( ( ncx_errinfo_set( &must->errinfo) ) ? &must->errinfo 
                                                            : NULL ) );
@@ -4529,7 +4629,7 @@ static status_t rpc_must_stmt_check ( ses_cb_t *scb,
             curval->res = res;
             firstError = ( firstError != NO_ERR) ? firstError : res;
         }
-        xpath_free_result(result);
+        xpath_free_result(instance, result);
     }
 
     /* recurse for every child node until leafs are hit but only if the parent 
@@ -4537,13 +4637,13 @@ static status_t rpc_must_stmt_check ( ses_cb_t *scb,
      * already failed; this provides complete errors during validate and 
      * load_running_config */
     if ( firstError == NO_ERR ) {
-        val_value_t *chval = val_get_first_child(curval);
+        val_value_t *chval = val_get_first_child(instance, curval);
 
-        for ( ; chval; chval = val_get_next_child(chval)) {
+        for ( ; chval; chval = val_get_next_child(instance, chval)) {
              /* do not dive into <config> parameters and hit database 
               * must-stmts by mistake */
             if ( !obj_is_root(chval->obj) ) {
-                res = rpc_must_stmt_check(scb, msg, root, chval);
+                res = rpc_must_stmt_check(instance, scb, msg, root, chval);
 
                 if ( NO_ERR != res ) {
 	               if ( terminate_parse( res ) )  { 
@@ -4574,7 +4674,8 @@ static status_t rpc_must_stmt_check ( ses_cb_t *scb,
  * \return status
  *********************************************************************/
 static status_t 
-    prep_commit_test_node ( ses_cb_t  *scb,
+    prep_commit_test_node (ncx_instance_t *instance,
+                             ses_cb_t  *scb,
                             xml_msg_hdr_t *msghdr,
                             agt_cfg_transaction_t *txcb,
                             agt_cfg_commit_test_t *ct,
@@ -4585,25 +4686,25 @@ static status_t
    /* first get all the instances of this object if needed */
     if (ct->result) {
         if (ct->result_txid == txcb->txid) {
-            log_debug3("\nReusing XPath result for %s", ct->objpcb->exprstr);
+            log_debug3(instance, "\nReusing XPath result for %s", ct->objpcb->exprstr);
         } else {
             /* TBD: figure out if older TXIDs are still valid
              * for this XPath expression  */
-            log_debug3("\nGet all instances of %s", ct->objpcb->exprstr);
-            xpath_free_result(ct->result);
+            log_debug3(instance, "\nGet all instances of %s", ct->objpcb->exprstr);
+            xpath_free_result(instance, ct->result);
             ct->result = NULL;
         }
     }
 
     if (ct->result == NULL) {
         ct->result_txid = 0;
-        ct->result = xpath1_eval_expr(ct->objpcb, root, root, FALSE, 
+        ct->result = xpath1_eval_expr(instance, ct->objpcb, root, root, FALSE, 
                                       TRUE, &res);
         if (res != NO_ERR || ct->result->restype != XP_RT_NODESET) {
             if (res == NO_ERR) {
                 res = ERR_NCX_WRONG_NODETYP;
             }
-            agt_record_error(scb, msghdr, NCX_LAYER_CONTENT, res, NULL,
+            agt_record_error(instance, scb, msghdr, NCX_LAYER_CONTENT, res, NULL,
                              NCX_NT_NONE, NULL, NCX_NT_OBJ, ct->obj);
         } else {
             ct->result_txid = txcb->txid;
@@ -4627,7 +4728,8 @@ static status_t
  * \param retcount address of return deletecount
  * \return status
  *********************************************************************/
-static status_t delete_dead_nodes ( ses_cb_t  *scb,
+static status_t delete_dead_nodes (ncx_instance_t *instance,
+                                     ses_cb_t  *scb,
                                     xml_msg_hdr_t *msghdr,
                                     agt_cfg_transaction_t *txcb,
                                     val_value_t *root,
@@ -4637,28 +4739,28 @@ static status_t delete_dead_nodes ( ses_cb_t  *scb,
 
     agt_profile_t *profile = agt_get_profile();
     agt_cfg_commit_test_t *ct = (agt_cfg_commit_test_t *)
-        dlq_firstEntry(&profile->agt_commit_testQ);
+        dlq_firstEntry(instance, &profile->agt_commit_testQ);
 
-    for (; ct != NULL; ct = (agt_cfg_commit_test_t *)dlq_nextEntry(ct)) {
+    for (; ct != NULL; ct = (agt_cfg_commit_test_t *)dlq_nextEntry(instance, ct)) {
         uint32  tests = ct->testflags & AGT_TEST_FL_WHEN;
         if (tests == 0) {
             /* no when-stmt tests needed for this node */
             continue;
         }
 
-        status_t res = prep_commit_test_node(scb, msghdr, txcb, ct, root);
+        status_t res = prep_commit_test_node(instance, scb, msghdr, txcb, ct, root);
         if (res != NO_ERR) {
             return res;
         }
 
         /* run all relevant tests on each node in the result set */
-        xpath_resnode_t *resnode = xpath_get_first_resnode(ct->result);
+        xpath_resnode_t *resnode = xpath_get_first_resnode(instance, ct->result);
         xpath_resnode_t *nextnode = NULL;
         for (; resnode != NULL; resnode = nextnode) {
-            nextnode = xpath_get_next_resnode(resnode);
+            nextnode = xpath_get_next_resnode(instance, resnode);
 
-            val_value_t *valnode = xpath_get_resnode_valptr(resnode);
-            res = run_when_stmt_check(scb, msghdr, txcb, root, valnode);
+            val_value_t *valnode = xpath_get_resnode_valptr(instance, resnode);
+            res = run_when_stmt_check(instance, scb, msghdr, txcb, root, valnode);
             if (res != NO_ERR) {
                 /* treat any when delete error as terminate transaction */
                 return res;
@@ -4666,7 +4768,7 @@ static status_t delete_dead_nodes ( ses_cb_t  *scb,
                 /* this node has just been flagged when=FALSE so
                  * remove this resnode from the result so it will
                  * not be reused by a commit test   */
-                xpath_delete_resnode(resnode);
+                xpath_delete_resnode(instance, resnode);
                 (*retcount)++;
             }
         }
@@ -4692,20 +4794,21 @@ static status_t delete_dead_nodes ( ses_cb_t  *scb,
 *
 *********************************************************************/
 static void
-    check_parent_tests (obj_template_t *obj,
+    check_parent_tests (ncx_instance_t *instance,
+                        obj_template_t *obj,
                         uint32 *flags)
 {
     uint32 numelems = 0;
     switch (obj->objtype) {
     case OBJ_TYP_LEAF_LIST:
     case OBJ_TYP_LIST:
-        if (obj_get_min_elements(obj, &numelems)) {
+        if (obj_get_min_elements(instance, obj, &numelems)) {
             if (numelems > 1) {
                 *flags |= AGT_TEST_FL_MIN_ELEMS;
             } // else AGT_TEST_FL_MANDATORY will check for 1 instance
         }
         numelems = 0;
-        if (obj_get_max_elements(obj, &numelems)) {
+        if (obj_get_max_elements(instance, obj, &numelems)) {
             *flags |= AGT_TEST_FL_MAX_ELEMS;
         }
         break;
@@ -4719,7 +4822,7 @@ static void
     default:
         ;
     }
-    if (obj_is_mandatory(obj) && !obj_is_key(obj)) {
+    if (obj_is_mandatory(instance, obj) && !obj_is_key(obj)) {
         *flags |= AGT_TEST_FL_MANDATORY;
     }
 
@@ -4762,11 +4865,12 @@ static void
 *  or malloc error
 *********************************************************************/
 static status_t
-    add_obj_commit_tests (obj_template_t *obj,
+    add_obj_commit_tests (ncx_instance_t *instance,
+			  obj_template_t *obj,
 			  dlq_hdr_t *commit_testQ,
                           uint32 *rootflags)
 {
-    if (skip_obj_commit_test(obj)) {
+    if (skip_obj_commit_test(instance, obj)) {
         return NO_ERR;
     }
 
@@ -4774,34 +4878,34 @@ static status_t
 
     /* check for tests in active config nodes, bottom-up traversal */
     uint32 testflags = 0;
-    dlq_hdr_t *mustQ = obj_get_mustQ(obj);
-    ncx_btype_t btyp = obj_get_basetype(obj);
+    dlq_hdr_t *mustQ = obj_get_mustQ(instance, obj);
+    ncx_btype_t btyp = obj_get_basetype(instance, obj);
     obj_template_t *chobj;
 
     if (!(obj->objtype == OBJ_TYP_CHOICE || obj->objtype == OBJ_TYP_CASE)) {
-        if (mustQ && !dlq_empty(mustQ)) {
+        if (mustQ && !dlq_empty(instance, mustQ)) {
             testflags |= AGT_TEST_FL_MUST;
         }
     
-        if (obj_has_when_stmts(obj)) {
+        if (obj_has_when_stmts(instance, obj)) {
             testflags |= AGT_TEST_FL_WHEN;
         }
     }
 
-    obj_unique_t *unidef = obj_first_unique(obj);
+    obj_unique_t *unidef = obj_first_unique(instance, obj);
     boolean done = FALSE;
-    for (; unidef && !done; unidef = obj_next_unique(unidef)) {
+    for (; unidef && !done; unidef = obj_next_unique(instance, unidef)) {
         if (unidef->isconfig) {
             testflags |= AGT_TEST_FL_UNIQUE;
             done = TRUE;
         }
     }
 
-    if (obj_is_top(obj)) {
+    if (obj_is_top(instance, obj)) {
         /* need to check if this is a top-level node that
          * has instance requirements (mandatory/min/max)
          */
-        check_parent_tests(obj, rootflags);
+        check_parent_tests(instance, obj, rootflags);
     }
 
     if (obj->objtype == OBJ_TYP_CHOICE || obj->objtype == OBJ_TYP_CASE) {
@@ -4815,19 +4919,19 @@ static status_t
          * check all child nodes to determine if parent needs
          * to run instance_check
          */
-        for (chobj = obj_first_child(obj); 
+        for (chobj = obj_first_child(instance, obj); 
              chobj != NULL; 
-             chobj = obj_next_child(chobj)) {
+             chobj = obj_next_child(instance, chobj)) {
 
-            if (skip_obj_commit_test(chobj)) {
+            if (skip_obj_commit_test(instance, chobj)) {
                 continue;
             }
-            check_parent_tests(chobj, &testflags);
+            check_parent_tests(instance, chobj, &testflags);
         }
     
         typ_def_t *typdef = obj_get_typdef(obj);
         if (btyp == NCX_BT_LEAFREF || 
-            (btyp == NCX_BT_INSTANCE_ID && typ_get_constrained(typdef))) {
+            (btyp == NCX_BT_INSTANCE_ID && typ_get_constrained(instance, typdef))) {
             /* need to check XPath-based leaf to see that the referenced
              * instance exists in the target data tree
              */
@@ -4837,37 +4941,38 @@ static status_t
 
     if (testflags) {
         /* need a commit test record for this object */
-        agt_cfg_commit_test_t *ct = agt_cfg_new_commit_test();
+        agt_cfg_commit_test_t *ct = agt_cfg_new_commit_test(instance);
         if (ct == NULL) {
             return ERR_INTERNAL_MEM;
         } 
 
-        ct->objpcb = xpath_new_pcb(NULL, NULL);
+        ct->objpcb = xpath_new_pcb(instance, NULL, NULL);
         if (ct->objpcb == NULL) {
-            agt_cfg_free_commit_test(ct);
+            agt_cfg_free_commit_test(instance, ct);
             return ERR_INTERNAL_MEM;
         }
 
-        res = obj_gen_object_id_xpath(obj, &ct->objpcb->exprstr);
+        res = obj_gen_object_id_xpath(instance, obj, &ct->objpcb->exprstr);
         if (res != NO_ERR) {
-            agt_cfg_free_commit_test(ct);
+            agt_cfg_free_commit_test(instance, ct);
             return res;
         }
 
         ct->obj = obj;
         ct->btyp = btyp;
         ct->testflags = testflags;
-        dlq_enque(ct, commit_testQ);
+        dlq_enque(instance, ct, commit_testQ);
         if (LOGDEBUG4) {
-            log_debug4("\nAdded commit_test record for %s testflags=0x%08X",
-                       ct->objpcb->exprstr, testflags);
+            log_debug4(instance, 
+                       "\nAdded commit_test record for %s", 
+                       ct->objpcb->exprstr);
         }
     }
 
-    for (chobj = obj_first_child(obj);
+    for (chobj = obj_first_child(instance, obj);
          chobj != NULL;
-         chobj = obj_next_child(chobj)) {
-        res = add_obj_commit_tests(chobj, commit_testQ, rootflags);
+         chobj = obj_next_child(instance, chobj)) {
+        res = add_obj_commit_tests(instance, chobj, commit_testQ, rootflags);
         if (res != NO_ERR) {
             return res;
         }
@@ -4892,7 +4997,8 @@ static status_t
 *  new testflags or unchanged test flags
 *********************************************************************/
 static uint32
-    check_prune_obj (obj_template_t *obj,
+    check_prune_obj (ncx_instance_t *instance,
+                     obj_template_t *obj,
                      val_value_t *rootval,
                      uint32 curflags)
 {
@@ -4911,14 +5017,14 @@ static uint32
     }
 
     /* find this object in the rootval */
-    val_value_t *testval = val_find_child(rootval, obj_get_mod_name(testobj),
-                                          obj_get_name(testobj));
+    val_value_t *testval = val_find_child(instance, rootval, obj_get_mod_name(instance, testobj),
+                                          obj_get_name(instance, testobj));
     if (testval) {
         switch (testobj->objtype) {
         case OBJ_TYP_LEAF:
         case OBJ_TYP_ANYXML:
         case OBJ_TYP_CONTAINER:
-            if (val_dirty_subtree(testval)) {
+            if (val_dirty_subtree(instance, testval)) {
                 /* do not skip this node */
                 return curflags;
             }
@@ -4926,13 +5032,13 @@ static uint32
         default:
             done = FALSE;
             while (!done) {
-                if (val_dirty_subtree(testval)) {
+                if (val_dirty_subtree(instance, testval)) {
                     /* do not skip this node */
                     return curflags;
                 } else {
                     testval = 
-                        val_find_next_child(rootval, obj_get_mod_name(testobj),
-                                            obj_get_name(testobj), testval);
+                        val_find_next_child(instance, rootval, obj_get_mod_name(instance, testobj),
+                                            obj_get_name(instance, testobj), testval);
                     if (testval == NULL) {
                         done = TRUE;
                     }
@@ -4947,10 +5053,7 @@ static uint32
      * the root node (on the top-level YANG data nodes, so
      * any instance or mandatory tests on the top-node will
      * always be done     */
-    //return 0;
-
-    /* xpath tests can depend on any top level container */
-    return (curflags & AGT_TEST_FL_XPATH_TYPE);
+    return 0;
 
 } /* check_prune_obj */
 
@@ -4968,7 +5071,8 @@ static uint32
 *  TRUE if found and test needed; FALSE if not found
 *********************************************************************/
 static boolean
-    check_no_prune_curedit (agt_cfg_undo_rec_t *undo,
+    check_no_prune_curedit (ncx_instance_t *instance,
+                            agt_cfg_undo_rec_t *undo,
                             obj_template_t *obj)
 {
     obj_template_t *editobj = (undo->newnode) ? undo->newnode->obj :
@@ -5027,7 +5131,8 @@ static boolean
 *  new (or unchanged) test flags
 *********************************************************************/
 static uint32
-    prune_obj_commit_tests (agt_cfg_transaction_t *txcb,
+    prune_obj_commit_tests (ncx_instance_t *instance,
+                            agt_cfg_transaction_t *txcb,
                             agt_cfg_commit_test_t *ct,
                             val_value_t *rootval,
                             uint32 curflags)
@@ -5045,7 +5150,7 @@ static uint32
              * look for dirty or subtree dirty flags in the rootval
              * this rootval is reallt candidate->root, so it is
              * OK to check the dirty flags    */
-            curflags = check_prune_obj(ct->obj, rootval, curflags);
+            curflags = check_prune_obj(instance, ct->obj, rootval, curflags);
         } else {
             if (txcb->edit_type == AGT_CFG_EDIT_TYPE_FULL) {
                 /* called from <validate> on external <config> element;
@@ -5056,12 +5161,12 @@ static uint32
                 /* called from <edit-config> on running config;
                  * check the edit list; only nodes that have been
                  * edited need to run a commit test   */
-                undo = (agt_cfg_undo_rec_t *)dlq_firstEntry(&txcb->undoQ);
+                undo = (agt_cfg_undo_rec_t *)dlq_firstEntry(instance, &txcb->undoQ);
                 while (undo) {
-                    if (check_no_prune_curedit(undo, ct->obj)) {
+                    if (check_no_prune_curedit(instance, undo, ct->obj)) {
                         return curflags;
                     }
-                    undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(undo);
+                    undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(instance, undo);
                 }
                 curflags = 0;
             } // else unknown edit-type! do not prune
@@ -5069,22 +5174,22 @@ static uint32
     } else if (txcb->cfg_id == NCX_CFGID_CANDIDATE) {
         if (txcb->edit_type == AGT_CFG_EDIT_TYPE_FULL) {
             /* called from <validate> operation on the <candidate> config */
-            curflags = check_prune_obj(ct->obj, rootval, curflags);
+            curflags = check_prune_obj(instance, ct->obj, rootval, curflags);
         } else if (txcb->edit_type == AGT_CFG_EDIT_TYPE_PARTIAL) {
             /* called from <edit-config> with test-option=set-then-test
              * first check all the current edits; because the dirty flags
              * for any edits from this <rpc> have not been set yet */
-            undo = (agt_cfg_undo_rec_t *)dlq_firstEntry(&txcb->undoQ);
+            undo = (agt_cfg_undo_rec_t *)dlq_firstEntry(instance, &txcb->undoQ);
             while (undo) {
-                if (check_no_prune_curedit(undo, ct->obj)) {
+                if (check_no_prune_curedit(instance, undo, ct->obj)) {
                     return curflags;
                 }
-                undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(undo);
+                undo = (agt_cfg_undo_rec_t *)dlq_nextEntry(instance, undo);
             }
 
             /* did not find the object in the current edits so check
              * pending edits (dirty flags) on the candidate->root target */
-            curflags = check_prune_obj(ct->obj, rootval, curflags);
+            curflags = check_prune_obj(instance, ct->obj, rootval, curflags);
         } // else unknown edit-type! do not prune!
     } // else unknown config target! do not prune!
 
@@ -5126,7 +5231,8 @@ static uint32
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    run_instance_check (ses_cb_t *scb,
+    run_instance_check (ncx_instance_t *instance,
+                        ses_cb_t *scb,
                         xml_msg_hdr_t *msg,
                         val_value_t *valset,
                         val_value_t *valroot,
@@ -5136,25 +5242,26 @@ static status_t
     assert( valset && "valset is NULL!" );
 
     if (LOGDEBUG4) {
-        log_debug4("\nrun_instance_check: %s:%s start", 
-                   obj_get_mod_name(valset->obj),
+        log_debug4(instance, 
+                   "\nrun_instance_check: %s:%s start", 
+                   obj_get_mod_name(instance, valset->obj),
                    valset->name);
     }
 
     status_t res = NO_ERR, retres = NO_ERR;
     obj_template_t *obj = valset->obj;
 
-    if (skip_obj_commit_test(obj)) {
+    if (skip_obj_commit_test(instance, obj)) {
         return NO_ERR;
     }
 
-    if (all_levels && val_child_cnt(valset)) {
-        val_value_t *chval = val_get_first_child(valset);
-        for (; chval != NULL; chval = val_get_next_child(chval)) {
+    if (all_levels && val_child_cnt(instance, valset)) {
+        val_value_t *chval = val_get_first_child(instance, valset);
+        for (; chval != NULL; chval = val_get_next_child(instance, chval)) {
 
-            if (!(obj_is_root(chval->obj) || obj_is_leafy(chval->obj))) {
+            if (!(obj_is_root(chval->obj) || obj_is_leafy(instance, chval->obj))) {
                 /* recurse for all object types except root, leaf, leaf-list */
-                res = run_instance_check(scb, msg, chval, valroot, 
+                res = run_instance_check(instance, scb, msg, chval, valroot, 
                                          layer, all_levels);
                 CHK_EXIT(res, retres);
             }
@@ -5162,17 +5269,17 @@ static status_t
     }
 
     /* check all the child nodes for correct number of instances */
-    obj_template_t *chobj = obj_first_child(obj);
-    for (; chobj != NULL; chobj = obj_next_child(chobj)) {
+    obj_template_t *chobj = obj_first_child(instance, obj);
+    for (; chobj != NULL; chobj = obj_next_child(instance, chobj)) {
         
         if (obj_is_root(chobj)) {
             continue;
         }
 
         if (chobj->objtype == OBJ_TYP_CHOICE) {
-            res = choice_check_agt(scb, msg, chobj, valset, valroot, layer);
+            res = choice_check_agt(instance, scb, msg, chobj, valset, valroot, layer);
         } else {
-            res = instance_check(scb, msg, chobj, valset, valroot, layer);
+            res = instance_check(instance, scb, msg, chobj, valset, valroot, layer);
         }
         if (res != NO_ERR && valset->res == NO_ERR) {
             valset->res = res;
@@ -5210,7 +5317,8 @@ static status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    run_obj_commit_tests (agt_profile_t *profile,
+    run_obj_commit_tests (ncx_instance_t *instance,
+                          agt_profile_t *profile,
                           ses_cb_t *scb,
                           xml_msg_hdr_t *msghdr,
                           agt_cfg_commit_test_t *ct,
@@ -5225,12 +5333,14 @@ static status_t
 
     if (testflags) {
         if (LOGDEBUG2) {
-            log_debug2("\nrun obj_commit_tests for %s", 
+            log_debug2(instance, 
+                       "\nrun obj_commit_tests for %s", 
                        (ct) ? ct->objpcb->exprstr : (const xmlChar *)"/");
         }
     } else {
         if (LOGDEBUG4) {
-            log_debug4("\nskip obj_commit_tests for %s", 
+            log_debug4(instance, 
+                       "\nskip obj_commit_tests for %s", 
                        (ct) ? ct->objpcb->exprstr : (const xmlChar *)"/");
         }
         return NO_ERR;
@@ -5243,7 +5353,7 @@ static status_t
 
         /* need to run the instance tests on the 'val' node */
         if (ct) {
-            res = run_instance_check(scb, msghdr, val, root,
+            res = run_instance_check(instance, scb, msghdr, val, root,
                                      NCX_LAYER_CONTENT, FALSE);
             CHK_EXIT(res, retres);
         } else {
@@ -5253,21 +5363,21 @@ static status_t
              * these 2 functions below will no longer work
              * Too much code uses this for-loop search approach
              * so this change is still TBD */
-            ncx_module_t *mod = ncx_get_first_module();
-            for (; mod != NULL; mod = ncx_get_next_module(mod)) {
-                obj_template_t *obj = ncx_get_first_data_object(mod);
-                for (; obj != NULL; obj = ncx_get_next_data_object(mod, obj)) {
+            ncx_module_t *mod = ncx_get_first_module(instance);
+            for (; mod != NULL; mod = ncx_get_next_module(instance, mod)) {
+                obj_template_t *obj = ncx_get_first_data_object(instance, mod);
+                for (; obj != NULL; obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-                    if (skip_obj_commit_test(obj)) {
+                    if (skip_obj_commit_test(instance, obj)) {
                         continue;
                     }
 
                     /* just run instance check on the top level object */
                     if (obj->objtype == OBJ_TYP_CHOICE) {
-                        res = choice_check_agt(scb, msghdr, obj, val, root,
+                        res = choice_check_agt(instance, scb, msghdr, obj, val, root,
                                                NCX_LAYER_CONTENT);
                     } else {
-                        res = instance_check(scb, msghdr, obj, val, root,
+                        res = instance_check(instance, scb, msghdr, obj, val, root,
                                              NCX_LAYER_CONTENT);
                     }
                     CHK_EXIT(res, retres);
@@ -5277,14 +5387,14 @@ static status_t
     }
 
     if (testflags & AGT_TEST_FL_MUST) {
-        res = must_stmt_check(scb, msghdr, root, val);
+        res = must_stmt_check(instance, scb, msghdr, root, val);
         if (res != NO_ERR) {
             CHK_EXIT(res, retres);
         }
     }
 
     if (testflags & AGT_TEST_FL_XPATH_TYPE) {
-        res = instance_xpath_check(scb, msghdr, val, root, NCX_LAYER_CONTENT);
+        res = instance_xpath_check(instance, scb, msghdr, val, root, NCX_LAYER_CONTENT);
         if (res != NO_ERR) {
             CHK_EXIT(res, retres);
         }
@@ -5318,7 +5428,8 @@ static status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 static status_t 
-    run_obj_unique_tests (ses_cb_t *scb,
+    run_obj_unique_tests (ncx_instance_t *instance,
+                          ses_cb_t *scb,
                           xml_msg_hdr_t *msghdr,
                           agt_cfg_commit_test_t *ct,
                           val_value_t *root)
@@ -5326,8 +5437,8 @@ static status_t
     status_t res = NO_ERR;
 
     if (ct->testflags & AGT_TEST_FL_UNIQUE) {
-        log_debug2("\nrun unique tests for %s", ct->objpcb->exprstr);
-        res = unique_stmt_check(scb, msghdr, ct, root);
+        log_debug2(instance, "\nrun unique tests for %s", ct->objpcb->exprstr);
+        res = unique_stmt_check(instance, scb, msghdr, ct, root);
     }
 
     return res;
@@ -5382,7 +5493,8 @@ static status_t
 *   NO_ERR if no false when or must statements found
 *********************************************************************/
 status_t 
-    agt_val_rpc_xpath_check (ses_cb_t *scb,
+    agt_val_rpc_xpath_check (ncx_instance_t *instance,
+                             ses_cb_t *scb,
                              rpc_msg_t *rpcmsg,
                              xml_msg_hdr_t *msg,
                              val_value_t *rpcinput,
@@ -5393,38 +5505,39 @@ status_t
 
 #ifdef DEBUG
     if (!rpcinput || !rpcroot) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (LOGDEBUG3) {
-        log_debug3("\nagt_val_rpc_xpathchk: %s:%s start", 
-                   obj_get_mod_name(rpcroot),
-                   obj_get_name(rpcroot));
+        log_debug3(instance, 
+                   "\nagt_val_rpc_xpathchk: %s:%s start", 
+                   obj_get_mod_name(instance, rpcroot),
+                   obj_get_name(instance, rpcroot));
     }
 
     /* make a dummy tree to align with the XPath code */
-    method = val_new_value();
+    method = val_new_value(instance);
     if (!method) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(method, rpcroot);
+    val_init_from_template(instance, method, rpcroot);
 
     /* add the rpc/method-name/input node */
-    val_add_child(rpcinput, method);
+    val_add_child(instance, rpcinput, method);
 
     /* just check for when-stmt deletes once, since it is an error */
-    res = rpc_when_stmt_check(scb, rpcmsg, msg, method, rpcinput);
+    res = rpc_when_stmt_check(instance, scb, rpcmsg, msg, method, rpcinput);
 
     /* check if any must expressions apply to
      * descendent-or-self nodes in the rpcinput node */
     if (res == NO_ERR) {
-        res = rpc_must_stmt_check(scb, msg, method, rpcinput);
+        res = rpc_must_stmt_check(instance, scb, msg, method, rpcinput);
     }
 
     /* cleanup fake RPC method parent node */
-    val_remove_child(rpcinput);
-    val_free_value(method);
+    val_remove_child(instance, rpcinput);
+    val_free_value(instance, method);
 
     return res;
 
@@ -5463,13 +5576,14 @@ status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 status_t 
-    agt_val_instance_check (ses_cb_t *scb,
+    agt_val_instance_check (ncx_instance_t *instance,
+                            ses_cb_t *scb,
                             xml_msg_hdr_t *msg,
                             val_value_t *valset,
                             val_value_t *valroot,
                             ncx_layer_t layer)
 {
-    return run_instance_check(scb, msg, valset, valroot, layer, TRUE);
+    return run_instance_check(instance, scb, msg, valset, valroot, layer, TRUE);
     
 }  /* agt_val_instance_check */
 
@@ -5520,12 +5634,13 @@ status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 status_t 
-    agt_val_root_check (ses_cb_t *scb,
+    agt_val_root_check (ncx_instance_t *instance,
+                        ses_cb_t *scb,
                         xml_msg_hdr_t *msghdr,
                         agt_cfg_transaction_t *txcb,
                         val_value_t *root)
 {
-    log_debug3("\nagt_val_root_check: start");
+    log_debug3(instance, "\nagt_val_root_check: start");
 
     assert ( txcb && "txcb is NULL!" );
     assert ( root && "root is NULL!" );
@@ -5539,7 +5654,7 @@ status_t
      * are operations such as <validate> and <copy-config> that
      * make it impossible to flag the 'root-dirty' condition 
      * during editing  */
-    res = run_obj_commit_tests(profile, scb, msghdr, NULL, root, root,
+    res = run_obj_commit_tests(instance, profile, scb, msghdr, NULL, root, root,
                                AGT_TEST_ALL_COMMIT_MASK);
     if (res != NO_ERR) {
         profile->agt_load_top_rootcheck_errors = TRUE;
@@ -5549,8 +5664,8 @@ status_t
     /* go through all the commit test objects that might need
      * to be checked for this commit    */
     agt_cfg_commit_test_t *ct = (agt_cfg_commit_test_t *)
-        dlq_firstEntry(&profile->agt_commit_testQ);
-    for (; ct != NULL; ct = (agt_cfg_commit_test_t *)dlq_nextEntry(ct)) {
+        dlq_firstEntry(instance, &profile->agt_commit_testQ);
+    for (; ct != NULL; ct = (agt_cfg_commit_test_t *)dlq_nextEntry(instance, ct)) {
 
         uint32  tests = ct->testflags & AGT_TEST_ALL_COMMIT_MASK;
 
@@ -5560,32 +5675,33 @@ status_t
          * not be any edits recorded in the txcb->undoQ or any
          * nodes marked dirty in val->flags     */
         if (profile->agt_config_state == AGT_CFG_STATE_OK) {
-            tests = prune_obj_commit_tests(txcb, ct, root, tests);
+            tests = prune_obj_commit_tests(instance, txcb, ct, root, tests);
         }
 
         if (tests == 0) {
             /* no commit tests needed for this node */
             if (LOGDEBUG3) {
-                log_debug3("\nrun_root_check: skip commit test %s:%s",
-                           obj_get_mod_name(ct->obj),
-                           obj_get_name(ct->obj));
+                log_debug3(instance,
+                           "\nrun_root_check: skip commit test %s:%s",
+                           obj_get_mod_name(instance, ct->obj),
+                           obj_get_name(instance, ct->obj));
             }
             continue;
         }
 
-        res = prep_commit_test_node(scb, msghdr, txcb, ct, root);
+        res = prep_commit_test_node(instance, scb, msghdr, txcb, ct, root);
         if (res != NO_ERR) {
             CHK_EXIT(res, retres);
             continue;
         }
 
         /* run all relevant tests on each node in the result set */
-        xpath_resnode_t *resnode = xpath_get_first_resnode(ct->result);
-        for (; resnode != NULL; resnode = xpath_get_next_resnode(resnode)) {
+        xpath_resnode_t *resnode = xpath_get_first_resnode(instance, ct->result);
+        for (; resnode != NULL; resnode = xpath_get_next_resnode(instance, resnode)) {
 
-            val_value_t *valnode = xpath_get_resnode_valptr(resnode);
-            valnode->res = NO_ERR;
-            res = run_obj_commit_tests(profile, scb, msghdr, ct, valnode, 
+            val_value_t *valnode = xpath_get_resnode_valptr(instance, resnode);
+
+            res = run_obj_commit_tests(instance, profile, scb, msghdr, ct, valnode, 
                                        root, tests);
             if (res != NO_ERR) {
                 valnode->res = res;
@@ -5596,14 +5712,14 @@ status_t
 
         /* check if any unique tests, which are handled all at once
          * instead of one instance at a time  */
-        res = run_obj_unique_tests(scb, msghdr, ct, root);
+        res = run_obj_unique_tests(instance, scb, msghdr, ct, root);
         if (res != NO_ERR) {
             profile->agt_load_rootcheck_errors = TRUE;
             CHK_EXIT(res, retres);
         }
     }
 
-    log_debug3("\nagt_val_root_check: end");
+    log_debug3(instance, "\nagt_val_root_check: end");
 
     return retres;
 
@@ -5650,7 +5766,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t
-    agt_val_validate_write (ses_cb_t  *scb,
+    agt_val_validate_write (ncx_instance_t *instance,
+                            ses_cb_t  *scb,
                             rpc_msg_t  *msg,
                             cfg_template_t *target,
                             val_value_t  *valroot,
@@ -5666,9 +5783,9 @@ status_t
 
     if (target) {
         /* check the lock first */
-        res = cfg_ok_to_write(target, scb->sid);
+        res = cfg_ok_to_write(instance, target, scb->sid);
         if (res != NO_ERR) {
-            agt_record_error(scb, &msg->mhdr, NCX_LAYER_CONTENT, res,
+            agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_CONTENT, res,
                              NULL, NCX_NT_NONE, NULL, NCX_NT_VAL, valroot);
             return res;
         }
@@ -5677,7 +5794,7 @@ status_t
     /* the <config> root is just a value node of type 'root'
      * traverse all nodes and check the <edit-config> request
      */
-    res = handle_callback(AGT_CB_VALIDATE, editop, scb, msg, target, valroot,
+    res = handle_callback(instance, AGT_CB_VALIDATE, editop, scb, msg, target, valroot,
                           (target) ? target->root : NULL,
                           (target) ? target->root : valroot);
 
@@ -5715,7 +5832,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    agt_val_apply_write (ses_cb_t  *scb,
+    agt_val_apply_write (ncx_instance_t *instance,
+                         ses_cb_t  *scb,
                          rpc_msg_t  *msg,
                          cfg_template_t *target,
                          val_value_t    *pducfg,
@@ -5729,7 +5847,7 @@ status_t
     assert( obj_is_root(pducfg->obj) && "pducfg root is NULL!" );
 
     /* start with the config root, which is a val_value_t node */
-    status_t res = handle_callback(AGT_CB_APPLY, editop, scb, msg, target, 
+    status_t res = handle_callback(instance, AGT_CB_APPLY, editop, scb, msg, target, 
                                    pducfg, target->root, target->root);
 
     if (res == NO_ERR) {
@@ -5740,7 +5858,7 @@ status_t
              * candidate or running in apply phase; not evaluated at commit
              * time like must-stmt or unique-stmt    */
             uint32 delcount = 0;
-            res = delete_dead_nodes(scb, &msg->mhdr, msg->rpc_txcb, 
+            res = delete_dead_nodes(instance, scb, &msg->mhdr, msg->rpc_txcb, 
                                     target->root, &delcount);
             if (res != NO_ERR || delcount == 0) {
                 done = TRUE;
@@ -5749,21 +5867,22 @@ status_t
     }
 
     if (res == NO_ERR && msg->rpc_txcb->rootcheck) {
-        res = agt_val_root_check(scb, &msg->mhdr, msg->rpc_txcb, target->root);
+        res = agt_val_root_check(instance, scb, &msg->mhdr, msg->rpc_txcb, target->root);
     }
 
     if (res == NO_ERR) {
         /* complete the operation */
-        res = handle_callback(AGT_CB_COMMIT, editop, scb, msg, target, 
+        res = handle_callback(instance, AGT_CB_COMMIT, editop, scb, msg, target, 
                               pducfg, target->root, target->root);
         /*commit_complete?*/
     } else {
         /* rollback the operation */
-        status_t res2 = handle_callback(AGT_CB_ROLLBACK, editop, scb, msg, 
+        status_t res2 = handle_callback(instance, AGT_CB_ROLLBACK, editop, scb, msg, 
                                         target, pducfg, target->root, 
                                         target->root);
         if (res2 != NO_ERR) {
-            log_error("\nagt_val: Rollback failed (%s)\n",
+            log_error(instance,
+                      "\nagt_val: Rollback failed (%s)\n",
                       get_error_string(res2));
         }
     }
@@ -5801,7 +5920,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    agt_val_apply_commit (ses_cb_t  *scb,
+    agt_val_apply_commit (ncx_instance_t *instance,
+                          ses_cb_t  *scb,
                           rpc_msg_t  *msg,
                           cfg_template_t *source,
                           cfg_template_t *target,
@@ -5819,8 +5939,8 @@ status_t
 
 #ifdef ALLOW_SKIP_EMPTY_COMMIT
     /* usually only save if the source config was touched */
-    if (!cfg_get_dirty_flag(source)) {
-        boolean no_startup_errors = dlq_empty(&target->load_errQ);
+    if (!cfg_get_dirty_flag(instance, source)) {
+        boolean no_startup_errors = dlq_empty(instance, &target->load_errQ);
 
         /* no need to merge the candidate into the running
          * config because there are no changes in the candidate
@@ -5830,7 +5950,7 @@ status_t
              * the startup config file
              */
             if (LOGDEBUG) {
-                log_debug("\nSkipping commit, candidate not dirty");
+                log_debug(instance, "\nSkipping commit, candidate not dirty");
             }
         } else {
             /* there is no distinct startup; need to mirror now;
@@ -5840,17 +5960,17 @@ status_t
              */
             if (no_startup_errors) {
                 if (LOGDEBUG) {
-                    log_debug("\nSkipping commit, candidate not dirty");
+                    log_debug(instance, "\nSkipping commit, candidate not dirty");
                 }
             } else {
                 if (LOGINFO) {
-                    log_debug("\nSkipping commit, but saving running "
+                    log_debug(instance, "\nSkipping commit, but saving running "
                               "to NV-storage due to load errors");
                 }
-                res = agt_ncx_cfg_save(target, FALSE);
+                res = agt_ncx_cfg_save(instance, target, FALSE);
                 if (res != NO_ERR) {
                     /* write to NV-store failed */
-                    agt_record_error(scb, &msg->mhdr, NCX_LAYER_OPERATION, res, 
+                    agt_record_error(instance, scb, &msg->mhdr, NCX_LAYER_OPERATION, res, 
                                      NULL, NCX_NT_CFG, target, NCX_NT_NONE, 
                                      NULL);
                 }
@@ -5864,44 +5984,45 @@ status_t
     //res = apply_commit_deletes(scb, msg, target, source->root, target->root);
     if (res == NO_ERR) {
         /* apply all the new and modified nodes */
-        res = handle_callback(AGT_CB_APPLY, OP_EDITOP_COMMIT, scb, msg, 
+        res = handle_callback(instance, AGT_CB_APPLY, OP_EDITOP_COMMIT, scb, msg, 
                               target, source->root, target->root, target->root);
     }
 
     if (res==NO_ERR) {
         /* complete the transaction */
-        res = handle_callback(AGT_CB_COMMIT, OP_EDITOP_COMMIT, scb, msg, 
+        res = handle_callback(instance, AGT_CB_COMMIT, OP_EDITOP_COMMIT, scb, msg, 
                               target, source->root, target->root, target->root);
 
         if ( NO_ERR == res ) {
-            res = agt_commit_complete();
+            res = agt_commit_complete(instance);
         }
     } else {
         /* rollback the transaction */
-        status_t res2 = handle_callback(AGT_CB_ROLLBACK, OP_EDITOP_COMMIT,
+        status_t res2 = handle_callback(instance, AGT_CB_ROLLBACK, OP_EDITOP_COMMIT,
                                         scb, msg, target, source->root,
                                         target->root, target->root);
         if (res2 != NO_ERR) {
-            log_error("\nError: rollback failed (%s)", 
+            log_error(instance, 
+                      "\nError: rollback failed (%s)", 
                       get_error_string(res2));
         }
     }
 
     if (res == NO_ERR && !profile->agt_has_startup) {
         if (save_nvstore) {
-            res = agt_ncx_cfg_save(target, FALSE);
+            res = agt_ncx_cfg_save(instance, target, FALSE);
             if (res != NO_ERR) {
                 /* write to NV-store failed */
-                agt_record_error(scb,&msg->mhdr, NCX_LAYER_OPERATION, res, 
+                agt_record_error(instance,scb,&msg->mhdr, NCX_LAYER_OPERATION, res, 
                                  NULL, NCX_NT_CFG, target, NCX_NT_NONE, NULL);
             } else {
                 /* don't clear the dirty flags in running
                  * unless the save to file  worked
                  */
-                val_clean_tree(target->root);
+                val_clean_tree(instance, target->root);
             }
         } else if (LOGDEBUG2) {
-            log_debug2("\nagt_val: defer NV-save after commit "
+            log_debug2(instance, "\nagt_val: defer NV-save after commit "
                        "until confirmed");
         }
     }
@@ -5939,7 +6060,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    agt_val_check_commit_edits (ses_cb_t  *scb,
+    agt_val_check_commit_edits (ncx_instance_t *instance,
+                                ses_cb_t  *scb,
                                 rpc_msg_t  *msg,
                                 cfg_template_t *source,
                                 cfg_template_t *target)
@@ -5951,12 +6073,12 @@ status_t
     assert( target && "target is NULL!" );
 
     /* usually only save if the source config was touched */
-    if (!cfg_get_dirty_flag(source)) {
+    if (!cfg_get_dirty_flag(instance, source)) {
         /* no need to check for partial-lock violations */
         return NO_ERR;
     }
 
-    status_t res = handle_callback(AGT_CB_VALIDATE, OP_EDITOP_COMMIT, 
+    status_t res = handle_callback(instance, AGT_CB_VALIDATE, OP_EDITOP_COMMIT, 
                                    scb, msg, target, source->root, 
                                    target->root, target->root);
     return res;
@@ -5981,7 +6103,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    agt_val_delete_dead_nodes (ses_cb_t  *scb,
+    agt_val_delete_dead_nodes (ncx_instance_t *instance,
+                               ses_cb_t  *scb,
                                rpc_msg_t  *msg,
                                val_value_t *root)
 {
@@ -5998,7 +6121,7 @@ status_t
          * candidate or running in apply phase; not evaluated at commit
          * time like must-stmt or unique-stmt    */
         uint32 delcount = 0;
-        res = delete_dead_nodes(scb, &msg->mhdr, msg->rpc_txcb, root, 
+        res = delete_dead_nodes(instance, scb, &msg->mhdr, msg->rpc_txcb, root, 
                                 &delcount);
         if (res != NO_ERR || delcount == 0) {
             done = TRUE;
@@ -6036,17 +6159,17 @@ status_t
 *   or malloc error
 *********************************************************************/
 status_t 
-    agt_val_add_module_commit_tests (ncx_module_t *mod)
+    agt_val_add_module_commit_tests (ncx_instance_t *instance, ncx_module_t *mod)
 {
     assert( mod && "mod is NULL!" );
 
     agt_profile_t *profile = agt_get_profile();
     status_t res = NO_ERR;
 
-    obj_template_t *obj = ncx_get_first_data_object(mod);
-    for (; obj != NULL; obj = ncx_get_next_data_object(mod, obj)) {
+    obj_template_t *obj = ncx_get_first_data_object(instance, mod);
+    for (; obj != NULL; obj = ncx_get_next_data_object(instance, mod, obj)) {
 
-        res = add_obj_commit_tests(obj, &profile->agt_commit_testQ,
+        res = add_obj_commit_tests(instance, obj, &profile->agt_commit_testQ,
                                    &profile->agt_rootflags);
         
         if (res != NO_ERR) {
@@ -6081,15 +6204,15 @@ status_t
 *   or malloc error
 *********************************************************************/
 status_t 
-    agt_val_init_commit_tests (void)
+    agt_val_init_commit_tests (ncx_instance_t *instance)
 {
     status_t        res = NO_ERR;
     
     /* check all the modules in the system for top-level database objects */
-    ncx_module_t *mod = ncx_get_first_module();
-    for (; mod != NULL; mod = ncx_get_next_module(mod)) {
+    ncx_module_t *mod = ncx_get_first_module(instance);
+    for (; mod != NULL; mod = ncx_get_next_module(instance, mod)) {
 
-        res = agt_val_add_module_commit_tests(mod);
+        res = agt_val_add_module_commit_tests(instance, mod);
         if (res != NO_ERR) {
             return res;
         }

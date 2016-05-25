@@ -72,7 +72,8 @@ static boolean agt_plock_init_done = FALSE;
 *     error status
 ********************************************************************/
 static status_t
-    y_ietf_netconf_partial_lock_partial_lock_validate (
+    y_ietf_netconf_partial_lock_partial_lock_validate (ncx_instance_t *instance,
+        
         ses_cb_t *scb,
         rpc_msg_t *msg,
         xml_node_t *methnode)
@@ -90,12 +91,13 @@ static status_t
     plcb = NULL;
     result = NULL;
 
-    running = cfg_get_config_id(NCX_CFGID_RUNNING);
+    running = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
 
     /* make sure the running config state is READY */
-    res = cfg_ok_to_partial_lock(running);
+    res = cfg_ok_to_partial_lock(instance, running);
     if (res != NO_ERR) {
-        agt_record_error(scb,
+        agt_record_error(instance,
+                         scb,
                          &msg->mhdr,
                          NCX_LAYER_OPERATION,
                          res,
@@ -111,32 +113,34 @@ static status_t
      * is present because min-elements=1
      */
     select_val = val_find_child
-        (msg->rpc_input,
+        (instance,
+         msg->rpc_input,
          y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
          y_ietf_netconf_partial_lock_N_select);
     if (select_val == NULL || select_val->res != NO_ERR) {
         /* should not happen */
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* allocate a new lock cb
      * the plcb pointer will be NULL if the result is not NO_ERR
      */
     res = NO_ERR;
-    plcb = plock_cb_new(SES_MY_SID(scb), &res);
+    plcb = plock_cb_new(instance, SES_MY_SID(scb), &res);
     if (res == ERR_NCX_RESOURCE_DENIED && !plcb &&
-        !cfg_is_partial_locked(running)) {
+        !cfg_is_partial_locked(instance, running)) {
         /* no partial locks so it is safe to reset the lock index */
-        plock_cb_reset_id();
+        plock_cb_reset_id(instance);
         res = NO_ERR;
-        plcb = plock_cb_new(SES_MY_SID(scb), &res);
+        plcb = plock_cb_new(instance, SES_MY_SID(scb), &res);
     }
 
     if (res != NO_ERR || !plcb ) {
         if ( res==NO_ERR && !plcb ) {
             res = ERR_INTERNAL_MEM;
         }
-        agt_record_error(scb,
+        agt_record_error(instance,
+                         scb,
                          &msg->mhdr,
                          NCX_LAYER_OPERATION,
                          res,
@@ -146,7 +150,7 @@ static status_t
                          NCX_NT_NONE,
                          NULL);
         if ( plcb ) {
-            plock_cb_free(plcb);
+            plock_cb_free(instance, plcb);
         }
         return res;
     }
@@ -155,7 +159,8 @@ static status_t
      * in the partial lock cb
      */
     while (select_val != NULL) {
-        result = xpath1_eval_xmlexpr(scb->reader,
+        result = xpath1_eval_xmlexpr(instance,
+                                     scb->reader,
                                      select_val->xpathpcb,
                                      running->root,
                                      running->root,
@@ -168,7 +173,8 @@ static status_t
              * but maybe something was valid in the
              * object tree but not in the value tree
              */
-            agt_record_error(scb,
+            agt_record_error(instance,
+                             scb,
                              &msg->mhdr,
                              NCX_LAYER_OPERATION,
                              res,
@@ -178,10 +184,11 @@ static status_t
                              NCX_NT_VAL,
                              select_val);
             retres = res;
-            xpath_free_result(result);
+            xpath_free_result(instance, result);
         } else if (result->restype != XP_RT_NODESET) {
             res = ERR_NCX_XPATH_NOT_NODESET;
-            agt_record_error(scb,
+            agt_record_error(instance,
+                             scb,
                              &msg->mhdr,
                              NCX_LAYER_OPERATION,
                              res,
@@ -191,14 +198,15 @@ static status_t
                              NCX_NT_VAL,
                              select_val);
             retres = res;
-            xpath_free_result(result);
+            xpath_free_result(instance, result);
         } else {
             /* save these pointers; the result will be
              * pruned for redundant nodes after all the
              * select expressions have been processed;
              * transfer the memory straight across
              */
-            plock_add_select(plcb, 
+            plock_add_select(instance, 
+                             plcb, 
                              select_val->xpathpcb,
                              result);
             select_val->xpathpcb = NULL;
@@ -207,7 +215,8 @@ static status_t
 
         /* set up the next select value even if errors so far */
         select_val = val_find_next_child
-            (msg->rpc_input,
+            (instance,
+             msg->rpc_input,
              y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
              y_ietf_netconf_partial_lock_N_select,
              select_val);
@@ -217,9 +226,10 @@ static status_t
      * the select stmts were valid
      */
     if (retres == NO_ERR) {
-        res = plock_make_final_result(plcb);
+        res = plock_make_final_result(instance, plcb);
         if (res != NO_ERR) {
-            agt_record_error(scb,
+            agt_record_error(instance,
+                             scb,
                              &msg->mhdr,
                              NCX_LAYER_OPERATION,
                              res,
@@ -237,13 +247,13 @@ static status_t
      * only if the final result is a non-empty nodeset
      */
     if (retres == NO_ERR) {
-        result = plock_get_final_result(plcb);
+        result = plock_get_final_result(instance, plcb);
 
-        for (resnode = xpath_get_first_resnode(result);
+        for (resnode = xpath_get_first_resnode(instance, result);
              resnode != NULL;
-             resnode = xpath_get_next_resnode(resnode)) {
+             resnode = xpath_get_next_resnode(instance, resnode)) {
 
-            testval = xpath_get_resnode_valptr(resnode);
+            testval = xpath_get_resnode_valptr(instance, resnode);
 
             /* !!! Update 2011-09-27
              * Just talked to the RFC author; Martin and I
@@ -259,11 +269,12 @@ static status_t
              * is unauthorized for writing
              */
             lockowner = 0;
-            res = val_ok_to_partial_lock(testval, SES_MY_SID(scb),
+            res = val_ok_to_partial_lock(instance, testval, SES_MY_SID(scb),
                                          &lockowner);
             if (res != NO_ERR) {
                 if (res == ERR_NCX_LOCK_DENIED) {
-                    agt_record_error(scb,
+                    agt_record_error(instance,
+                                     scb,
                                      &msg->mhdr,
                                      NCX_LAYER_OPERATION,
                                      res,
@@ -273,7 +284,8 @@ static status_t
                                      NCX_NT_VAL,
                                      testval);
                 } else {
-                    agt_record_error(scb,
+                    agt_record_error(instance,
+                                     scb,
                                      &msg->mhdr,
                                      NCX_LAYER_OPERATION,
                                      res,
@@ -291,7 +303,8 @@ static status_t
     /* make sure there is no partial commit in progress */
     if (agt_ncx_cc_active()) {
         res = ERR_NCX_IN_USE_COMMIT;
-        agt_record_error(scb,
+        agt_record_error(instance,
+                         scb,
                          &msg->mhdr,
                          NCX_LAYER_OPERATION,
                          res,
@@ -310,7 +323,7 @@ static status_t
         /* the invoke function must free this pointer */
         msg->rpc_user1 = plcb;
     } else {
-        plock_cb_free(plcb);
+        plock_cb_free(instance, plcb);
     }
 
     return retres;
@@ -332,7 +345,8 @@ static status_t
 *     error status
 ********************************************************************/
 static status_t
-    y_ietf_netconf_partial_lock_partial_lock_invoke (
+    y_ietf_netconf_partial_lock_partial_lock_invoke (ncx_instance_t *instance,
+        
         ses_cb_t *scb,
         rpc_msg_t *msg,
         xml_node_t *methnode)
@@ -349,19 +363,20 @@ static status_t
     res = NO_ERR;
 
     plcb = (plock_cb_t *)msg->rpc_user1;
-    result = plock_get_final_result(plcb);
-    running = cfg_get_config_id(NCX_CFGID_RUNNING);
+    result = plock_get_final_result(instance, plcb);
+    running = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
 
     /* try to lock all the target nodes */
-    for (resnode = xpath_get_first_resnode(result);
+    for (resnode = xpath_get_first_resnode(instance, result);
          resnode != NULL && res == NO_ERR;
-         resnode = xpath_get_next_resnode(resnode)) {
+         resnode = xpath_get_next_resnode(instance, resnode)) {
 
-        testval = xpath_get_resnode_valptr(resnode);
+        testval = xpath_get_resnode_valptr(instance, resnode);
 
-        res = val_set_partial_lock(testval, plcb);
+        res = val_set_partial_lock(instance, testval, plcb);
         if (res != NO_ERR) {
-            agt_record_error(scb,
+            agt_record_error(instance,
+                             scb,
                              &msg->mhdr,
                              NCX_LAYER_OPERATION,
                              res,
@@ -375,13 +390,13 @@ static status_t
 
     /* unlock any nodes already attempted if any fail */
     if (res != NO_ERR) {
-        for (clearnode = xpath_get_first_resnode(result);
+        for (clearnode = xpath_get_first_resnode(instance, result);
              clearnode != NULL;
-             clearnode = xpath_get_next_resnode(clearnode)) {
+             clearnode = xpath_get_next_resnode(instance, clearnode)) {
 
-            testval = xpath_get_resnode_valptr(clearnode);
+            testval = xpath_get_resnode_valptr(instance, clearnode);
 
-            val_clear_partial_lock(testval, plcb);
+            val_clear_partial_lock(instance, testval, plcb);
             if (clearnode == resnode) {
                 return res;
             }
@@ -390,12 +405,13 @@ static status_t
     }
 
     /* add this partial lock to the running config */
-    res = cfg_add_partial_lock(running, plcb);
+    res = cfg_add_partial_lock(instance, running, plcb);
     if (res != NO_ERR) {
         /* should not happen since config lock state could
          * not have changed since validate callback
          */
-        agt_record_error(scb,
+        agt_record_error(instance,
+                         scb,
                          &msg->mhdr,
                          NCX_LAYER_OPERATION,
                          res,
@@ -404,14 +420,14 @@ static status_t
                          NULL,
                          NCX_NT_NONE,
                          NULL);
-        for (clearnode = xpath_get_first_resnode(result);
+        for (clearnode = xpath_get_first_resnode(instance, result);
              clearnode != NULL;
-             clearnode = xpath_get_next_resnode(clearnode)) {
+             clearnode = xpath_get_next_resnode(instance, clearnode)) {
 
-            testval = xpath_get_resnode_valptr(clearnode);
-            val_clear_partial_lock(testval, plcb);
+            testval = xpath_get_resnode_valptr(instance, clearnode);
+            val_clear_partial_lock(instance, testval, plcb);
         }
-        plock_cb_free(plcb);
+        plock_cb_free(instance, plcb);
         return res;
     }
 
@@ -423,18 +439,20 @@ static status_t
      */
     msg->rpc_data_type = RPC_DATA_YANG;
     
-    ncx_init_num(&num);
-    num.u = plock_get_id(plcb);
+    ncx_init_num(instance, &num);
+    num.u = plock_get_id(instance, plcb);
     newval = xml_val_new_number
-        (y_ietf_netconf_partial_lock_N_lock_id,
-         val_get_nsid(msg->rpc_input),
+        (instance,
+         y_ietf_netconf_partial_lock_N_lock_id,
+         val_get_nsid(instance, msg->rpc_input),
          &num,
          NCX_BT_UINT32);
-    ncx_clean_num(NCX_BT_UINT32, &num);
+    ncx_clean_num(instance, NCX_BT_UINT32, &num);
 
     if (newval == NULL) {
         res = ERR_INTERNAL_MEM;
-        agt_record_error(scb, 
+        agt_record_error(instance, 
+                         scb, 
                          &msg->mhdr, 
                          NCX_LAYER_OPERATION, 
                          res,
@@ -444,41 +462,44 @@ static status_t
                          NCX_NT_NONE, 
                          NULL);
     } else {
-        dlq_enque(newval, &msg->rpc_dataQ);
+        dlq_enque(instance, newval, &msg->rpc_dataQ);
     }
 
     /* add lock-node leaf-list instance for each resnode */
-    for (resnode = xpath_get_first_resnode(result);
+    for (resnode = xpath_get_first_resnode(instance, result);
          resnode != NULL && res == NO_ERR;
-         resnode = xpath_get_next_resnode(resnode)) {
+         resnode = xpath_get_next_resnode(instance, resnode)) {
 
         /* Q&D method: generate the i-i string as a plain
          * string and add any needed prefixes to the global
          * prefix map for the reply message (in mhdr)
          */
         pathbuff = NULL;
-        testval = xpath_get_resnode_valptr(resnode);
-        res = val_gen_instance_id(&msg->mhdr, 
+        testval = xpath_get_resnode_valptr(instance, resnode);
+        res = val_gen_instance_id(instance, 
+                                  &msg->mhdr, 
                                   testval,
                                   NCX_IFMT_XPATH1, 
                                   &pathbuff);
         if (res == NO_ERR) {
             /* make leaf; pass off pathbuff malloced memory */
             newval = xml_val_new_string
-                (y_ietf_netconf_partial_lock_N_locked_node,
-                 val_get_nsid(msg->rpc_input),
+                (instance,
+                 y_ietf_netconf_partial_lock_N_locked_node,
+                 val_get_nsid(instance, msg->rpc_input),
                  pathbuff);
             if (newval == NULL) {
                 res = ERR_INTERNAL_MEM;
-                m__free(pathbuff);
+                m__free(instance, pathbuff);
                 pathbuff = NULL;
             }
         }
 
         if (res == NO_ERR) {
-            dlq_enque(newval, &msg->rpc_dataQ);
+            dlq_enque(instance, newval, &msg->rpc_dataQ);
         } else {
-            agt_record_error(scb, 
+            agt_record_error(instance, 
+                             scb, 
                              &msg->mhdr, 
                              NCX_LAYER_OPERATION, 
                              res,
@@ -492,20 +513,20 @@ static status_t
 
     if (res != NO_ERR) {
         /* back out everything, except waste the lock ID */
-        for (clearnode = xpath_get_first_resnode(result);
+        for (clearnode = xpath_get_first_resnode(instance, result);
              clearnode != NULL;
-             clearnode = xpath_get_next_resnode(clearnode)) {
+             clearnode = xpath_get_next_resnode(instance, clearnode)) {
 
-            testval = xpath_get_resnode_valptr(clearnode);
-            val_clear_partial_lock(testval, plcb);
+            testval = xpath_get_resnode_valptr(instance, clearnode);
+            val_clear_partial_lock(instance, testval, plcb);
         }
-        cfg_delete_partial_lock(running, plock_get_id(plcb));
+        cfg_delete_partial_lock(instance, running, plock_get_id(instance, plcb));
 
         /* clear any data already queued */
-        while (!dlq_empty(&msg->rpc_dataQ)) {
+        while (!dlq_empty(instance, &msg->rpc_dataQ)) {
             testval = (val_value_t *)
-                dlq_deque(&msg->rpc_dataQ);
-            val_free_value(testval);
+                dlq_deque(instance, &msg->rpc_dataQ);
+            val_free_value(instance, testval);
         }
         msg->rpc_data_type = RPC_DATA_NONE;
     }
@@ -529,7 +550,8 @@ static status_t
 *     error status
 ********************************************************************/
 static status_t
-    y_ietf_netconf_partial_lock_partial_unlock_validate (
+    y_ietf_netconf_partial_lock_partial_unlock_validate (ncx_instance_t *instance,
+        
         ses_cb_t *scb,
         rpc_msg_t *msg,
         xml_node_t *methnode)
@@ -542,7 +564,8 @@ static status_t
 
     res = NO_ERR;
 
-    lock_id_val = val_find_child(
+    lock_id_val = val_find_child(instance,
+        
         msg->rpc_input,
         y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
         y_ietf_netconf_partial_lock_N_lock_id);
@@ -552,13 +575,14 @@ static status_t
 
     lock_id = VAL_UINT(lock_id_val);
 
-    running = cfg_get_config_id(NCX_CFGID_RUNNING);
+    running = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
 
-    plcb = cfg_find_partial_lock(running, lock_id);
+    plcb = cfg_find_partial_lock(instance, running, lock_id);
 
-    if (plcb == NULL || (plock_get_sid(plcb) != SES_MY_SID(scb))) {
+    if (plcb == NULL || (plock_get_sid(instance, plcb) != SES_MY_SID(scb))) {
         res = ERR_NCX_INVALID_VALUE;
-        agt_record_error(
+        agt_record_error(instance,
+            
             scb,
             &msg->mhdr,
             NCX_LAYER_OPERATION,
@@ -591,7 +615,8 @@ static status_t
 *     error status
 ********************************************************************/
 static status_t
-    y_ietf_netconf_partial_lock_partial_unlock_invoke (
+    y_ietf_netconf_partial_lock_partial_unlock_invoke (ncx_instance_t *instance,
+        
         ses_cb_t *scb,
         rpc_msg_t *msg,
         xml_node_t *methnode)
@@ -603,10 +628,11 @@ static status_t
     (void)methnode;
 
     plcb = (plock_cb_t *)msg->rpc_user1;
-    running = cfg_get_config_id(NCX_CFGID_RUNNING);
+    running = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
 
-    cfg_delete_partial_lock(running,
-                            plock_get_id(plcb));
+    cfg_delete_partial_lock(instance,
+                            running,
+                            plock_get_id(instance, plcb));
     return NO_ERR;
 
 } /* y_ietf_netconf_partial_lock_partial_unlock_invoke */
@@ -643,7 +669,8 @@ static void
 *     error status
 ********************************************************************/
 status_t
-    y_ietf_netconf_partial_lock_init (
+    y_ietf_netconf_partial_lock_init (ncx_instance_t *instance,
+        
         const xmlChar *modname,
         const xmlChar *revision)
 {
@@ -653,19 +680,21 @@ status_t
     y_ietf_netconf_partial_lock_init_static_vars();
 
     /* change if custom handling done */
-    if (xml_strcmp(modname, 
+    if (xml_strcmp(instance, 
+                   modname, 
                    y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock)) {
         return ERR_NCX_UNKNOWN_MODULE;
     }
 
     if (revision && xml_strcmp
-        (revision, y_ietf_netconf_partial_lock_R_ietf_netconf_partial_lock)) {
+        (instance, revision, y_ietf_netconf_partial_lock_R_ietf_netconf_partial_lock)) {
         return ERR_NCX_WRONG_VERSION;
     }
 
     agt_profile = agt_get_profile();
 
-    res = ncxmod_load_module(
+    res = ncxmod_load_module(instance,
+        
         y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
         y_ietf_netconf_partial_lock_R_ietf_netconf_partial_lock,
         &agt_profile->agt_savedevQ,
@@ -676,21 +705,24 @@ status_t
 
     agt_plock_init_done = TRUE;
 
-    partial_lock_obj = ncx_find_object(
+    partial_lock_obj = ncx_find_object(instance,
+        
         ietf_netconf_partial_lock_mod,
         y_ietf_netconf_partial_lock_N_partial_lock);
     if (ietf_netconf_partial_lock_mod == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
     
-    partial_unlock_obj = ncx_find_object(
+    partial_unlock_obj = ncx_find_object(instance,
+        
         ietf_netconf_partial_lock_mod,
         y_ietf_netconf_partial_lock_N_partial_unlock);
     if (ietf_netconf_partial_lock_mod == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
     
-    res = agt_rpc_register_method(
+    res = agt_rpc_register_method(instance,
+        
         y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
         y_ietf_netconf_partial_lock_N_partial_lock,
         AGT_RPC_PH_VALIDATE,
@@ -699,7 +731,8 @@ status_t
         return res;
     }
     
-    res = agt_rpc_register_method(
+    res = agt_rpc_register_method(instance,
+        
         y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
         y_ietf_netconf_partial_lock_N_partial_lock,
         AGT_RPC_PH_INVOKE,
@@ -708,7 +741,8 @@ status_t
         return res;
     }
     
-    res = agt_rpc_register_method(
+    res = agt_rpc_register_method(instance,
+        
         y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
         y_ietf_netconf_partial_lock_N_partial_unlock,
         AGT_RPC_PH_VALIDATE,
@@ -717,7 +751,8 @@ status_t
         return res;
     }
     
-    res = agt_rpc_register_method(
+    res = agt_rpc_register_method(instance,
+        
         y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
         y_ietf_netconf_partial_lock_N_partial_unlock,
         AGT_RPC_PH_INVOKE,
@@ -759,15 +794,17 @@ status_t
 * 
 ********************************************************************/
 void
-    y_ietf_netconf_partial_lock_cleanup (void)
+    y_ietf_netconf_partial_lock_cleanup (ncx_instance_t *instance)
 {
     if (agt_plock_init_done) {
         agt_rpc_unregister_method
-            (y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
+            (instance,
+             y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
              y_ietf_netconf_partial_lock_N_partial_lock);
 
         agt_rpc_unregister_method
-            (y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
+            (instance,
+             y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
              y_ietf_netconf_partial_lock_N_partial_unlock);
 
     }

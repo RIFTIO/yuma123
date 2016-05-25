@@ -306,7 +306,7 @@ static void
                             "#",   /* comment prefix */
                             -1);    /* save all entries */
         if (retval) {
-            log_error("\nError: could not save command line "
+            log_error(instance, "\nError: could not save command line "
                       "history file '%s'",
                       server_cb->history_filename);
         }
@@ -430,7 +430,7 @@ static server_cb_t *
     /* get a tecla CLI control block */
     server_cb->cli_gl = new_GetLine(YANGCLI_LINELEN, YANGCLI_HISTLEN);
     if (server_cb->cli_gl == NULL) {
-        log_error("\nError: cannot allocate a new GL");
+        log_error(instance, "\nError: cannot allocate a new GL");
         free_server_cb(server_cb);
         return NULL;
     }
@@ -440,7 +440,7 @@ static server_cb_t *
                                      &server_cb->completion_state,
                                      yangcli_tab_callback);
     if (retval != 0) {
-        log_error("\nError: cannot set GL tab completion");
+        log_error(instance, "\nError: cannot set GL tab completion");
         free_server_cb(server_cb);
         return NULL;
     }
@@ -452,7 +452,7 @@ static server_cb_t *
                                    1,
                                    0);
     if (retval != 0) {
-        log_error("\nError: cannot set GL inactivity timeout");
+        log_error(instance, "\nError: cannot set GL inactivity timeout");
         free_server_cb(server_cb);
         return NULL;
     }
@@ -463,7 +463,7 @@ static server_cb_t *
                                  (const char *)server_cb->history_filename,
                                  "#");   /* comment prefix */
         if (retval) {
-            log_error("\nError: cannot load command line history buffer");
+            log_error(instance, "\nError: cannot load command line history buffer");
             free_server_cb(server_cb);
             return NULL;
         }
@@ -1317,7 +1317,7 @@ static void
         res = mgr_set_getvar_fn(server_cb->mysid,
                                 xpath_getvar_fn);
         if (res != NO_ERR) {
-            log_error("\nError: Could not set XPath variable callback");
+            log_error(instance, "\nError: Could not set XPath variable callback");
         }
     }
 
@@ -2019,7 +2019,7 @@ int yangrpc_init(int argc, char* argv[])
      */
     res = ncxmod_setup_yumadir();
     if (res != NO_ERR) {
-        log_error("\nError: could not setup yuma dir '%s'",
+        log_error(instance, "\nError: could not setup yuma dir '%s'",
                   ncxmod_get_yumadir());
         return res;
     }
@@ -2029,7 +2029,7 @@ int yangrpc_init(int argc, char* argv[])
      */
     res = ncxmod_setup_tempdir();
     if (res != NO_ERR) {
-        log_error("\nError: could not setup temp dir '%s/tmp'",
+        log_error(instance, "\nError: could not setup temp dir '%s/tmp'",
                   ncxmod_get_yumadir());
         return res;
     }
@@ -2473,7 +2473,7 @@ static void
                 if (libresult) {
                     searchresult = ncxmod_clone_search_result(libresult);
                     if (searchresult == NULL) {
-                        log_error("\nError: cannot load file, "
+                        log_error(instance, "\nError: cannot load file, "
                                   "malloc failed");
                         return;
                     }
@@ -2511,7 +2511,7 @@ static void
                             /* this module found is invalid;
                              * has no namespace statement
                              */
-                            log_error("\nError: found module '%s' "
+                            log_error(instance, "\nError: found module '%s' "
                                       "revision '%s' "
                                       "has no namespace-stmt",
                                       module,
@@ -2582,7 +2582,7 @@ static void
                                           module);
                             }
                         } else {
-                            log_error("\nError: cannot load file, "
+                            log_error(instance, "\nError: cannot load file, "
                                       "malloc failed");
                             return;
                         }
@@ -2607,7 +2607,7 @@ static void
              */
             searchresult = ncxmod_new_search_result_ex(mod);
             if (searchresult == NULL) {
-                log_error("\nError: cannot load file, malloc failed");
+                log_error(instance, "\nError: cannot load file, malloc failed");
                 return;
             } else {
                 searchresult->cap = cap;
@@ -2625,7 +2625,7 @@ static void
      */
     res = autoload_setup_tempdir(server_cb, scb);
     if (res != NO_ERR) {
-        log_error("\nError: autoload setup temp files failed (%s)",
+        log_error(instance, "\nError: autoload setup temp files failed (%s)",
                   get_error_string(res));
     }
 
@@ -2642,7 +2642,7 @@ static void
          */
         res = autoload_start_get_modules(server_cb, scb);
         if (res != NO_ERR) {
-            log_error("\nError: autoload get modules failed (%s)",
+            log_error(instance, "\nError: autoload get modules failed (%s)",
                       get_error_string(res));
         }
     }
@@ -2656,7 +2656,7 @@ static void
          */
         res = autoload_compile_modules(server_cb, scb);
         if (res != NO_ERR) {
-            log_error("\nError: autoload compile modules failed (%s)",
+            log_error(instance, "\nError: autoload compile modules failed (%s)",
                       get_error_string(res));
         }
     }
@@ -2766,7 +2766,7 @@ yangrpc_cb_t* yangrpc_connect(char* server, char* user, char* password, char* pu
 
         res = ncxmod_load_deviation(VAL_STR(modval), &savedevQ);
         if (res != NO_ERR) {
-            log_error("\n load deviation failed (%s)", 
+            log_error(instance, "\n load deviation failed (%s)", 
                       get_error_string(res));
         } else {
             log_info("\n load OK");
@@ -2793,7 +2793,7 @@ yangrpc_cb_t* yangrpc_connect(char* server, char* user, char* password, char* pu
             res = ncxmod_load_module(VAL_STR(modval), revision,
                                      &savedevQ, NULL);
             if (res != NO_ERR) {
-                log_error("\n load module failed (%s)", 
+                log_error(instance, "\n load module failed (%s)", 
                           get_error_string(res));
             } else {
                 log_info("\n load OK");
@@ -2959,7 +2959,7 @@ void
                            NC_MODULE,
                            NCX_EL_RPC_ERROR)) {
             if (server_cb->command_mode == CMD_MODE_NORMAL || LOGDEBUG) {
-                log_error("\nRPC Error Reply %s for session %u:\n",
+                log_error(instance, "\nRPC Error Reply %s for session %u:\n",
                           rpy->msg_id, 
                           usesid);
                 val_dump_value_max(rpy->reply, 
@@ -2969,7 +2969,7 @@ void
                                    server_cb->display_mode,
                                    FALSE,
                                    FALSE);
-                log_error("\n");
+                log_error(instance, "\n");
                 anyout = TRUE;
             }
         } else if (val_find_child(rpy->reply, NC_MODULE, NCX_EL_OK)) {
@@ -3014,7 +3014,7 @@ status_t yangrpc_exec(yangrpc_cb_t *yangrpc_cb, val_value_t* request_val, val_va
     req = mgr_rpc_new_request(scb);
     if (!req) {
         res = ERR_INTERNAL_MEM;
-        log_error("\nError allocating a new RPC request");
+        log_error(instance, "\nError allocating a new RPC request");
         return res;
     }
     req->data = val_clone(request_val);/*reqdata*/

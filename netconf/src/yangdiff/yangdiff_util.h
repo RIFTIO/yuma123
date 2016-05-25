@@ -63,7 +63,7 @@ extern "C" {
 *
 *********************************************************************/
 extern void
-    indent_in (yangdiff_diffparms_t *cp);
+    indent_in (struct ncx_instance_t_ *instance, yangdiff_diffparms_t *cp);
 
 
 /********************************************************************
@@ -76,7 +76,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    indent_out (yangdiff_diffparms_t *cp);
+    indent_out (struct ncx_instance_t_ *instance, yangdiff_diffparms_t *cp);
 
 
 /********************************************************************
@@ -100,7 +100,8 @@ extern void
 *   
 *********************************************************************/
 extern uint32
-    str_field_changed (const xmlChar *fieldname,
+    str_field_changed (struct ncx_instance_t_ *instance,
+		       const xmlChar *fieldname,
 		       const xmlChar *oldstr,
 		       const xmlChar *newstr,
 		       boolean isrev,
@@ -153,7 +154,8 @@ extern uint32
 *   0 if field not changed
 *********************************************************************/
 extern uint32
-    status_field_changed (const xmlChar *fieldname,
+    status_field_changed (struct ncx_instance_t_ *instance,
+			  const xmlChar *fieldname,
 			  ncx_status_t oldstat,
 			  ncx_status_t newstat,
 			  boolean isrev,
@@ -176,7 +178,8 @@ extern uint32
 *   0 if field not changed
 *********************************************************************/
 extern uint32
-    prefix_field_changed (const ncx_module_t *oldmod,
+    prefix_field_changed (struct ncx_instance_t_ *instance,
+			  const ncx_module_t *oldmod,
 			  const ncx_module_t *newmod,
 			  const xmlChar *oldprefix,
 			  const xmlChar *newprefix);
@@ -192,7 +195,8 @@ extern uint32
  *    strval == str value to output
  *********************************************************************/
 extern void
-    output_val (yangdiff_diffparms_t *cp,
+    output_val (struct ncx_instance_t_ *instance,
+		yangdiff_diffparms_t *cp,
 		const xmlChar *strval);
 
 
@@ -211,7 +215,8 @@ extern void
  *         (ignored in val == NULL)
  *********************************************************************/
 extern void
-    output_mstart_line (yangdiff_diffparms_t *cp,
+    output_mstart_line (struct ncx_instance_t_ *instance,
+			yangdiff_diffparms_t *cp,
 			const xmlChar *fieldname,
 			const xmlChar *val,
 			boolean isid);
@@ -227,7 +232,8 @@ extern void
  *    cdb == change descriptor block to use
  *********************************************************************/
 extern void
-    output_cdb_line (yangdiff_diffparms_t *cp,
+    output_cdb_line (struct ncx_instance_t_ *instance,
+		     yangdiff_diffparms_t *cp,
 		     const yangdiff_cdb_t *cdb);
 
 
@@ -245,7 +251,8 @@ extern void
  *
  *********************************************************************/
 extern void
-    output_diff (yangdiff_diffparms_t *cp,
+    output_diff (struct ncx_instance_t_ *instance,
+		 yangdiff_diffparms_t *cp,
 		 const xmlChar *fieldname,
 		 const xmlChar *oldval,
 		 const xmlChar *newval,
@@ -266,7 +273,8 @@ extern void
  *
  *********************************************************************/
 extern void
-    output_errinfo_diff (yangdiff_diffparms_t *cp,
+    output_errinfo_diff (struct ncx_instance_t_ *instance,
+			 yangdiff_diffparms_t *cp,
 			 const ncx_errinfo_t *olderr,
 			 const ncx_errinfo_t *newerr);
 
@@ -285,7 +293,8 @@ extern void
 *   0 if field not changed
 *********************************************************************/
 extern uint32
-    errinfo_changed (const ncx_errinfo_t *olderr,
+    errinfo_changed (struct ncx_instance_t_ *instance,
+		     const ncx_errinfo_t *olderr,
 		     const ncx_errinfo_t *newerr);
 
 
@@ -304,7 +313,8 @@ extern uint32
 *   0 if field not changed
 *********************************************************************/
 extern uint32
-    iffeature_changed (const xmlChar *modprefix,
+    iffeature_changed (struct ncx_instance_t_ *instance,
+                       const xmlChar *modprefix,
                        const ncx_iffeature_t *oldif,
                        const ncx_iffeature_t *newif);
 
@@ -324,7 +334,8 @@ extern uint32
  *    0 if field not changed
  *********************************************************************/
 extern uint32
-    iffeatureQ_changed (const xmlChar *modprefix,
+    iffeatureQ_changed (struct ncx_instance_t_ *instance,
+                        const xmlChar *modprefix,
                         dlq_hdr_t *oldQ,
                         dlq_hdr_t *newQ);
 
@@ -342,7 +353,8 @@ extern uint32
  *
  *********************************************************************/
 extern void
-    output_iffeatureQ_diff (yangdiff_diffparms_t *cp,
+    output_iffeatureQ_diff (struct ncx_instance_t_ *instance,
+                            yangdiff_diffparms_t *cp,
                             const xmlChar *modprefix,
                             dlq_hdr_t *oldQ,
                             dlq_hdr_t *newQ);

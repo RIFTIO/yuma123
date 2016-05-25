@@ -94,7 +94,7 @@ date         init     comment
 *  none
 *********************************************************************/
 void
-    agt_top_dispatch_msg (ses_cb_t **ppscb)
+    agt_top_dispatch_msg (ncx_instance_t *instance, ses_cb_t **ppscb)
 {
     ses_total_stats_t  *myagttotals;
     agt_profile_t      *profile;
@@ -105,18 +105,19 @@ void
     
 #ifdef DEBUG
     if (!scb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    myagttotals = ses_get_total_stats();
+    myagttotals = ses_get_total_stats(instance);
     profile = agt_get_profile();
 
-    xml_init_node(&top);
+    xml_init_node(instance, &top);
 
     /* get the first node */
-    res = agt_xml_consume_node(scb, 
+    res = agt_xml_consume_node(instance, 
+                               scb, 
                                &top, 
                                NCX_LAYER_TRANSPORT, 
                                NULL);
@@ -126,13 +127,14 @@ void
         myagttotals->droppedSessions++;
 
         if (LOGINFO) {
-            log_info("\nagt_top: bad msg for session %d (%s)",
+            log_info(instance,
+                     "\nagt_top: bad msg for session %d (%s)",
                      scb->sid, 
                      get_error_string(res));
         }
 
-        xml_clean_node(&top);
-        agt_ses_free_session(scb);
+        xml_clean_node(instance, &top);
+        agt_ses_free_session(instance, scb);
 
         /* set the supplied ptr to ptr to scb to NULL so that the 
          * caller of this function knows that it was deallotcated */
@@ -140,18 +142,18 @@ void
         return;
     }
 
-    log_debug3("\nagt_top: got node");
+    log_debug3(instance, "\nagt_top: got node");
     if (LOGDEBUG4 && scb->state != SES_ST_INIT) {
-        xml_dump_node(&top);
+        xml_dump_node(instance, &top);
     }
 
     /* check node type and if handler exists, then call it */
     if (top.nodetyp==XML_NT_START || top.nodetyp==XML_NT_EMPTY) {
         /* find the owner, elname tuple in the topQ */
-        handler = top_find_handler(top.module, top.elname);
+        handler = top_find_handler(instance, top.module, top.elname);
         if (handler) {
             /* call the handler */
-            (*handler)(scb, &top);
+            (*handler)(instance, scb, &top);
         } else {
             res = ERR_NCX_DEF_NOT_FOUND;
         }
@@ -166,12 +168,13 @@ void
         myagttotals->droppedSessions++;
         
         if (LOGINFO) {
-            log_info("\nagt_top: bad msg for session %d (%s)",
+            log_info(instance,
+                     "\nagt_top: bad msg for session %d (%s)",
                      scb->sid, 
                      get_error_string(res));
         }
 
-        agt_ses_free_session(scb);
+        agt_ses_free_session(instance, scb);
 
         /* set the supplied ptr to ptr to scb to NULL so that the 
          * caller of this function knows that it was deallotcated */
@@ -180,7 +183,8 @@ void
     } else if (profile->agt_stream_output &&
                scb->state == SES_ST_SHUTDOWN_REQ) {
         /* session was closed */
-        agt_ses_kill_session(scb,
+        agt_ses_kill_session(instance,
+                             scb,
                              scb->killedbysid,
                              scb->termreason);
         /* set the supplied ptr to ptr to scb to NULL so that the 
@@ -188,7 +192,7 @@ void
         *ppscb=NULL;
     }
 
-    xml_clean_node(&top);
+    xml_clean_node(instance, &top);
 
 } /* agt_top_dispatch_msg */
 

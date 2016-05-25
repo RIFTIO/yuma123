@@ -101,11 +101,11 @@ date         init     comment
 *
 *********************************************************************/
 void
-    indent_in (yangdiff_diffparms_t *cp)
+    indent_in (ncx_instance_t *instance, yangdiff_diffparms_t *cp)
 {
     if (cp->indent) {
         cp->curindent += cp->indent;
-        ses_set_indent(cp->scb, cp->curindent);
+        ses_set_indent(instance, cp->scb, cp->curindent);
     }
     
 } /* indent_in */
@@ -121,7 +121,7 @@ void
 *
 *********************************************************************/
 void
-    indent_out (yangdiff_diffparms_t *cp)
+    indent_out (ncx_instance_t *instance, yangdiff_diffparms_t *cp)
 {
     if (cp->indent) {
         if (cp->curindent >= cp->indent) {
@@ -129,7 +129,7 @@ void
         } else {
             cp->curindent = 0;
         }
-        ses_set_indent(cp->scb, cp->curindent);
+        ses_set_indent(instance, cp->scb, cp->curindent);
     }
     
 } /* indent_out */
@@ -156,7 +156,8 @@ void
 *   
 *********************************************************************/
 uint32
-    str_field_changed (const xmlChar *fieldname,
+    str_field_changed (ncx_instance_t *instance,
+                       const xmlChar *fieldname,
                        const xmlChar *oldstr,
                        const xmlChar *newstr,
                        boolean isrev,
@@ -187,7 +188,7 @@ uint32
             cdb->chtyp = (isrev) ? DEL_STR : D_STR;
         }
     } else if (oldstr && newstr && 
-               xml_strcmp_nosp(oldstr, newstr)) {
+               xml_strcmp_nosp(instance, oldstr, newstr)) {
         ret = 1;
         if (cdb) {
             cdb->changed = TRUE;
@@ -275,7 +276,8 @@ uint32
 *   0 if field not changed
 *********************************************************************/
 uint32
-    status_field_changed (const xmlChar *fieldname,
+    status_field_changed (ncx_instance_t *instance,
+                          const xmlChar *fieldname,
                           ncx_status_t oldstat,
                           ncx_status_t newstat,
                           boolean isrev,
@@ -287,8 +289,8 @@ uint32
 
     if (cdb) {
         cdb->fieldname = fieldname;
-        cdb->oldval = ncx_get_status_string(oldstat);
-        cdb->newval = ncx_get_status_string(newstat);
+        cdb->oldval = ncx_get_status_string(instance, oldstat);
+        cdb->newval = ncx_get_status_string(instance, newstat);
     }
     if (oldstat != newstat) {
         ret = 1;
@@ -323,32 +325,33 @@ uint32
 *   0 if field not changed
 *********************************************************************/
 uint32
-    prefix_field_changed (const ncx_module_t *oldmod,
+    prefix_field_changed (ncx_instance_t *instance,
+                          const ncx_module_t *oldmod,
                           const ncx_module_t *newmod,
                           const xmlChar *oldprefix,
                           const xmlChar *newprefix)
 {
     const ncx_import_t *oldimp, *newimp;
 
-    if (str_field_changed(NULL, oldprefix, 
+    if (str_field_changed(instance, NULL, oldprefix, 
                           newprefix, FALSE, NULL)) {
         if (oldprefix && newprefix) {
             /* check if the different prefix values reference
              * the same module name
              */
-            oldimp = ncx_find_pre_import(oldmod, oldprefix);
-            newimp = ncx_find_pre_import(newmod, newprefix);
+            oldimp = ncx_find_pre_import(instance, oldmod, oldprefix);
+            newimp = ncx_find_pre_import(instance, newmod, newprefix);
             if (oldimp && newimp &&
-                !xml_strcmp(oldimp->module, newimp->module)) {
+                !xml_strcmp(instance, oldimp->module, newimp->module)) {
                 return 0;
             } else {
                 return 1;
             }
         } else if (oldprefix && 
-                   !xml_strcmp(oldprefix, oldmod->prefix)) {
+                   !xml_strcmp(instance, oldprefix, oldmod->prefix)) {
             return 0;  /* using own module prefix */
         } else if (newprefix && 
-                   !xml_strcmp(newprefix, newmod->prefix)) {
+                   !xml_strcmp(instance, newprefix, newmod->prefix)) {
             return 0;  /* using own module prefix */
         } else {
             return 1;
@@ -371,21 +374,22 @@ uint32
  *    strval == str value to output
  *********************************************************************/
 void
-    output_val (yangdiff_diffparms_t *cp,
+    output_val (ncx_instance_t *instance,
+                yangdiff_diffparms_t *cp,
                 const xmlChar *strval)
 {
     uint32 i;
 
-    ses_putchar(cp->scb, '\'');
-    if (xml_strlen(strval) > cp->maxlen) {
+    ses_putchar(instance, cp->scb, '\'');
+    if (xml_strlen(instance, strval) > cp->maxlen) {
         for (i=0; i<cp->maxlen; i++) {
-            ses_putchar(cp->scb, strval[i]);
+            ses_putchar(instance, cp->scb, strval[i]);
         }
-        ses_putstr(cp->scb, (const xmlChar *)"...");
+        ses_putstr(instance, cp->scb, (const xmlChar *)"...");
     } else {
-        ses_putstr(cp->scb, strval);
+        ses_putstr(instance, cp->scb, strval);
     }
-    ses_putchar(cp->scb, '\'');
+    ses_putchar(instance, cp->scb, '\'');
 
 }  /* output_val */
 
@@ -405,21 +409,23 @@ void
  *         (ignored in val == NULL)
  *********************************************************************/
 void
-    output_mstart_line (yangdiff_diffparms_t *cp,
+    output_mstart_line (ncx_instance_t *instance,
+                        yangdiff_diffparms_t *cp,
                         const xmlChar *fieldname,
                         const xmlChar *val,
                         boolean isid)
 {
-    ses_putstr_indent(cp->scb, 
+    ses_putstr_indent(instance, 
+                      cp->scb, 
                       (cp->edifftype==YANGDIFF_DT_REVISION) 
                       ? MOD_STR : M_STR, cp->curindent);
-    ses_putstr(cp->scb, fieldname);
+    ses_putstr(instance, cp->scb, fieldname);
     if (val) {
-        ses_putchar(cp->scb, ' ');
+        ses_putchar(instance, cp->scb, ' ');
         if (isid) {
-            ses_putstr(cp->scb, val);
+            ses_putstr(instance, cp->scb, val);
         } else {
-            output_val(cp, val);
+            output_val(instance, cp, val);
         }
     }
 
@@ -436,7 +442,8 @@ void
  *    cdb == change descriptor block to use
  *********************************************************************/
 void
-    output_cdb_line (yangdiff_diffparms_t *cp,
+    output_cdb_line (ncx_instance_t *instance,
+                     yangdiff_diffparms_t *cp,
                      const yangdiff_cdb_t *cdb)
 {
     boolean showval;
@@ -447,23 +454,23 @@ void
 
     showval = (cp->edifftype == YANGDIFF_DT_TERSE) ? FALSE : TRUE;
 
-    ses_putstr_indent(cp->scb, cdb->chtyp, cp->curindent);
-    ses_putstr(cp->scb, cdb->fieldname);
+    ses_putstr_indent(instance, cp->scb, cdb->chtyp, cp->curindent);
+    ses_putstr(instance, cp->scb, cdb->fieldname);
     if (showval) {
-        ses_putchar(cp->scb, ' ');
+        ses_putchar(instance, cp->scb, ' ');
         if (cdb->oldval && cdb->newval) {
-            if ((xml_strlen(cdb->oldval) < cp->maxlen) &&
-                (xml_strlen(cdb->newval) < cp->maxlen)) {
-                ses_putstr(cp->scb, FROM_STR);
-                output_val(cp, cdb->oldval);
-                ses_putchar(cp->scb, ' ');
-                ses_putstr(cp->scb, TO_STR);
-                output_val(cp, cdb->newval);
+            if ((xml_strlen(instance, cdb->oldval) < cp->maxlen) &&
+                (xml_strlen(instance, cdb->newval) < cp->maxlen)) {
+                ses_putstr(instance, cp->scb, FROM_STR);
+                output_val(instance, cp, cdb->oldval);
+                ses_putchar(instance, cp->scb, ' ');
+                ses_putstr(instance, cp->scb, TO_STR);
+                output_val(instance, cp, cdb->newval);
             }
         } else if (cdb->useval) {
-            output_val(cp, cdb->useval);
+            output_val(instance, cp, cdb->useval);
         } else {
-            ses_putstr(cp->scb, (const xmlChar *)" ''");
+            ses_putstr(instance, cp->scb, (const xmlChar *)" ''");
         }
     }
 
@@ -484,7 +491,8 @@ void
  *
  *********************************************************************/
 void
-    output_diff (yangdiff_diffparms_t *cp,
+    output_diff (ncx_instance_t *instance,
+                 yangdiff_diffparms_t *cp,
                  const xmlChar *fieldname,
                  const xmlChar *oldval,
                  const xmlChar *newval,
@@ -508,14 +516,14 @@ void
     }
 
     if (!oldval && newval) {
-        ses_putstr_indent(cp->scb, astr, cp->curindent);
+        ses_putstr_indent(instance, cp->scb, astr, cp->curindent);
         useval = newval;
     } else if (oldval && !newval) {
-        ses_putstr_indent(cp->scb, dstr, cp->curindent);
+        ses_putstr_indent(instance, cp->scb, dstr, cp->curindent);
         useval = oldval;
     } else if (oldval && newval) {
-        if (xml_strcmp(oldval, newval)) {
-            ses_putstr_indent(cp->scb, mstr, cp->curindent);
+        if (xml_strcmp(instance, oldval, newval)) {
+            ses_putstr_indent(instance, cp->scb, mstr, cp->curindent);
             useto = TRUE;
         } else {
             finish = FALSE;
@@ -525,23 +533,23 @@ void
     }
 
     if (finish) {
-        ses_putstr(cp->scb, fieldname);
+        ses_putstr(instance, cp->scb, fieldname);
         if (useto) {
-            if ((xml_strlen(oldval) < cp->maxlen) &&
-                (xml_strlen(newval) < cp->maxlen)) {
-                ses_putchar(cp->scb, ' ');
-                ses_putstr(cp->scb, FROM_STR);
-                output_val(cp, oldval);
-                ses_putchar(cp->scb, ' ');
-                ses_putstr(cp->scb, TO_STR);
-                output_val(cp, newval);
+            if ((xml_strlen(instance, oldval) < cp->maxlen) &&
+                (xml_strlen(instance, newval) < cp->maxlen)) {
+                ses_putchar(instance, cp->scb, ' ');
+                ses_putstr(instance, cp->scb, FROM_STR);
+                output_val(instance, cp, oldval);
+                ses_putchar(instance, cp->scb, ' ');
+                ses_putstr(instance, cp->scb, TO_STR);
+                output_val(instance, cp, newval);
             }
         } else {
-            ses_putchar(cp->scb, ' ');
+            ses_putchar(instance, cp->scb, ' ');
             if (isid) {
-                ses_putstr(cp->scb, useval);
+                ses_putstr(instance, cp->scb, useval);
             } else {
-                output_val(cp, useval);
+                output_val(instance, cp, useval);
             }
         }
     }
@@ -563,72 +571,85 @@ void
  *
  *********************************************************************/
 void
-    output_errinfo_diff (yangdiff_diffparms_t *cp,
+    output_errinfo_diff (ncx_instance_t *instance,
+                         yangdiff_diffparms_t *cp,
                          const ncx_errinfo_t *olderr,
                          const ncx_errinfo_t *newerr)
 {
     if (!olderr && newerr) {
         /* errinfo added in new revision */
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_ERROR_MESSAGE, 
                     NULL,
                     newerr->error_message, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_ERROR_APP_TAG, 
                     NULL, 
                     newerr->error_app_tag, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_DESCRIPTION, 
                     NULL, 
                     newerr->descr, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_REFERENCE, 
                     NULL, 
                     newerr->ref, 
                     FALSE);
     } else if (olderr && !newerr) {
         /* errinfo removed in new revision */
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_ERROR_MESSAGE,
                     olderr->error_message, 
                     NULL, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_ERROR_APP_TAG,
                     olderr->error_app_tag, 
                     NULL, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_DESCRIPTION,
                     olderr->descr, 
                     NULL, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_REFERENCE,
                     olderr->ref, 
                     NULL, 
                     FALSE);
     } else if (olderr && newerr) {
         /* errinfo maybe changed in new revision */
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_ERROR_MESSAGE,
                     olderr->error_message,
                     newerr->error_message, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_ERROR_APP_TAG,
                     olderr->error_app_tag,
                     newerr->error_app_tag, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_DESCRIPTION,
                     olderr->descr, 
                     newerr->descr, 
                     FALSE);
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     YANG_K_REFERENCE,
                     olderr->ref, 
                     newerr->ref, 
@@ -651,34 +672,39 @@ void
 *   0 if field not changed
 *********************************************************************/
 uint32
-    errinfo_changed (const ncx_errinfo_t *olderr,
+    errinfo_changed (ncx_instance_t *instance,
+                     const ncx_errinfo_t *olderr,
                      const ncx_errinfo_t *newerr)
 {
     if ((!olderr && newerr) || (olderr && !newerr)) {
         return 1;
     } else if (olderr && newerr) {
-        if (str_field_changed(YANG_K_DESCRIPTION,
+        if (str_field_changed(instance,
+                              YANG_K_DESCRIPTION,
                               olderr->descr, 
                               newerr->descr,
                               FALSE, 
                               NULL)) {
             return 1;
         }
-        if (str_field_changed(YANG_K_REFERENCE,
+        if (str_field_changed(instance,
+                              YANG_K_REFERENCE,
                               olderr->ref, 
                               newerr->ref,
                               FALSE, 
                               NULL)) {
             return 1;
         }
-        if (str_field_changed(YANG_K_ERROR_APP_TAG,
+        if (str_field_changed(instance,
+                              YANG_K_ERROR_APP_TAG,
                               olderr->error_app_tag,
                               newerr->error_app_tag,
                               FALSE, 
                               NULL)) {
             return 1;
         }
-        if (str_field_changed(YANG_K_ERROR_MESSAGE,
+        if (str_field_changed(instance,
+                              YANG_K_ERROR_MESSAGE,
                               olderr->error_message,
                               newerr->error_message,
                               FALSE, 
@@ -709,19 +735,22 @@ uint32
 *   0 if field not changed
 *********************************************************************/
 uint32
-    iffeature_changed (const xmlChar *modprefix,
+    iffeature_changed (ncx_instance_t *instance,
+                       const xmlChar *modprefix,
                        const ncx_iffeature_t *oldif,
                        const ncx_iffeature_t *newif)
 {
     if ((!oldif && newif) || (oldif && !newif)) {
         return 1;
     } else if (oldif && newif) {
-        if (ncx_prefix_different(oldif->prefix, 
+        if (ncx_prefix_different(instance, 
+                                 oldif->prefix, 
                                  newif->prefix,
                                  modprefix)) {
             return 1;
         }
-        if (str_field_changed(YANG_K_IF_FEATURE,
+        if (str_field_changed(instance,
+                              YANG_K_IF_FEATURE,
                               oldif->name, 
                               newif->name,
                               FALSE,
@@ -750,7 +779,8 @@ uint32
  *    0 if field not changed
  *********************************************************************/
 uint32
-    iffeatureQ_changed (const xmlChar *modprefix,
+    iffeatureQ_changed (ncx_instance_t *instance,
+                        const xmlChar *modprefix,
                         dlq_hdr_t *oldQ,
                         dlq_hdr_t *newQ)
 {
@@ -759,13 +789,13 @@ uint32
 
 #ifdef DEBUG
     if (oldQ == NULL || newQ == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
-    oldcnt = dlq_count(oldQ);
-    newcnt = dlq_count(newQ);
+    oldcnt = dlq_count(instance, oldQ);
+    newcnt = dlq_count(instance, newQ);
 
     if (oldcnt != newcnt) {
         return 1;
@@ -775,23 +805,24 @@ uint32
         return 0;
     }
 
-    for (newif = (ncx_iffeature_t *)dlq_firstEntry(newQ);
+    for (newif = (ncx_iffeature_t *)dlq_firstEntry(instance, newQ);
          newif != NULL;
-         newif = (ncx_iffeature_t *)dlq_nextEntry(newif)) {
+         newif = (ncx_iffeature_t *)dlq_nextEntry(instance, newif)) {
         newif->seen = FALSE;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldif = (ncx_iffeature_t *)dlq_firstEntry(oldQ);
+    for (oldif = (ncx_iffeature_t *)dlq_firstEntry(instance, oldQ);
          oldif != NULL;
-         oldif = (ncx_iffeature_t *)dlq_nextEntry(oldif)) {
+         oldif = (ncx_iffeature_t *)dlq_nextEntry(instance, oldif)) {
 
-        newif = ncx_find_iffeature(newQ, 
+        newif = ncx_find_iffeature(instance, 
+                                   newQ, 
                                    oldif->prefix,
                                    oldif->name,
                                    modprefix);
         if (newif) {
-            if (iffeature_changed(modprefix, oldif, newif)) {
+            if (iffeature_changed(instance, modprefix, oldif, newif)) {
                 return 1;
             } else {
                 newif->seen = TRUE;
@@ -802,9 +833,9 @@ uint32
     }
 
     /* look for iffeature-stmts that were added in the new module */
-    for (newif = (ncx_iffeature_t *)dlq_firstEntry(newQ);
+    for (newif = (ncx_iffeature_t *)dlq_firstEntry(instance, newQ);
          newif != NULL;
-         newif = (ncx_iffeature_t *)dlq_nextEntry(newif)) {
+         newif = (ncx_iffeature_t *)dlq_nextEntry(instance, newif)) {
         if (!newif->seen) {
             return 1;
         }
@@ -828,7 +859,8 @@ uint32
  *
  *********************************************************************/
 void
-    output_iffeatureQ_diff (yangdiff_diffparms_t *cp,
+    output_iffeatureQ_diff (ncx_instance_t *instance,
+                            yangdiff_diffparms_t *cp,
                             const xmlChar *modprefix,
                             dlq_hdr_t *oldQ,
                             dlq_hdr_t *newQ)
@@ -837,46 +869,50 @@ void
 
 #ifdef DEBUG
     if (cp == NULL || oldQ == NULL || newQ == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    for (newif = (ncx_iffeature_t *)dlq_firstEntry(newQ);
+    for (newif = (ncx_iffeature_t *)dlq_firstEntry(instance, newQ);
          newif != NULL;
-         newif = (ncx_iffeature_t *)dlq_nextEntry(newif)) {
+         newif = (ncx_iffeature_t *)dlq_nextEntry(instance, newif)) {
         newif->seen = FALSE;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldif = (ncx_iffeature_t *)dlq_firstEntry(oldQ);
+    for (oldif = (ncx_iffeature_t *)dlq_firstEntry(instance, oldQ);
          oldif != NULL;
-         oldif = (ncx_iffeature_t *)dlq_nextEntry(oldif)) {
+         oldif = (ncx_iffeature_t *)dlq_nextEntry(instance, oldif)) {
 
-        newif = ncx_find_iffeature(newQ, 
+        newif = ncx_find_iffeature(instance, 
+                                   newQ, 
                                    oldif->prefix,
                                    oldif->name,
                                    modprefix);
         if (newif) {
             newif->seen = TRUE;
-            if (iffeature_changed(modprefix, oldif, newif)) {
-                output_mstart_line(cp, 
+            if (iffeature_changed(instance, modprefix, oldif, newif)) {
+                output_mstart_line(instance, 
+                                   cp, 
                                    YANG_K_IF_FEATURE, 
                                    oldif->name, 
                                    FALSE);
                 if (cp->edifftype != YANGDIFF_DT_TERSE) {
-                    indent_in(cp);
-                    output_diff(cp, 
+                    indent_in(instance, cp);
+                    output_diff(instance, 
+                                cp, 
                                 YANG_K_IF_FEATURE,
                                 oldif->name, 
                                 newif->name, 
                                 TRUE);
-                    indent_out(cp);
+                    indent_out(instance, cp);
                 }
             }
         } else {
             /* if-feature-stmt was removed from the new module */
-            output_diff(cp, 
+            output_diff(instance, 
+                        cp, 
                         YANG_K_IF_FEATURE,  
                         oldif->name, 
                         NULL, 
@@ -885,13 +921,14 @@ void
     }
 
     /* look for must-stmts that were added in the new module */
-    for (newif = (ncx_iffeature_t *)dlq_firstEntry(newQ);
+    for (newif = (ncx_iffeature_t *)dlq_firstEntry(instance, newQ);
          newif != NULL;
-         newif = (ncx_iffeature_t *)dlq_nextEntry(newif)) {
+         newif = (ncx_iffeature_t *)dlq_nextEntry(instance, newif)) {
 
         if (!newif->seen) {
             /* must-stmt was added in the new module */
-            output_diff(cp, 
+            output_diff(instance, 
+                        cp, 
                         YANG_K_IF_FEATURE,  
                         NULL, 
                         newif->name,

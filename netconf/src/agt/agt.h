@@ -349,7 +349,8 @@ typedef struct agt_dynlib_cb_t_ {
 *   status of the initialization procedure
 *********************************************************************/
 extern status_t 
-    agt_init1 (int argc,
+    agt_init1 (struct ncx_instance_t_ *instance,
+	       int argc,
 	       char *argv[],
 	       boolean *showver,
 	       help_mode_t *showhelpmode);
@@ -369,7 +370,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_init2 (void);
+    agt_init2 (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -379,7 +380,7 @@ extern status_t
 * 
 *********************************************************************/
 extern void 
-    agt_cleanup (void);
+    agt_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -406,7 +407,7 @@ extern agt_profile_t *
 *
 *********************************************************************/
 extern void
-    agt_request_shutdown (ncx_shutdowntyp_t mode);
+    agt_request_shutdown (struct ncx_instance_t_ *instance, ncx_shutdowntyp_t mode);
 
 /********************************************************************
 * FUNCTION agt_shutdown_requested
@@ -446,7 +447,7 @@ extern ncx_shutdowntyp_t
 *    const string for this enum
 *********************************************************************/
 extern const xmlChar *
-    agt_cbtype_name (agt_cbtyp_t cbtyp);
+    agt_cbtype_name (struct ncx_instance_t_ *instance, agt_cbtyp_t cbtyp);
 
 
 #ifndef STATIC_SERVER
@@ -465,7 +466,8 @@ extern const xmlChar *
 *    const string for this enum
 *********************************************************************/
 extern status_t
-    agt_load_sil_code (const xmlChar *modname,
+    agt_load_sil_code (struct ncx_instance_t_ *instance,
+                       const xmlChar *modname,
                        const xmlChar *revision,
                        boolean cfgloaded);
 #endif
@@ -483,7 +485,7 @@ extern status_t
 *    none
 *********************************************************************/
 extern boolean
-    agt_advertise_module_needed (const xmlChar *modname);
+    agt_advertise_module_needed (struct ncx_instance_t_ *instance, const xmlChar *modname);
 
 
 #ifdef __cplusplus

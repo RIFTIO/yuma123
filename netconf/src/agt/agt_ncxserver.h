@@ -68,7 +68,7 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t 
-    agt_ncxserver_run (void);
+    agt_ncxserver_run (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************

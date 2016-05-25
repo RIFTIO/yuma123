@@ -120,7 +120,7 @@ date         init     comment
 #define CHK_EXT_EXIT                                      \
     if (res != NO_ERR) {                                  \
         if (res < ERR_LAST_SYS_ERR || res==ERR_NCX_EOF) { \
-            ext_free_template(ext);                       \
+            ext_free_template(instance, ext);                       \
             return res;                                   \
         } else {                                          \
             retres = res;                                 \
@@ -152,7 +152,8 @@ date         init     comment
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_yang_arg (tk_chain_t *tkc,
+    consume_yang_arg (ncx_instance_t *instance,
+                      tk_chain_t *tkc,
                       ncx_module_t  *mod,
                       ext_template_t *ext,
                       boolean *argdone)
@@ -167,7 +168,7 @@ static status_t
 
 #ifdef DEBUG
     if (!tkc || !mod) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -178,12 +179,12 @@ static status_t
     save = TRUE;
     res = NO_ERR;
     retres = NO_ERR;
-    dlq_createSQue(&errQ);
+    dlq_createSQue(instance, &errQ);
 
     /* check duplicate entry error first */
     if (*argdone) {
         retres = ERR_NCX_ENTRY_EXISTS;
-        ncx_print_errormsg(tkc, mod, retres);
+        ncx_print_errormsg(instance, tkc, mod, retres);
         save = FALSE;
     } else {
         *argdone = TRUE;
@@ -191,12 +192,12 @@ static status_t
 
     /* Get the mandatory argument name */
     if (save) {
-        res = yang_consume_id_string(tkc, mod, &ext->arg);
+        res = yang_consume_id_string(instance, tkc, mod, &ext->arg);
     } else {
         errstr = NULL;
-        res = yang_consume_id_string(tkc, mod, &errstr);
+        res = yang_consume_id_string(instance, tkc, mod, &errstr);
         if (errstr) {
-            m__free(errstr);
+            m__free(instance, errstr);
         }
     }
     CHK_EXIT(res, retres);
@@ -204,9 +205,9 @@ static status_t
     /* Get the starting left brace for the sub-clauses
      * or a semi-colon to end the extension-stmt
      */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
     switch (TK_CUR_TYP(tkc)) {
@@ -218,16 +219,16 @@ static status_t
     default:
         retres = ERR_NCX_WRONG_TKTYPE;
         expstr = "semi-colon or left brace";
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         done = TRUE;
     }
 
     /* get the extension statements and any appinfo extensions */
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         }
 
@@ -238,15 +239,15 @@ static status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
             if (save) {
-                res = ncx_consume_appinfo(tkc, mod, &ext->appinfoQ);
+                res = ncx_consume_appinfo(instance, tkc, mod, &ext->appinfoQ);
             } else {
-                res = ncx_consume_appinfo(tkc, mod, &errQ);
-                ncx_clean_appinfoQ(&errQ);
+                res = ncx_consume_appinfo(instance, tkc, mod, &errQ);
+                ncx_clean_appinfoQ(instance, &errQ);
             }
             CHK_EXIT(res, retres);
             continue;
@@ -257,20 +258,22 @@ static status_t
             break;  /* YANG clause assumed */
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_YIN_ELEMENT)) {
+        if (!xml_strcmp(instance, val, YANG_K_YIN_ELEMENT)) {
             if (save) {
-                res = yang_consume_boolean(tkc, 
+                res = yang_consume_boolean(instance, 
+                                           tkc, 
                                            mod, 
                                            &ext->argel,
                                            &yinel, 
                                            &ext->appinfoQ);
             } else {
-                res = yang_consume_boolean(tkc, 
+                res = yang_consume_boolean(instance, 
+                                           tkc, 
                                            mod, 
                                            &errsave,
                                            NULL, 
@@ -278,7 +281,7 @@ static status_t
             }
         } else {
             res = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         }
         CHK_EXIT(res, retres);
     }
@@ -307,7 +310,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_ext_consume_extension (tk_chain_t *tkc,
+    yang_ext_consume_extension (ncx_instance_t *instance,
+                                tk_chain_t *tkc,
                                 ncx_module_t  *mod)
 {
     ext_template_t  *ext, *testext;
@@ -320,7 +324,7 @@ status_t
 
 #ifdef DEBUG
     if (!tkc || !mod) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -335,10 +339,10 @@ status_t
     retres = NO_ERR;
 
     /* Get a new ext_template_t to fill in */
-    ext = ext_new_template();
+    ext = ext_new_template(instance);
     if (!ext) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -348,16 +352,16 @@ status_t
                   TK_CUR_LPOS(tkc));
 
     /* Get the mandatory extension name */
-    res = yang_consume_id_string(tkc, mod, &ext->name);
+    res = yang_consume_id_string(instance, tkc, mod, &ext->name);
     CHK_EXT_EXIT;
 
     /* Get the starting left brace for the sub-clauses
      * or a semi-colon to end the extension-stmt
      */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
-        ext_free_template(ext);
+        ncx_print_errormsg(instance, tkc, mod, res);
+        ext_free_template(instance, ext);
         return res;
     }
     switch (TK_CUR_TYP(tkc)) {
@@ -369,17 +373,17 @@ status_t
     default:
         retres = ERR_NCX_WRONG_TKTYPE;
         expstr = "semi-colon or left brace";
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         done = TRUE;
     }
 
     /* get the extension statements and any appinfo extensions */
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_print_errormsg(tkc, mod, res);
-            ext_free_template(ext);
+            ncx_print_errormsg(instance, tkc, mod, res);
+            ext_free_template(instance, ext);
             return res;
         }
 
@@ -390,12 +394,12 @@ status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_print_errormsg(tkc, mod, res);
-            ext_free_template(ext);
+            ncx_print_errormsg(instance, tkc, mod, res);
+            ext_free_template(instance, ext);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, &ext->appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, &ext->appinfoQ);
             CHK_EXT_EXIT;
             continue;
         case TK_TT_RBRACE:
@@ -405,65 +409,69 @@ status_t
             break;  /* YANG clause assumed */
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_ARGUMENT)) {
-            res = consume_yang_arg(tkc, mod, ext, &arg);
-        } else if (!xml_strcmp(val, YANG_K_STATUS)) {
-            res = yang_consume_status(tkc, 
+        if (!xml_strcmp(instance, val, YANG_K_ARGUMENT)) {
+            res = consume_yang_arg(instance, tkc, mod, ext, &arg);
+        } else if (!xml_strcmp(instance, val, YANG_K_STATUS)) {
+            res = yang_consume_status(instance, 
+                                      tkc, 
                                       mod, 
                                       &ext->status,
                                       &stat, 
                                       &ext->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_DESCRIPTION)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_DESCRIPTION)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &ext->descr,
                                      &desc, 
                                      &ext->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_REFERENCE)) {
-            res = yang_consume_descr(tkc, 
+        } else if (!xml_strcmp(instance, val, YANG_K_REFERENCE)) {
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &ext->ref,
                                      &ref, 
                                      &ext->appinfoQ);
         } else {
             res = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         }
         CHK_EXT_EXIT;
     }
 
     /* save or delete the ext_template_t struct */
-    if (ext->name && ncx_valid_name2(ext->name)) {
-        testext = ext_find_extension_all(mod, ext->name);
+    if (ext->name && ncx_valid_name2(instance, ext->name)) {
+        testext = ext_find_extension_all(instance, mod, ext->name);
         if (testext) {
-            log_error("\nError: extension '%s' already defined "
+            log_error(instance,
+                      "\nError: extension '%s' already defined "
                       "in '%s' at line %u",
                       ext->name, 
                       testext->tkerr.mod->name,
                       testext->tkerr.linenum);
             retres = ERR_NCX_DUP_ENTRY;
-            ncx_print_errormsg(tkc, mod, retres);
-            ext_free_template(ext);
+            ncx_print_errormsg(instance, tkc, mod, retres);
+            ext_free_template(instance, ext);
         } else {
-            dlq_enque(ext, &mod->extensionQ);  /* may have some errors */
+            dlq_enque(instance, ext, &mod->extensionQ);  /* may have some errors */
             if (mod->stmtmode) {
-                stmt = yang_new_ext_stmt(ext);
+                stmt = yang_new_ext_stmt(instance, ext);
                 if (stmt) {
-                    dlq_enque(stmt, &mod->stmtQ);
+                    dlq_enque(instance, stmt, &mod->stmtQ);
                 } else {
-                    log_error("\nError: malloc failure for ext_stmt");
+                    log_error(instance, "\nError: malloc failure for ext_stmt");
                     retres = ERR_INTERNAL_MEM;
-                    ncx_print_errormsg(tkc, mod, retres);
+                    ncx_print_errormsg(instance, tkc, mod, retres);
                 }
             }
         }
     } else {
-        ext_free_template(ext);
+        ext_free_template(instance, ext);
     }
 
     return retres;

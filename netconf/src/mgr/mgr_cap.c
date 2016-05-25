@@ -79,16 +79,16 @@ static cap_list_t    *my_mgr_caps = NULL;
 *    none
 *********************************************************************/
 void 
-    mgr_cap_cleanup (void)
+    mgr_cap_cleanup (ncx_instance_t *instance)
 {
     if (mgr_caps) {
-        val_free_value(mgr_caps);
+        val_free_value(instance, mgr_caps);
         mgr_caps = NULL;
     }
 
     if (my_mgr_caps) {
-        cap_clean_caplist(my_mgr_caps);
-        m__free(my_mgr_caps);
+        cap_clean_caplist(instance, my_mgr_caps);
+        m__free(instance, my_mgr_caps);
         my_mgr_caps = NULL;
     }
 
@@ -108,7 +108,7 @@ void
 *    NO_ERR if all goes well
 *********************************************************************/
 status_t 
-    mgr_cap_set_caps (void)
+    mgr_cap_set_caps (ncx_instance_t *instance)
 {
     val_value_t *oldcaps, *newcaps;
     cap_list_t *oldmycaps,*newmycaps;
@@ -117,19 +117,19 @@ status_t
 
     res = NO_ERR;
     newcaps = NULL;
-    nc_id = xmlns_nc_id();
+    nc_id = xmlns_nc_id(instance);
     oldcaps = mgr_caps;
     oldmycaps = my_mgr_caps;
 
     /* get a new cap_list */
-    newmycaps = cap_new_caplist();
+    newmycaps = cap_new_caplist(instance);
     if (!newmycaps) {
         res = ERR_INTERNAL_MEM;
     }
 
     /* get a new val_value_t cap list for manager <hello> messages */
     if (res == NO_ERR) {
-        newcaps = xml_val_new_struct(NCX_EL_CAPABILITIES, nc_id);
+        newcaps = xml_val_new_struct(instance, NCX_EL_CAPABILITIES, nc_id);
         if (!newcaps) {
             res = ERR_INTERNAL_MEM;
         }
@@ -137,26 +137,26 @@ status_t
 
     /* add capability for NETCONF version 1.0 support */
     if (res == NO_ERR) {
-        res = cap_add_std(newmycaps, CAP_STDID_V1);
+        res = cap_add_std(instance, newmycaps, CAP_STDID_V1);
         if (res == NO_ERR) {
-            res = cap_add_stdval(newcaps, CAP_STDID_V1);
+            res = cap_add_stdval(instance, newcaps, CAP_STDID_V1);
         }
     }
 
     /* check the return value */
     if (res != NO_ERR) {
         /* toss the new, put back the old */
-        cap_free_caplist(newmycaps);
-        val_free_value(newcaps);
+        cap_free_caplist(instance, newmycaps);
+        val_free_value(instance, newcaps);
         my_mgr_caps = oldmycaps;
         mgr_caps = oldcaps;
     } else {
         /* toss the old, install the new */
         if (oldmycaps) {
-            cap_free_caplist(oldmycaps);
+            cap_free_caplist(instance, oldmycaps);
         }
         if (oldcaps) {
-            val_free_value(oldcaps);
+            val_free_value(instance, oldcaps);
         }
         my_mgr_caps = newmycaps;
         mgr_caps = newcaps;
@@ -213,34 +213,34 @@ val_value_t *
 *    and then discard with val_free_value
 *********************************************************************/
 val_value_t * 
-    mgr_cap_get_ses_capsval (ses_cb_t *scb)
+    mgr_cap_get_ses_capsval (ncx_instance_t *instance, ses_cb_t *scb)
 {
     val_value_t *newcaps;
     xmlns_id_t  nc_id;
     status_t    res;
 
-    nc_id = xmlns_nc_id();
+    nc_id = xmlns_nc_id(instance);
     res = NO_ERR;
 
     /* get a new val_value_t cap list for manager <hello> messages */
-    newcaps = xml_val_new_struct(NCX_EL_CAPABILITIES, nc_id);
+    newcaps = xml_val_new_struct(instance, NCX_EL_CAPABILITIES, nc_id);
     if (newcaps == NULL) {
         return NULL;
     }
 
     /* add capability for NETCONF version 1.0 support */
-    if (ses_protocol_requested(scb, NCX_PROTO_NETCONF10)) {
-        res = cap_add_stdval(newcaps, CAP_STDID_V1);
+    if (ses_protocol_requested(instance, scb, NCX_PROTO_NETCONF10)) {
+        res = cap_add_stdval(instance, newcaps, CAP_STDID_V1);
     }
     /* add capability for NETCONF version 1.1 support */
     if (res == NO_ERR &&
-        ses_protocol_requested(scb, NCX_PROTO_NETCONF11)) {
-        res = cap_add_stdval(newcaps, CAP_STDID_V11);
+        ses_protocol_requested(instance, scb, NCX_PROTO_NETCONF11)) {
+        res = cap_add_stdval(instance, newcaps, CAP_STDID_V11);
     }
 
     /* check the return value */
     if (res != NO_ERR) {
-        val_free_value(newcaps);
+        val_free_value(instance, newcaps);
         newcaps = NULL;
     }   
 

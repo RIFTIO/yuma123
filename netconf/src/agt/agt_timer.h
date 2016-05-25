@@ -67,7 +67,8 @@ extern "C" {
  *     0 == normal exit
  *    -1 == error exit, delete timer upon return
  */
-typedef int (*agt_timer_fn_t) (uint32  timer_id,
+typedef int (*agt_timer_fn_t) (struct ncx_instance_t_ *instance,
+			       uint32  timer_id,
 			       void *cookie);
 
 
@@ -100,7 +101,7 @@ typedef struct agt_timer_cb_t_ {
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 extern void
-    agt_timer_init (void);
+    agt_timer_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -110,7 +111,7 @@ extern void
 *
 *********************************************************************/
 extern void 
-    agt_timer_cleanup (void);
+    agt_timer_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -121,7 +122,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_timer_handler (void);
+    agt_timer_handler (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -146,7 +147,8 @@ extern void
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 extern status_t
-    agt_timer_create (uint32   seconds,
+    agt_timer_create (struct ncx_instance_t_ *instance,
+                      uint32   seconds,
                       boolean is_periodic,
                       agt_timer_fn_t  timer_fn,
                       void *cookie,
@@ -169,7 +171,8 @@ extern status_t
 *   status, NO_ERR if all okay,
 *********************************************************************/
 extern status_t
-    agt_timer_restart (uint32 timer_id,
+    agt_timer_restart (struct ncx_instance_t_ *instance,
+                       uint32 timer_id,
                        uint32 seconds);
 
 
@@ -186,7 +189,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    agt_timer_delete (uint32  timer_id);
+    agt_timer_delete (struct ncx_instance_t_ *instance, uint32  timer_id);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

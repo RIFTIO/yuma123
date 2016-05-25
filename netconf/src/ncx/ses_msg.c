@@ -73,11 +73,6 @@ date         init     comment
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-static boolean   ses_msg_init_done = FALSE;
-static uint32    freecnt;
-static dlq_hdr_t freeQ;
-static dlq_hdr_t inreadyQ;
-static dlq_hdr_t outreadyQ;
 
 
 /********************************************************************
@@ -91,7 +86,7 @@ static dlq_hdr_t outreadyQ;
 *
 *********************************************************************/
 static void
-    trace_buff (ses_msg_buff_t *buff)
+    trace_buff (ncx_instance_t *instance, ses_msg_buff_t *buff)
 {
     size_t  pos;
     xmlChar buf[2];
@@ -100,7 +95,7 @@ static void
         buf[1] = 0;
         for (pos = buff->buffpos; pos < buff->bufflen; pos++) {
             buf[0] = buff->buff[pos];
-            log_debug2("%s", buf);
+            log_debug2(instance, "%s", buf);
         }
     }
 
@@ -120,7 +115,8 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    do_send_buff (ses_cb_t *scb,
+    do_send_buff (ncx_instance_t *instance,
+                  ses_cb_t *scb,
                   ses_msg_buff_t *buff)
 {
     status_t   res = NO_ERR;
@@ -129,10 +125,11 @@ static status_t
         ses_msg_add_framing(scb, buff);
         /* bufflen has been adjusted for buffstart */
         if (LOGDEBUG2) {
-            log_debug2("\nses_msg send 1.1 buff:%u\n",
+            log_debug2(instance,
+                      "\nses_msg send 1.1 buff:%u\n",
                       buff->bufflen - buff->buffpos);
             if (LOGDEBUG3) {
-                trace_buff(buff);
+                trace_buff(instance, buff);
             }
         }
 
@@ -141,24 +138,27 @@ static status_t
                             (const char *)&buff->buff[buff->buffstart], 
                             buff->bufflen);
         } else if (LOGDEBUG2) {
-            log_debug2("\nses: skip sending empty 1.1 buffer on sesion '%d'",
+            log_debug2(instance,
+                       "\nses: skip sending empty 1.1 buffer on sesion '%d'",
                        scb->sid);
         }
     } else {
         if (buff->bufflen > buff->buffstart) {
             /* send with base:1.0 framing; EOM markers in the buffer */
             if (LOGDEBUG2) {
-                log_debug("\nses_msg send 1.0 buff:%u\n",
+                log_debug(instance,
+                          "\nses_msg send 1.0 buff:%u\n",
                           buff->bufflen - buff->buffpos);
                 if (LOGDEBUG3) {
-                    trace_buff(buff);
+                    trace_buff(instance, buff);
                 }
             }
             res = send_buff(scb->fd, 
                             (const char *)buff->buff, 
                             buff->bufflen);
         } else if (LOGDEBUG2) {
-            log_debug2("\nses: skip sending empty 1.0 buffer on sesion '%d'",
+            log_debug2(instance,
+                       "\nses: skip sending empty 1.0 buffer on sesion '%d'",
                        scb->sid);
         }
     }
@@ -179,14 +179,14 @@ static status_t
 *   none
 *********************************************************************/
 void 
-    ses_msg_init (void)
+    ses_msg_init (ncx_instance_t *instance)
 {
-    if (!ses_msg_init_done) {
-        freecnt = 0;
-        dlq_createSQue(&freeQ);
-        dlq_createSQue(&inreadyQ);
-        dlq_createSQue(&outreadyQ);
-        ses_msg_init_done = TRUE;
+    if (!instance->ses_msg_init_done) {
+        instance->freecnt = 0;
+        dlq_createSQue(instance, &instance->freeQ);
+        dlq_createSQue(instance, &instance->inreadyQ);
+        dlq_createSQue(instance, &instance->outreadyQ);
+        instance->ses_msg_init_done = TRUE;
     }
 
 }  /* ses_msg_init */
@@ -203,26 +203,26 @@ void
 *   none
 *********************************************************************/
 void 
-    ses_msg_cleanup (void)
+    ses_msg_cleanup (ncx_instance_t *instance)
 {
     ses_msg_t *msg;
 
-    if (ses_msg_init_done) {
-        while (!dlq_empty(&freeQ)) {
-            msg = (ses_msg_t *)dlq_deque(&freeQ);
+    if (instance->ses_msg_init_done) {
+        while (!dlq_empty(instance, &instance->freeQ)) {
+            msg = (ses_msg_t *)dlq_deque(instance, &instance->freeQ);
             /* these do not belong to any session and do not have
              * any buffers, so just toss the memory instead of
              * using ses_msg_free_msg
              */
-            m__free(msg);
+            m__free(instance, msg);
         }
 
         /* nothing malloced in these Qs now */
-        memset(&freeQ, 0x0, sizeof(dlq_hdr_t));
-        memset(&inreadyQ, 0x0, sizeof(dlq_hdr_t));
-        memset(&outreadyQ, 0x0, sizeof(dlq_hdr_t));
-        freecnt = 0;
-        ses_msg_init_done = FALSE;
+        memset(&instance->freeQ, 0x0, sizeof(dlq_hdr_t));
+        memset(&instance->inreadyQ, 0x0, sizeof(dlq_hdr_t));
+        memset(&instance->outreadyQ, 0x0, sizeof(dlq_hdr_t));
+        instance->freecnt = 0;
+        instance->ses_msg_init_done = FALSE;
     }
 
 }  /* ses_msg_cleanup */
@@ -242,19 +242,19 @@ void
 * RETURNS:
 *   status
 *********************************************************************/
-status_t ses_msg_new_msg (ses_msg_t **msg)
+status_t ses_msg_new_msg (ncx_instance_t *instance, ses_msg_t **msg)
 {
     ses_msg_t *newmsg;
 
     assert( msg && "msg == NULL" );
 
     /* try the freeQ first */
-    newmsg = (ses_msg_t *)dlq_deque(&freeQ);
+    newmsg = (ses_msg_t *)dlq_deque(instance, &instance->freeQ);
     if (newmsg) {
-        freecnt--;
+        instance->freecnt--;
     } else {
         /* freeQ is empty, malloc a msg */
-        newmsg = m__getObj(ses_msg_t);
+        newmsg = m__getObj(instance, ses_msg_t);
         if (!newmsg) {
             return ERR_INTERNAL_MEM;
         }
@@ -262,7 +262,7 @@ status_t ses_msg_new_msg (ses_msg_t **msg)
 
     /* set the fields and exit */
     memset(newmsg, 0x0, sizeof(ses_msg_t));
-    dlq_createSQue(&newmsg->buffQ);
+    dlq_createSQue(instance, &newmsg->buffQ);
     *msg = newmsg;
     return NO_ERR;
 
@@ -279,23 +279,23 @@ status_t ses_msg_new_msg (ses_msg_t **msg)
 *   msg == message to free (already removed from any Q)
 *
 *********************************************************************/
-void ses_msg_free_msg (ses_cb_t *scb, ses_msg_t *msg)
+void ses_msg_free_msg (ncx_instance_t *instance, ses_cb_t *scb, ses_msg_t *msg)
 {
     ses_msg_buff_t *buff;
 
     assert( scb && "scb == NULL" );
     assert( msg && "msg == NULL" );
 
-    while (!dlq_empty(&msg->buffQ)) {
-        buff = dlq_deque(&msg->buffQ);
-        ses_msg_free_buff(scb, buff);
+    while (!dlq_empty(instance, &msg->buffQ)) {
+        buff = dlq_deque(instance, &msg->buffQ);
+        ses_msg_free_buff(instance, scb, buff);
     }
 
-    if (freecnt < MAX_FREE_MSGS) {
-        dlq_enque(msg, &freeQ);
-        freecnt++;
+    if (instance->freecnt < MAX_FREE_MSGS) {
+        dlq_enque(instance, msg, &instance->freeQ);
+        instance->freecnt++;
     } else {
-        m__free(msg);
+        m__free(instance, msg);
     }
         
 } /* ses_msg_free_msg */
@@ -321,7 +321,8 @@ void ses_msg_free_msg (ses_cb_t *scb, ses_msg_t *msg)
 * RETURNS:
 *   status
 *********************************************************************/
-status_t ses_msg_new_buff( ses_cb_t *scb, 
+status_t ses_msg_new_buff(ncx_instance_t *instance, 
+                            ses_cb_t *scb, 
                            boolean outbuff,
                            ses_msg_buff_t **buff)
 {
@@ -332,7 +333,7 @@ status_t ses_msg_new_buff( ses_cb_t *scb,
 
     /* handle the session freeQ separately */
     if (scb->freecnt) {
-        newbuff = (ses_msg_buff_t *)dlq_deque(&scb->freeQ);
+        newbuff = (ses_msg_buff_t *)dlq_deque(instance, &scb->freeQ);
         if (newbuff) {
             /* use buffer from freeQ */
             ses_msg_init_buff(scb, outbuff, newbuff);
@@ -345,7 +346,8 @@ status_t ses_msg_new_buff( ses_cb_t *scb,
             scb->freecnt--;
 
             if (LOGDEBUG4) {
-                log_debug4("\nses_msg: reused %s buff %p for s %u", 
+                log_debug4(instance, 
+                           "\nses_msg: reused %s buff %p for s %u", 
                            (outbuff) ? "out" : "in",
                            newbuff,
                            scb->sid);
@@ -353,7 +355,7 @@ status_t ses_msg_new_buff( ses_cb_t *scb,
 
             return NO_ERR;
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             scb->freecnt = 0;
         }
     }
@@ -364,7 +366,7 @@ status_t ses_msg_new_buff( ses_cb_t *scb,
     }
 
     /* malloc the buffer */
-    newbuff = m__getObj(ses_msg_buff_t);
+    newbuff = m__getObj(instance, ses_msg_buff_t);
     if (newbuff == NULL) {
         return ERR_INTERNAL_MEM;
     }
@@ -380,7 +382,8 @@ status_t ses_msg_new_buff( ses_cb_t *scb,
     scb->buffcnt++;
 
     if (LOGDEBUG4) {
-        log_debug4("\nses_msg: new %s buff %p for s %u", 
+        log_debug4(instance, 
+                   "\nses_msg: new %s buff %p for s %u", 
                    (outbuff) ? "out" : "in",
                    newbuff,
                    scb->sid);
@@ -404,19 +407,21 @@ status_t ses_msg_new_buff( ses_cb_t *scb,
 *   none
 *********************************************************************/
 void
-    ses_msg_free_buff (ses_cb_t *scb,
+    ses_msg_free_buff (ncx_instance_t *instance,
+                       ses_cb_t *scb,
                        ses_msg_buff_t *buff)
 {
     assert( scb && "scb == NULL" );
 
     if (scb->state < SES_ST_SHUTDOWN_REQ &&
         scb->freecnt < SES_MAX_FREE_BUFFERS) {
-        dlq_enque(buff, &scb->freeQ);
+        dlq_enque(instance, buff, &scb->freeQ);
         scb->freecnt++;
 
 #ifdef SES_MSG_DEBUG_CACHE
         if (LOGDEBUG4) {
-            log_debug4("\nses_msg: cache buff %p for s %u", 
+            log_debug4(instance, 
+                       "\nses_msg: cache buff %p for s %u", 
                        buff,
                        scb->sid);
         }
@@ -424,12 +429,13 @@ void
     } else {
 #ifdef SES_MSG_DEBUG_CACHE
         if (LOGDEBUG4) {
-            log_debug4("\nses_msg: free buff %p for s %u", 
+            log_debug4(instance, 
+                       "\nses_msg: free buff %p for s %u", 
                        buff,
                        scb->sid);
         }
 #endif
-        m__free(buff);
+        m__free(instance, buff);
         scb->buffcnt--;
     }
 
@@ -496,7 +502,7 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ses_msg_send_buffs (ses_cb_t *scb)
+    ses_msg_send_buffs (ncx_instance_t *instance, ses_cb_t *scb)
 {
     ses_msg_buff_t  *buff;
     uint32           buffleft, total;
@@ -509,25 +515,26 @@ status_t
     assert( scb && "scb == NULL" );
 
     if (LOGDEBUG) {
-        log_debug("\nses got send request on session %d", 
+        log_debug(instance, 
+                  "\nses got send request on session %d", 
                   scb->sid);
     }
 
     /* log message trace here only for base 1.0 or mgr */
     if (LOGDEBUG2 && (scb->wrfn != NULL || scb->framing11 == FALSE)) {
-        buff = (ses_msg_buff_t *)dlq_firstEntry(&scb->outQ);
+        buff = (ses_msg_buff_t *)dlq_firstEntry(instance, &scb->outQ);
         if (buff) {
             if (LOGDEBUG3) {
-                log_debug3("\nses_msg_send full msg:\n");
-                trace_buff(buff);
-                buff = (ses_msg_buff_t *)dlq_nextEntry(buff);
+                log_debug3(instance, "\nses_msg_send full msg:\n");
+                trace_buff(instance, buff);
+                buff = (ses_msg_buff_t *)dlq_nextEntry(instance, buff);
                 while (buff != NULL) {
-                    trace_buff(buff);
-                    buff = (ses_msg_buff_t *)dlq_nextEntry(buff);
+                    trace_buff(instance, buff);
+                    buff = (ses_msg_buff_t *)dlq_nextEntry(instance, buff);
                 }
             } else {
-                log_debug2("\nses_msg_send first buffer:\n");
-                trace_buff(buff);
+                log_debug2(instance, "\nses_msg_send first buffer:\n");
+                trace_buff(instance, buff);
             }
         }
     }
@@ -541,7 +548,7 @@ status_t
     total = 0;
     cnt = 0;
     done = FALSE;
-    buff = (ses_msg_buff_t *)dlq_firstEntry(&scb->outQ);
+    buff = (ses_msg_buff_t *)dlq_firstEntry(instance, &scb->outQ);
 
     /* setup the writev call */
     for (i=0; i<SES_MAX_BUFFSEND && !done && buff; i++) {
@@ -552,11 +559,12 @@ status_t
             total += buffleft;
             iovs[i].iov_base = &buff->buff[buff->buffpos];
             iovs[i].iov_len = buffleft;
-            buff = (ses_msg_buff_t *)dlq_nextEntry(buff);
+            buff = (ses_msg_buff_t *)dlq_nextEntry(instance, buff);
 
 #ifdef SES_MSG_FULL_TRACE
             if (LOGDEBUG3) {
-                log_debug3("\nses_msg: setup send buff %d\n%s\n", 
+                log_debug3(instance, 
+                           "\nses_msg: setup send buff %d\n%s\n", 
                            i,
                            iovs[i].iov_base);
             }
@@ -567,7 +575,7 @@ status_t
 
     /* make sure there is at least one buffer set */
     if (iovs[0].iov_base == NULL) {
-        return SET_ERROR(ERR_NCX_OPERATION_FAILED);
+        return SET_ERROR(instance, ERR_NCX_OPERATION_FAILED);
     }
 
     if (scb->framing11) {
@@ -578,12 +586,12 @@ status_t
          * so just send each buffer as a chunk
          */
         for (i=0; i < cnt; i++) {
-            buff = (ses_msg_buff_t *)dlq_deque(&scb->outQ);
+            buff = (ses_msg_buff_t *)dlq_deque(instance, &scb->outQ);
             if (buff == NULL) {
-                return SET_ERROR(ERR_INTERNAL_VAL);
+                return SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
-            res = do_send_buff(scb, buff);
-            ses_msg_free_buff(scb, buff);            
+            res = do_send_buff(instance, scb, buff);
+            ses_msg_free_buff(instance, scb, buff);            
             if (res != NO_ERR) {
                 return res;
             }
@@ -599,11 +607,12 @@ status_t
         /* should not need retries because the select loop
          * indicated this session was ready for output
          */
-        log_info("\nses msg write failed for session %d", scb->sid);
+        log_info(instance, "\nses msg write failed for session %d", scb->sid);
         return errno_to_status();
     } else {
         if (LOGDEBUG2) {
-            log_debug2("\nses wrote %d of %d bytes on session %d\n", 
+            log_debug2(instance, 
+                       "\nses wrote %d of %d bytes on session %d\n", 
                        retcnt, 
                        total, 
                        scb->sid);
@@ -611,7 +620,7 @@ status_t
     }
 
     /* clean up the buffers that were written */
-    buff = (ses_msg_buff_t *)dlq_firstEntry(&scb->outQ);
+    buff = (ses_msg_buff_t *)dlq_firstEntry(instance, &scb->outQ);
 
     while (retcnt && buff) {
         /* get the number of bytes written from this buffer */
@@ -621,10 +630,10 @@ status_t
          * bump the buffer pointer if not
          */
         if ((uint32)retcnt >= buffleft) {
-            dlq_remove(buff);
-            ses_msg_free_buff(scb, buff);
+            dlq_remove(instance, buff);
+            ses_msg_free_buff(instance, scb, buff);
             retcnt -= (ssize_t)buffleft;
-            buff = (ses_msg_buff_t *)dlq_firstEntry(&scb->outQ);            
+            buff = (ses_msg_buff_t *)dlq_firstEntry(instance, &scb->outQ);            
         } else {
             buff->buffpos += (uint32)retcnt;
             retcnt = 0;
@@ -653,7 +662,7 @@ status_t
 * RETURNS:
 *   status, could return malloc or buffers exceeded error
 *********************************************************************/
-status_t ses_msg_new_output_buff (ses_cb_t *scb)
+status_t ses_msg_new_output_buff (ncx_instance_t *instance, ses_cb_t *scb)
 {
     ses_msg_buff_t *buff;
     status_t        res;
@@ -672,10 +681,10 @@ status_t ses_msg_new_output_buff (ses_cb_t *scb)
          * is not being streamed right now
          */
         if (buff->bufflen) {
-            res = do_send_buff(scb, buff);
+            res = do_send_buff(instance, scb, buff);
             ses_msg_init_buff(scb, TRUE, buff);
         } else {
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         /* reuse the same outbuff again */
@@ -683,10 +692,10 @@ status_t ses_msg_new_output_buff (ses_cb_t *scb)
         /* save the buffer in the message loop do be sent when
          * the main loop checks if any output pending
          */
-        dlq_enque(scb->outbuff, &scb->outQ);
-        ses_msg_make_outready(scb);
+        dlq_enque(instance, scb->outbuff, &scb->outQ);
+        ses_msg_make_outready(instance, scb);
         scb->outbuff = NULL;
-        res = ses_msg_new_buff(scb, TRUE, &scb->outbuff);
+        res = ses_msg_new_buff(instance, scb, TRUE, &scb->outbuff);
     }
     return res;
 
@@ -704,23 +713,23 @@ status_t ses_msg_new_output_buff (ses_cb_t *scb)
 * OUTPUTS:
 *   scb->inready will be queued on the inreadyQ
 *********************************************************************/
-void ses_msg_make_inready (ses_cb_t *scb)
+void ses_msg_make_inready (ncx_instance_t *instance, ses_cb_t *scb)
 {
     assert( scb && "scb is NULL" );
 
     if (!scb->inready.inq) {
-        dlq_enque(&scb->inready, &inreadyQ);
+        dlq_enque(instance, &scb->inready.hdr, &instance->inreadyQ);
         scb->inready.inq = TRUE;
     }
 
 } /* ses_msg_make_inready */
 
-void ses_msg_unmake_inready (ses_cb_t *scb)
+void ses_msg_unmake_inready (ncx_instance_t *instance, ses_cb_t *scb)
 {
     assert( scb && "scb is NULL" );
 
     if (scb->inready.inq) {
-        dlq_deque(&scb->inready);
+        dlq_deque(instance, &scb->inready.hdr);
         scb->inready.inq = FALSE;
     }
 
@@ -737,23 +746,23 @@ void ses_msg_unmake_inready (ses_cb_t *scb)
 * OUTPUTS:
 *   scb->outready will be queued on the outreadyQ
 *********************************************************************/
-void ses_msg_make_outready (ses_cb_t *scb)
+void ses_msg_make_outready (ncx_instance_t *instance, ses_cb_t *scb)
 {
     assert( scb && "scb is NULL" );
 
     if (!scb->outready.inq) {
-        dlq_enque(&scb->outready, &outreadyQ);
+        dlq_enque(instance, &scb->outready.hdr, &instance->outreadyQ);
         scb->outready.inq = TRUE;
     }
 
 } /* ses_msg_make_outready */
 
-void ses_msg_unmake_outready (ses_cb_t *scb)
+void ses_msg_unmake_outready (ncx_instance_t *instance, ses_cb_t *scb)
 {
     assert( scb && "scb is NULL" );
 
     if (scb->outready.inq) {
-        dlq_deque(&scb->outready);
+        dlq_deque(instance, &scb->outready.hdr);
         scb->outready.inq = FALSE;
     }
 
@@ -771,7 +780,7 @@ void ses_msg_unmake_outready (ses_cb_t *scb)
 * OUTPUTS:
 *   scb->outready will be queued on the outreadyQ
 *********************************************************************/
-void ses_msg_finish_outmsg (ses_cb_t *scb)
+void ses_msg_finish_outmsg (ncx_instance_t *instance, ses_cb_t *scb)
 {
     status_t   res;
 
@@ -779,20 +788,21 @@ void ses_msg_finish_outmsg (ses_cb_t *scb)
     assert( scb->outbuff && "scb->outbuff is NULL" );
 
     if (scb->stream_output) {
-        res = do_send_buff(scb, scb->outbuff);
+        res = do_send_buff(instance, scb, scb->outbuff);
         ses_msg_init_buff(scb, TRUE, scb->outbuff);
         if (res != NO_ERR) {
-            log_error("\nError: IO failed on session '%d' (%s)", 
+            log_error(instance, 
+                      "\nError: IO failed on session '%d' (%s)", 
                       scb->sid,
                       get_error_string(res));
         }
     } else {
         scb->outbuff->buffpos = scb->outbuff->buffstart;
-        dlq_enque(scb->outbuff, &scb->outQ);
+        dlq_enque(instance, scb->outbuff, &scb->outQ);
         scb->outbuff = NULL;
-        (void)ses_msg_new_buff(scb, TRUE, &scb->outbuff);
+        (void)ses_msg_new_buff(instance, scb, TRUE, &scb->outbuff);
 
-        ses_msg_make_outready(scb);
+        ses_msg_make_outready(instance, scb);
     }
 
 } /* ses_msg_finish_outmsg */
@@ -807,11 +817,11 @@ void ses_msg_finish_outmsg (ses_cb_t *scb)
 *    first entry in the inreadyQ or NULL if none
 *********************************************************************/
 ses_ready_t *
-    ses_msg_get_first_inready (void)
+    ses_msg_get_first_inready (ncx_instance_t *instance)
 {
     ses_ready_t *rdy;
 
-    rdy = (ses_ready_t *)dlq_deque(&inreadyQ);
+    rdy = (ses_ready_t *)dlq_deque(instance, &instance->inreadyQ);
     if (rdy) {
         rdy->inq = FALSE;
     }
@@ -829,11 +839,11 @@ ses_ready_t *
 *    first entry in the outreadyQ or NULL if none
 *********************************************************************/
 ses_ready_t *
-    ses_msg_get_first_outready (void)
+    ses_msg_get_first_outready (ncx_instance_t *instance)
 {
     ses_ready_t *rdy;
 
-    rdy = (ses_ready_t *)dlq_deque(&outreadyQ);
+    rdy = (ses_ready_t *)dlq_deque(instance, &instance->outreadyQ);
     if (rdy) {
         rdy->inq = FALSE;
     }
@@ -852,7 +862,7 @@ ses_ready_t *
 *   text == start text before message dump (may be NULL)
 *
 *********************************************************************/
-void ses_msg_dump (const ses_msg_t *msg, const xmlChar *text)
+void ses_msg_dump (ncx_instance_t *instance, const ses_msg_t *msg, const xmlChar *text)
 {
     const ses_msg_buff_t *buff;
     boolean anytext;
@@ -861,23 +871,23 @@ void ses_msg_dump (const ses_msg_t *msg, const xmlChar *text)
     assert( msg && "msg is NULL" );
 
     if (text) {
-        log_write("\n%s\n", text);
+        log_write(instance, "\n%s\n", text);
         anytext = TRUE;
     } else {
         anytext = FALSE;
     }
 
-    for (buff = (const ses_msg_buff_t *)dlq_firstEntry(&msg->buffQ);
+    for (buff = (const ses_msg_buff_t *)dlq_firstEntry(instance, &msg->buffQ);
          buff != NULL;
-         buff = (const ses_msg_buff_t *)dlq_nextEntry(buff)) {
+         buff = (const ses_msg_buff_t *)dlq_nextEntry(instance, buff)) {
         for (i = buff->buffstart; i < buff->bufflen; i++) {
-            log_write("%c", buff->buff[i]);
+            log_write(instance, "%c", buff->buff[i]);
         }
         anytext = TRUE;
     }
 
     if (anytext) {
-        log_write("\n");
+        log_write(instance, "\n");
     }
 
 } /* ses_msg_dump */

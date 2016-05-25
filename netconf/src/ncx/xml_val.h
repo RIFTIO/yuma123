@@ -73,7 +73,8 @@ extern "C" {
 *   malloced value string or NULL if malloc error
 *********************************************************************/
 extern xmlChar *
-    xml_val_make_qname (xmlns_id_t  nsid,
+    xml_val_make_qname (struct ncx_instance_t_ *instance,
+			xmlns_id_t  nsid,
 			const xmlChar *name);
 
 
@@ -91,7 +92,8 @@ extern xmlChar *
 *   length of string needed for this QName
 *********************************************************************/
 extern uint32
-    xml_val_qname_len (xmlns_id_t  nsid,
+    xml_val_qname_len (struct ncx_instance_t_ *instance,
+		       xmlns_id_t  nsid,
 		       const xmlChar *name);
 
 
@@ -110,7 +112,8 @@ extern uint32
 *   number of bytes written to the buffer
 *********************************************************************/
 extern uint32
-    xml_val_sprintf_qname (xmlChar *buff,
+    xml_val_sprintf_qname (struct ncx_instance_t_ *instance,
+			   xmlChar *buff,
 			   uint32 bufflen,
 			   xmlns_id_t  nsid,
 			   const xmlChar *name);
@@ -132,7 +135,8 @@ extern uint32
 *   status
 *********************************************************************/
 extern status_t
-    xml_val_add_attr (const xmlChar *name,
+    xml_val_add_attr (struct ncx_instance_t_ *instance,
+		      const xmlChar *name,
 		      xmlns_id_t nsid,
 		      xmlChar *attrval,
 		      val_value_t *val);
@@ -154,7 +158,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xml_val_add_cattr (const xmlChar *name,
+    xml_val_add_cattr (struct ncx_instance_t_ *instance,
+		       const xmlChar *name,
 		       xmlns_id_t nsid,
 		       const xmlChar *cattrval,
 		       val_value_t *val);
@@ -173,7 +178,8 @@ extern status_t
 *   new struct or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xml_val_new_struct (const xmlChar *name,
+    xml_val_new_struct (struct ncx_instance_t_ *instance,
+			const xmlChar *name,
 			xmlns_id_t     nsid);
 
 
@@ -192,7 +198,8 @@ extern val_value_t *
 *   new string or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xml_val_new_string (const xmlChar *name,
+    xml_val_new_string (struct ncx_instance_t_ *instance,
+			const xmlChar *name,
 			xmlns_id_t     nsid,
 			xmlChar *strval);
 
@@ -212,7 +219,8 @@ extern val_value_t *
 *   new string or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xml_val_new_cstring (const xmlChar *name,
+    xml_val_new_cstring (struct ncx_instance_t_ *instance,
+			 const xmlChar *name,
 			 xmlns_id_t     nsid,
 			 const xmlChar *strval);
 
@@ -231,7 +239,8 @@ extern val_value_t *
 *   new struct or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xml_val_new_flag (const xmlChar *name,
+    xml_val_new_flag (struct ncx_instance_t_ *instance,
+		      const xmlChar *name,
 		      xmlns_id_t     nsid);
 
 
@@ -250,7 +259,8 @@ extern val_value_t *
 *   new struct or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xml_val_new_boolean (const xmlChar *name,
+    xml_val_new_boolean (struct ncx_instance_t_ *instance,
+                         const xmlChar *name,
                          xmlns_id_t     nsid,
                          boolean boo);
 
@@ -270,7 +280,8 @@ extern val_value_t *
 *   new struct or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xml_val_new_number (const xmlChar *name,
+    xml_val_new_number (struct ncx_instance_t_ *instance,
+                        const xmlChar *name,
                         xmlns_id_t     nsid,
                         ncx_num_t *num,
                         ncx_btype_t btyp);

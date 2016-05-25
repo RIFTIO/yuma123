@@ -77,7 +77,8 @@ extern "C" {
  *    status
  *********************************************************************/
 extern status_t 
-    ydump_init (int argc,
+    ydump_init (struct ncx_instance_t_ *instance,
+                int argc,
                 char *argv[],
                 boolean allowcode,
                 yangdump_cvtparms_t *cvtparms);
@@ -100,7 +101,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    ydump_main (yangdump_cvtparms_t *cvtparms);
+    ydump_main (struct ncx_instance_t_ *instance, yangdump_cvtparms_t *cvtparms);
 
 
 /********************************************************************
@@ -111,7 +112,7 @@ extern status_t
  * 
  *********************************************************************/
 extern void
-    ydump_cleanup (yangdump_cvtparms_t *cvtparms);
+    ydump_cleanup (struct ncx_instance_t_ *instance, yangdump_cvtparms_t *cvtparms);
 
 
 #ifdef __cplusplus

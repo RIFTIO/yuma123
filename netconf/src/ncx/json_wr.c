@@ -70,15 +70,16 @@ date         init     comment
 *   status
 *********************************************************************/
 static status_t
-    write_json_string_value (ses_cb_t *scb,
+    write_json_string_value (ncx_instance_t *instance,
+                             ses_cb_t *scb,
                              val_value_t *val)
 {
-    xmlChar *valstr = val_make_sprintf_string(val);
+    xmlChar *valstr = val_make_sprintf_string(instance, val);
     if (valstr) {
-        ses_putchar(scb, '"');
-        ses_putjstr(scb, valstr, -1);
-        ses_putchar(scb, '"');
-        m__free(valstr);
+        ses_putchar(instance, scb, '"');
+        ses_putjstr(instance, scb, valstr, -1);
+        ses_putchar(instance, scb, '"');
+        m__free(instance, valstr);
         return NO_ERR;
     }
     return ERR_INTERNAL_MEM;
@@ -107,7 +108,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    write_full_check_val (ses_cb_t *scb,
+    write_full_check_val (ncx_instance_t *instance,
+                          ses_cb_t *scb,
                           xml_msg_hdr_t *msg,
                           val_value_t *val,
                           int32  startindent,
@@ -120,14 +122,14 @@ static status_t
     boolean            malloced = FALSE;
     status_t           res = NO_ERR;
 
-    out = val_get_value(scb, msg, val, testfn, TRUE, &malloced, &res);
+    out = val_get_value(instance, scb, msg, val, testfn, TRUE, &malloced, &res);
 
     if (!out || res != NO_ERR) {
         if (res == ERR_NCX_SKIPPED) {
             res = NO_ERR;
         }
         if (out && malloced) {
-            val_free_value(out);
+            val_free_value(instance, out);
         }
         return res;
     }
@@ -135,49 +137,49 @@ static status_t
     /* check if this is an external file to send */
     if (out->btyp == NCX_BT_EXTERN ||
         out->btyp == NCX_BT_INTERN ||
-        typ_is_simple(out->btyp)) {
+        typ_is_simple(instance, out->btyp)) {
 
         if (isfirst) {
-            write_json_string_value(scb, out);
+            write_json_string_value(instance, scb, out);
         } else {
             /* write the name of the node */
-            ses_putchar(scb, '"');
-            ses_putjstr(scb, out->name, -1);
-            ses_putchar(scb, '"');
-            ses_putchar(scb, ':');
+            ses_putchar(instance, scb, '"');
+            ses_putjstr(instance, scb, out->name, -1);
+            ses_putchar(instance, scb, '"');
+            ses_putchar(instance, scb, ':');
 
             switch (out->btyp) {
             case NCX_BT_EXTERN:
-                ses_putchar(scb, '"');
-                val_write_extern(scb, out);
-                ses_putchar(scb, '"');
+                ses_putchar(instance, scb, '"');
+                val_write_extern(instance, scb, out);
+                ses_putchar(instance, scb, '"');
                 break;
             case NCX_BT_INTERN:
-                ses_putchar(scb, '"');
-                val_write_intern(scb, out);
-                ses_putchar(scb, '"');
+                ses_putchar(instance, scb, '"');
+                val_write_intern(instance, scb, out);
+                ses_putchar(instance, scb, '"');
                 break;
             case NCX_BT_ENUM:
-                ses_putchar(scb, '"');
+                ses_putchar(instance, scb, '"');
                 if (VAL_ENUM_NAME(out)) {
-                    ses_putjstr(scb, VAL_ENUM_NAME(out), -1);
+                    ses_putjstr(instance, scb, VAL_ENUM_NAME(out), -1);
                 }
-                ses_putchar(scb, '"');
+                ses_putchar(instance, scb, '"');
                 break;
             case NCX_BT_EMPTY:
                 if (out->v.boo) {
-                    ses_putjstr(scb, NCX_EL_NULL, -1);
+                    ses_putjstr(instance, scb, NCX_EL_NULL, -1);
                 } // else skip this value! should already be checked
                 break;
             case NCX_BT_BOOLEAN:
                 if (out->v.boo) {
-                    ses_putjstr(scb, NCX_EL_TRUE, -1);
+                    ses_putjstr(instance, scb, NCX_EL_TRUE, -1);
                 } else {
-                    ses_putjstr(scb, NCX_EL_FALSE, -1);
+                    ses_putjstr(instance, scb, NCX_EL_FALSE, -1);
                 }
                 break;
             default:
-                write_json_string_value(scb, out);
+                write_json_string_value(instance, scb, out);
             }
         }
     } else {
@@ -189,41 +191,42 @@ static status_t
             startindent + ses_indent_count(scb);
 
         if (isfirst) {
-            ses_putchar(scb, '{');
+            ses_putchar(instance, scb, '{');
         }
 
         /* render a complex type; either an object or an array */
         if (isfirstchild) {
-            ses_putchar(scb, '"');
-            ses_putjstr(scb, out->name, -1);
-            ses_putchar(scb, '"');
-            ses_putchar(scb, ':');
+            ses_putchar(instance, scb, '"');
+            ses_putjstr(instance, scb, out->name, -1);
+            ses_putchar(instance, scb, '"');
+            ses_putchar(instance, scb, ':');
 
             if (!justone) {
-                ses_putchar(scb, '[');
+                ses_putchar(instance, scb, '[');
             }
         }
 
 
-        ses_indent(scb, indent);
-        ses_putchar(scb, '{');
+        ses_indent(instance, scb, indent);
+        ses_putchar(instance, scb, '{');
 
-        for (chval = val_get_first_child(out); 
+        for (chval = val_get_first_child(instance, out); 
              chval != NULL; 
              chval = nextch) {
 
             /* JSON ignores XML namespaces, so foo:a and bar:a
              * are both encoded in the same array
              */
-            uint32 childcnt = val_instance_count(out, NULL, chval->name);
+            uint32 childcnt = val_instance_count(instance, out, NULL, chval->name);
             boolean firstchild = 
-                (lastch && !xml_strcmp(lastch->name, chval->name)) ?
+                (lastch && !xml_strcmp(instance, lastch->name, chval->name)) ?
                 FALSE : TRUE;
 
             lastch = chval;
-            nextch = val_get_next_child(chval);
+            nextch = val_get_next_child(instance, chval);
 
-            res = write_full_check_val(scb, 
+            res = write_full_check_val(instance, 
+                                       scb, 
                                        msg,
                                        chval,
                                        indent,
@@ -239,34 +242,34 @@ static status_t
                  * may not always be OK to continue to next child node 
                  */ ;
             } else if (nextch) {
-                ses_putchar(scb, ',');
+                ses_putchar(instance, scb, ',');
                 if (indent >= 0 && 
-                    (typ_is_simple(nextch->btyp) || 
-                     xml_strcmp(nextch->name, chval->name))) {
-                    ses_indent(scb, indent);
-                    ses_putchar(scb, ' ');
+                    (typ_is_simple(instance, nextch->btyp) || 
+                     xml_strcmp(instance, nextch->name, chval->name))) {
+                    ses_indent(instance, scb, indent);
+                    ses_putchar(instance, scb, ' ');
                 }
             }
         }
 
-        ses_indent(scb, indent);
-        ses_putchar(scb, '}');
+        ses_indent(instance, scb, indent);
+        ses_putchar(instance, scb, '}');
 
         if (!justone) {
-            val_value_t *peeknext = val_get_next_child(val);            
-            if (!peeknext || xml_strcmp(val->name, peeknext->name)) {
-                ses_putchar(scb, ']');
+            val_value_t *peeknext = val_get_next_child(instance, val);            
+            if (!peeknext || xml_strcmp(instance, val->name, peeknext->name)) {
+                ses_putchar(instance, scb, ']');
             }
         }
 
         if (isfirst) {
-            ses_indent(scb, startindent);
-            ses_putchar(scb, '}');
+            ses_indent(instance, scb, startindent);
+            ses_putchar(instance, scb, '}');
         }            
     }
 
     if (malloced && out) {
-        val_free_value(out);
+        val_free_value(instance, out);
     }
 
     return res;
@@ -295,7 +298,8 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    json_wr_full_check_val (ses_cb_t *scb,
+    json_wr_full_check_val (ncx_instance_t *instance,
+                            ses_cb_t *scb,
                             xml_msg_hdr_t *msg,
                             val_value_t *val,
                             int32  startindent,
@@ -303,11 +307,11 @@ status_t
 {
 #ifdef DEBUG
     if (!scb || !msg || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return write_full_check_val(scb, msg, val, startindent, 
+    return write_full_check_val(instance, scb, msg, val, startindent, 
                                 testfn, TRUE, TRUE, TRUE);
 
 }  /* json_wr_full_check_val */
@@ -329,7 +333,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    json_wr_check_open_file (FILE *fp, 
+    json_wr_check_open_file (ncx_instance_t *instance, 
+                             FILE *fp, 
                              val_value_t *val,
                              int32 startindent,
                              int32  indent,
@@ -342,15 +347,15 @@ status_t
 
 #ifdef DEBUG
     if (!fp || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     indent = min(indent, 9);
-    xml_init_attrs(&myattrs);
+    xml_init_attrs(instance, &myattrs);
 
     /* get a dummy session control block */
-    scb = ses_new_dummy_scb();
+    scb = ses_new_dummy_scb(instance);
     if (!scb) {
         res = ERR_INTERNAL_MEM;
     } else {
@@ -360,7 +365,7 @@ status_t
 
     /* get a dummy output message */
     if (res == NO_ERR) {
-        msg = rpc_new_out_msg();
+        msg = rpc_new_out_msg(instance);
         if (!msg) {
             res = ERR_INTERNAL_MEM;
         } else {
@@ -373,10 +378,10 @@ status_t
 
     if (res == NO_ERR) {
         /* write the tree in JSON format */
-        res = json_wr_full_check_val(scb, &msg->mhdr, val, 
+        res = json_wr_full_check_val(instance, scb, &msg->mhdr, val, 
                                      startindent, testfn);
         if (res != ERR_NCX_SKIPPED) {
-            ses_finish_msg(scb);
+            ses_finish_msg(instance, scb);
         } else {
             res = NO_ERR;
         }
@@ -384,14 +389,14 @@ status_t
 
     /* clean up and exit */
     if (msg) {
-        rpc_free_msg(msg);
+        rpc_free_msg(instance, msg);
     }
     if (scb) {
         scb->fp = NULL;   /* do not close the file */
-        ses_free_scb(scb);
+        ses_free_scb(instance, scb);
     }
 
-    xml_clean_attrs(&myattrs);
+    xml_clean_attrs(instance, &myattrs);
     return res;
 
 } /* json_wr_check_open_file */
@@ -413,7 +418,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    json_wr_check_file (const xmlChar *filespec, 
+    json_wr_check_file (ncx_instance_t *instance, 
+                        const xmlChar *filespec, 
                         val_value_t *val,
                         int32 startindent,
                         int32  indent,
@@ -424,16 +430,16 @@ status_t
 
 #ifdef DEBUG
     if (!filespec || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     fp = fopen((const char *)filespec, "w");
     if (!fp) {
-        log_error("\nError: Cannot open XML file '%s'", filespec);
+        log_error(instance, "\nError: Cannot open XML file '%s'", filespec);
         return ERR_FIL_OPEN;
     }
-    res = json_wr_check_open_file(fp, val, startindent, indent, testfn);
+    res = json_wr_check_open_file(instance, fp, val, startindent, indent, testfn);
     fclose(fp);
 
     return res;
@@ -456,12 +462,13 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    json_wr_file (const xmlChar *filespec,
+    json_wr_file (ncx_instance_t *instance,
+                  const xmlChar *filespec,
                   val_value_t *val,
                   int32 startindent,
                   int32 indent)
 {
-    return json_wr_check_file(filespec, val, startindent, indent, NULL);
+    return json_wr_check_file(instance, filespec, val, startindent, indent, NULL);
 
 } /* json_wr_file */
 

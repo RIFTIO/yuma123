@@ -87,7 +87,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    json_wr_full_check_val (ses_cb_t *scb,
+    json_wr_full_check_val (struct ncx_instance_t_ *instance,
+                            ses_cb_t *scb,
                             xml_msg_hdr_t *msg,
                             val_value_t *val,
                             int32  startindent,
@@ -110,7 +111,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    json_wr_check_open_file (FILE *fp, 
+    json_wr_check_open_file (struct ncx_instance_t_ *instance, 
+                             FILE *fp, 
                              val_value_t *val,
                              int32 startindent,
                              int32  indent,
@@ -133,7 +135,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    json_wr_check_file (const xmlChar *filespec, 
+    json_wr_check_file (struct ncx_instance_t_ *instance, 
+                        const xmlChar *filespec, 
                         val_value_t *val,
                         int32 startindent,
                         int32  indent,
@@ -155,7 +158,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    json_wr_file (const xmlChar *filespec,
+    json_wr_file (struct ncx_instance_t_ *instance,
+                  const xmlChar *filespec,
                   val_value_t *val,
                   int32 startindent,
                   int32 indent);

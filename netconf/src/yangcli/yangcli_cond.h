@@ -75,7 +75,8 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t
-    do_while (server_cb_t *server_cb,
+    do_while (struct ncx_instance_t_ *instance,
+              server_cb_t *server_cb,
               obj_template_t *rpc,
               const xmlChar *line,
               uint32  len);
@@ -98,7 +99,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_if (server_cb_t *server_cb,
+    do_if (struct ncx_instance_t_ *instance,
+           server_cb_t *server_cb,
            obj_template_t *rpc,
            const xmlChar *line,
            uint32  len);
@@ -122,7 +124,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_elif (server_cb_t *server_cb,
+    do_elif (struct ncx_instance_t_ *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len);
@@ -146,7 +149,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_else (server_cb_t *server_cb,
+    do_else (struct ncx_instance_t_ *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len);
@@ -169,7 +173,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_end (server_cb_t *server_cb,
+    do_end (struct ncx_instance_t_ *instance,
+            server_cb_t *server_cb,
             obj_template_t *rpc,
             const xmlChar *line,
             uint32  len);

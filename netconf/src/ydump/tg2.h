@@ -100,7 +100,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t 
-    tg2_convert_module_model (const yang_pcb_t *pcb,
+    tg2_convert_module_model (struct ncx_instance_t_ *instance,
+                              const yang_pcb_t *pcb,
                               const yangdump_cvtparms_t *cp,
                               ses_cb_t *scb);
 

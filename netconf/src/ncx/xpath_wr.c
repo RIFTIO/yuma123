@@ -82,7 +82,8 @@ date         init     comment
 *   status
 *********************************************************************/
 static status_t
-    wr_expr (ses_cb_t *scb,
+    wr_expr (ncx_instance_t *instance,
+             ses_cb_t *scb,
              xpath_pcb_t *pcb)
 {
     const xmlChar        *cur_val, *prefix;
@@ -96,13 +97,13 @@ static status_t
         return  pcb->parseres;
     }
 
-    tk_reset_chain(pcb->tkc);
+    tk_reset_chain(instance, pcb->tkc);
 
     done = FALSE;
     while (!done) {
 
         /* get the next token */
-        res = TK_ADV(pcb->tkc);
+        res = TK_ADV(instance, pcb->tkc);
         if (res != NO_ERR) {
             res = NO_ERR;
             done = TRUE;
@@ -170,53 +171,53 @@ static status_t
             quotes = 1;
             break;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (cur_val == NULL) {
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         switch (cur_typ) {
         case TK_TT_VARBIND:
         case TK_TT_QVARBIND:
-            ses_putchar(scb, '$');
+            ses_putchar(instance, scb, '$');
             break;
         default:
             ;
         }
 
         if (needprefix && cur_nsid != 0) {
-            prefix = xmlns_get_ns_prefix(cur_nsid);
+            prefix = xmlns_get_ns_prefix(instance, cur_nsid);
             if (prefix) {
-                ses_putstr(scb, prefix);
-                ses_putchar(scb, ':');
+                ses_putstr(instance, scb, prefix);
+                ses_putchar(instance, scb, ':');
             } else {
-                return SET_ERROR(ERR_INTERNAL_VAL);
+                return SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
 
         if (quotes == 1) {
-            ses_putchar(scb, '\'');
+            ses_putchar(instance, scb, '\'');
         } else if (quotes == 2) {
-            ses_putchar(scb, '"');
+            ses_putchar(instance, scb, '"');
         }
 
-        ses_putstr(scb, cur_val);
+        ses_putstr(instance, scb, cur_val);
 
         if (cur_typ == TK_TT_NCNAME_STAR) {
-            ses_putchar(scb, ':');
-            ses_putchar(scb, '*');
+            ses_putchar(instance, scb, ':');
+            ses_putchar(instance, scb, '*');
         }
 
         if (needspace && quotes == 0) {
-            ses_putchar(scb, ' ');
+            ses_putchar(instance, scb, ' ');
         }
 
         if (quotes == 1) {
-            ses_putchar(scb, '\'');
+            ses_putchar(instance, scb, '\'');
         } else if (quotes == 2) {
-            ses_putchar(scb, '"');
+            ses_putchar(instance, scb, '"');
         }
     }
 
@@ -245,7 +246,8 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_wr_expr (ses_cb_t *scb,
+    xpath_wr_expr (ncx_instance_t *instance,
+                   ses_cb_t *scb,
                    val_value_t *xpathval)
 {
     xpath_pcb_t          *pcb;
@@ -253,16 +255,16 @@ status_t
 
 #ifdef DEBUG
     if (!scb || !xpathval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    pcb = val_get_xpathpcb(xpathval);
+    pcb = val_get_xpathpcb(instance, xpathval);
     if (pcb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    res = wr_expr(scb, pcb);
+    res = wr_expr(instance, scb, pcb);
 
     return res;
 

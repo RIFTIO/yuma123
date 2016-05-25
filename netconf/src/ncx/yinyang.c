@@ -78,7 +78,7 @@ date         init     comment
 *                                                                   *
 *********************************************************************/
 
-#define GET_NODE(S, N) xml_consume_node((S)->reader, N, FALSE, TRUE)
+#define GET_NODE(instance, S, N) xml_consume_node(instance, (S)->reader, N, FALSE, TRUE)
 
 
 
@@ -101,7 +101,8 @@ date         init     comment
 *   status
 *********************************************************************/
 static status_t 
-    parse_arg (ses_cb_t  *scb,
+    parse_arg (ncx_instance_t *instance,
+               ses_cb_t  *scb,
                tk_chain_t  *tkc,
                xmlns_id_t nsid,
                const xmlChar *argname)
@@ -112,23 +113,25 @@ static status_t
 
 
     /* init local vars */
-    xml_init_node(&startnode);
-    xml_init_node(&valnode);
-    xml_init_node(&endnode);
+    xml_init_node(instance, &startnode);
+    xml_init_node(instance, &valnode);
+    xml_init_node(instance, &endnode);
     empty = FALSE;
 
-    res = GET_NODE(scb, &startnode);
+    res = GET_NODE(instance, scb, &startnode);
     if (res != NO_ERR) {
         return res;
     }
 
     /* make sure the startnode is correct */
-    res = xml_node_match(&startnode, 
+    res = xml_node_match(instance, 
+                         &startnode, 
                          nsid,
                          argname,
                          XML_NT_START); 
     if (res != NO_ERR) {
-        res = xml_node_match(&startnode, 
+        res = xml_node_match(instance, 
+                             &startnode, 
                              nsid,
                              argname,
                              XML_NT_EMPTY); 
@@ -138,57 +141,57 @@ static status_t
     }
 
     if (res != NO_ERR) {
-        xml_clean_node(&startnode);
+        xml_clean_node(instance, &startnode);
         return res;
     }
 
     /* check if an empty string was given */
     if (empty) {
-        res = tk_add_string_token(tkc, EMPTY_STRING);
-        xml_clean_node(&startnode);
+        res = tk_add_string_token(instance, tkc, EMPTY_STRING);
+        xml_clean_node(instance, &startnode);
         return res;
     }
                             
     /* else got a start node, get the value string node */
-    res = GET_NODE(scb, &valnode);
+    res = GET_NODE(instance, scb, &valnode);
     if (res == NO_ERR) {
         if (valnode.nodetyp == XML_NT_END) {
             /* check correct end-node */
-            res = xml_endnode_match(&startnode, &valnode);
+            res = xml_endnode_match(instance, &startnode, &valnode);
             if (res == NO_ERR) {
                 /* got 2-token empty instead of value string */
-                res = tk_add_string_token(tkc, EMPTY_STRING);
+                res = tk_add_string_token(instance, tkc, EMPTY_STRING);
             }
-            xml_clean_node(&startnode);
-            xml_clean_node(&valnode);
+            xml_clean_node(instance, &startnode);
+            xml_clean_node(instance, &valnode);
             return res;
         }
     } else {
-        xml_clean_node(&startnode);
-        xml_clean_node(&valnode);
+        xml_clean_node(instance, &startnode);
+        xml_clean_node(instance, &valnode);
         return res;
     }
 
     /* record the string content as a token */
     if (valnode.nodetyp == XML_NT_STRING) {
-        res = tk_add_string_token(tkc, valnode.simval);
+        res = tk_add_string_token(instance, tkc, valnode.simval);
     } else {
         res = ERR_NCX_WRONG_NODETYP_CPX;
     }
 
     /* get the matching end node for startnode */
-    res2 = GET_NODE(scb, &endnode);
+    res2 = GET_NODE(instance, scb, &endnode);
     if (res2 == NO_ERR) {
-        res2 = xml_endnode_match(&startnode, &endnode);
+        res2 = xml_endnode_match(instance, &startnode, &endnode);
     }
 
     if (res == NO_ERR) {
         res = res2;
     }
 
-    xml_clean_node(&startnode);
-    xml_clean_node(&valnode);
-    xml_clean_node(&endnode);
+    xml_clean_node(instance, &startnode);
+    xml_clean_node(instance, &valnode);
+    xml_clean_node(instance, &endnode);
 
     return res;
 
@@ -210,7 +213,8 @@ static status_t
 *   malloced token chain containing the converted YIN file
 *********************************************************************/
 static status_t
-    parse_yin_stmt (ses_cb_t *scb,
+    parse_yin_stmt (ncx_instance_t *instance,
+                    ses_cb_t *scb,
                     tk_chain_t *tkc,
                     xml_node_t *startnode)
 {
@@ -222,7 +226,7 @@ static status_t
     xml_node_t              nextnode;
 
     res = NO_ERR;
-    yin_id = xmlns_yin_id();
+    yin_id = xmlns_yin_id(instance);
 
     /* the startnode is determined to be the
      * start of a YIN statement
@@ -240,13 +244,13 @@ static status_t
 
     if (startnode->nsid == yin_id) {
         /* this should be a YANG keyword */
-        mapping = yin_find_mapping(startnode->elname);
+        mapping = yin_find_mapping(instance, startnode->elname);
         if (mapping == NULL) {
             return ERR_NCX_DEF_NOT_FOUND;
         }
 
         /* generate the YANG keyword token */
-        res = tk_add_id_token(tkc, mapping->keyword);
+        res = tk_add_id_token(instance, tkc, mapping->keyword);
         if (res != NO_ERR) {
             return res;
         }
@@ -264,20 +268,22 @@ static status_t
                 }
 
                 /* need to get the argument as an element */
-                res = parse_arg(scb,
+                res = parse_arg(instance,
+                                scb,
                                 tkc,
                                 yin_id,
                                 mapping->argname);
             } else {
                 /* get the attribute value for the  argument string */
-                attr = xml_find_attr(startnode,
+                attr = xml_find_attr(instance,
+                                     startnode,
                                      yin_id,
                                      mapping->argname);
                 if (attr == NULL) {
                     return ERR_NCX_DEF_NOT_FOUND;
                 }
                 
-                res = tk_add_string_token(tkc, attr->attr_val);
+                res = tk_add_string_token(instance, tkc, attr->attr_val);
             }
             if (res != NO_ERR) {
                 return res;
@@ -285,7 +291,8 @@ static status_t
         }
     } else {
         /* YANG extension usage found */
-        res = tk_add_pid_token(tkc, 
+        res = tk_add_pid_token(instance, 
+                               tkc, 
                                startnode->qname,
                                (uint32)
                                (startnode->elname - startnode->qname - 1),
@@ -295,11 +302,11 @@ static status_t
         }
 
         /* fish for an argument attribute */
-        attr = xml_get_first_attr(startnode);
+        attr = xml_get_first_attr(instance, startnode);
         done = FALSE;
         while (!done && attr) {
             if (attr->attr_xmlns_ns) {
-                attr = xml_next_attr(attr);
+                attr = xml_next_attr(instance, attr);
             } else {
                 done = TRUE;
             }
@@ -309,15 +316,16 @@ static status_t
         case XML_NT_EMPTY:
             empty = TRUE;
             if (attr) {
-                res = tk_add_string_token(tkc, attr->attr_val);
+                res = tk_add_string_token(instance, tkc, attr->attr_val);
             }
             break;
         case XML_NT_START:
             empty = FALSE;
             if (attr) {
-                res = tk_add_string_token(tkc, attr->attr_val);
+                res = tk_add_string_token(instance, tkc, attr->attr_val);
             } else {
-                res = parse_arg(scb,
+                res = parse_arg(instance,
+                                scb,
                                 tkc,
                                 startnode->nsid,
                                 NULL);
@@ -329,7 +337,7 @@ static status_t
     }
 
     if (empty) {
-        res = tk_add_semicol_token(tkc);
+        res = tk_add_semicol_token(instance, tkc);
         return res;
     }
 
@@ -339,11 +347,11 @@ static status_t
      */
     done = FALSE;
     first = TRUE;
-    xml_init_node(&nextnode);
+    xml_init_node(instance, &nextnode);
     while (!done && res == NO_ERR) {
 
         /* get the next XML node */
-        res = GET_NODE(scb, &nextnode);
+        res = GET_NODE(instance, scb, &nextnode);
         if (res != NO_ERR) {
             continue;
         }
@@ -357,21 +365,21 @@ static status_t
         case XML_NT_START:
         case XML_NT_EMPTY:
             if (first) {
-                res = tk_add_lbrace_token(tkc);
+                res = tk_add_lbrace_token(instance, tkc);
             }
 
             if (res == NO_ERR) {
-                res = parse_yin_stmt(scb, tkc, &nextnode);
+                res = parse_yin_stmt(instance, scb, tkc, &nextnode);
             }
             break;
         case XML_NT_END:
             done = TRUE;
-            res = xml_endnode_match(startnode, &nextnode);
+            res = xml_endnode_match(instance, startnode, &nextnode);
             if (res == NO_ERR) {
                 if (first) {
-                    res = tk_add_semicol_token(tkc);
+                    res = tk_add_semicol_token(instance, tkc);
                 } else {
-                    res = tk_add_rbrace_token(tkc);
+                    res = tk_add_rbrace_token(instance, tkc);
                 }
             }
             break;
@@ -379,7 +387,7 @@ static status_t
             done = TRUE;
             res = ERR_NCX_WRONG_NODETYP;
         }
-        xml_clean_node(&nextnode);
+        xml_clean_node(instance, &nextnode);
         first = FALSE;
     }
 
@@ -409,7 +417,8 @@ static status_t
 *   malloced token chain containing the converted YIN file
 *********************************************************************/
 tk_chain_t *
-    yinyang_convert_token_chain (const xmlChar *sourcespec,
+    yinyang_convert_token_chain (ncx_instance_t *instance,
+                                 const xmlChar *sourcespec,
                                  status_t *res)
 {
     tk_chain_t       *tkc;
@@ -418,50 +427,51 @@ tk_chain_t *
 
 #ifdef DEBUG
     if (sourcespec == NULL || res == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    scb = ses_new_dummy_scb();
+    scb = ses_new_dummy_scb(instance);
     if (scb == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
-    tkc = tk_new_chain();
+    tkc = tk_new_chain(instance);
     if (tkc == NULL) {
         *res = ERR_INTERNAL_MEM;
-        ses_free_scb(scb);
+        ses_free_scb(instance, scb);
         return NULL;
     }
 
-    tk_setup_chain_yin(tkc, sourcespec);
+    tk_setup_chain_yin(instance, tkc, sourcespec);
 
-    xml_init_node(&startnode);
+    xml_init_node(instance, &startnode);
 
     /* open the XML reader */
-    *res = xml_get_reader_from_filespec((const char *)sourcespec, 
+    *res = xml_get_reader_from_filespec(instance, 
+                                        (const char *)sourcespec, 
                                         &scb->reader);
     if (*res == NO_ERR) {
-        *res = GET_NODE(scb, &startnode);
+        *res = GET_NODE(instance, scb, &startnode);
         if (*res == NO_ERR) {
-            *res = parse_yin_stmt(scb, tkc, &startnode);
+            *res = parse_yin_stmt(instance, scb, tkc, &startnode);
         }
     }
 
     /* free the reader and the session control block */
-    ses_free_scb(scb);
-    xml_clean_node(&startnode);
+    ses_free_scb(instance, scb);
+    xml_clean_node(instance, &startnode);
 
     if (LOGDEBUG3) {
-        tk_dump_chain(tkc);
+        tk_dump_chain(instance, tkc);
     }
 
     if (*res == NO_ERR) {
         return tkc;
     } else {
-        tk_free_chain(tkc);
+        tk_free_chain(instance, tkc);
         return NULL;
     }
 

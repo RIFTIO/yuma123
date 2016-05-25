@@ -160,7 +160,8 @@ extern "C" {
 *   NO_ERR if no false when or must statements found
 *********************************************************************/
 extern status_t 
-    agt_val_rpc_xpath_check (ses_cb_t *scb,
+    agt_val_rpc_xpath_check (struct ncx_instance_t_ *instance,
+                             ses_cb_t *scb,
                              rpc_msg_t *rpcmsg,
 			     xml_msg_hdr_t *msg,
 			     val_value_t *rpcinput,
@@ -199,7 +200,8 @@ extern status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 extern status_t 
-    agt_val_instance_check (ses_cb_t *scb,
+    agt_val_instance_check (struct ncx_instance_t_ *instance,
+			    ses_cb_t *scb,
 			    xml_msg_hdr_t *msg,
 			    val_value_t *valset,
 			    val_value_t *valroot,
@@ -253,7 +255,8 @@ extern status_t
 *   status of the operation, NO_ERR if no validation errors found
 *********************************************************************/
 extern status_t 
-    agt_val_root_check (ses_cb_t *scb,
+    agt_val_root_check (struct ncx_instance_t_ *instance,
+                        ses_cb_t *scb,
                         xml_msg_hdr_t *msghdr,
                         agt_cfg_transaction_t *txcb,
                         val_value_t *root);
@@ -299,7 +302,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    agt_val_validate_write (ses_cb_t  *scb,
+    agt_val_validate_write (struct ncx_instance_t_ *instance,
+			    ses_cb_t  *scb,
 			    rpc_msg_t  *msg,
 			    cfg_template_t *target,
 			    val_value_t *valroot,
@@ -332,7 +336,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_val_apply_write (ses_cb_t  *scb,
+    agt_val_apply_write (struct ncx_instance_t_ *instance,
+			 ses_cb_t  *scb,
 			 rpc_msg_t  *msg,
 			 cfg_template_t *target,
 			 val_value_t    *pducfg,
@@ -367,7 +372,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_val_apply_commit (ses_cb_t  *scb,
+    agt_val_apply_commit (struct ncx_instance_t_ *instance,
+			  ses_cb_t  *scb,
 			  rpc_msg_t  *msg,
 			  cfg_template_t *source,
 			  cfg_template_t *target,
@@ -398,7 +404,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_val_check_commit_edits (ses_cb_t  *scb,
+    agt_val_check_commit_edits (struct ncx_instance_t_ *instance,
+                                ses_cb_t  *scb,
                                 rpc_msg_t  *msg,
                                 cfg_template_t *source,
                                 cfg_template_t *target);
@@ -421,7 +428,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_val_delete_dead_nodes (ses_cb_t  *scb,
+    agt_val_delete_dead_nodes (struct ncx_instance_t_ *instance,
+                               ses_cb_t  *scb,
                                rpc_msg_t  *msg,
                                val_value_t *root);
 
@@ -452,7 +460,7 @@ extern status_t
 *   or malloc error
 *********************************************************************/
 extern status_t 
-    agt_val_add_module_commit_tests (ncx_module_t *mod);
+    agt_val_add_module_commit_tests (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 
 /********************************************************************
@@ -478,7 +486,7 @@ extern status_t
 *   or malloc error
 *********************************************************************/
 extern status_t 
-    agt_val_init_commit_tests (void);
+    agt_val_init_commit_tests (struct ncx_instance_t_ *instance);
 
 
 #ifdef __cplusplus

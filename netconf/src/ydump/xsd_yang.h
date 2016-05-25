@@ -91,7 +91,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_groupings (ncx_module_t *mod,
+    xsd_add_groupings (struct ncx_instance_t_ *instance,
+		       ncx_module_t *mod,
 		       val_value_t *val);
 
 
@@ -112,7 +113,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_objects (ncx_module_t *mod,
+    xsd_add_objects (struct ncx_instance_t_ *instance,
+		     ncx_module_t *mod,
 		     val_value_t *val);
 
 
@@ -134,7 +136,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_do_typedefs_groupingQ (ncx_module_t *mod,
+    xsd_do_typedefs_groupingQ (struct ncx_instance_t_ *instance,
+			       ncx_module_t *mod,
 			       dlq_hdr_t *groupingQ,
 			       dlq_hdr_t *typnameQ);
 
@@ -157,7 +160,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_do_typedefs_datadefQ (ncx_module_t *mod,
+    xsd_do_typedefs_datadefQ (struct ncx_instance_t_ *instance,
+			      ncx_module_t *mod,
 			      dlq_hdr_t *datadefQ,
 			      dlq_hdr_t *typnameQ);
 

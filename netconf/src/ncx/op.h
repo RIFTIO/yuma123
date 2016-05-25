@@ -213,7 +213,7 @@ extern const xmlChar *
 *    the op_editop_t enumeration value for the string
 *********************************************************************/
 extern op_editop_t 
-    op_editop_id (const xmlChar *opstr);
+    op_editop_id (struct ncx_instance_t_ *instance, const xmlChar *opstr);
 
 
 /********************************************************************
@@ -242,7 +242,7 @@ extern const xmlChar *
 *    the op_insertop_t enumeration value for the string
 *********************************************************************/
 extern op_insertop_t 
-    op_insertop_id (const xmlChar *opstr);
+    op_insertop_id (struct ncx_instance_t_ *instance, const xmlChar *opstr);
 
 
 /********************************************************************
@@ -256,7 +256,7 @@ extern op_insertop_t
 *    the op_filtertyp_t enumeration value for the string
 *********************************************************************/
 extern op_filtertyp_t 
-    op_filtertyp_id (const xmlChar *filstr);
+    op_filtertyp_id (struct ncx_instance_t_ *instance, const xmlChar *filstr);
 
 
 /********************************************************************
@@ -284,7 +284,7 @@ extern const xmlChar *
 *    the op_editop_t enumeration value for the string
 *********************************************************************/
 extern op_editop_t 
-    op_defop_id (const xmlChar *defstr);
+    op_defop_id (struct ncx_instance_t_ *instance, const xmlChar *defstr);
 
 
 /********************************************************************
@@ -313,7 +313,7 @@ extern const xmlChar *
 *    
 *********************************************************************/
 extern op_testop_t
-    op_testop_enum (const xmlChar *teststr);
+    op_testop_enum (struct ncx_instance_t_ *instance, const xmlChar *teststr);
 
 
 /********************************************************************
@@ -341,7 +341,7 @@ extern const xmlChar *
 *    the op_errop_t enumeration value for the string
 *********************************************************************/
 extern op_errop_t 
-    op_errop_id (const xmlChar *errstr);
+    op_errop_id (struct ncx_instance_t_ *instance, const xmlChar *errstr);
 
 
 /********************************************************************
@@ -356,7 +356,7 @@ extern op_errop_t
 *    the op_defop_t enumeration value for the string
 *********************************************************************/
 extern op_defop_t 
-    op_defop_id2 (const xmlChar *defstr);
+    op_defop_id2 (struct ncx_instance_t_ *instance, const xmlChar *defstr);
 
 
 #ifdef __cplusplus

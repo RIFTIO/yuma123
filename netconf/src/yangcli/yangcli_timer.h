@@ -74,7 +74,8 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t
-    yangcli_timer_start (server_cb_t *server_cb,
+    yangcli_timer_start (struct ncx_instance_t_ *instance,
+                         server_cb_t *server_cb,
                          obj_template_t *rpc,
                          const xmlChar *line,
                          uint32  len);
@@ -97,7 +98,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    yangcli_timer_stop (server_cb_t *server_cb,
+    yangcli_timer_stop (struct ncx_instance_t_ *instance,
+                        server_cb_t *server_cb,
                         obj_template_t *rpc,
                         const xmlChar *line,
                         uint32  len);

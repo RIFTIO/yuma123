@@ -103,7 +103,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    xpath_yang_parse_path (tk_chain_t *tkc,
+    xpath_yang_parse_path (struct ncx_instance_t_ *instance,
+			   tk_chain_t *tkc,
 			   ncx_module_t *mod,
 			   xpath_source_t source,
 			   xpath_pcb_t *pcb);
@@ -143,7 +144,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_yang_parse_path_ex (tk_chain_t *tkc,
+    xpath_yang_parse_path_ex (struct ncx_instance_t_ *instance,
+                              tk_chain_t *tkc,
                               ncx_module_t *mod,
                               xpath_source_t source,
                               xpath_pcb_t *pcb,
@@ -188,7 +190,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_yang_validate_path (ncx_module_t *mod,
+    xpath_yang_validate_path (struct ncx_instance_t_ *instance,
+			      ncx_module_t *mod,
 			      obj_template_t *obj,
 			      xpath_pcb_t *pcb,
 			      boolean schemainst,
@@ -235,7 +238,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_yang_validate_path_ex (ncx_module_t *mod,
+    xpath_yang_validate_path_ex (struct ncx_instance_t_ *instance,
+                                 ncx_module_t *mod,
                                  obj_template_t *obj,
                                  xpath_pcb_t *pcb,
                                  boolean schemainst,
@@ -269,7 +273,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_yang_validate_xmlpath (xmlTextReaderPtr reader,
+    xpath_yang_validate_xmlpath (struct ncx_instance_t_ *instance,
+				 xmlTextReaderPtr reader,
 				 xpath_pcb_t *pcb,
 				 obj_template_t *pathobj,
 				 boolean logerrors,
@@ -304,7 +309,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_yang_validate_xmlkey (xmlTextReaderPtr reader,
+    xpath_yang_validate_xmlkey (struct ncx_instance_t_ *instance,
+				xmlTextReaderPtr reader,
 				xpath_pcb_t *pcb,
 				obj_template_t *obj,
 				boolean logerrors);
@@ -335,7 +341,8 @@ extern status_t
 *   in internal val_value_t data structures
 *********************************************************************/
 extern val_value_t *
-    xpath_yang_make_instanceid_val (xpath_pcb_t *pcb,
+    xpath_yang_make_instanceid_val (struct ncx_instance_t_ *instance,
+				    xpath_pcb_t *pcb,
 				    status_t *retres,
 				    val_value_t **deepest);
 
@@ -369,7 +376,8 @@ extern val_value_t *
 *   status
 *********************************************************************/
 extern status_t
-    xpath_yang_get_namespaces (const xpath_pcb_t *pcb,
+    xpath_yang_get_namespaces (struct ncx_instance_t_ *instance,
+			       const xpath_pcb_t *pcb,
 			       xmlns_id_t *nsid_array,
 			       uint32 max_nsids,
 			       uint32 *num_nsids);

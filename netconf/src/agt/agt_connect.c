@@ -86,12 +86,13 @@ static boolean agt_connect_init_done = FALSE;
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 status_t 
-    agt_connect_init (void)
+    agt_connect_init (ncx_instance_t *instance)
 {
     status_t  res;
 
     if (!agt_connect_init_done) {
-        res = top_register_node(NCX_MODULE, 
+        res = top_register_node(instance, 
+                                NCX_MODULE, 
                                 NCX_EL_NCXCONNECT, 
                                 agt_connect_dispatch);
         if (res != NO_ERR) {
@@ -112,10 +113,10 @@ status_t
 *
 *********************************************************************/
 void 
-    agt_connect_cleanup (void)
+    agt_connect_cleanup (ncx_instance_t *instance)
 {
     if (agt_connect_init_done) {
-        top_unregister_node(NCX_MODULE, NCX_EL_NCXCONNECT);
+        top_unregister_node(instance, NCX_MODULE, NCX_EL_NCXCONNECT);
         agt_connect_init_done = FALSE;
     }
 
@@ -132,7 +133,8 @@ void
 *   top == top element descriptor
 *********************************************************************/
 void 
-    agt_connect_dispatch (ses_cb_t *scb,
+    agt_connect_dispatch (ncx_instance_t *instance,
+                          ses_cb_t *scb,
                           xml_node_t *top)
 {
     xml_attr_t      *attr;
@@ -141,12 +143,12 @@ void
 
 #ifdef DEBUG
     if (!scb || !top) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    log_debug("\nagt_connect got node");
+    log_debug(instance, "\nagt_connect got node");
 
     res = NO_ERR;
 
@@ -166,9 +168,10 @@ void
 
     /* check the ncxserver version */
     if (res == NO_ERR) {
-        attr = xml_find_attr(top, 0, NCX_EL_VERSION);
+        attr = xml_find_attr(instance, top, 0, NCX_EL_VERSION);
         if (attr && attr->attr_val) {
-            res = ncx_convert_num(attr->attr_val, 
+            res = ncx_convert_num(instance, 
+                                  attr->attr_val, 
                                   NCX_NF_DEC,
                                   NCX_BT_UINT32, 
                                   &num);
@@ -184,9 +187,10 @@ void
 
     /* check the magic password string */
     if (res == NO_ERR) {
-        attr = xml_find_attr(top, 0, NCX_EL_MAGIC);
+        attr = xml_find_attr(instance, top, 0, NCX_EL_MAGIC);
         if (attr && attr->attr_val) {
-            if (xml_strcmp(attr->attr_val, 
+            if (xml_strcmp(instance, 
+                           attr->attr_val, 
                            (const xmlChar *)NCX_SERVER_MAGIC)) {
                 res = ERR_NCX_ACCESS_DENIED;
             }
@@ -197,20 +201,22 @@ void
 
     /* check the transport */
     if (res == NO_ERR) {
-        attr = xml_find_attr(top, 0, NCX_EL_TRANSPORT);
+        attr = xml_find_attr(instance, top, 0, NCX_EL_TRANSPORT);
         if (attr && attr->attr_val) {
-            if ( 0 == xml_strcmp(attr->attr_val, 
+            if ( 0 == xml_strcmp(instance, 
+                           attr->attr_val, 
                            (const xmlChar *)NCX_SERVER_TRANSPORT)) {
                 /* transport indicates an external connection over
                  * ssh, check the ncxserver port number */
-                attr = xml_find_attr(top, 0, NCX_EL_PORT);
+                attr = xml_find_attr(instance, top, 0, NCX_EL_PORT);
                 if (attr && attr->attr_val) {
-                    res = ncx_convert_num(attr->attr_val, 
+                    res = ncx_convert_num(instance, 
+                                          attr->attr_val, 
                                           NCX_NF_DEC,
                                           NCX_BT_UINT16, 
                                           &num);
                     if (res == NO_ERR) {
-                        if (!agt_ses_ssh_port_allowed((uint16)num.u)) {
+                        if (!agt_ses_ssh_port_allowed(instance, (uint16)num.u)) {
                             res = ERR_NCX_ACCESS_DENIED;
                         }
                     }
@@ -218,7 +224,8 @@ void
                     res = ERR_NCX_MISSING_ATTR;
                 }
             }
-            else if ( xml_strcmp(attr->attr_val, 
+            else if ( xml_strcmp(instance, 
+                           attr->attr_val, 
                            (const xmlChar *)NCX_SERVER_TRANSPORT_LOCAL)) {
                 /* transport is unsupported (i.e. not SSH or 'local' ) */
                 res = ERR_NCX_ACCESS_DENIED;
@@ -230,9 +237,9 @@ void
 
     /* get the username */
     if (res == NO_ERR) {
-        attr = xml_find_attr(top, 0, NCX_EL_USER);
+        attr = xml_find_attr(instance, top, 0, NCX_EL_USER);
         if (attr && attr->attr_val) {
-            scb->username = xml_strdup(attr->attr_val);
+            scb->username = xml_strdup(instance, attr->attr_val);
             if (!scb->username) {
                 res = ERR_INTERNAL_MEM;
             }
@@ -243,9 +250,9 @@ void
 
     /* get the client address */
     if (res == NO_ERR) {
-        attr = xml_find_attr(top, 0, NCX_EL_ADDRESS);
+        attr = xml_find_attr(instance, top, 0, NCX_EL_ADDRESS);
         if (attr && attr->attr_val) {
-            scb->peeraddr = xml_strdup(attr->attr_val);
+            scb->peeraddr = xml_strdup(instance, attr->attr_val);
             if (!scb->peeraddr) {
                 res = ERR_INTERNAL_MEM;
             }
@@ -256,13 +263,13 @@ void
 
     if (res == NO_ERR) {
         /* add the session to the netconf-state DM */
-        res = agt_state_add_session(scb);
+        res = agt_state_add_session(instance, scb);
 
         /* bump the session state and send the agent hello message */
         if (res == NO_ERR) {
-            res = agt_hello_send(scb);
+            res = agt_hello_send(instance, scb);
             if (res != NO_ERR) {
-                agt_state_remove_session(scb->sid);
+                agt_state_remove_session(instance, scb->sid);
             }
         }
 
@@ -273,16 +280,17 @@ void
 
     /* report first error and close session */
     if (res != NO_ERR) {
-        agt_ses_request_close(scb, scb->sid, SES_TR_BAD_START);
+        agt_ses_request_close(instance, scb, scb->sid, SES_TR_BAD_START);
         if (LOGINFO) {
-            log_info("\nagt_connect error (%s)\n"
+            log_info(instance,
+                     "\nagt_connect error (%s)\n"
                      "  dropping session %d",
                      get_error_string(res), 
                      scb->sid);
         }
     } else {
-        log_debug("\nagt_connect msg ok");
-        agt_sys_send_sysSessionStart(scb);
+        log_debug(instance, "\nagt_connect msg ok");
+        agt_sys_send_sysSessionStart(instance, scb);
     }
     
 } /* agt_connect_dispatch */

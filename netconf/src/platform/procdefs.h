@@ -248,15 +248,15 @@ extern uint32  malloc_cnt;
 extern uint32  free_cnt;
 
 #ifndef m__getMem
-#define m__getMem(X)   malloc(X);malloc_cnt++
+#define m__getMem(instance, X)   malloc(X);instance->malloc_cnt++
 #endif		/* m__getMem */
 
 #ifndef m__free
-#define m__free(X)    do { if ( X ) { free(X); free_cnt++; } } while(0)
+#define m__free(instance, X)    do { if ( X ) { free(X); instance->free_cnt++; } } while(0)
 #endif		/* m__free */
 
 #ifndef m__getObj
-#define m__getObj(OBJ)	(OBJ *)malloc(sizeof(OBJ));malloc_cnt++
+#define m__getObj(instance, OBJ)	(OBJ *)malloc(sizeof(OBJ));instance->malloc_cnt++
 #endif		/* m__getObj */
 
 #ifdef __cplusplus

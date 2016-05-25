@@ -83,19 +83,6 @@ typedef struct feature_entry_t_ {
 *                                                                   *
 *********************************************************************/
 
-/* the default code generation mode for yangdump
- * related to YANG features
- */
-static ncx_feature_code_t feature_code_default;
-
-/* the default mode for enabling or disabling YANG features */
-static boolean feature_enable_default;
-
-/* Q of feature_entry_t parameters */
-static dlq_hdr_t feature_entryQ;
-
-static boolean feature_init_done = FALSE;
-
 
 /********************************************************************
 * FUNCTION split_feature_string
@@ -153,16 +140,16 @@ static status_t
 *   feature_entry == feature entry struct to free
 *********************************************************************/
 static void
-    free_feature_entry (feature_entry_t *feature_entry)
+    free_feature_entry (ncx_instance_t *instance, feature_entry_t *feature_entry)
 {
 
     if (feature_entry->modname) {
-        m__free(feature_entry->modname);
+        m__free(instance, feature_entry->modname);
     }
     if (feature_entry->feature) {
-        m__free(feature_entry->feature);
+        m__free(instance, feature_entry->feature);
     }
-    m__free(feature_entry);
+    m__free(instance, feature_entry);
 
 }  /* free_feature_entry */
 
@@ -176,7 +163,7 @@ static void
 *   featstr == feature string parm to use
 *********************************************************************/
 static feature_entry_t *
-    new_feature_entry (const xmlChar *featstr)
+    new_feature_entry (ncx_instance_t *instance, const xmlChar *featstr)
 {
     uint32 len = 0;
     boolean splitdone = FALSE;
@@ -185,28 +172,28 @@ static feature_entry_t *
         splitdone = TRUE;
     }
 
-    feature_entry_t *feature_entry = m__getObj(feature_entry_t);
+    feature_entry_t *feature_entry = m__getObj(instance, feature_entry_t);
     if (feature_entry == NULL) {
         return NULL;
     }
     memset(feature_entry, 0x0, sizeof(feature_entry_t));
 
     if (splitdone) {
-        feature_entry->modname = xml_strndup(featstr, len);
+        feature_entry->modname = xml_strndup(instance, featstr, len);
         if (feature_entry->modname == NULL) {
-            free_feature_entry(feature_entry);
+            free_feature_entry(instance, feature_entry);
             return NULL;
         }
 
-        feature_entry->feature = xml_strdup(&featstr[len+1]);
+        feature_entry->feature = xml_strdup(instance, &featstr[len+1]);
         if (feature_entry->feature == NULL) {
-            free_feature_entry(feature_entry);
+            free_feature_entry(instance, feature_entry);
             return NULL;
         }
     } else {
-        feature_entry->feature = xml_strdup(featstr);
+        feature_entry->feature = xml_strdup(instance, featstr);
         if (feature_entry->feature == NULL) {
-            free_feature_entry(feature_entry);
+            free_feature_entry(instance, feature_entry);
             return NULL;
         }
     }
@@ -226,24 +213,25 @@ static feature_entry_t *
 *   name == feature name to use
 *********************************************************************/
 static feature_entry_t *
-    new_feature_entry2 (const xmlChar *modname,
+    new_feature_entry2 (ncx_instance_t *instance,
+                        const xmlChar *modname,
                         const xmlChar *name)
 {
-    feature_entry_t *feature_entry = m__getObj(feature_entry_t);
+    feature_entry_t *feature_entry = m__getObj(instance, feature_entry_t);
     if (feature_entry == NULL) {
         return NULL;
     }
     memset(feature_entry, 0x0, sizeof(feature_entry_t));
 
-    feature_entry->modname = xml_strdup(modname);
+    feature_entry->modname = xml_strdup(instance, modname);
     if (feature_entry->modname == NULL) {
-        free_feature_entry(feature_entry);
+        free_feature_entry(instance, feature_entry);
         return NULL;
     }
 
-    feature_entry->feature = xml_strdup(name);
+    feature_entry->feature = xml_strdup(instance, name);
     if (feature_entry->feature == NULL) {
-        free_feature_entry(feature_entry);
+        free_feature_entry(instance, feature_entry);
         return NULL;
     }
     return feature_entry;
@@ -264,7 +252,8 @@ static feature_entry_t *
 *   pointer to found entry or NULL if not found
 *********************************************************************/
 static feature_entry_t *
-    find_feature_entry (const xmlChar *featstr,
+    find_feature_entry (ncx_instance_t *instance,
+                        const xmlChar *featstr,
                         dlq_hdr_t  *featQ)
 {
     uint32 len = 0;
@@ -274,28 +263,28 @@ static feature_entry_t *
         splitdone = TRUE;
     }
 
-    feature_entry_t  *feature_entry = (feature_entry_t *)dlq_firstEntry(featQ);
+    feature_entry_t  *feature_entry = (feature_entry_t *)dlq_firstEntry(instance, featQ);
     for (; feature_entry != NULL;
-         feature_entry = (feature_entry_t *)dlq_nextEntry(feature_entry)) {
+         feature_entry = (feature_entry_t *)dlq_nextEntry(instance, feature_entry)) {
 
         if (splitdone && feature_entry->modname) {
             /* match the module name */
-            uint32 len2 = xml_strlen(feature_entry->modname);
+            uint32 len2 = xml_strlen(instance, feature_entry->modname);
             if (len != len2) {
                 continue;
             }
-            if (xml_strncmp(feature_entry->modname, featstr, len)) {
+            if (xml_strncmp(instance, feature_entry->modname, featstr, len)) {
                 continue;
             }
         }
 
         /* match the feature name */
         if (splitdone) {
-            if (xml_strcmp(feature_entry->feature, &featstr[len+1])) {
+            if (xml_strcmp(instance, feature_entry->feature, &featstr[len+1])) {
                 continue;
             }
         } else {
-            if (xml_strcmp(feature_entry->feature, featstr)) {
+            if (xml_strcmp(instance, feature_entry->feature, featstr)) {
                 continue;
             }
         }
@@ -322,24 +311,25 @@ static feature_entry_t *
 *   pointer to found and removed entry or NULL if not found
 *********************************************************************/
 static feature_entry_t *
-    find_feature_entry2 (const xmlChar *modname,
+    find_feature_entry2 (ncx_instance_t *instance,
+                         const xmlChar *modname,
                          const xmlChar *feature,
                          dlq_hdr_t  *featQ)
 {
     feature_entry_t  *feature_entry;
 
-    for (feature_entry = (feature_entry_t *)dlq_firstEntry(featQ);
+    for (feature_entry = (feature_entry_t *)dlq_firstEntry(instance, featQ);
          feature_entry != NULL;
-         feature_entry = (feature_entry_t *)dlq_nextEntry(feature_entry)) {
+         feature_entry = (feature_entry_t *)dlq_nextEntry(instance, feature_entry)) {
 
         /* match the module name */
         if (feature_entry->modname && modname &&
-            xml_strcmp(feature_entry->modname, modname)) {
+            xml_strcmp(instance, feature_entry->modname, modname)) {
             continue;
         }
 
         /* match the feature name */
-        if (xml_strcmp(feature_entry->feature, feature)) {
+        if (xml_strcmp(instance, feature_entry->feature, feature)) {
             continue;
         }
 
@@ -365,17 +355,17 @@ static feature_entry_t *
 *    none
 *********************************************************************/
 void
-    ncx_feature_init (void)
+    ncx_feature_init (ncx_instance_t *instance)
 {
-    if (feature_init_done) {
-        SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+    if (instance->feature_init_done) {
+        SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
         return;
     }
 
-    feature_code_default = NCX_FEATURE_CODE_DYNAMIC;
-    feature_enable_default = TRUE;
-    dlq_createSQue(&feature_entryQ);
-    feature_init_done = TRUE;
+    instance->feature_code_default = NCX_FEATURE_CODE_DYNAMIC;
+    instance->feature_enable_default = TRUE;
+    dlq_createSQue(instance, &instance->feature_entryQ);
+    instance->feature_init_done = TRUE;
 
 }  /* ncx_feature_init */
 
@@ -391,20 +381,20 @@ void
 *    none
 *********************************************************************/
 void
-    ncx_feature_cleanup (void)
+    ncx_feature_cleanup (ncx_instance_t *instance)
 {
     feature_entry_t  *feature_entry;
 
-    if (!feature_init_done) {
+    if (!instance->feature_init_done) {
         return;
     }
 
-    while (!dlq_empty(&feature_entryQ)) {
-        feature_entry = (feature_entry_t *)dlq_deque(&feature_entryQ);
-        free_feature_entry(feature_entry);
+    while (!dlq_empty(instance, &instance->feature_entryQ)) {
+        feature_entry = (feature_entry_t *)dlq_deque(instance, &instance->feature_entryQ);
+        free_feature_entry(instance, feature_entry);
     }
 
-    feature_init_done = FALSE;
+    instance->feature_init_done = FALSE;
 
 }  /* ncx_feature_cleanup */
 
@@ -421,11 +411,11 @@ void
 *    or NULL if malloc error
 *********************************************************************/
 ncx_iffeature_t *
-    ncx_new_iffeature (void)
+    ncx_new_iffeature (ncx_instance_t *instance)
 {
     ncx_iffeature_t *iff;
 
-    iff = m__getObj(ncx_iffeature_t);
+    iff = m__getObj(instance, ncx_iffeature_t);
     if (!iff) {
         return NULL;
     }
@@ -446,24 +436,24 @@ ncx_iffeature_t *
 *
 *********************************************************************/
 void 
-    ncx_free_iffeature (ncx_iffeature_t *iff)
+    ncx_free_iffeature (ncx_instance_t *instance, ncx_iffeature_t *iff)
 {
 
 #ifdef DEBUG
     if (!iff) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (iff->prefix) {
-        m__free(iff->prefix);
+        m__free(instance, iff->prefix);
     }
     if (iff->name) {
-        m__free(iff->name);
+        m__free(instance, iff->name);
     }
 
-    m__free(iff);
+    m__free(instance, iff);
     
 } /* ncx_free_iffeature */
 
@@ -480,28 +470,28 @@ void
 *    or NULL if malloc error
 *********************************************************************/
 ncx_iffeature_t *
-    ncx_clone_iffeature (ncx_iffeature_t *srciff)
+    ncx_clone_iffeature (ncx_instance_t *instance, ncx_iffeature_t *srciff)
 {
     ncx_iffeature_t *iff;
 
-    iff = m__getObj(ncx_iffeature_t);
+    iff = m__getObj(instance, ncx_iffeature_t);
     if (!iff) {
         return NULL;
     }
     memset(iff, 0x0, sizeof(ncx_iffeature_t));
 
     if (srciff->prefix) {
-        iff->prefix = xml_strdup(srciff->prefix);
+        iff->prefix = xml_strdup(instance, srciff->prefix);
         if (iff->prefix == NULL) {
-            ncx_free_iffeature(iff);
+            ncx_free_iffeature(instance, iff);
             return NULL;
         }
     }
 
     if (srciff->name) {
-        iff->name = xml_strdup(srciff->name);
+        iff->name = xml_strdup(instance, srciff->name);
         if (iff->name == NULL) {
-            ncx_free_iffeature(iff);
+            ncx_free_iffeature(instance, iff);
             return NULL;
         }
     }
@@ -530,21 +520,21 @@ ncx_iffeature_t *
 *
 *********************************************************************/
 void 
-    ncx_clean_iffeatureQ (dlq_hdr_t *iffeatureQ)
+    ncx_clean_iffeatureQ (ncx_instance_t *instance, dlq_hdr_t *iffeatureQ)
 {
 
     ncx_iffeature_t  *iff;
 
 #ifdef DEBUG
     if (!iffeatureQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    while (!dlq_empty(iffeatureQ)) {
-        iff = (ncx_iffeature_t *)dlq_deque(iffeatureQ);
-        ncx_free_iffeature(iff);
+    while (!dlq_empty(instance, iffeatureQ)) {
+        iff = (ncx_iffeature_t *)dlq_deque(instance, iffeatureQ);
+        ncx_free_iffeature(instance, iff);
     }
     
 } /* ncx_clean_iffeatureQ */
@@ -562,7 +552,8 @@ void
 *    name == feature name string to find
 *********************************************************************/
 ncx_iffeature_t *
-    ncx_find_iffeature (dlq_hdr_t *iffeatureQ,
+    ncx_find_iffeature (ncx_instance_t *instance,
+                        dlq_hdr_t *iffeatureQ,
                         const xmlChar *prefix,
                         const xmlChar *name,
                         const xmlChar *modprefix)
@@ -571,23 +562,24 @@ ncx_iffeature_t *
 
 #ifdef DEBUG
     if (!iffeatureQ || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     for (iff = (ncx_iffeature_t *)
-             dlq_firstEntry(iffeatureQ);
+             dlq_firstEntry(instance, iffeatureQ);
          iff != NULL;
-         iff = (ncx_iffeature_t *)dlq_nextEntry(iff)) {
+         iff = (ncx_iffeature_t *)dlq_nextEntry(instance, iff)) {
 
         /* check if name fields the same */
-        if (iff->name && !xml_strcmp(iff->name, name)) {
+        if (iff->name && !xml_strcmp(instance, iff->name, name)) {
 
             /* check if prefix fields reference
              * different modules, if set or implied
              */
-            if (!ncx_prefix_different(prefix,
+            if (!ncx_prefix_different(instance,
+                                      prefix,
                                       iff->prefix,
                                       modprefix)) {
                 return iff;
@@ -611,26 +603,26 @@ ncx_iffeature_t *
 *    or NULL if malloc error
 *********************************************************************/
 ncx_feature_t *
-    ncx_new_feature (void)
+    ncx_new_feature (ncx_instance_t *instance)
 {
     ncx_feature_t     *feature;
 
-    feature = m__getObj(ncx_feature_t);
+    feature = m__getObj(instance, ncx_feature_t);
     if (!feature) {
         return NULL;
     }
     memset(feature, 0x0, sizeof(ncx_feature_t));
 
-    dlq_createSQue(&feature->iffeatureQ);
-    dlq_createSQue(&feature->appinfoQ);
+    dlq_createSQue(instance, &feature->iffeatureQ);
+    dlq_createSQue(instance, &feature->appinfoQ);
 
     /*** setting feature enabled as the default
      *** the agent code needs to adjust this
      *** with agt_enable_feature or 
      *** agt_disable_feature() if needed
      ***/
-    feature->enabled = feature_enable_default;
-    feature->code = feature_code_default;
+    feature->enabled = instance->feature_enable_default;
+    feature->code = instance->feature_code_default;
 
     return feature;
 
@@ -647,33 +639,33 @@ ncx_feature_t *
 *
 *********************************************************************/
 void 
-    ncx_free_feature (ncx_feature_t *feature)
+    ncx_free_feature (ncx_instance_t *instance, ncx_feature_t *feature)
 {
 
 #ifdef DEBUG
     if (!feature) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (feature->name) {
-        m__free(feature->name);
+        m__free(instance, feature->name);
     }
 
     if (feature->descr) {
-        m__free(feature->descr);
+        m__free(instance, feature->descr);
     }
 
     if (feature->ref) {
-        m__free(feature->ref);
+        m__free(instance, feature->ref);
     }
 
-    ncx_clean_iffeatureQ(&feature->iffeatureQ);
+    ncx_clean_iffeatureQ(instance, &feature->iffeatureQ);
 
-    ncx_clean_appinfoQ(&feature->appinfoQ);
+    ncx_clean_appinfoQ(instance, &feature->appinfoQ);
 
-    m__free(feature);
+    m__free(instance, feature);
     
 } /* ncx_free_feature */
 
@@ -692,7 +684,8 @@ void
 *    pointer to found feature or NULL if not found
 *********************************************************************/
 ncx_feature_t *
-    ncx_find_feature (ncx_module_t *mod,
+    ncx_find_feature (ncx_instance_t *instance,
+                      ncx_module_t *mod,
                       const xmlChar *name)
 {
     ncx_feature_t  *feature;
@@ -702,12 +695,12 @@ ncx_feature_t *
 
 #ifdef DEBUG
     if (!mod || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    feature = ncx_find_feature_que(&mod->featureQ, name);
+    feature = ncx_find_feature_que(instance, &mod->featureQ, name);
     if (feature) {
         return feature;
     }
@@ -717,13 +710,14 @@ ncx_feature_t *
     /* check all the submodules, but only the ones visible
      * to this module or submodule
      */
-    for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+    for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
          inc != NULL;
-         inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+         inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
         /* get the real submodule struct */
         if (!inc->submod) {
-            node = yang_find_node(que, 
+            node = yang_find_node(instance, 
+                                  que, 
                                   inc->submodule,
                                   inc->revision);
             if (node) {
@@ -736,7 +730,7 @@ ncx_feature_t *
         }
 
         /* check the feature Q in this submodule */
-        feature = ncx_find_feature_que(&inc->submod->featureQ, name);
+        feature = ncx_find_feature_que(instance, &inc->submod->featureQ, name);
         if (feature) {
             return feature;
         }
@@ -760,23 +754,24 @@ ncx_feature_t *
 *    pointer to found feature or NULL if not found
 *********************************************************************/
 ncx_feature_t *
-    ncx_find_feature_que (dlq_hdr_t *featureQ,
+    ncx_find_feature_que (ncx_instance_t *instance,
+                          dlq_hdr_t *featureQ,
                           const xmlChar *name)
 {
     ncx_feature_t *feature;
 
 #ifdef DEBUG
     if (!featureQ || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (feature = (ncx_feature_t *)dlq_firstEntry(featureQ);
+    for (feature = (ncx_feature_t *)dlq_firstEntry(instance, featureQ);
          feature != NULL;
-         feature = (ncx_feature_t *)dlq_nextEntry(feature)) {
+         feature = (ncx_feature_t *)dlq_nextEntry(instance, feature)) {
 
-        if (!xml_strcmp(feature->name, name)) {
+        if (!xml_strcmp(instance, feature->name, name)) {
             return feature;
         }
     }
@@ -799,7 +794,8 @@ ncx_feature_t *
 *    pointer to found feature or NULL if not found
 *********************************************************************/
 ncx_feature_t *
-    ncx_find_feature_all (ncx_module_t *mod,
+    ncx_find_feature_all (ncx_instance_t *instance,
+                          ncx_module_t *mod,
                           const xmlChar *name)
 {
     ncx_feature_t  *feature;
@@ -808,12 +804,12 @@ ncx_feature_t *
 
 #ifdef DEBUG
     if (!mod || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    feature = ncx_find_feature_que(&mod->featureQ, name);
+    feature = ncx_find_feature_que(instance, &mod->featureQ, name);
     if (feature) {
         return feature;
     }
@@ -821,13 +817,13 @@ ncx_feature_t *
     que = ncx_get_allincQ(mod);
 
     /* check all the submodules */
-    for (node = (yang_node_t *)dlq_firstEntry(que);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, que);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         if (node->submod) {
             /* check the feature Q in this submodule */
-            feature = ncx_find_feature_que(&node->submod->featureQ, name);
+            feature = ncx_find_feature_que(instance, &node->submod->featureQ, name);
             if (feature) {
                 return feature;
             }
@@ -853,7 +849,8 @@ ncx_feature_t *
 *                   FALSE if all features should invoke callbacks
 *********************************************************************/
 void
-    ncx_for_all_features (const ncx_module_t *mod,
+    ncx_for_all_features (ncx_instance_t *instance,
+                          const ncx_module_t *mod,
                           ncx_feature_cbfn_t  cbfn,
                           void *cookie,
                           boolean enabledonly)
@@ -866,22 +863,22 @@ void
 
 #ifdef DEBUG
     if (!mod || !cbfn) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     keepgoing = TRUE;
 
-    for (feature = (ncx_feature_t *)dlq_firstEntry(&mod->featureQ);
+    for (feature = (ncx_feature_t *)dlq_firstEntry(instance, &mod->featureQ);
          feature != NULL && keepgoing;
-         feature = (ncx_feature_t *)dlq_nextEntry(feature)) {
+         feature = (ncx_feature_t *)dlq_nextEntry(instance, feature)) {
 
-        if (enabledonly && !ncx_feature_enabled(feature)) {
+        if (enabledonly && !ncx_feature_enabled(instance, feature)) {
             continue;
         }
 
-        keepgoing = (*cbfn)(mod, feature, cookie);
+        keepgoing = (*cbfn)(instance, mod, feature, cookie);
     }   
         
     que = ncx_get_const_allincQ(mod);
@@ -889,13 +886,14 @@ void
     /* check all the submodules, but only the ones visible
      * to this module or submodule
      */
-    for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+    for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
          inc != NULL && keepgoing;
-         inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+         inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
         /* get the real submodule struct */
         if (!inc->submod) {
-            node = yang_find_node(que, 
+            node = yang_find_node(instance, 
+                                  que, 
                                   inc->submodule,
                                   inc->revision);
             if (node) {
@@ -908,15 +906,15 @@ void
         }
 
         for (feature = (ncx_feature_t *)
-                 dlq_firstEntry(&inc->submod->featureQ);
+                 dlq_firstEntry(instance, &inc->submod->featureQ);
              feature != NULL && keepgoing;
-             feature = (ncx_feature_t *)dlq_nextEntry(feature)) {
+             feature = (ncx_feature_t *)dlq_nextEntry(instance, feature)) {
 
-            if (enabledonly && !ncx_feature_enabled(feature)) {
+            if (enabledonly && !ncx_feature_enabled(instance, feature)) {
                 continue;
             }
 
-            keepgoing = (*cbfn)(mod, feature, cookie);
+            keepgoing = (*cbfn)(instance, mod, feature, cookie);
         }
     }
 
@@ -938,7 +936,8 @@ void
 *   total number of features
 *********************************************************************/
 uint32
-    ncx_feature_count (const ncx_module_t *mod,
+    ncx_feature_count (ncx_instance_t *instance,
+                       const ncx_module_t *mod,
                        boolean enabledonly)
 {
     const ncx_feature_t  *feature;
@@ -949,18 +948,18 @@ uint32
 
 #ifdef DEBUG
     if (!mod) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
     count = 0;
 
-    for (feature = (const ncx_feature_t *)dlq_firstEntry(&mod->featureQ);
+    for (feature = (const ncx_feature_t *)dlq_firstEntry(instance, &mod->featureQ);
          feature != NULL;
-         feature = (const ncx_feature_t *)dlq_nextEntry(feature)) {
+         feature = (const ncx_feature_t *)dlq_nextEntry(instance, feature)) {
 
-        if (enabledonly && !ncx_feature_enabled(feature)) {
+        if (enabledonly && !ncx_feature_enabled(instance, feature)) {
             continue;
         }
 
@@ -972,13 +971,14 @@ uint32
     /* check all the submodules, but only the ones visible
      * to this module or submodule
      */
-    for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+    for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
          inc != NULL;
-         inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+         inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
         /* get the real submodule struct */
         if (!inc->submod) {
-            node = yang_find_node(que, 
+            node = yang_find_node(instance, 
+                                  que, 
                                   inc->submodule,
                                   inc->revision);
             if (node) {
@@ -991,11 +991,11 @@ uint32
         }
 
         for (feature = (const ncx_feature_t *)
-                 dlq_firstEntry(&inc->submod->featureQ);
+                 dlq_firstEntry(instance, &inc->submod->featureQ);
              feature != NULL;
-             feature = (const ncx_feature_t *)dlq_nextEntry(feature)) {
+             feature = (const ncx_feature_t *)dlq_nextEntry(instance, feature)) {
 
-            if (enabledonly && !ncx_feature_enabled(feature)) {
+            if (enabledonly && !ncx_feature_enabled(instance, feature)) {
                 continue;
             }
             count++;
@@ -1020,13 +1020,13 @@ uint32
 *   FALSE if feature is not enabled, or partially enabled
 *********************************************************************/
 boolean
-    ncx_feature_enabled (const ncx_feature_t *feature)
+    ncx_feature_enabled (ncx_instance_t *instance, const ncx_feature_t *feature)
 {
     const ncx_iffeature_t  *iffeature;
 
 #ifdef DEBUG
     if (!feature) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -1037,17 +1037,17 @@ boolean
 
     /* make sure all nested if-features are also enabled */
     for (iffeature = (const ncx_iffeature_t *)
-             dlq_firstEntry(&feature->iffeatureQ);
+             dlq_firstEntry(instance, &feature->iffeatureQ);
          iffeature != NULL;
          iffeature = (const ncx_iffeature_t *)
-             dlq_nextEntry(iffeature)) {
+             dlq_nextEntry(instance, iffeature)) {
 
         if (!iffeature->feature) {
             /* feature was not found, so call it disabled */
             return FALSE;
         }
 
-        if (!ncx_feature_enabled(iffeature->feature)) {
+        if (!ncx_feature_enabled(instance, iffeature->feature)) {
             return FALSE;
         }
     }
@@ -1072,26 +1072,27 @@ boolean
 *   FALSE if feature is not enabled, or partially enabled
 *********************************************************************/
 boolean
-    ncx_feature_enabled_str (const xmlChar *modname,
+    ncx_feature_enabled_str (ncx_instance_t *instance,
+                             const xmlChar *modname,
                              const xmlChar *revision,
                              const xmlChar *name)
 {
 #ifdef DEBUG
     if (!modname || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
-    ncx_module_t *mod = ncx_find_module(modname, revision);
+    ncx_module_t *mod = ncx_find_module(instance, modname, revision);
     if (mod == NULL) {
         return FALSE;
     }
 
-    const ncx_feature_t *feature = ncx_find_feature(mod, name);
+    const ncx_feature_t *feature = ncx_find_feature(instance, mod, name);
     if (feature == NULL) {
         return FALSE;
     }
-    return ncx_feature_enabled(feature);
+    return ncx_feature_enabled(instance, feature);
 
 } /* ncx_feature_enabled_str */
 
@@ -1105,9 +1106,9 @@ boolean
 *   flag == feature enabled flag value
 *********************************************************************/
 void
-    ncx_set_feature_enable_default (boolean flag)
+    ncx_set_feature_enable_default (ncx_instance_t *instance, boolean flag)
 {
-    feature_enable_default = flag;
+    instance->feature_enable_default = flag;
 }  /* ncx_set_feature_enabled_default */
 
 
@@ -1124,9 +1125,9 @@ void
 *   code == feature code value
 *********************************************************************/
 void
-    ncx_set_feature_code_default (ncx_feature_code_t code)
+    ncx_set_feature_code_default (ncx_instance_t *instance, ncx_feature_code_t code)
 {
-    feature_code_default = code;
+    instance->feature_code_default = code;
 }  /* ncx_set_feature_code_default */
 
 
@@ -1148,7 +1149,8 @@ void
 *   status
 *********************************************************************/
 status_t
-    ncx_set_feature_code_entry (const xmlChar *featstr,
+    ncx_set_feature_code_entry (ncx_instance_t *instance,
+                                const xmlChar *featstr,
                                 ncx_feature_code_t featcode)
 {
     feature_entry_t  *fentry;
@@ -1157,21 +1159,23 @@ status_t
 
 #ifdef DEBUG
     if (featstr == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
-    fentry = find_feature_entry(featstr, &feature_entryQ);
+    fentry = find_feature_entry(instance, featstr, &instance->feature_entryQ);
     if (fentry != NULL) {
         if (fentry->code_set) {
             if (fentry->code != featcode) {
-                log_error("\nError: feature '%s' already set with "
+                log_error(instance,
+                          "\nError: feature '%s' already set with "
                           "conflicting value",
                           featstr);
                 res = ERR_NCX_INVALID_VALUE;
             } else {
-                log_info("\nFeature '%s' already set with "
+                log_info(instance,
+                          "\nFeature '%s' already set with "
                           "same value",
                           featstr);
             }
@@ -1183,13 +1187,13 @@ status_t
         cnt = 0;
         res = split_feature_string(featstr, &cnt);
         if (res == NO_ERR) {
-            fentry = new_feature_entry(featstr);
+            fentry = new_feature_entry(instance, featstr);
             if (fentry == NULL) {
                 res = ERR_INTERNAL_MEM;
             } else {
                 fentry->code_set = TRUE;
                 fentry->code = featcode;
-                dlq_enque(fentry, &feature_entryQ);
+                dlq_enque(instance, fentry, &instance->feature_entryQ);
             }
         }
     }
@@ -1214,21 +1218,23 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ncx_set_feature_enable_entry (const xmlChar *featstr,
+    ncx_set_feature_enable_entry (ncx_instance_t *instance,
+                                  const xmlChar *featstr,
                                   boolean flag)
 {
 #ifdef DEBUG
     if (featstr == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     status_t res = NO_ERR;
-    feature_entry_t *fentry = find_feature_entry(featstr, &feature_entryQ);
+    feature_entry_t *fentry = find_feature_entry(instance, featstr, &instance->feature_entryQ);
     if (fentry != NULL) {
         if (fentry->enable_set) {
             if (fentry->enable != flag) {
-                log_info("\nFeature '%s' already %s so ignoring new value",
+                log_info(instance,
+                         "\nFeature '%s' already %s so ignoring new value",
                          (flag) ? "disabled" : "enabled", featstr);
                 res = ERR_NCX_INVALID_VALUE;
             }
@@ -1237,13 +1243,13 @@ status_t
             fentry->enable = flag;
         }
     } else {
-        fentry = new_feature_entry(featstr);
+        fentry = new_feature_entry(instance, featstr);
         if (fentry == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
             fentry->enable_set = TRUE;
             fentry->enable = flag;
-            dlq_enque(fentry, &feature_entryQ);
+            dlq_enque(instance, fentry, &instance->feature_entryQ);
         }
     }
     return res;
@@ -1268,7 +1274,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    ncx_set_feature_enable (const xmlChar *modname,
+    ncx_set_feature_enable (ncx_instance_t *instance,
+                            const xmlChar *modname,
                             const xmlChar *name,
                             boolean flag)
 {
@@ -1277,17 +1284,17 @@ status_t
 
     status_t res = NO_ERR;
     feature_entry_t *fentry = 
-        find_feature_entry2(modname, name, &feature_entryQ);
+        find_feature_entry2(instance, modname, name, &instance->feature_entryQ);
     if (fentry != NULL) {
         if (fentry->enable_set) {
             if (fentry->enable != flag) {
                 if (flag) {
                     /* SIL enabled, so previous CLI disable is allowed */
-                    log_debug("\nFeature '%s' already disabled from CLI, "
+                    log_debug(instance, "\nFeature '%s' already disabled from CLI, "
                              "ignoring SIL disable", name);
                 } else {
                     /* SIL disabled so override CLI enable */
-                    log_info("\nFeature '%s' disabled in SIL, "
+                    log_info(instance, "\nFeature '%s' disabled in SIL, "
                              "overriding CLI enable", name);
                     fentry->enable = FALSE;
                 }
@@ -1297,13 +1304,13 @@ status_t
             fentry->enable = flag;
         }
     } else {
-        fentry = new_feature_entry2(modname, name);
+        fentry = new_feature_entry2(instance, modname, name);
         if (fentry == NULL) {
             res = ERR_INTERNAL_MEM;
         } else {
             fentry->enable_set = TRUE;
             fentry->enable = flag;
-            dlq_enque(fentry, &feature_entryQ);
+            dlq_enque(instance, fentry, &instance->feature_entryQ);
         }
     }
     return res;
@@ -1324,14 +1331,14 @@ status_t
 *   feature->code and/or feature->enabled may be set
 *********************************************************************/
 void
-    ncx_set_feature_parms (ncx_feature_t *feature)
+    ncx_set_feature_parms (ncx_instance_t *instance, ncx_feature_t *feature)
 {
 
     feature_entry_t  *fentry;
 
 #ifdef DEBUG
     if (feature == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -1343,9 +1350,10 @@ void
         return;
     }
 
-    fentry = find_feature_entry2(ncx_get_modname(feature->tkerr.mod),
+    fentry = find_feature_entry2(instance,
+                                 ncx_get_modname(feature->tkerr.mod),
                                  feature->name,
-                                 &feature_entryQ);
+                                 &instance->feature_entryQ);
     if (fentry != NULL) {
         if (fentry->code_set) {
             feature->code = fentry->code;

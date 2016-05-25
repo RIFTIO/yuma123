@@ -78,7 +78,8 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t
-    do_uservars (server_cb_t *server_cb,
+    do_uservars (struct ncx_instance_t_ *instance,
+                 server_cb_t *server_cb,
                  obj_template_t *rpc,
                  const xmlChar *line,
                  uint32  len);
@@ -98,7 +99,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    load_uservars (server_cb_t *server_cb,
+    load_uservars (struct ncx_instance_t_ *instance,
+                   server_cb_t *server_cb,
                    const xmlChar *fspec);
 
 
@@ -115,7 +117,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    save_uservars (server_cb_t *server_cb,
+    save_uservars (struct ncx_instance_t_ *instance,
+                   server_cb_t *server_cb,
                    const xmlChar *fspec);
 
 

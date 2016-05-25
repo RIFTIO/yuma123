@@ -82,7 +82,8 @@ typedef struct y_ietf_netconf_partial_lock_T_partial_unlock_input_ {
 } y_ietf_netconf_partial_lock_T_partial_unlock_input;
 /* ietf-netconf-partial-lock module init 1 */
 extern status_t
-    y_ietf_netconf_partial_lock_init (
+    y_ietf_netconf_partial_lock_init (struct ncx_instance_t_ *instance,
+        
         const xmlChar *modname,
         const xmlChar *revision);
 
@@ -92,7 +93,7 @@ extern status_t
 
 /* ietf-netconf-partial-lock module cleanup */
 extern void
-    y_ietf_netconf_partial_lock_cleanup (void);
+    y_ietf_netconf_partial_lock_cleanup (struct ncx_instance_t_ *instance);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

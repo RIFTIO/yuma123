@@ -73,7 +73,8 @@ static void
 *     error status
 ********************************************************************/
 status_t
-    y_yuma_time_filter_init (
+    y_yuma_time_filter_init (ncx_instance_t *instance,
+        
         const xmlChar *modname,
         const xmlChar *revision)
 {
@@ -83,18 +84,19 @@ status_t
     y_yuma_time_filter_init_static_vars();
 
     /* change if custom handling done */
-    if (xml_strcmp(modname, y_yuma_time_filter_M_yuma_time_filter)) {
+    if (xml_strcmp(instance, modname, y_yuma_time_filter_M_yuma_time_filter)) {
         return ERR_NCX_UNKNOWN_MODULE;
     }
 
     if (revision && 
-        xml_strcmp(revision, y_yuma_time_filter_R_yuma_time_filter)) {
+        xml_strcmp(instance, revision, y_yuma_time_filter_R_yuma_time_filter)) {
         return ERR_NCX_WRONG_VERSION;
     }
 
     agt_profile = agt_get_profile();
 
-    res = ncxmod_load_module(
+    res = ncxmod_load_module(instance,
+        
         y_yuma_time_filter_M_yuma_time_filter,
         y_yuma_time_filter_R_yuma_time_filter,
         &agt_profile->agt_savedevQ,

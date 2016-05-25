@@ -88,7 +88,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t 
-    html_convert_module (yang_pcb_t *pcb,
+    html_convert_module (struct ncx_instance_t_ *instance,
+			 yang_pcb_t *pcb,
 			 const yangdump_cvtparms_t *cp,
 			 ses_cb_t *scb);
 

@@ -77,6 +77,20 @@ extern "C" {
 #endif
 
 /********************************************************************
+*                                                                   *
+*                       C O N S T A N T S                           *
+*                                                                   *
+*********************************************************************/
+
+/* 256 row, chained entry top hash table */
+#define DR_TOP_HASH_SIZE   (hashsize(8))
+#define DR_TOP_HASH_MASK   (hashmask(8))
+
+/* random number to seed the hash function */
+#define DR_HASH_INIT       0x7e456289
+
+
+/********************************************************************
 *								    *
 *			F U N C T I O N S			    *
 *								    *
@@ -92,7 +106,7 @@ extern "C" {
 *    none
 *********************************************************************/
 extern void 
-    def_reg_init (void);
+    def_reg_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -108,7 +122,7 @@ extern void
 *    none
 *********************************************************************/
 extern void 
-    def_reg_cleanup (void);
+    def_reg_cleanup (struct ncx_instance_t_ *instance);
 
 
 /*********************** NS ***************************/
@@ -125,7 +139,7 @@ extern void
 *    status of the operation
 *********************************************************************/
 extern status_t 
-    def_reg_add_ns (xmlns_t  *ns);
+    def_reg_add_ns (struct ncx_instance_t_ *instance, xmlns_t  *ns);
 
 
 /********************************************************************
@@ -140,7 +154,7 @@ extern status_t
 *    pointer to xmlns_t or NULL if not found
 *********************************************************************/
 extern xmlns_t * 
-    def_reg_find_ns (const xmlChar *nsname);
+    def_reg_find_ns (struct ncx_instance_t_ *instance, const xmlChar *nsname);
 
 
 /********************************************************************
@@ -155,7 +169,7 @@ extern xmlns_t *
 *    none
 *********************************************************************/
 extern void
-    def_reg_del_ns (const xmlChar *nsname);
+    def_reg_del_ns (struct ncx_instance_t_ *instance, const xmlChar *nsname);
 
 
 /*********************** SCB ***************************/
@@ -173,7 +187,8 @@ extern void
 *    status of the operation
 *********************************************************************/
 extern status_t 
-    def_reg_add_scb (int fd,
+    def_reg_add_scb (struct ncx_instance_t_ *instance,
+		     int fd,
 		     ses_cb_t *scb);
 
 
@@ -188,7 +203,7 @@ extern status_t
 *    pointer to ses_cb_t or NULL if not found
 *********************************************************************/
 extern ses_cb_t * 
-    def_reg_find_scb (int fd);
+    def_reg_find_scb (struct ncx_instance_t_ *instance, int fd);
 
 
 /********************************************************************
@@ -202,7 +217,7 @@ extern ses_cb_t *
 *    none
 *********************************************************************/
 extern void
-    def_reg_del_scb (int fd);
+    def_reg_del_scb (struct ncx_instance_t_ *instance, int fd);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

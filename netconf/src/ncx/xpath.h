@@ -436,7 +436,8 @@ typedef struct xpath_pcb_t_ {
 
 /* XPath function prototype */
 typedef xpath_result_t *
-    (*xpath_fn_t) (xpath_pcb_t *pcb,
+    (*xpath_fn_t) (struct ncx_instance_t_ *instance,
+		   xpath_pcb_t *pcb,
 		   dlq_hdr_t *parmQ,   /* Q of xpath_result_t */
 		   status_t *res);
 
@@ -517,7 +518,8 @@ typedef struct xpath_stringwalkerparms_t_ {
 *   status
 *********************************************************************/
 extern status_t
-    xpath_find_schema_target (yang_pcb_t *pcb,
+    xpath_find_schema_target (struct ncx_instance_t_ *instance,
+                              yang_pcb_t *pcb,
                               tk_chain_t *tkc,
 			      ncx_module_t *mod,
 			      obj_template_t *obj,
@@ -556,7 +558,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_find_schema_target_err (yang_pcb_t *pcb,
+    xpath_find_schema_target_err (struct ncx_instance_t_ *instance,
+                                  yang_pcb_t *pcb,
                                   tk_chain_t *tkc,
 				  ncx_module_t *mod,
 				  obj_template_t *obj,
@@ -590,7 +593,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_find_schema_target_int (const xmlChar *target,
+    xpath_find_schema_target_int (struct ncx_instance_t_ *instance,
+				  const xmlChar *target,
 				  obj_template_t **targobj);
 
 
@@ -629,7 +633,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_find_val_target (val_value_t *startval,
+    xpath_find_val_target (struct ncx_instance_t_ *instance,
+			   val_value_t *startval,
 			   ncx_module_t *mod,
 			   const xmlChar *target,
 			   val_value_t **targval);
@@ -668,7 +673,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_find_val_unique (val_value_t *startval,
+    xpath_find_val_unique (struct ncx_instance_t_ *instance,
+                           val_value_t *startval,
                            ncx_module_t *mod,
                            const xmlChar *target,
                            val_value_t *root,
@@ -696,7 +702,8 @@ extern status_t
 *   pointer to malloced struct, NULL if malloc error
 *********************************************************************/
 extern xpath_pcb_t *
-    xpath_new_pcb (const xmlChar *xpathstr,
+    xpath_new_pcb (struct ncx_instance_t_ *instance,
+                   const xmlChar *xpathstr,
                    xpath_getvar_fn_t  getvar_fn);
 
 
@@ -721,7 +728,8 @@ extern xpath_pcb_t *
 *   pointer to malloced struct, NULL if malloc error
 *********************************************************************/
 extern xpath_pcb_t *
-    xpath_new_pcb_ex (const xmlChar *xpathstr,
+    xpath_new_pcb_ex (struct ncx_instance_t_ *instance,
+                      const xmlChar *xpathstr,
                       xpath_getvar_fn_t  getvar_fn,
                       void *cookie);
 
@@ -742,7 +750,7 @@ extern xpath_pcb_t *
 *   data will be set
 *********************************************************************/
 extern xpath_pcb_t *
-    xpath_clone_pcb (const xpath_pcb_t *srcpcb);
+    xpath_clone_pcb (struct ncx_instance_t_ *instance, const xpath_pcb_t *srcpcb);
 
 
 /********************************************************************
@@ -759,7 +767,8 @@ extern xpath_pcb_t *
 *   pointer to found xpath_pcb_t or NULL if not found
 *********************************************************************/
 extern xpath_pcb_t *
-    xpath_find_pcb (dlq_hdr_t *pcbQ, 
+    xpath_find_pcb (struct ncx_instance_t_ *instance, 
+		    dlq_hdr_t *pcbQ, 
 		    const xmlChar *exprstr);
 
 
@@ -772,7 +781,7 @@ extern xpath_pcb_t *
 *   pcb == pointer to parser control block to free
 *********************************************************************/
 extern void
-    xpath_free_pcb (xpath_pcb_t *pcb);
+    xpath_free_pcb (struct ncx_instance_t_ *instance, xpath_pcb_t *pcb);
 
 
 /********************************************************************
@@ -788,7 +797,7 @@ extern void
 *   pointer to malloced struct, NULL if malloc error
 *********************************************************************/
 extern xpath_result_t *
-    xpath_new_result (xpath_restype_t restype);
+    xpath_new_result (struct ncx_instance_t_ *instance, xpath_restype_t restype);
 
 
 /********************************************************************
@@ -802,7 +811,8 @@ extern xpath_result_t *
 *   restype == the desired result type
 *********************************************************************/
 extern void 
-    xpath_init_result (xpath_result_t *result,
+    xpath_init_result (struct ncx_instance_t_ *instance,
+		       xpath_result_t *result,
 		       xpath_restype_t restype);
 
 
@@ -815,7 +825,7 @@ extern void
 *   result == pointer to result struct to free
 *********************************************************************/
 extern void
-    xpath_free_result (xpath_result_t *result);
+    xpath_free_result (struct ncx_instance_t_ *instance, xpath_result_t *result);
 
 
 /********************************************************************
@@ -827,7 +837,7 @@ extern void
 *   result == pointer to result struct to clean
 *********************************************************************/
 extern void
-    xpath_clean_result (xpath_result_t *result);
+    xpath_clean_result (struct ncx_instance_t_ *instance, xpath_result_t *result);
 
 
 /********************************************************************
@@ -842,7 +852,7 @@ extern void
 *   pointer to malloced struct, NULL if malloc error
 *********************************************************************/
 extern xpath_resnode_t *
-    xpath_new_resnode (void);
+    xpath_new_resnode (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -854,7 +864,7 @@ extern xpath_resnode_t *
 *   resnode == pointer to result node struct to initialize
 *********************************************************************/
 extern void 
-    xpath_init_resnode (xpath_resnode_t *resnode);
+    xpath_init_resnode (struct ncx_instance_t_ *instance, xpath_resnode_t *resnode);
 
 
 /********************************************************************
@@ -866,7 +876,7 @@ extern void
 *   resnode == pointer to result node struct to free
 *********************************************************************/
 extern void
-    xpath_free_resnode (xpath_resnode_t *resnode);
+    xpath_free_resnode (struct ncx_instance_t_ *instance, xpath_resnode_t *resnode);
 
 
 /********************************************************************
@@ -878,7 +888,7 @@ extern void
 *   resnode == pointer to result node struct to free
 *********************************************************************/
 extern void
-    xpath_delete_resnode (xpath_resnode_t *resnode);
+    xpath_delete_resnode (struct ncx_instance_t_ *instance, xpath_resnode_t *resnode);
 
 
 /********************************************************************
@@ -890,7 +900,7 @@ extern void
 *   resnode == pointer to result node struct to clean
 *********************************************************************/
 extern void
-    xpath_clean_resnode (xpath_resnode_t *resnode);
+    xpath_clean_resnode (struct ncx_instance_t_ *instance, xpath_resnode_t *resnode);
 
 
 /********************************************************************
@@ -914,7 +924,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    xpath_get_curmod_from_prefix (const xmlChar *prefix,
+    xpath_get_curmod_from_prefix (struct ncx_instance_t_ *instance,
+				  const xmlChar *prefix,
 				  ncx_module_t *mod,
 				  ncx_module_t **targmod);
 
@@ -942,7 +953,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_get_curmod_from_prefix_str (const xmlChar *prefix,
+    xpath_get_curmod_from_prefix_str (struct ncx_instance_t_ *instance,
+				      const xmlChar *prefix,
 				      uint32 prefixlen,
 				      ncx_module_t *mod,
 				      ncx_module_t **targmod);
@@ -965,7 +977,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xpath_parse_token (xpath_pcb_t *pcb,
+    xpath_parse_token (struct ncx_instance_t_ *instance,
+		       xpath_pcb_t *pcb,
 		       tk_type_t  tktype);
 
 
@@ -981,7 +994,7 @@ extern status_t
 *   TRUE or FALSE depending on conversion
 *********************************************************************/
 extern boolean
-    xpath_cvt_boolean (const xpath_result_t *result);
+    xpath_cvt_boolean (struct ncx_instance_t_ *instance, const xpath_result_t *result);
 
 
 /********************************************************************
@@ -998,7 +1011,8 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    xpath_cvt_number (const xpath_result_t *result,
+    xpath_cvt_number (struct ncx_instance_t_ *instance,
+		      const xpath_result_t *result,
 		      ncx_num_t *num);
 
 
@@ -1019,7 +1033,8 @@ extern void
 *   status; could get an ERR_INTERNAL_MEM error or NO_RER
 *********************************************************************/
 extern status_t
-    xpath_cvt_string (xpath_pcb_t *pcb,
+    xpath_cvt_string (struct ncx_instance_t_ *instance,
+		      xpath_pcb_t *pcb,
 		      const xpath_result_t *result,
 		      xmlChar **str);
 
@@ -1036,7 +1051,7 @@ extern status_t
 *   pointer to resnodeQ or NULL if some error
 *********************************************************************/
 extern dlq_hdr_t *
-    xpath_get_resnodeQ (xpath_result_t *result);
+    xpath_get_resnodeQ (struct ncx_instance_t_ *instance, xpath_result_t *result);
 
 
 /********************************************************************
@@ -1051,7 +1066,7 @@ extern dlq_hdr_t *
 *   pointer to resnode or NULL if some error
 *********************************************************************/
 extern xpath_resnode_t *
-    xpath_get_first_resnode (xpath_result_t *result);
+    xpath_get_first_resnode (struct ncx_instance_t_ *instance, xpath_result_t *result);
 
 
 /********************************************************************
@@ -1066,7 +1081,7 @@ extern xpath_resnode_t *
 *   pointer to resnode or NULL if some error
 *********************************************************************/
 extern xpath_resnode_t *
-    xpath_get_next_resnode (xpath_resnode_t *resnode);
+    xpath_get_next_resnode (struct ncx_instance_t_ *instance, xpath_resnode_t *resnode);
 
 
 /********************************************************************
@@ -1081,7 +1096,7 @@ extern xpath_resnode_t *
 *   pointer to resnode or NULL if some error
 *********************************************************************/
 extern val_value_t *
-    xpath_get_resnode_valptr (xpath_resnode_t *resnode);
+    xpath_get_resnode_valptr (struct ncx_instance_t_ *instance, xpath_resnode_t *resnode);
 
 
 /********************************************************************
@@ -1096,7 +1111,7 @@ extern val_value_t *
 *   pointer to varbindQ or NULL if some error
 *********************************************************************/
 extern dlq_hdr_t *
-    xpath_get_varbindQ (xpath_pcb_t *pcb);
+    xpath_get_varbindQ (struct ncx_instance_t_ *instance, xpath_pcb_t *pcb);
 
 
 /********************************************************************
@@ -1116,7 +1131,8 @@ extern dlq_hdr_t *
 *    srcresult nodes will be moved to the target result
 *********************************************************************/
 extern void
-    xpath_move_nodeset (xpath_result_t *srcresult,
+    xpath_move_nodeset (struct ncx_instance_t_ *instance,
+                        xpath_result_t *srcresult,
                         xpath_result_t *destresult);
 
 
@@ -1134,7 +1150,7 @@ extern void
 *    FALSE if not empty or not a nodeset
 *********************************************************************/
 extern boolean
-    xpath_nodeset_empty (const xpath_result_t *result);
+    xpath_nodeset_empty (struct ncx_instance_t_ *instance, const xpath_result_t *result);
 
 
 /********************************************************************
@@ -1150,7 +1166,8 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    xpath_nodeset_swap_valptr (xpath_result_t *result,
+    xpath_nodeset_swap_valptr (struct ncx_instance_t_ *instance,
+                               xpath_result_t *result,
                                val_value_t *oldval,
                                val_value_t *newval);
 
@@ -1167,7 +1184,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    xpath_nodeset_delete_valptr (xpath_result_t *result,
+    xpath_nodeset_delete_valptr (struct ncx_instance_t_ *instance,
+                                 xpath_result_t *result,
                                  val_value_t *oldval);
 
 
@@ -1195,7 +1213,8 @@ extern void
 *   NULL if some error
 *********************************************************************/
 extern xmlChar *
-    xpath_convert_url_to_path (const xmlChar *urlpath,
+    xpath_convert_url_to_path (struct ncx_instance_t_ *instance,
+                               const xmlChar *urlpath,
                                ncx_name_match_t match_names,
                                boolean alt_naming,
                                boolean wildcards,

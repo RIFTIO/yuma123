@@ -126,11 +126,15 @@ void
     case SIGILL:          /* core dump */
     case SIGTRAP:         /* core dump */
     case SIGTERM:             /* kill  */
-        agt_request_shutdown(NCX_SHUT_EXIT);
+        if (ncx_g_instance) {
+            agt_request_shutdown(ncx_g_instance, NCX_SHUT_EXIT);
+        }
         break;
     case SIGHUP:
         /* hang up treated as reset; kill -1 */
-        agt_request_shutdown(NCX_SHUT_RESET);
+        if (ncx_g_instance) {
+            agt_request_shutdown(ncx_g_instance, NCX_SHUT_RESET);
+        }
         break;
     case SIGPIPE:
         /* broken pipe ignored */

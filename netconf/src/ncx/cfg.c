@@ -73,7 +73,6 @@ date         init     comment
 *                       C O N S T A N T S                           *
 *                                                                   *
 *********************************************************************/
-#define CFG_NUM_STATIC 3
 
 #define CFG_DATETIME_LEN 64
 
@@ -91,9 +90,6 @@ date         init     comment
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-static boolean cfg_init_done = FALSE;
-
-static cfg_template_t  *cfg_arr[CFG_NUM_STATIC];
 
 
 /********************************************************************
@@ -107,16 +103,16 @@ static cfg_template_t  *cfg_arr[CFG_NUM_STATIC];
 *    pointer config template or NULL if not found
 *********************************************************************/
 static cfg_template_t *
-    get_template (const xmlChar *cfgname)
+    get_template (ncx_instance_t *instance, const xmlChar *cfgname)
 {
     ncx_cfg_t id;
 
     for (id = NCX_CFGID_RUNNING; id <= MAX_CFGID; id++) {
-        if (!cfg_arr[id]) {
+        if (!instance->cfg_arr[id]) {
             continue;
         }
-        if (!xml_strcmp(cfg_arr[id]->name, cfgname)) {
-            return cfg_arr[id];
+        if (!xml_strcmp(instance, instance->cfg_arr[id]->name, cfgname)) {
+            return instance->cfg_arr[id];
         }
     }
     return NULL;
@@ -135,7 +131,7 @@ static cfg_template_t *
 *    none
 *********************************************************************/
 static void
-    free_template (cfg_template_t *cfg)
+    free_template (ncx_instance_t *instance, cfg_template_t *cfg)
 {
 
     rpc_err_rec_t  *err;
@@ -143,33 +139,33 @@ static void
 
 #ifdef DEBUG
     if (!cfg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (cfg->root) {
-        val_free_value(cfg->root);
+        val_free_value(instance, cfg->root);
     }
 
     if (cfg->name) {
-        m__free(cfg->name);
+        m__free(instance, cfg->name);
     }
     if (cfg->src_url) {
-        m__free(cfg->src_url);
+        m__free(instance, cfg->src_url);
     }
 
-    while (!dlq_empty(&cfg->load_errQ)) {
-        err = (rpc_err_rec_t *)dlq_deque(&cfg->load_errQ);
-        rpc_err_free_record(err);
+    while (!dlq_empty(instance, &cfg->load_errQ)) {
+        err = (rpc_err_rec_t *)dlq_deque(instance, &cfg->load_errQ);
+        rpc_err_free_record(instance, err);
     }
 
-    while (!dlq_empty(&cfg->plockQ)) {
-        plock = (plock_cb_t *)dlq_deque(&cfg->plockQ);
-        plock_cb_free(plock);
+    while (!dlq_empty(instance, &cfg->plockQ)) {
+        plock = (plock_cb_t *)dlq_deque(instance, &cfg->plockQ);
+        plock_cb_free(instance, plock);
     }
 
-    m__free(cfg);
+    m__free(instance, cfg);
 
 } /* free_template */
 
@@ -187,7 +183,8 @@ static void
 *    This struct needs to be freed by the caller
 *********************************************************************/
 static cfg_template_t *
-    new_template (const xmlChar *name,
+    new_template (ncx_instance_t *instance,
+                  const xmlChar *name,
                   ncx_cfg_t cfg_id)
 {
     ncx_module_t          *mod;
@@ -195,46 +192,46 @@ static cfg_template_t *
     obj_template_t        *cfgobj;
 
     cfgobj = NULL;
-    mod = ncx_find_module(NCXMOD_NETCONF, NULL);
+    mod = ncx_find_module(instance, NCXMOD_NETCONF, NULL);
     if (mod) {
-        cfgobj = ncx_find_object(mod, NCX_EL_CONFIG);
+        cfgobj = ncx_find_object(instance, mod, NCX_EL_CONFIG);
     }
     if (!cfgobj) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
-    cfg = m__getObj(cfg_template_t);
+    cfg = m__getObj(instance, cfg_template_t);
     if (!cfg) {
         return NULL;
     }
 
     memset(cfg, 0x0, sizeof(cfg_template_t));
 
-    dlq_createSQue(&cfg->load_errQ);
-    dlq_createSQue(&cfg->plockQ);
+    dlq_createSQue(instance, &cfg->load_errQ);
+    dlq_createSQue(instance, &cfg->plockQ);
 
-    cfg->name = xml_strdup(name);
+    cfg->name = xml_strdup(instance, name);
     if (!cfg->name) {
-        free_template(cfg);
+        free_template(instance, cfg);
         return NULL;
     }
 
     /* give each config a valid last changed time */
-    cfg_update_last_ch_time(cfg);
+    cfg_update_last_ch_time(instance, cfg);
 
     cfg->cfg_id = cfg_id;
     cfg->cfg_state = CFG_ST_INIT;
 
     if (cfg_id != NCX_CFGID_CANDIDATE) {
-        cfg->root = val_new_value();
+        cfg->root = val_new_value(instance);
         if (!cfg->root) {
-            free_template(cfg);
+            free_template(instance, cfg);
             return NULL;
         }
         
         /* finish setting up the <config> root value */
-        val_init_from_template(cfg->root, cfgobj);
+        val_init_from_template(instance, cfg->root, cfgobj);
     }  /* else root will be set next with val_clone_config_data */
 
     return cfg;
@@ -258,18 +255,18 @@ static cfg_template_t *
 *    none
 *********************************************************************/
 void
-    cfg_init (void)
+    cfg_init (ncx_instance_t *instance)
 {
 
     uint32  i;
 
-    if (!cfg_init_done) {
+    if (!instance->cfg_init_done) {
 
         for (i=0; i<CFG_NUM_STATIC; i++) {
-            cfg_arr[i] = NULL;
+            instance->cfg_arr[i] = NULL;
         }
 
-        cfg_init_done = TRUE;
+        instance->cfg_init_done = TRUE;
     }
 
 } /* cfg_init */
@@ -286,18 +283,18 @@ void
 *    none
 *********************************************************************/
 void
-    cfg_cleanup (void)
+    cfg_cleanup (ncx_instance_t *instance)
 {
     ncx_cfg_t   id;
 
-    if (cfg_init_done) {
+    if (instance->cfg_init_done) {
         for (id=NCX_CFGID_RUNNING; id <= MAX_CFGID; id++) {
-            if (cfg_arr[id]) {
-                free_template(cfg_arr[id]);
-                cfg_arr[id] = NULL;
+            if (instance->cfg_arr[id]) {
+                free_template(instance, instance->cfg_arr[id]);
+                instance->cfg_arr[id] = NULL;
             }
         }
-        cfg_init_done = FALSE;
+        instance->cfg_init_done = FALSE;
     }
 
 } /* cfg_cleanup */
@@ -315,21 +312,21 @@ void
 *    status
 *********************************************************************/
 status_t
-    cfg_init_static_db (ncx_cfg_t cfg_id)
+    cfg_init_static_db (ncx_instance_t *instance, ncx_cfg_t cfg_id)
 {
     cfg_template_t   *cfg;
     const xmlChar    *name;
 
-    if (!cfg_init_done) {
-        cfg_init();
+    if (!instance->cfg_init_done) {
+        cfg_init(instance);
     }
 
 #ifdef DEBUG
     if (cfg_id > MAX_CFGID) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
-    if (cfg_arr[cfg_id]) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+    if (instance->cfg_arr[cfg_id]) {
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -345,15 +342,15 @@ status_t
         name = NCX_CFG_STARTUP;
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    cfg = new_template(name, cfg_id);
+    cfg = new_template(instance, name, cfg_id);
     if (!cfg) {
         return ERR_INTERNAL_MEM;
     }
 
-    cfg_arr[cfg_id] = cfg;
+    instance->cfg_arr[cfg_id] = cfg;
     return NO_ERR;
 
 } /* cfg_init_static_db */
@@ -372,27 +369,28 @@ status_t
 *    This struct needs to be freed by the caller
 *********************************************************************/
 cfg_template_t *
-    cfg_new_template (const xmlChar *name,
+    cfg_new_template (ncx_instance_t *instance,
+                      const xmlChar *name,
                       ncx_cfg_t cfg_id)
 {
     cfg_template_t *cfg;
 
-    cfg = m__getObj(cfg_template_t);
+    cfg = m__getObj(instance, cfg_template_t);
     if (!cfg) {
         return NULL;
     }
 
     memset(cfg, 0x0, sizeof(cfg_template_t));
 
-    cfg->name = xml_strdup(name);
+    cfg->name = xml_strdup(instance, name);
     if (!cfg->name) {
-        m__free(cfg);
+        m__free(instance, cfg);
         return NULL;
     }
 
     cfg->cfg_id = cfg_id;
     cfg->cfg_state = CFG_ST_INIT;
-    dlq_createSQue(&cfg->load_errQ);
+    dlq_createSQue(instance, &cfg->load_errQ);
     /* root is still NULL; indicates empty cfg */
 
     return cfg;
@@ -411,16 +409,16 @@ cfg_template_t *
 *    none
 *********************************************************************/
 void
-    cfg_free_template (cfg_template_t *cfg)
+    cfg_free_template (ncx_instance_t *instance, cfg_template_t *cfg)
 {
 #ifdef DEBUG
     if (!cfg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    free_template(cfg);
+    free_template(instance, cfg);
 
 } /* cfg_free_template */
 
@@ -437,21 +435,22 @@ void
 *    none
 *********************************************************************/
 void
-    cfg_set_state (ncx_cfg_t cfg_id,
+    cfg_set_state (ncx_instance_t *instance,
+                   ncx_cfg_t cfg_id,
                    cfg_state_t  new_state)
 {
 #ifdef DEBUG
     if (cfg_id > MAX_CFGID) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
-    if (!cfg_arr[cfg_id]) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+    if (!instance->cfg_arr[cfg_id]) {
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 #endif
 
-    cfg_arr[cfg_id]->cfg_state = new_state;
+    instance->cfg_arr[cfg_id]->cfg_state = new_state;
 
 } /* cfg_set_state */
 
@@ -467,20 +466,20 @@ void
 *    config state  (CFG_ST_NONE if some error)
 *********************************************************************/
 cfg_state_t
-    cfg_get_state (ncx_cfg_t cfg_id)
+    cfg_get_state (ncx_instance_t *instance, ncx_cfg_t cfg_id)
 {
 #ifdef DEBUG
     if (cfg_id > MAX_CFGID) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return CFG_ST_NONE;
     }
 #endif
 
-    if (!cfg_arr[cfg_id]) {
+    if (!instance->cfg_arr[cfg_id]) {
         return CFG_ST_NONE;
     }
 
-    return cfg_arr[cfg_id]->cfg_state;
+    return instance->cfg_arr[cfg_id]->cfg_state;
 
 } /* cfg_get_state */
 
@@ -496,16 +495,16 @@ cfg_state_t
 *    pointer to config struct or NULL if not found
 *********************************************************************/
 cfg_template_t *
-    cfg_get_config (const xmlChar *cfgname)
+    cfg_get_config (ncx_instance_t *instance, const xmlChar *cfgname)
 {
 #ifdef DEBUG
     if (!cfgname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return get_template(cfgname);
+    return get_template(instance, cfgname);
 
 } /* cfg_get_config */
 
@@ -522,9 +521,9 @@ cfg_template_t *
 *    pointer to config name or NULL if not found
 *********************************************************************/
 const xmlChar *
-    cfg_get_config_name (ncx_cfg_t cfgid)
+    cfg_get_config_name (ncx_instance_t *instance, ncx_cfg_t cfgid)
 {
-    cfg_template_t *cfg = cfg_get_config_id(cfgid);
+    cfg_template_t *cfg = cfg_get_config_id(instance, cfgid);
     if (cfg) {
         return cfg->name;
     }
@@ -544,11 +543,11 @@ const xmlChar *
 *    pointer to config struct or NULL if not found
 *********************************************************************/
 cfg_template_t *
-    cfg_get_config_id (ncx_cfg_t cfgid)
+    cfg_get_config_id (ncx_instance_t *instance, ncx_cfg_t cfgid)
 {
 
     if (cfgid <= MAX_CFGID) {
-        return cfg_arr[cfgid];
+        return instance->cfg_arr[cfgid];
     }
     return NULL;
 
@@ -565,20 +564,20 @@ cfg_template_t *
 *
 *********************************************************************/
 void
-    cfg_set_target (ncx_cfg_t cfg_id)
+    cfg_set_target (ncx_instance_t *instance, ncx_cfg_t cfg_id)
 {
 #ifdef DEBUG
     if (cfg_id > MAX_CFGID) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
-    if (!cfg_arr[cfg_id]) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+    if (!instance->cfg_arr[cfg_id]) {
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    cfg_arr[cfg_id]->flags |= CFG_FL_TARGET;
+    instance->cfg_arr[cfg_id]->flags |= CFG_FL_TARGET;
 
 } /* cfg_set_target */
 
@@ -593,32 +592,32 @@ void
 *    status
 *********************************************************************/
 status_t
-    cfg_fill_candidate_from_running (void)
+    cfg_fill_candidate_from_running (ncx_instance_t *instance)
 {
     cfg_template_t  *running, *candidate;
     status_t         res;
 
 #ifdef DEBUG
-    if (!cfg_arr[NCX_CFGID_RUNNING] ||
-        !cfg_arr[NCX_CFGID_CANDIDATE]) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+    if (!instance->cfg_arr[NCX_CFGID_RUNNING] ||
+        !instance->cfg_arr[NCX_CFGID_CANDIDATE]) {
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
-    running = cfg_arr[NCX_CFGID_RUNNING];
-    candidate = cfg_arr[NCX_CFGID_CANDIDATE];
+    running = instance->cfg_arr[NCX_CFGID_RUNNING];
+    candidate = instance->cfg_arr[NCX_CFGID_CANDIDATE];
 
     if (!running->root) {
         return ERR_NCX_DATA_MISSING;
     }
 
     if (candidate->root) {
-        val_free_value(candidate->root);
+        val_free_value(instance, candidate->root);
         candidate->root = NULL;
     }
 
     res = NO_ERR;
-    candidate->root = val_clone_config_data(running->root, &res);
+    candidate->root = val_clone_config_data(instance, running->root, &res);
     candidate->flags &= ~CFG_FL_DIRTY;
     candidate->last_txid = running->last_txid;
     candidate->cur_txid = 0;
@@ -637,32 +636,32 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    cfg_fill_candidate_from_startup (void)
+    cfg_fill_candidate_from_startup (ncx_instance_t *instance)
 {
     cfg_template_t  *startup, *candidate;
     status_t         res;
 
 #ifdef DEBUG
-    if (!cfg_arr[NCX_CFGID_CANDIDATE] ||
-        !cfg_arr[NCX_CFGID_STARTUP]) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+    if (!instance->cfg_arr[NCX_CFGID_CANDIDATE] ||
+        !instance->cfg_arr[NCX_CFGID_STARTUP]) {
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
-    startup = cfg_arr[NCX_CFGID_STARTUP];
-    candidate = cfg_arr[NCX_CFGID_CANDIDATE];
+    startup = instance->cfg_arr[NCX_CFGID_STARTUP];
+    candidate = instance->cfg_arr[NCX_CFGID_CANDIDATE];
 
     if (!startup->root) {
         return ERR_NCX_DATA_MISSING;
     }
 
     if (candidate->root) {
-        val_free_value(candidate->root);
+        val_free_value(instance, candidate->root);
         candidate->root = NULL;
     }
 
     res = NO_ERR;
-    candidate->root = val_clone2(startup->root);
+    candidate->root = val_clone2(instance, startup->root);
     if (candidate->root == NULL) {
         res = ERR_INTERNAL_MEM;
     }
@@ -688,29 +687,29 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    cfg_fill_candidate_from_inline (val_value_t *newroot)
+    cfg_fill_candidate_from_inline (ncx_instance_t *instance, val_value_t *newroot)
 {
     cfg_template_t  *candidate;
     status_t         res;
 
 #ifdef DEBUG
     if (newroot == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
-    if (!cfg_arr[NCX_CFGID_CANDIDATE]) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+    if (!instance->cfg_arr[NCX_CFGID_CANDIDATE]) {
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
-    candidate = cfg_arr[NCX_CFGID_CANDIDATE];
+    candidate = instance->cfg_arr[NCX_CFGID_CANDIDATE];
 
     if (candidate->root) {
-        val_free_value(candidate->root);
+        val_free_value(instance, candidate->root);
         candidate->root = NULL;
     }
 
     res = NO_ERR;
-    candidate->root = val_clone_config_data(newroot, &res);
+    candidate->root = val_clone_config_data(instance, newroot, &res);
     candidate->flags &= ~CFG_FL_DIRTY;
 
     return res;
@@ -728,11 +727,11 @@ status_t
 *
 *********************************************************************/
 void
-    cfg_set_dirty_flag (cfg_template_t *cfg)
+    cfg_set_dirty_flag (ncx_instance_t *instance, cfg_template_t *cfg)
 {
 #ifdef DEBUG
     if (!cfg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -752,11 +751,11 @@ void
 *
 *********************************************************************/
 boolean
-    cfg_get_dirty_flag (const cfg_template_t *cfg)
+    cfg_get_dirty_flag (ncx_instance_t *instance, const cfg_template_t *cfg)
 {
 #ifdef DEBUG
     if (!cfg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -779,13 +778,13 @@ boolean
 *    status
 *********************************************************************/
 status_t
-    cfg_ok_to_lock (const cfg_template_t *cfg)
+    cfg_ok_to_lock (ncx_instance_t *instance, const cfg_template_t *cfg)
 {
     status_t  res;
 
 #ifdef DEBUG
     if (!cfg) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -795,7 +794,7 @@ status_t
             /* lock cannot be granted if any changes
              * to the candidate are already made
              */
-            res = (cfg_get_dirty_flag(cfg)) ? 
+            res = (cfg_get_dirty_flag(instance, cfg)) ? 
                 ERR_NCX_CANDIDATE_DIRTY : NO_ERR;
         } else {
             /* lock can be granted if state is ready */
@@ -814,7 +813,7 @@ status_t
         res = ERR_NCX_NO_ACCESS_STATE;
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
 
     }
 
@@ -836,14 +835,15 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    cfg_ok_to_unlock (const cfg_template_t *cfg,
+    cfg_ok_to_unlock (ncx_instance_t *instance,
+                      const cfg_template_t *cfg,
                       ses_id_t sesid)
 {
     status_t  res;
 
 #ifdef DEBUG
     if (!cfg) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -867,7 +867,7 @@ status_t
         res = ERR_NCX_NO_ACCESS_STATE;
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -886,13 +886,13 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    cfg_ok_to_read (const cfg_template_t *cfg)
+    cfg_ok_to_read (ncx_instance_t *instance, const cfg_template_t *cfg)
 {
     status_t  res;
 
 #ifdef DEBUG
     if (!cfg) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -909,7 +909,7 @@ status_t
         res = ERR_NCX_NO_ACCESS_STATE;
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         break;
     }
 
@@ -934,14 +934,15 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    cfg_ok_to_write (const cfg_template_t *cfg,
+    cfg_ok_to_write (ncx_instance_t *instance,
+                     const cfg_template_t *cfg,
                      ses_id_t sesid)
 {
     status_t  res;
 
 #ifdef DEBUG
     if (!cfg) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -991,7 +992,7 @@ status_t
         res = ERR_NCX_NO_ACCESS_STATE;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         res = ERR_NCX_OPERATION_FAILED;
         break;
     }
@@ -1013,12 +1014,12 @@ status_t
 *    TRUE if global lock active, FALSE if not
 *********************************************************************/
 boolean
-    cfg_is_global_locked (const cfg_template_t *cfg)
+    cfg_is_global_locked (ncx_instance_t *instance, const cfg_template_t *cfg)
 {
 
 #ifdef DEBUG
     if (!cfg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -1040,12 +1041,12 @@ boolean
 *    TRUE if partial lock active, FALSE if not
 *********************************************************************/
 boolean
-    cfg_is_partial_locked (const cfg_template_t *cfg)
+    cfg_is_partial_locked (ncx_instance_t *instance, const cfg_template_t *cfg)
 {
 
 #ifdef DEBUG
     if (!cfg) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -1073,14 +1074,15 @@ boolean
 *    status, NCX_ERR_SKIPPED if not locked
 *********************************************************************/
 status_t
-    cfg_get_global_lock_info (const cfg_template_t *cfg,
+    cfg_get_global_lock_info (ncx_instance_t *instance,
+                              const cfg_template_t *cfg,
                               ses_id_t  *sid,
                               const xmlChar **locktime)
 {
 
 #ifdef DEBUG
     if (!cfg || !sid || !locktime) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1115,7 +1117,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    cfg_lock (cfg_template_t *cfg,
+    cfg_lock (ncx_instance_t *instance,
+              cfg_template_t *cfg,
               ses_id_t locked_by,
               cfg_source_t  lock_src)
 {
@@ -1123,17 +1126,17 @@ status_t
 
 #ifdef DEBUG
     if (!cfg) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    res = cfg_ok_to_lock(cfg);
+    res = cfg_ok_to_lock(instance, cfg);
 
     if (res == NO_ERR) {
         cfg->cfg_state = CFG_ST_FLOCK;
         cfg->locked_by = locked_by;
         cfg->lock_src = lock_src;
-        tstamp_datetime(cfg->lock_time);
+        tstamp_datetime(instance, cfg->lock_time);
     }
 
     return res;
@@ -1153,18 +1156,19 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    cfg_unlock (cfg_template_t *cfg,
+    cfg_unlock (ncx_instance_t *instance,
+                cfg_template_t *cfg,
                 ses_id_t locked_by)
 {
     status_t  res;
 
 #ifdef DEBUG
     if (!cfg) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    res = cfg_ok_to_unlock(cfg, locked_by);
+    res = cfg_ok_to_unlock(instance, cfg, locked_by);
 
     if (res == NO_ERR) {
         cfg->cfg_state = CFG_ST_READY;
@@ -1175,7 +1179,7 @@ status_t
          * when a lock is released on the candidate
          */
         if (cfg->cfg_id == NCX_CFGID_CANDIDATE) {
-            res = cfg_fill_candidate_from_running();
+            res = cfg_fill_candidate_from_running(instance);
         }
     }
 
@@ -1194,13 +1198,13 @@ status_t
 *
 *********************************************************************/
 void
-    cfg_release_locks (ses_id_t sesid)
+    cfg_release_locks (ncx_instance_t *instance, ses_id_t sesid)
 {
     uint32  i;
     cfg_template_t *cfg;
     status_t        res;
 
-    if (!cfg_init_done) {
+    if (!instance->cfg_init_done) {
         return;
     }
 
@@ -1209,16 +1213,17 @@ void
     }
 
     /* check for partial locks */
-    cfg_release_partial_locks(sesid);
+    cfg_release_partial_locks(instance, sesid);
 
     /* check for global locks */
     for (i=0; i<CFG_NUM_STATIC; i++) {
-        cfg = cfg_arr[i];
+        cfg = instance->cfg_arr[i];
         if (cfg != NULL && cfg->locked_by == sesid) {
             cfg->cfg_state = CFG_ST_READY;
             cfg->locked_by = 0;
             cfg->lock_src = CFG_SRC_NONE;
-            log_info("\ncfg forced unlock on %s config, "
+            log_info(instance,
+                     "\ncfg forced unlock on %s config, "
                      "held by session %d",
                      cfg->name, 
                      sesid);
@@ -1227,9 +1232,10 @@ void
              * when a lock is released on the candidate
              */
             if (cfg->cfg_id == NCX_CFGID_CANDIDATE) {
-                res = cfg_fill_candidate_from_running();
+                res = cfg_fill_candidate_from_running(instance);
                 if (res != NO_ERR) {
-                    log_error("\nError: discard-changes failed (%s)",
+                    log_error(instance,
+                              "\nError: discard-changes failed (%s)",
                               get_error_string(res));
                 }
             }
@@ -1250,39 +1256,40 @@ void
 *
 *********************************************************************/
 void
-    cfg_release_partial_locks (ses_id_t sesid)
+    cfg_release_partial_locks (ncx_instance_t *instance, ses_id_t sesid)
 {
     cfg_template_t *cfg;
     plock_cb_t     *plcb, *nextplcb;
     ses_id_t        plock_sid;
 
-    if (!cfg_init_done) {
+    if (!instance->cfg_init_done) {
         return;
     }
 
-    cfg = cfg_arr[NCX_CFGID_RUNNING];
+    cfg = instance->cfg_arr[NCX_CFGID_RUNNING];
     if (cfg == NULL) {
         return;
     }
 
-    for (plcb = (plock_cb_t *)dlq_firstEntry(&cfg->plockQ);
+    for (plcb = (plock_cb_t *)dlq_firstEntry(instance, &cfg->plockQ);
          plcb != NULL;
          plcb = nextplcb) {
 
-        nextplcb = (plock_cb_t *)dlq_nextEntry(plcb);
-        plock_sid = plock_get_sid(plcb);
+        nextplcb = (plock_cb_t *)dlq_nextEntry(instance, plcb);
+        plock_sid = plock_get_sid(instance, plcb);
 
         if (plock_sid == sesid) {
-            log_info("\ncfg forced partial unlock (id:%u) "
+            log_info(instance,
+                     "\ncfg forced partial unlock (id:%u) "
                      "on running config, "
                      "held by session %d",
-                     plock_get_id(plcb),
+                     plock_get_id(instance, plcb),
                      plock_sid);
-            dlq_remove(plcb);
+            dlq_remove(instance, plcb);
             if (cfg->root != NULL) {
-                val_clear_partial_lock(cfg->root, plcb);
+                val_clear_partial_lock(instance, cfg->root, plcb);
             }
-            plock_cb_free(plcb);
+            plock_cb_free(instance, plcb);
         }
     }
 
@@ -1304,7 +1311,8 @@ void
 * 
 *********************************************************************/
 void
-    cfg_get_lock_list (ses_id_t sesid,
+    cfg_get_lock_list (ncx_instance_t *instance,
+                       ses_id_t sesid,
                        val_value_t *retval)
 {
 
@@ -1313,7 +1321,7 @@ void
 
 #ifdef DEBUG
     if (!retval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -1324,14 +1332,14 @@ void
     }
 
     for (i=0; i<CFG_NUM_STATIC; i++) {
-        if (cfg_arr[i] && cfg_arr[i]->locked_by == sesid) {
-            lmem = ncx_new_lmem();
+        if (instance->cfg_arr[i] && instance->cfg_arr[i]->locked_by == sesid) {
+            lmem = ncx_new_lmem(instance);
             if (lmem) {
-                lmem->val.str = xml_strdup(cfg_arr[i]->name);
+                lmem->val.str = xml_strdup(instance, instance->cfg_arr[i]->name);
                 if (lmem->val.str) {
-                    ncx_insert_lmem(&retval->v.list, lmem, NCX_MERGE_LAST);
+                    ncx_insert_lmem(instance, &retval->v.list, lmem, NCX_MERGE_LAST);
                 } else {
-                    ncx_free_lmem(lmem, NCX_BT_STRING);
+                    ncx_free_lmem(instance, lmem, NCX_BT_STRING);
                 }
             }
         }
@@ -1351,19 +1359,20 @@ void
 *
 *********************************************************************/
 void
-    cfg_apply_load_root (cfg_template_t *cfg,
+    cfg_apply_load_root (ncx_instance_t *instance,
+                         cfg_template_t *cfg,
                          val_value_t *newroot)
 {
     assert ( cfg && "cfg is NULL!" );
 
-    if (cfg->root && val_child_cnt(cfg->root)) {
-        log_warn("\nWarning: config root already has child nodes");
+    if (cfg->root && val_child_cnt(instance, cfg->root)) {
+        log_warn(instance, "\nWarning: config root already has child nodes");
     }
 
-    cfg_update_last_ch_time(cfg);
+    cfg_update_last_ch_time(instance, cfg);
 
     if (cfg->root) {
-        val_free_value(cfg->root);
+        val_free_value(instance, cfg->root);
     }
     cfg->root = newroot;
 
@@ -1379,9 +1388,9 @@ void
 *    cfg == config target
 *********************************************************************/
 void
-    cfg_update_last_ch_time (cfg_template_t *cfg)
+    cfg_update_last_ch_time (ncx_instance_t *instance, cfg_template_t *cfg)
 {
-    tstamp_datetime(cfg->last_ch_time);
+    tstamp_datetime(instance, cfg->last_ch_time);
 
 } /* cfg_update_last_ch_time */
 
@@ -1423,22 +1432,23 @@ void
 *    is called for 'plcb'
 *********************************************************************/
 status_t
-    cfg_add_partial_lock (cfg_template_t *cfg,
+    cfg_add_partial_lock (ncx_instance_t *instance,
+                          cfg_template_t *cfg,
                           plock_cb_t *plcb)
 {
     status_t  res;
 
 #ifdef DEBUG
     if (cfg == NULL || plcb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    res = cfg_ok_to_partial_lock(cfg);
+    res = cfg_ok_to_partial_lock(instance, cfg);
 
     if (res == NO_ERR) {
         cfg->cfg_state = CFG_ST_PLOCK;
-        dlq_enque(plcb, &cfg->plockQ);
+        dlq_enque(instance, plcb, &cfg->plockQ);
     }
 
     return res;
@@ -1460,23 +1470,24 @@ status_t
 *   NULL if not found
 *********************************************************************/
 plock_cb_t *
-    cfg_find_partial_lock (cfg_template_t *cfg,
+    cfg_find_partial_lock (ncx_instance_t *instance,
+                           cfg_template_t *cfg,
                            plock_id_t lockid)
 {
     plock_cb_t   *plock;
 
 #ifdef DEBUG
     if (cfg == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (plock = (plock_cb_t *)dlq_firstEntry(&cfg->plockQ);
+    for (plock = (plock_cb_t *)dlq_firstEntry(instance, &cfg->plockQ);
          plock != NULL;
-         plock = (plock_cb_t *)dlq_nextEntry(plock)) {
+         plock = (plock_cb_t *)dlq_nextEntry(instance, plock)) {
 
-        if (plock_get_id(plock) == lockid) {
+        if (plock_get_id(instance, plock) == lockid) {
             return plock;
         }
     }
@@ -1498,16 +1509,16 @@ plock_cb_t *
 *   NULL if none exist at this time
 *********************************************************************/
 plock_cb_t *
-    cfg_first_partial_lock (cfg_template_t *cfg)
+    cfg_first_partial_lock (ncx_instance_t *instance, cfg_template_t *cfg)
 {
 #ifdef DEBUG
     if (cfg == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (plock_cb_t *)dlq_firstEntry(&cfg->plockQ);
+    return (plock_cb_t *)dlq_firstEntry(instance, &cfg->plockQ);
 
 }  /* cfg_first_partial_lock */
 
@@ -1525,16 +1536,16 @@ plock_cb_t *
 *   NULL if none exist at this time
 *********************************************************************/
 plock_cb_t *
-    cfg_next_partial_lock (plock_cb_t *curplockcb)
+    cfg_next_partial_lock (ncx_instance_t *instance, plock_cb_t *curplockcb)
 {
 #ifdef DEBUG
     if (curplockcb == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (plock_cb_t *)dlq_nextEntry(curplockcb);
+    return (plock_cb_t *)dlq_nextEntry(instance, curplockcb);
 
 }  /* cfg_next_partial_lock */
 
@@ -1551,35 +1562,36 @@ plock_cb_t *
 *
 *********************************************************************/
 void
-    cfg_delete_partial_lock (cfg_template_t *cfg,
+    cfg_delete_partial_lock (ncx_instance_t *instance,
+                             cfg_template_t *cfg,
                              plock_id_t lockid)
 {
     plock_cb_t   *plock, *nextplock;
 
 #ifdef DEBUG
     if (cfg == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
     if (cfg->cfg_state != CFG_ST_PLOCK) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 #endif
     
-    for (plock = (plock_cb_t *)dlq_firstEntry(&cfg->plockQ);
+    for (plock = (plock_cb_t *)dlq_firstEntry(instance, &cfg->plockQ);
          plock != NULL;
          plock = nextplock) {
 
-        nextplock = (plock_cb_t *)dlq_nextEntry(plock);
+        nextplock = (plock_cb_t *)dlq_nextEntry(instance, plock);
 
-        if (plock_get_id(plock) == lockid) {
-            dlq_remove(plock);
+        if (plock_get_id(instance, plock) == lockid) {
+            dlq_remove(instance, plock);
             if (cfg->root != NULL) {
-                val_clear_partial_lock(cfg->root, plock);
+                val_clear_partial_lock(instance, cfg->root, plock);
             }
-            plock_cb_free(plock);
-            if (dlq_empty(&cfg->plockQ)) {
+            plock_cb_free(instance, plock);
+            if (dlq_empty(instance, &cfg->plockQ)) {
                 cfg->cfg_state = CFG_ST_READY;
             } else {
                 cfg->cfg_state = CFG_ST_PLOCK;
@@ -1604,13 +1616,13 @@ void
 *    status
 *********************************************************************/
 status_t
-    cfg_ok_to_partial_lock (const cfg_template_t *cfg)
+    cfg_ok_to_partial_lock (ncx_instance_t *instance, const cfg_template_t *cfg)
 {
     status_t  res;
 
 #ifdef DEBUG
     if (!cfg) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1631,7 +1643,7 @@ status_t
         res = ERR_NCX_NO_ACCESS_STATE;
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -1651,12 +1663,12 @@ status_t
 *    config root or NULL if none or error
 *********************************************************************/
 val_value_t *
-    cfg_get_root (ncx_cfg_t cfgid)
+    cfg_get_root (ncx_instance_t *instance, ncx_cfg_t cfgid)
 {
     cfg_template_t  *cfg = NULL;
 
     if (cfgid <= MAX_CFGID) {
-        cfg = cfg_arr[cfgid];
+        cfg = instance->cfg_arr[cfgid];
     }
     if (cfg != NULL) {
         return cfg->root;

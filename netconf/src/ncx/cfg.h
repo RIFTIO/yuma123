@@ -129,6 +129,9 @@ extern "C" {
 
 #define CFG_INITIAL_TXID (cfg_transaction_id_t)0
 
+#define CFG_NUM_STATIC 3
+
+
 /********************************************************************
 *                                                                   *
 *                        T Y P E S                                  *
@@ -212,7 +215,7 @@ typedef struct cfg_template_t_ {
 *    none
 *********************************************************************/
 extern void
-    cfg_init (void);
+    cfg_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -226,7 +229,7 @@ extern void
 *    none
 *********************************************************************/
 extern void
-    cfg_cleanup (void);
+    cfg_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -241,7 +244,7 @@ extern void
 *    status
 *********************************************************************/
 extern status_t
-    cfg_init_static_db (ncx_cfg_t cfg_id);
+    cfg_init_static_db (struct ncx_instance_t_ *instance, ncx_cfg_t cfg_id);
 
 
 /********************************************************************
@@ -257,7 +260,8 @@ extern status_t
 *    This struct needs to be freed by the caller
 *********************************************************************/
 extern cfg_template_t *
-    cfg_new_template (const xmlChar *name,
+    cfg_new_template (struct ncx_instance_t_ *instance,
+		      const xmlChar *name,
 		      ncx_cfg_t cfg_id);
 
 
@@ -272,7 +276,7 @@ extern cfg_template_t *
 *    none
 *********************************************************************/
 extern void
-    cfg_free_template (cfg_template_t *cfg);
+    cfg_free_template (struct ncx_instance_t_ *instance, cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -287,7 +291,8 @@ extern void
 *    none
 *********************************************************************/
 extern void
-    cfg_set_state (ncx_cfg_t cfg_id,
+    cfg_set_state (struct ncx_instance_t_ *instance,
+		   ncx_cfg_t cfg_id,
 		   cfg_state_t new_state);
 
 
@@ -302,7 +307,7 @@ extern void
 *    config state  (CFG_ST_NONE if some error)
 *********************************************************************/
 extern cfg_state_t
-    cfg_get_state (ncx_cfg_t cfg_id);
+    cfg_get_state (struct ncx_instance_t_ *instance, ncx_cfg_t cfg_id);
 
 
 /********************************************************************
@@ -316,7 +321,7 @@ extern cfg_state_t
 *    pointer to config struct or NULL if not found
 *********************************************************************/
 extern cfg_template_t *
-    cfg_get_config (const xmlChar *cfgname);
+    cfg_get_config (struct ncx_instance_t_ *instance, const xmlChar *cfgname);
 
 
 /********************************************************************
@@ -330,7 +335,7 @@ extern cfg_template_t *
 *    pointer to config name or NULL if not found
 *********************************************************************/
 extern const xmlChar *
-    cfg_get_config_name (ncx_cfg_t cfgid);
+    cfg_get_config_name (struct ncx_instance_t_ *instance, ncx_cfg_t cfgid);
 
 
 /********************************************************************
@@ -344,7 +349,7 @@ extern const xmlChar *
 *    pointer to config struct or NULL if not found
 *********************************************************************/
 extern cfg_template_t *
-    cfg_get_config_id (ncx_cfg_t cfgid);
+    cfg_get_config_id (struct ncx_instance_t_ *instance, ncx_cfg_t cfgid);
 
 
 /********************************************************************
@@ -357,7 +362,7 @@ extern cfg_template_t *
 *
 *********************************************************************/
 extern void
-    cfg_set_target (ncx_cfg_t cfg_id);
+    cfg_set_target (struct ncx_instance_t_ *instance, ncx_cfg_t cfg_id);
 
 
 /********************************************************************
@@ -370,7 +375,7 @@ extern void
 *    status
 *********************************************************************/
 extern status_t
-    cfg_fill_candidate_from_running (void);
+    cfg_fill_candidate_from_running (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -383,7 +388,7 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cfg_fill_candidate_from_startup (void);
+    cfg_fill_candidate_from_startup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -399,7 +404,7 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cfg_fill_candidate_from_inline (val_value_t *newroot);
+    cfg_fill_candidate_from_inline (struct ncx_instance_t_ *instance, val_value_t *newroot);
 
 
 /********************************************************************
@@ -412,7 +417,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    cfg_set_dirty_flag (cfg_template_t *cfg);
+    cfg_set_dirty_flag (struct ncx_instance_t_ *instance, cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -425,7 +430,7 @@ extern void
 *
 *********************************************************************/
 extern boolean
-    cfg_get_dirty_flag (const cfg_template_t *cfg);
+    cfg_get_dirty_flag (struct ncx_instance_t_ *instance, const cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -441,7 +446,7 @@ extern boolean
 *    status
 *********************************************************************/
 extern status_t
-    cfg_ok_to_lock (const cfg_template_t *cfg);
+    cfg_ok_to_lock (struct ncx_instance_t_ *instance, const cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -457,7 +462,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cfg_ok_to_unlock (const cfg_template_t *cfg,
+    cfg_ok_to_unlock (struct ncx_instance_t_ *instance,
+		      const cfg_template_t *cfg,
 		      ses_id_t sesid);
 
 
@@ -472,7 +478,7 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cfg_ok_to_read (const cfg_template_t *cfg);
+    cfg_ok_to_read (struct ncx_instance_t_ *instance, const cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -491,7 +497,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cfg_ok_to_write (const cfg_template_t *cfg,
+    cfg_ok_to_write (struct ncx_instance_t_ *instance,
+		     const cfg_template_t *cfg,
 		     ses_id_t sesid);
 
 
@@ -507,7 +514,7 @@ extern status_t
 *    TRUE if global lock active, FALSE if not
 *********************************************************************/
 extern boolean
-    cfg_is_global_locked (const cfg_template_t *cfg);
+    cfg_is_global_locked (struct ncx_instance_t_ *instance, const cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -522,7 +529,7 @@ extern boolean
 *    TRUE if partial lock active, FALSE if not
 *********************************************************************/
 extern boolean
-    cfg_is_partial_locked (const cfg_template_t *cfg);
+    cfg_is_partial_locked (struct ncx_instance_t_ *instance, const cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -543,7 +550,8 @@ extern boolean
 *    status, NCX_ERR_SKIPPED if not locked
 *********************************************************************/
 extern status_t
-    cfg_get_global_lock_info (const cfg_template_t *cfg,
+    cfg_get_global_lock_info (struct ncx_instance_t_ *instance,
+			      const cfg_template_t *cfg,
 			      ses_id_t  *sid,
 			      const xmlChar **locktime);
 
@@ -563,7 +571,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cfg_lock (cfg_template_t *cfg,
+    cfg_lock (struct ncx_instance_t_ *instance,
+	      cfg_template_t *cfg,
 	      ses_id_t locked_by,
 	      cfg_source_t  lock_src);
 
@@ -580,7 +589,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    cfg_unlock (cfg_template_t *cfg,
+    cfg_unlock (struct ncx_instance_t_ *instance,
+		cfg_template_t *cfg,
 		ses_id_t locked_by);
 
 
@@ -594,7 +604,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    cfg_release_locks (ses_id_t sesid);
+    cfg_release_locks (struct ncx_instance_t_ *instance, ses_id_t sesid);
 
 
 /********************************************************************
@@ -607,7 +617,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    cfg_release_partial_locks (ses_id_t sesid);
+    cfg_release_partial_locks (struct ncx_instance_t_ *instance, ses_id_t sesid);
 
 
 /********************************************************************
@@ -625,7 +635,8 @@ extern void
 * 
 *********************************************************************/
 extern void
-    cfg_get_lock_list (ses_id_t sesid,
+    cfg_get_lock_list (struct ncx_instance_t_ *instance,
+		       ses_id_t sesid,
 		       val_value_t *retval);
 
 
@@ -640,7 +651,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    cfg_apply_load_root (cfg_template_t *cfg,
+    cfg_apply_load_root (struct ncx_instance_t_ *instance,
+			 cfg_template_t *cfg,
 			 val_value_t *newroot);
 
 
@@ -653,7 +665,7 @@ extern void
 *    cfg == config target
 *********************************************************************/
 extern void
-    cfg_update_last_ch_time (cfg_template_t *cfg);
+    cfg_update_last_ch_time (struct ncx_instance_t_ *instance, cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -689,7 +701,8 @@ extern void
 *    is called for 'plcb'
 *********************************************************************/
 extern status_t
-    cfg_add_partial_lock (cfg_template_t *cfg,
+    cfg_add_partial_lock (struct ncx_instance_t_ *instance,
+                          cfg_template_t *cfg,
                           plock_cb_t *plcb);
 
 
@@ -707,7 +720,8 @@ extern status_t
 *   NULL if not found
 *********************************************************************/
 extern plock_cb_t *
-    cfg_find_partial_lock (cfg_template_t *cfg,
+    cfg_find_partial_lock (struct ncx_instance_t_ *instance,
+                           cfg_template_t *cfg,
                            plock_id_t lockid);
 
 
@@ -724,7 +738,7 @@ extern plock_cb_t *
 *   NULL if none exist at this time
 *********************************************************************/
 extern plock_cb_t *
-    cfg_first_partial_lock (cfg_template_t *cfg);
+    cfg_first_partial_lock (struct ncx_instance_t_ *instance, cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -740,7 +754,7 @@ extern plock_cb_t *
 *   NULL if none exist at this time
 *********************************************************************/
 extern plock_cb_t *
-    cfg_next_partial_lock (plock_cb_t *curplockcb);
+    cfg_next_partial_lock (struct ncx_instance_t_ *instance, plock_cb_t *curplockcb);
 
 
 /********************************************************************
@@ -754,7 +768,8 @@ extern plock_cb_t *
 *
 *********************************************************************/
 extern void
-    cfg_delete_partial_lock (cfg_template_t *cfg,
+    cfg_delete_partial_lock (struct ncx_instance_t_ *instance,
+                             cfg_template_t *cfg,
                              plock_id_t lockid);
 
 
@@ -771,7 +786,7 @@ extern void
 *    status
 *********************************************************************/
 extern status_t
-    cfg_ok_to_partial_lock (const cfg_template_t *cfg);
+    cfg_ok_to_partial_lock (struct ncx_instance_t_ *instance, const cfg_template_t *cfg);
 
 
 /********************************************************************
@@ -786,7 +801,7 @@ extern status_t
 *    config root or NULL if none or error
 *********************************************************************/
 extern val_value_t *
-    cfg_get_root (ncx_cfg_t cfgid);
+    cfg_get_root (struct ncx_instance_t_ *instance, ncx_cfg_t cfgid);
 
 
 #ifdef __cplusplus

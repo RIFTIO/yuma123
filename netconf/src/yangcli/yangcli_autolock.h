@@ -72,7 +72,8 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t
-    do_get_locks (server_cb_t *server_cb,
+    do_get_locks (struct ncx_instance_t_ *instance,
+                  server_cb_t *server_cb,
                   obj_template_t *rpc,
                   const xmlChar *line,
                   uint32  len);
@@ -93,7 +94,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_release_locks (server_cb_t *server_cb,
+    do_release_locks (struct ncx_instance_t_ *instance,
+                      server_cb_t *server_cb,
                       obj_template_t *rpc,
                       const xmlChar *line,
                       uint32  len);
@@ -120,7 +122,8 @@ extern status_t
 *            otherwise done is true on any error
 *********************************************************************/
 extern status_t
-    handle_get_locks_request_to_server (server_cb_t *server_cb,
+    handle_get_locks_request_to_server (struct ncx_instance_t_ *instance,
+                                        server_cb_t *server_cb,
                                         boolean first,
                                         boolean *done);
 
@@ -147,7 +150,8 @@ extern status_t
 *            otherwise done is true on any error
 *********************************************************************/
 extern status_t
-    handle_release_locks_request_to_server (server_cb_t *server_cb,
+    handle_release_locks_request_to_server (struct ncx_instance_t_ *instance,
+                                            server_cb_t *server_cb,
                                             boolean first,
                                             boolean *done);
 
@@ -165,7 +169,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    handle_locks_cleanup (server_cb_t *server_cb);
+    handle_locks_cleanup (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 
 /********************************************************************
@@ -181,7 +185,7 @@ extern void
 *   FALSE if no timeout has occurred
 *********************************************************************/
 extern boolean
-    check_locks_timeout (server_cb_t *server_cb);
+    check_locks_timeout (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 
 /********************************************************************
@@ -196,7 +200,7 @@ extern boolean
 *    status
 *********************************************************************/
 extern status_t
-    send_discard_changes_pdu_to_server (server_cb_t *server_cb);
+    send_discard_changes_pdu_to_server (struct ncx_instance_t_ *instance, server_cb_t *server_cb);
 
 
 

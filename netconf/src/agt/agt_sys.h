@@ -96,7 +96,7 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    agt_sys_init (void);
+    agt_sys_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -112,7 +112,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_sys_init2 (void);
+    agt_sys_init2 (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -126,7 +126,7 @@ extern status_t
 *   none
 *********************************************************************/
 extern void 
-    agt_sys_cleanup (void);
+    agt_sys_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -142,7 +142,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_sys_send_sysSessionStart (const ses_cb_t *scb);
+    agt_sys_send_sysSessionStart (struct ncx_instance_t_ *instance, const ses_cb_t *scb);
 
 
 /********************************************************************
@@ -161,7 +161,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_sys_send_sysSessionEnd (const ses_cb_t *scb,
+    agt_sys_send_sysSessionEnd (struct ncx_instance_t_ *instance,
+				const ses_cb_t *scb,
 				ses_term_reason_t termreason,
 				ses_id_t killedby);
 
@@ -181,7 +182,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_sys_send_sysConfigChange (const ses_cb_t *scb,
+    agt_sys_send_sysConfigChange (struct ncx_instance_t_ *instance,
+                                  const ses_cb_t *scb,
                                   dlq_hdr_t *auditrecQ);
 
 
@@ -206,7 +208,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_sys_send_sysCapabilityChange (ses_cb_t *changed_by,
+    agt_sys_send_sysCapabilityChange (struct ncx_instance_t_ *instance,
+                                      ses_cb_t *changed_by,
                                       boolean is_add,
                                       const xmlChar *capstr);
 
@@ -225,7 +228,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_sys_send_sysConfirmedCommit (const ses_cb_t *scb,
+    agt_sys_send_sysConfirmedCommit (struct ncx_instance_t_ *instance,
+                                     const ses_cb_t *scb,
                                      ncx_confirm_event_t event);
 
 #ifdef __cplusplus

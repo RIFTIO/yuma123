@@ -253,7 +253,8 @@ static void
  *   status
  *********************************************************************/
 status_t
-    yangcli_timer_start (server_cb_t *server_cb,
+    yangcli_timer_start (ncx_instance_t *instance,
+                         server_cb_t *server_cb,
                          obj_template_t *rpc,
                          const xmlChar *line,
                          uint32  len)
@@ -267,24 +268,26 @@ status_t
     timer_id = 0;
     restart_ok = FALSE;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     /* check if the 'id' field is set */
     if (res == NO_ERR) {
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_ID);
         if (parm && parm->res == NO_ERR) {
             timer_id = VAL_UINT8(parm);
         } else {
-            log_error("\nError: missing 'id' parameter");
+            log_error(instance, "\nError: missing 'id' parameter");
             res = ERR_NCX_MISSING_PARM;
         }
     }
 
     /* check if the 'restart-ok' field is set */
     if (res == NO_ERR) {
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_RESTART_OK);
         if (parm && parm->res == NO_ERR) {
@@ -296,18 +299,18 @@ status_t
 
     if (res == NO_ERR) {
         if (!restart_ok && timer_running(server_cb, timer_id)) {
-            log_error("\nError: timer '%u' is already running", timer_id);
+            log_error(instance, "\nError: timer '%u' is already running", timer_id);
             res = ERR_NCX_IN_USE;
         }
     }
 
     if (res == NO_ERR) {
         set_timer(server_cb, timer_id);
-        log_info("\nOK\n");
+        log_info(instance, "\nOK\n");
     }
 
     if (valset != NULL) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -332,7 +335,8 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    yangcli_timer_stop (server_cb_t *server_cb,
+    yangcli_timer_stop (ncx_instance_t *instance,
+                        server_cb_t *server_cb,
                         obj_template_t *rpc,
                         const xmlChar *line,
                         uint32  len)
@@ -351,31 +355,33 @@ status_t
     timer_id = 0;
     res = NO_ERR;
     imode = interactive_mode();
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
 
     if (res == NO_ERR) {
-        obj = obj_find_child(rpc, obj_get_mod_name(rpc), YANG_K_OUTPUT);
+        obj = obj_find_child(instance, rpc, obj_get_mod_name(instance, rpc), YANG_K_OUTPUT);
         if (obj == NULL) {
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else {
-            obj = obj_find_child(obj, 
-                                 obj_get_mod_name(obj), 
+            obj = obj_find_child(instance, 
+                                 obj, 
+                                 obj_get_mod_name(instance, obj), 
                                  YANGCLI_DELTA);
             if (obj == NULL) {
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
     }
 
     /* check if the 'id' field is set */
     if (res == NO_ERR) {
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_ID);
         if (parm && parm->res == NO_ERR) {
             timer_id = VAL_UINT8(parm);
         } else {
-            log_error("\nError: missing 'id' parameter");
+            log_error(instance, "\nError: missing 'id' parameter");
             res = ERR_NCX_MISSING_PARM;
         }
     }
@@ -383,7 +389,8 @@ status_t
     /* make sure timer is running */
     if (res == NO_ERR) {
         if (!timer_running(server_cb, timer_id)) {
-            log_error("\nError: timer '%u' is not running",
+            log_error(instance,
+                      "\nError: timer '%u' is not running",
                       timer_id);
             res = ERR_NCX_OPERATION_FAILED;
         }
@@ -393,7 +400,8 @@ status_t
         get_timer(server_cb, timer_id, &timerval);
 
         /* check if the 'echo' field is set */
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_ECHO);
         if (parm && parm->res == NO_ERR) {
@@ -414,36 +422,40 @@ status_t
 
         if (echo) {
             if (imode) {
-                log_stdout("\nTimer %u value: %s seconds\n", 
+                log_stdout(instance, 
+                           "\nTimer %u value: %s seconds\n", 
                            timer_id,
                            numbuff);
-                if (log_get_logfile() != NULL) {
-                    log_write("\nTimer %u value: %s seconds\n", 
+                if (log_get_logfile(instance) != NULL) {
+                    log_write(instance, 
+                              "\nTimer %u value: %s seconds\n", 
                               timer_id,
                               numbuff);
                 }
             } else {
-                log_write("\nTimer %u value: %s seconds\n", 
+                log_write(instance, 
+                          "\nTimer %u value: %s seconds\n", 
                           timer_id,
                           numbuff);
             }
         }
 
         if (server_cb->local_result != NULL) {
-            log_debug3("\nDeleting old local result");
-            val_free_value(server_cb->local_result);
+            log_debug3(instance, "\nDeleting old local result");
+            val_free_value(instance, server_cb->local_result);
         }
 
         server_cb->local_result = 
-            val_make_simval_obj(obj, numbuff, &res);
+            val_make_simval_obj(instance, obj, numbuff, &res);
         if (res != NO_ERR) {
-            log_error("\nError: set value failed (%s)",
+            log_error(instance,
+                      "\nError: set value failed (%s)",
                       get_error_string(res));
         }
     }
 
     if (valset != NULL) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     clear_timer(server_cb, timer_id);

@@ -80,7 +80,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t
-    top_command (server_cb_t *server_cb,
+    top_command (struct ncx_instance_t_ *instance,
+		 server_cb_t *server_cb,
 		 xmlChar *line);
 
 
@@ -101,7 +102,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    conn_command (server_cb_t *server_cb,
+    conn_command (struct ncx_instance_t_ *instance,
+		  server_cb_t *server_cb,
 		  xmlChar *line);
 
 
@@ -121,7 +123,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_startup_script (server_cb_t *server_cb,
+    do_startup_script (struct ncx_instance_t_ *instance,
+                       server_cb_t *server_cb,
                        const xmlChar *runscript);
 
 
@@ -138,7 +141,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_startup_command (server_cb_t *server_cb,
+    do_startup_command (struct ncx_instance_t_ *instance,
+                        server_cb_t *server_cb,
                         const xmlChar *runcommand);
 
 
@@ -163,7 +167,8 @@ extern status_t
 *   NULL if some error
 *********************************************************************/
 extern xmlChar *
-    get_cmd_line (server_cb_t *server_cb,
+    get_cmd_line (struct ncx_instance_t_ *instance,
+		  server_cb_t *server_cb,
 		  status_t *res);
 
 
@@ -189,7 +194,8 @@ extern xmlChar *
  *   status
  *********************************************************************/
 extern status_t
-    do_connect (server_cb_t *server_cb,
+    do_connect (struct ncx_instance_t_ *instance,
+		server_cb_t *server_cb,
 		obj_template_t *rpc,
 		const xmlChar *line,
 		uint32 start,
@@ -224,7 +230,8 @@ extern status_t
 *   pointer to the found definition template or NULL if not found
 *********************************************************************/
 extern void *
-    parse_def (server_cb_t *server_cb,
+    parse_def (struct ncx_instance_t_ *instance,
+	       server_cb_t *server_cb,
 	       ncx_node_t *dtyp,
 	       xmlChar *line,
 	       uint32 *len,
@@ -270,7 +277,8 @@ extern status_t
  *
  *********************************************************************/
 extern val_value_t *
-    get_valset (server_cb_t *server_cb,
+    get_valset (struct ncx_instance_t_ *instance,
+		server_cb_t *server_cb,
 		obj_template_t *rpc,
 		const xmlChar *line,
 		status_t  *res);
@@ -289,7 +297,8 @@ extern val_value_t *
  *   status
  *********************************************************************/
 extern status_t
-    do_line_recall (server_cb_t *server_cb,
+    do_line_recall (struct ncx_instance_t_ *instance,
+                    server_cb_t *server_cb,
                     unsigned long num);
 
 
@@ -306,7 +315,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_line_recall_string (server_cb_t *server_cb,
+    do_line_recall_string (struct ncx_instance_t_ *instance,
+                           server_cb_t *server_cb,
                            const xmlChar *line);
 
 #ifdef __cplusplus

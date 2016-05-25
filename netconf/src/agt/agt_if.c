@@ -197,29 +197,32 @@ static status_t
 *    pointer to the found entry or NULL if not found
 *********************************************************************/
 static val_value_t *
-    find_interface_entry (val_value_t *interfacesval,
+    find_interface_entry (ncx_instance_t *instance,
+                          val_value_t *interfacesval,
                           const xmlChar *nameptr,
                           int namelen)
 {
     val_value_t  *childval, *nameval;
 
 
-    for (childval = val_get_first_child(interfacesval);
+    for (childval = val_get_first_child(instance, interfacesval);
          childval != NULL;
-         childval = val_get_next_child(childval)) {
+         childval = val_get_next_child(instance, childval)) {
 
-        nameval = val_find_child(childval,
+        nameval = val_find_child(instance,
+                                 childval,
                                  interfaces_MOD,
                                  interfaces_N_name);
         if (nameval == NULL) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return NULL;
         }
 
-        if (!xml_strncmp(VAL_STR(nameval),
+        if (!xml_strncmp(instance,
+                         VAL_STR(nameval),
                          nameptr,
                          (uint32)namelen) &&
-            xml_strlen(VAL_STR(nameval)) == (uint32)namelen) {
+            xml_strlen(instance, VAL_STR(nameval)) == (uint32)namelen) {
             return childval;
         }
     }
@@ -246,7 +249,8 @@ static val_value_t *
 *    pointer to the new entry or NULL if malloc failed
 *********************************************************************/
 static val_value_t *
-    make_interface_entry (obj_template_t *interfaceobj,
+    make_interface_entry (ncx_instance_t *instance,
+                          obj_template_t *interfaceobj,
                           xmlChar *nameptr,
                           status_t *res)
 {
@@ -255,33 +259,34 @@ static val_value_t *
 
     *res = NO_ERR;
 
-    nameobj = obj_find_child(interfaceobj,
+    nameobj = obj_find_child(instance,
+                             interfaceobj,
                              interfaces_MOD,
                              interfaces_N_name);
     if (nameobj == NULL) {
-        *res = SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        *res = SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
         return NULL;
     }
                              
-    interfaceval = val_new_value();
+    interfaceval = val_new_value(instance);
     if (interfaceval == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_from_template(interfaceval, interfaceobj);
+    val_init_from_template(instance, interfaceval, interfaceobj);
 
-    nameval = val_make_simval_obj(nameobj, nameptr, res);
+    nameval = val_make_simval_obj(instance, nameobj, nameptr, res);
     if (nameval == NULL) {
-        val_free_value(interfaceval);
+        val_free_value(instance, interfaceval);
         return NULL;
     }
 
-    val_add_child(nameval, interfaceval);
+    val_add_child(instance, nameval, interfaceval);
 
-    *res = val_gen_index_chain(interfaceobj, interfaceval);
+    *res = val_gen_index_chain(instance, interfaceobj, interfaceval);
 
     if (*res != NO_ERR) {
-        val_free_value(interfaceval);
+        val_free_value(instance, interfaceval);
         return NULL;
     }
 
@@ -312,7 +317,8 @@ static val_value_t *
 *    some other error like ERR_INTERNAL_MEM
 *********************************************************************/
 static status_t 
-    fill_if_counters (obj_template_t *countersobj,
+    fill_if_counters (ncx_instance_t *instance,
+                      obj_template_t *countersobj,
                       val_value_t *nameval,
                       xmlChar *buffer,
                       val_value_t  *dstval)
@@ -352,7 +358,8 @@ static status_t
     }
 
     /* is this the requested interface line? */
-    if (xml_strncmp((const xmlChar *)name,
+    if (xml_strncmp(instance,
+                    (const xmlChar *)name,
                     VAL_STR(nameval),
                     (uint32)(str - name))) {
         /* not the right interface name */
@@ -365,9 +372,9 @@ static status_t
     str++;
 
     /* get the first counter object ready */
-    childobj = obj_first_child(countersobj);
+    childobj = obj_first_child(instance, countersobj);
     if (childobj == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* keep getting counters until the line runs out */
@@ -377,17 +384,17 @@ static status_t
         counter = strtoull((const char *)str, &endptr, 10);
         if (counter == 0 && str == (xmlChar *)endptr) {
             /* number conversion failed */
-            log_error("\nError: /proc/net/dev number conversion failed");
+            log_error(instance, "\nError: /proc/net/dev number conversion failed");
             return ERR_NCX_OPERATION_FAILED;
         }
 
-        childval = val_new_value();
+        childval = val_new_value(instance);
         if (childval == NULL) {
             return ERR_INTERNAL_MEM;
         }
-        val_init_from_template(childval, childobj);
+        val_init_from_template(instance, childval, childobj);
         VAL_ULONG(childval) = counter;
-        val_add_child(childval, dstval);
+        val_add_child(instance, childval, dstval);
 
         leafcount++;
 
@@ -395,7 +402,7 @@ static status_t
         if (*str == '\0' || *str == '\n') {
             done = TRUE;
         } else {
-            childobj = obj_next_child(childobj);
+            childobj = obj_next_child(instance, childobj);
             if (childobj == NULL) {
                 done = TRUE;
             }
@@ -403,7 +410,8 @@ static status_t
     }
 
     if (LOGDEBUG2) {
-        log_debug2("\nagt_if: filled %u of 16 counters for '%s'",
+        log_debug2(instance,
+                   "\nagt_if: filled %u of 16 counters for '%s'",
                    leafcount,
                    VAL_STR(nameval));
     }
@@ -425,7 +433,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t 
-    get_if_counters (ses_cb_t *scb,
+    get_if_counters (ncx_instance_t *instance,
+                     ses_cb_t *scb,
                      getcb_mode_t cbmode,
                      val_value_t *virval,
                      val_value_t  *dstval)
@@ -451,16 +460,17 @@ static status_t
     parentval = virval->parent;
     if (parentval == NULL) {
         /* the parent should be valid */
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* get the name key leaf from the parent */
-    nameval = val_find_child(parentval,
+    nameval = val_find_child(instance,
+                             parentval,
                              interfaces_MOD,
                              interfaces_N_name);
     if (nameval == NULL) {
         /* there should be a key present */
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }        
 
     /* open the /proc/net/dev file for reading */
@@ -470,7 +480,7 @@ static status_t
     }
 
     /* get a file read line buffer */
-    buffer = m__getMem(NCX_MAX_LINELEN);
+    buffer = m__getMem(instance, NCX_MAX_LINELEN);
     if (buffer == NULL) {
         fclose(countersfile);
         return ERR_INTERNAL_MEM;
@@ -496,7 +506,8 @@ static status_t
             continue;
         } 
 
-        res = fill_if_counters(countersobj,
+        res = fill_if_counters(instance,
+                               countersobj,
                                nameval, 
                                buffer, 
                                dstval);
@@ -508,7 +519,7 @@ static status_t
     }
 
     fclose(countersfile);
-    m__free(buffer);
+    m__free(instance, buffer);
 
     return res;
 
@@ -530,7 +541,7 @@ INPUTS:
 *   status
 *********************************************************************/
 static status_t
-    add_interface_entries (val_value_t *interfacesval)
+    add_interface_entries (ncx_instance_t *instance, val_value_t *interfacesval)
 {
 
     FILE                  *countersfile;
@@ -544,18 +555,20 @@ static status_t
 
     res = NO_ERR;
 
-    interfaceobj = obj_find_child(interfacesval->obj,
+    interfaceobj = obj_find_child(instance,
+                                  interfacesval->obj,
                                   interfaces_MOD,
                                   interfaces_N_interface);
     if (interfaceobj == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    countersobj = obj_find_child(interfaceobj,
+    countersobj = obj_find_child(instance,
+                                 interfaceobj,
                                  interfaces_MOD,
                                  interfaces_N_counters);
     if (countersobj == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* open the /proc/net/dev file for reading */
@@ -565,7 +578,7 @@ static status_t
     }
 
     /* get a file read line buffer */
-    buffer = m__getMem(NCX_MAX_LINELEN);
+    buffer = m__getMem(instance, NCX_MAX_LINELEN);
     if (buffer == NULL) {
         fclose(countersfile);
         return ERR_INTERNAL_MEM;
@@ -600,41 +613,44 @@ static status_t
             /* got the name string
              * see if this entry is already present
              */
-            interfaceval = find_interface_entry(interfacesval,
+            interfaceval = find_interface_entry(instance,
+                                                interfacesval,
                                                 ifname,
                                                 ifnamelen);
             if (interfaceval == NULL) {
                 /* create a new entry */
                 res = NO_ERR;
                 ifname[ifnamelen] = 0;
-                interfaceval = make_interface_entry(interfaceobj,
+                interfaceval = make_interface_entry(instance,
+                                                    interfaceobj,
                                                     ifname,
                                                     &res);
                 if (interfaceval == NULL) {
                     done = TRUE;
                     continue;
                 } else {
-                    val_add_child(interfaceval, interfacesval);
+                    val_add_child(instance, interfaceval, interfacesval);
                 }
             }
 
             /* add the counters virtual node to the entry */
-            countersval = val_new_value();
+            countersval = val_new_value(instance);
             if (countersval == NULL) {
                 res = ERR_INTERNAL_MEM;
                 done = TRUE;
                 continue;
             } else {
-                val_init_virtual(countersval,
+                val_init_virtual(instance,
+                                 countersval,
                                  get_if_counters,
                                  countersobj);
-                val_add_child(countersval, interfaceval);
+                val_add_child(instance, countersval, interfaceval);
             }
         }
     }
 
     fclose(countersfile);
-    m__free(buffer);
+    m__free(instance, buffer);
 
     return res;
 
@@ -656,16 +672,16 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    agt_if_init (void)
+    agt_if_init (ncx_instance_t *instance)
 {
     status_t       res;
     agt_profile_t *agt_profile;
 
     if (agt_if_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
-    log_debug2("\nagt: Loading interfaces module");
+    log_debug2(instance, "\nagt: Loading interfaces module");
 
     ifmod = NULL;
     agt_if_not_supported = FALSE;
@@ -673,7 +689,8 @@ status_t
     agt_profile = agt_get_profile();
 
     /* load the yuma-interfaces module */
-    res = ncxmod_load_module(interfaces_MOD,
+    res = ncxmod_load_module(instance,
+                             interfaces_MOD,
                              interfaces_MOD_REV,
                              &agt_profile->agt_savedevQ,
                              &ifmod);
@@ -681,7 +698,7 @@ status_t
     /* check if /interfaces file system supported */
     if (!is_interfaces_supported()) {
         if (LOGDEBUG) {
-            log_debug("\nagt_interfaces: no /interfaces support found");
+            log_debug(instance, "\nagt_interfaces: no /interfaces support found");
         }
         agt_if_not_supported = TRUE;
     }
@@ -704,7 +721,7 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    agt_if_init2 (void)
+    agt_if_init2 (ncx_instance_t *instance)
 {
     cfg_template_t        *runningcfg;
     obj_template_t       *interfacesobj;
@@ -714,39 +731,41 @@ status_t
     res = NO_ERR;
 
     if (!agt_if_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
-    runningcfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+    runningcfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
     if (!runningcfg || !runningcfg->root) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    interfacesobj = obj_find_template_top(ifmod, 
+    interfacesobj = obj_find_template_top(instance, 
+                                          ifmod, 
                                           interfaces_MOD,
                                           interfaces_N_interfaces);
     if (!interfacesobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     if (!agt_if_not_supported) {
 	/* check to see if the /interfaces subtree already exists */
-	interfacesval = val_find_child(runningcfg->root,
+	interfacesval = val_find_child(instance,
+				       runningcfg->root,
 				       interfaces_MOD,
 				       interfaces_N_interfaces);
 	if (interfacesval == NULL) {
 	    /* need to create the /interfaces root */
-	    interfacesval = val_new_value();
+	    interfacesval = val_new_value(instance);
 	    if (interfacesval == NULL) {
 		return ERR_INTERNAL_MEM;
 	    }
-	    val_init_from_template(interfacesval, interfacesobj);
+	    val_init_from_template(instance, interfacesval, interfacesobj);
 
 	    /* handing off the malloced memory here */
-	    val_add_child_sorted(interfacesval, runningcfg->root);
+	    val_add_child_sorted(instance, interfacesval, runningcfg->root);
 	}
 
-        res = add_interface_entries(interfacesval);
+        res = add_interface_entries(instance, interfacesval);
     }
 
     return res;

@@ -172,7 +172,7 @@ typedef struct rpc_msg_t_ {
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 extern rpc_msg_t * 
-    rpc_new_msg (void);
+    rpc_new_msg (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -187,7 +187,7 @@ extern rpc_msg_t *
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 extern rpc_msg_t * 
-    rpc_new_out_msg (void);
+    rpc_new_out_msg (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -201,7 +201,7 @@ extern rpc_msg_t *
 *   none
 *********************************************************************/
 extern void 
-    rpc_free_msg (rpc_msg_t *msg);
+    rpc_free_msg (struct ncx_instance_t_ *instance, rpc_msg_t *msg);
 
 
 #ifdef __cplusplus

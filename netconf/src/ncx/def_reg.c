@@ -87,18 +87,6 @@ date         init     comment
 #endif
 
 
-/********************************************************************
-*                                                                   *
-*                       C O N S T A N T S                           *
-*                                                                   *
-*********************************************************************/
-/* 256 row, chained entry top hash table */
-#define DR_TOP_HASH_SIZE   (hashsize(8))
-#define DR_TOP_HASH_MASK   (hashmask(8))
-
-/* random number to seed the hash function */
-#define DR_HASH_INIT       0x7e456289
-
 
 /********************************************************************
 *                                                                   *
@@ -149,12 +137,6 @@ typedef struct def_fdmap_t_ {
 *                                                                   *
 *********************************************************************/
 
-/* first tier: module header hash table */
-static dlq_hdr_t   topht[DR_TOP_HASH_SIZE];
-
-/* module init flag */
-static boolean     def_reg_init_done = FALSE;
-
 
 /********************************************************************
 * FUNCTION find_top_node_h
@@ -171,14 +153,15 @@ static boolean     def_reg_init_done = FALSE;
 *    void *to the top level entry or NULL if not found
 *********************************************************************/
 static void * 
-    find_top_node_h (def_nodetyp_t nodetyp,
+    find_top_node_h (ncx_instance_t *instance,
+                     def_nodetyp_t nodetyp,
                      const xmlChar *key,
                      uint32 *h)
 {
     uint32 len;
     def_hdr_t *hdr;
 
-    len = xml_strlen(key);
+    len = xml_strlen(instance, key);
     if (!len) {
         return NULL;
     }
@@ -189,10 +172,10 @@ static void *
     /* clear bits to fit the topht array size */
     *h &= DR_TOP_HASH_MASK;
 
-    for (hdr = (def_hdr_t *)dlq_firstEntry(&topht[*h]);
+    for (hdr = (def_hdr_t *)dlq_firstEntry(instance, &instance->topht[*h]);
          hdr != NULL;
-         hdr = (def_hdr_t *)dlq_nextEntry(hdr)) {
-        if (hdr->nodetyp==nodetyp && !xml_strcmp(key, hdr->key)) {
+         hdr = (def_hdr_t *)dlq_nextEntry(instance, hdr)) {
+        if (hdr->nodetyp==nodetyp && !xml_strcmp(instance, key, hdr->key)) {
             return (void *)hdr;
         }
     }
@@ -213,11 +196,12 @@ static void *
 *    void *to the top level entry or NULL if not found
 *********************************************************************/
 static void * 
-    find_top_node (def_nodetyp_t nodetyp,
+    find_top_node (ncx_instance_t *instance,
+                   def_nodetyp_t nodetyp,
                    const xmlChar *key)
 {
     uint32  h;
-    return find_top_node_h(nodetyp, key, &h);
+    return find_top_node_h(instance, nodetyp, key, &h);
 
 }  /* find_top_node */
 
@@ -236,7 +220,8 @@ static void *
 *    status of the operation
 *********************************************************************/
 static status_t 
-    add_top_node (def_nodetyp_t  nodetyp,
+    add_top_node (ncx_instance_t *instance,
+                  def_nodetyp_t  nodetyp,
                   const xmlChar *key, 
                   void *ptr)
 {
@@ -246,13 +231,13 @@ static status_t
     h = 0;
 
     /* check if the entry already exists */
-    top = (def_topnode_t *)find_top_node_h(nodetyp, key, &h);
+    top = (def_topnode_t *)find_top_node_h(instance, nodetyp, key, &h);
     if (top) {
         return ERR_NCX_DUP_ENTRY;
     }
 
     /* create a new def_topnode_t struct and initialize it */
-    top = m__getObj(def_topnode_t);
+    top = m__getObj(instance, def_topnode_t);
     if (top == NULL) {
         return ERR_INTERNAL_MEM;
     }
@@ -262,7 +247,7 @@ static status_t
     top->dptr = ptr;
 
     /* add the topnode to the topht */
-    dlq_enque(top, &topht[h]);
+    dlq_enque(instance, top, &instance->topht[h]);
     return NO_ERR;
 
 } /* add_top_node */
@@ -280,16 +265,16 @@ static status_t
 *    none
 *********************************************************************/
 void 
-    def_reg_init (void)
+    def_reg_init (ncx_instance_t *instance)
 {
     uint32 i;
 
-    if (!def_reg_init_done) {
+    if (!instance->def_reg_init_done) {
         /* initialize the application hash table */
         for (i=0; i<DR_TOP_HASH_SIZE; i++) {
-            dlq_createSQue(&topht[i]);
+            dlq_createSQue(instance, &instance->topht[i]);
         }
-        def_reg_init_done = TRUE;
+        instance->def_reg_init_done = TRUE;
     }  /* else already done */
 
 }  /* def_reg_init */
@@ -308,39 +293,39 @@ void
 *    none
 *********************************************************************/
 void 
-    def_reg_cleanup (void)
+    def_reg_cleanup (ncx_instance_t *instance)
 {
     uint32 i;
     def_hdr_t     *hdr;
     def_topnode_t *topnode;
 
-    if (!def_reg_init_done) {
+    if (!instance->def_reg_init_done) {
         return;
     }
 
     /* cleanup the top hash table */
     for (i=0; i<DR_TOP_HASH_SIZE; i++) {
-        while (!dlq_empty(&topht[i])) {
-            hdr = (def_hdr_t *)dlq_deque(&topht[i]);
+        while (!dlq_empty(instance, &instance->topht[i])) {
+            hdr = (def_hdr_t *)dlq_deque(instance, &instance->topht[i]);
             switch (hdr->nodetyp) {
             case DEF_NT_NSNODE:
-                m__free(hdr);
+                m__free(instance, hdr);
                 break;
             case DEF_NT_FDNODE:
                 /* free the def_fdnode_t struct first */
                 topnode = (def_topnode_t *)hdr;
-                m__free(topnode->dptr);
-                m__free(topnode);
+                m__free(instance, topnode->dptr);
+                m__free(instance, topnode);
                 break;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
-                m__free(hdr);  /* free it anyway */
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
+                m__free(instance, hdr);  /* free it anyway */
             }
         }
     }
-    (void)memset(topht, 0x0, sizeof(dlq_hdr_t)*DR_TOP_HASH_SIZE);
+    (void)memset(instance->topht, 0x0, sizeof(dlq_hdr_t)*DR_TOP_HASH_SIZE);
 
-    def_reg_init_done = FALSE;
+    instance->def_reg_init_done = FALSE;
 
 }  /* def_reg_cleanup */
 
@@ -356,15 +341,15 @@ void
 *    status of the operation
 *********************************************************************/
 status_t 
-    def_reg_add_ns (xmlns_t *ns)
+    def_reg_add_ns (ncx_instance_t *instance, xmlns_t *ns)
 {
 #ifdef DEBUG
     if (!ns) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return add_top_node(DEF_NT_NSNODE, ns->ns_name, ns);
+    return add_top_node(instance, DEF_NT_NSNODE, ns->ns_name, ns);
 
 } /* def_reg_add_ns */
 
@@ -381,18 +366,18 @@ status_t
 *    pointer to xmlns_t or NULL if not found
 *********************************************************************/
 xmlns_t * 
-    def_reg_find_ns (const xmlChar *nsname)
+    def_reg_find_ns (ncx_instance_t *instance, const xmlChar *nsname)
 {
     def_topnode_t *nsdef;
 
 #ifdef DEBUG
     if (!nsname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    nsdef = find_top_node(DEF_NT_NSNODE, nsname);
+    nsdef = find_top_node(instance, DEF_NT_NSNODE, nsname);
     return (nsdef) ? (xmlns_t *)nsdef->dptr : NULL;
 
 } /* def_reg_find_ns */
@@ -410,21 +395,21 @@ xmlns_t *
 *    none
 *********************************************************************/
 void
-    def_reg_del_ns (const xmlChar *nsname)
+    def_reg_del_ns (ncx_instance_t *instance, const xmlChar *nsname)
 {
     def_topnode_t *nsdef;
 
 #ifdef DEBUG
     if (!nsname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    nsdef = find_top_node(DEF_NT_NSNODE, nsname);
+    nsdef = find_top_node(instance, DEF_NT_NSNODE, nsname);
     if (nsdef) {
-        dlq_remove(nsdef);
-        m__free(nsdef);
+        dlq_remove(instance, nsdef);
+        m__free(instance, nsdef);
     }
 } /* def_reg_del_ns */
 
@@ -441,7 +426,8 @@ void
 *    status of the operation
 *********************************************************************/
 status_t 
-    def_reg_add_scb (int fd,
+    def_reg_add_scb (ncx_instance_t *instance,
+                     int fd,
                      ses_cb_t *scb)
 {
     def_fdmap_t *fdmap;
@@ -450,12 +436,12 @@ status_t
 
 #ifdef DEBUG
     if (!scb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* create an FD-to-SCB mapping */
-    fdmap = m__getObj(def_fdmap_t);
+    fdmap = m__getObj(instance, def_fdmap_t);
     if (!fdmap) {
         return ERR_INTERNAL_MEM;
     }
@@ -464,7 +450,7 @@ status_t
     /* get a string key */
     ret = snprintf((char *)fdmap->num, sizeof(fdmap->num), "%d", fd);
     if (ret <= 0) {
-        m__free(fdmap);
+        m__free(instance, fdmap);
         return ERR_NCX_INVALID_NUM;
     }
 
@@ -473,9 +459,9 @@ status_t
     fdmap->scb = scb;
     
     /* save the string-keyed mapping entry */
-    res = add_top_node(DEF_NT_FDNODE, fdmap->num, fdmap);
+    res = add_top_node(instance, DEF_NT_FDNODE, fdmap->num, fdmap);
     if (res != NO_ERR) {
-        m__free(fdmap);
+        m__free(instance, fdmap);
     }
     return res;
 
@@ -493,7 +479,7 @@ status_t
 *    pointer to ses_cb_t or NULL if not found
 *********************************************************************/
 ses_cb_t * 
-    def_reg_find_scb (int fd)
+    def_reg_find_scb (ncx_instance_t *instance, int fd)
 {
     def_topnode_t *fddef;
     def_fdmap_t   *fdmap;
@@ -505,7 +491,7 @@ ses_cb_t *
         return NULL;
     }
     
-    fddef = find_top_node(DEF_NT_FDNODE, buff);
+    fddef = find_top_node(instance, DEF_NT_FDNODE, buff);
     if (!fddef) {
         return NULL;
     }
@@ -526,7 +512,7 @@ ses_cb_t *
 *    none
 *********************************************************************/
 void
-    def_reg_del_scb (int fd)
+    def_reg_del_scb (ncx_instance_t *instance, int fd)
 {
     def_topnode_t *fddef;
     int            ret;
@@ -537,11 +523,11 @@ void
         return;
     }
 
-    fddef = find_top_node(DEF_NT_FDNODE, buff);
+    fddef = find_top_node(instance, DEF_NT_FDNODE, buff);
     if (fddef) {
-        dlq_remove(fddef);
-        m__free(fddef->dptr);  /* free the def_fdmap_t */
-        m__free(fddef);
+        dlq_remove(instance, fddef);
+        m__free(instance, fddef->dptr);  /* free the def_fdmap_t */
+        m__free(instance, fddef);
     }
 } /* def_reg_del_scb */
 

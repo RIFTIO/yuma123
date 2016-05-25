@@ -34,6 +34,7 @@ date         init     comment
 #include "status.h"
 #include "tstamp.h"
 #include "xml_util.h"
+#include "ncxtypes.h"
 
 
 /********************************************************************
@@ -49,21 +50,6 @@ date         init     comment
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-
-/* global logging only at this time
- * per-session logging is TBD, and would need
- * to be in the agent or mgr specific session handlers,
- * not in the ncx directory
- */
-static log_debug_t   debug_level = LOG_DEBUG_NONE;
-
-static boolean       use_tstamps, use_audit_tstamps;
-
-static FILE *logfile = NULL;
-
-static FILE *altlogfile = NULL;
-
-static FILE *auditlogfile = NULL;
 
 
 /********************************************************************
@@ -85,7 +71,8 @@ static FILE *auditlogfile = NULL;
 *    status
 *********************************************************************/
 status_t
-    log_open (const char *fname,
+    log_open (ncx_instance_t *instance,
+              const char *fname,
               boolean append,
               boolean tstamps)
 {
@@ -94,11 +81,11 @@ status_t
 
 #ifdef DEBUG
     if (!fname) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    if (logfile) {
+    if (instance->logfile) {
         return ERR_NCX_DATA_EXISTS;
     }
 
@@ -108,15 +95,15 @@ status_t
         str="w";
     }
 
-    logfile = fopen(fname, str);
-    if (!logfile) {
+    instance->logfile = fopen(fname, str);
+    if (!instance->logfile) {
         return ERR_FIL_OPEN;
     }
 
-    use_tstamps = tstamps;
+    instance->use_tstamps = tstamps;
     if (tstamps) {
-        tstamp_datetime(buff);
-        fprintf(logfile, "\n*** log open at %s ***\n", buff);
+        tstamp_datetime(instance, buff);
+        fprintf(instance->logfile, "\n*** log open at %s ***\n", buff);
     }
 
     return NO_ERR;
@@ -133,21 +120,21 @@ status_t
 *    none
 *********************************************************************/
 void
-    log_close (void)
+    log_close (ncx_instance_t *instance)
 {
     xmlChar buff[TSTAMP_MIN_SIZE];
 
-    if (!logfile) {
+    if (!instance->logfile) {
         return;
     }
 
-    if (use_tstamps) {
-        tstamp_datetime(buff);
-        fprintf(logfile, "\n*** log close at %s ***\n", buff);
+    if (instance->use_tstamps) {
+        tstamp_datetime(instance, buff);
+        fprintf(instance->logfile, "\n*** log close at %s ***\n", buff);
     }
 
-    fclose(logfile);
-    logfile = NULL;
+    fclose(instance->logfile);
+    instance->logfile = NULL;
 
 }  /* log_close */
 
@@ -171,7 +158,8 @@ void
 *    status
 *********************************************************************/
 status_t
-    log_audit_open (const char *fname,
+    log_audit_open (ncx_instance_t *instance,
+                    const char *fname,
                     boolean append,
                     boolean tstamps)
 {
@@ -180,11 +168,11 @@ status_t
 
 #ifdef DEBUG
     if (fname == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    if (auditlogfile != NULL) {
+    if (instance->auditlogfile != NULL) {
         return ERR_NCX_DATA_EXISTS;
     }
 
@@ -194,15 +182,15 @@ status_t
         str="w";
     }
 
-    auditlogfile = fopen(fname, str);
-    if (auditlogfile == NULL) {
+    instance->auditlogfile = fopen(fname, str);
+    if (instance->auditlogfile == NULL) {
         return ERR_FIL_OPEN;
     }
 
-    use_audit_tstamps = tstamps;
+    instance->use_audit_tstamps = tstamps;
     if (tstamps) {
-        tstamp_datetime(buff);
-        fprintf(auditlogfile, "\n*** audit log open at %s ***\n", buff);
+        tstamp_datetime(instance, buff);
+        fprintf(instance->auditlogfile, "\n*** audit log open at %s ***\n", buff);
     }
 
     return NO_ERR;
@@ -219,21 +207,21 @@ status_t
 *    none
 *********************************************************************/
 void
-    log_audit_close (void)
+    log_audit_close (ncx_instance_t *instance)
 {
     xmlChar buff[TSTAMP_MIN_SIZE];
 
-    if (auditlogfile == NULL) {
+    if (instance->auditlogfile == NULL) {
         return;
     }
 
-    if (use_audit_tstamps) {
-        tstamp_datetime(buff);
-        fprintf(auditlogfile, "\n*** audit log close at %s ***\n", buff);
+    if (instance->use_audit_tstamps) {
+        tstamp_datetime(instance, buff);
+        fprintf(instance->auditlogfile, "\n*** audit log close at %s ***\n", buff);
     }
 
-    fclose(auditlogfile);
-    auditlogfile = NULL;
+    fclose(instance->auditlogfile);
+    instance->auditlogfile = NULL;
 
 }  /* log_audit_close */
 
@@ -247,9 +235,9 @@ void
 *   TRUE if audit log is open; FALSE if not
 *********************************************************************/
 boolean
-    log_audit_is_open (void)
+    log_audit_is_open (ncx_instance_t *instance)
 {
-    return (auditlogfile == NULL) ? FALSE : TRUE;
+    return (instance->auditlogfile == NULL) ? FALSE : TRUE;
 
 }  /* log_audit_is_open */
 
@@ -268,24 +256,24 @@ boolean
 *    status
 *********************************************************************/
 status_t
-    log_alt_open (const char *fname)
+    log_alt_open (ncx_instance_t *instance, const char *fname)
 {
     const char *str;
 
 #ifdef DEBUG
     if (!fname) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    if (altlogfile) {
+    if (instance->altlogfile) {
         return ERR_NCX_DATA_EXISTS;
     }
 
     str="w";
 
-    altlogfile = fopen(fname, str);
-    if (!altlogfile) {
+    instance->altlogfile = fopen(fname, str);
+    if (!instance->altlogfile) {
         return ERR_FIL_OPEN;
     }
 
@@ -303,14 +291,14 @@ status_t
 *    none
 *********************************************************************/
 void
-    log_alt_close (void)
+    log_alt_close (ncx_instance_t *instance)
 {
-    if (!altlogfile) {
+    if (!instance->altlogfile) {
         return;
     }
 
-    fclose(altlogfile);
-    altlogfile = NULL;
+    fclose(instance->altlogfile);
+    instance->altlogfile = NULL;
 
 }  /* log_alt_close */
 
@@ -328,11 +316,11 @@ void
 *
 *********************************************************************/
 void 
-    log_stdout (const char *fstr, ...)
+    log_stdout (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
-    if (log_get_debug_level() == LOG_DEBUG_NONE) {
+    if (log_get_debug_level(instance) == LOG_DEBUG_NONE) {
         return;
     }
 
@@ -355,19 +343,19 @@ void
 *
 *********************************************************************/
 void 
-    log_write (const char *fstr, ...)
+    log_write (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
-    if (log_get_debug_level() == LOG_DEBUG_NONE) {
+    if (log_get_debug_level(instance) == LOG_DEBUG_NONE) {
         return;
     }
 
     va_start(args, fstr);
 
-    if (logfile) {
-        vfprintf(logfile, fstr, args);
-        fflush(logfile);
+    if (instance->logfile) {
+        vfprintf(instance->logfile, fstr, args);
+        fflush(instance->logfile);
     } else {
         vprintf(fstr, args);
         fflush(stdout);
@@ -389,15 +377,15 @@ void
 *
 *********************************************************************/
 void 
-    log_audit_write (const char *fstr, ...)
+    log_audit_write (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
     va_start(args, fstr);
 
-    if (auditlogfile != NULL) {
-        vfprintf(auditlogfile, fstr, args);
-        fflush(auditlogfile);
+    if (instance->auditlogfile != NULL) {
+        vfprintf(instance->auditlogfile, fstr, args);
+        fflush(instance->auditlogfile);
     }
 
     va_end(args);
@@ -416,15 +404,15 @@ void
 *
 *********************************************************************/
 void 
-    log_alt_write (const char *fstr, ...)
+    log_alt_write (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
     va_start(args, fstr);
 
-    if (altlogfile) {
-        vfprintf(altlogfile, fstr, args);
-        fflush(altlogfile);
+    if (instance->altlogfile) {
+        vfprintf(instance->altlogfile, fstr, args);
+        fflush(instance->altlogfile);
     }
 
     va_end(args);
@@ -443,14 +431,14 @@ void
 *
 *********************************************************************/
 void
-    log_alt_indent (int32 indentcnt)
+    log_alt_indent (ncx_instance_t *instance, int32 indentcnt)
 {
     int32  i;
 
     if (indentcnt >= 0) {
-        log_alt_write("\n");
+        log_alt_write(instance, "\n");
         for (i=0; i<indentcnt; i++) {
-            log_alt_write(" ");
+            log_alt_write(instance, " ");
         }
     }
 
@@ -466,18 +454,20 @@ void
 *   valist == any additional arguments for printf
 *
 *********************************************************************/
-void vlog_error (const char *fstr, va_list args )
+void vlog_error (ncx_instance_t *instance, const char *fstr, va_list args )
 {
-    if (log_get_debug_level() < LOG_DEBUG_ERROR) {
+    if (log_get_debug_level(instance) < LOG_DEBUG_ERROR) {
         return;
     }
 
-    if (logfile) {
-        vfprintf(logfile, fstr, args);
-        fflush(logfile);
+    if (instance->custom && instance->custom->logging_routine) {
+      instance->custom->logging_routine(instance, LOG_DEBUG_ERROR, fstr, args);
+    } else if (instance->logfile) {
+      vfprintf(instance->logfile, fstr, args);
+      fflush(instance->logfile);
     } else {
-        vprintf(fstr, args);
-        fflush(stdout);
+      vprintf(fstr, args);
+      fflush(stdout);
     }
 }  /* log_error */
 
@@ -491,12 +481,16 @@ void vlog_error (const char *fstr, va_list args )
 *   ... == any additional arguments for printf
 *
 *********************************************************************/
-void log_error (const char *fstr, ...)
+void log_error (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
     va_start(args, fstr);
 
-    vlog_error( fstr, args );
+    if (instance->custom && instance->custom->logging_routine) {
+      instance->custom->logging_routine(instance, LOG_DEBUG_ERROR, fstr, args);
+    } else {
+      vlog_error(instance,  fstr, args );
+    }
 
     va_end(args);
 }  /* log_error */
@@ -513,22 +507,24 @@ void log_error (const char *fstr, ...)
 *
 *********************************************************************/
 void 
-    log_warn (const char *fstr, ...)
+    log_warn (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
-    if (log_get_debug_level() < LOG_DEBUG_WARN) {
+    if (log_get_debug_level(instance) < LOG_DEBUG_WARN) {
         return;
     }
 
     va_start(args, fstr);
 
-    if (logfile) {
-        vfprintf(logfile, fstr, args);
-        fflush(logfile);
+    if (instance->custom && instance->custom->logging_routine) {
+      instance->custom->logging_routine(instance, LOG_DEBUG_WARN, fstr, args);
+    } else if (instance->logfile) {
+        vfprintf(instance->logfile, fstr, args);
+        fflush(instance->logfile);
     } else {
-        vprintf(fstr, args);
-        fflush(stdout);
+      vprintf(fstr, args);
+      fflush(stdout);
     }
 
     va_end(args);
@@ -547,22 +543,24 @@ void
 *
 *********************************************************************/
 void 
-    log_info (const char *fstr, ...)
+    log_info (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
-    if (log_get_debug_level() < LOG_DEBUG_INFO) {
+    if (log_get_debug_level(instance) < LOG_DEBUG_INFO) {
         return;
     }
 
     va_start(args, fstr);
 
-    if (logfile) {
-        vfprintf(logfile, fstr, args);
-        fflush(logfile);
+    if (instance->custom && instance->custom->logging_routine) {
+      instance->custom->logging_routine(instance, LOG_DEBUG_INFO, fstr, args);
+    } else if (instance->logfile) {
+      vfprintf(instance->logfile, fstr, args);
+      fflush(instance->logfile);
     } else {
-        vprintf(fstr, args);
-        fflush(stdout);
+      vprintf(fstr, args);
+      fflush(stdout);
     }
 
     va_end(args);
@@ -581,22 +579,24 @@ void
 *
 *********************************************************************/
 void 
-    log_debug (const char *fstr, ...)
+    log_debug (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
-    if (log_get_debug_level() < LOG_DEBUG_DEBUG) {
+    if (log_get_debug_level(instance) < LOG_DEBUG_DEBUG) {
         return;
     }
 
     va_start(args, fstr);
 
-    if (logfile) {
-        vfprintf(logfile, fstr, args);
-        fflush(logfile);
+    if (instance->custom && instance->custom->logging_routine) {
+      instance->custom->logging_routine(instance, LOG_DEBUG_DEBUG, fstr, args);
+    } else if (instance->logfile) {
+      vfprintf(instance->logfile, fstr, args);
+      fflush(instance->logfile);
     } else {
-        vprintf(fstr, args);
-        fflush(stdout);
+      vprintf(fstr, args);
+      fflush(stdout);
     }
 
     va_end(args);
@@ -615,22 +615,24 @@ void
 *
 *********************************************************************/
 void 
-    log_debug2 (const char *fstr, ...)
+    log_debug2 (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
-    if (log_get_debug_level() < LOG_DEBUG_DEBUG2) {
+    if (log_get_debug_level(instance) < LOG_DEBUG_DEBUG2) {
         return;
     }
 
     va_start(args, fstr);
 
-    if (logfile) {
-        vfprintf(logfile, fstr, args);
-        fflush(logfile);
+    if (instance->custom && instance->custom->logging_routine) {
+      instance->custom->logging_routine(instance, LOG_DEBUG_DEBUG2, fstr, args);
+    } else if (instance->logfile) {
+      vfprintf(instance->logfile, fstr, args);
+      fflush(instance->logfile);
     } else {
-        vprintf(fstr, args);
-        fflush(stdout);
+      vprintf(fstr, args);
+      fflush(stdout);
     }
 
     va_end(args);
@@ -649,22 +651,24 @@ void
 *
 *********************************************************************/
 void 
-    log_debug3 (const char *fstr, ...)
+    log_debug3 (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
-    if (log_get_debug_level() < LOG_DEBUG_DEBUG3) {
+    if (log_get_debug_level(instance) < LOG_DEBUG_DEBUG3) {
         return;
     }
 
     va_start(args, fstr);
 
-    if (logfile) {
-        vfprintf(logfile, fstr, args);
-        fflush(logfile);
+    if (instance->custom && instance->custom->logging_routine) {
+      instance->custom->logging_routine(instance, LOG_DEBUG_DEBUG3, fstr, args);
+    } else if (instance->logfile) {
+      vfprintf(instance->logfile, fstr, args);
+      fflush(instance->logfile);
     } else {
-        vprintf(fstr, args);
-        fflush(stdout);
+      vprintf(fstr, args);
+      fflush(stdout);
     }
 
     va_end(args);
@@ -683,22 +687,24 @@ void
 *
 *********************************************************************/
 void 
-    log_debug4 (const char *fstr, ...)
+    log_debug4 (ncx_instance_t *instance, const char *fstr, ...)
 {
     va_list args;
 
-    if (log_get_debug_level() < LOG_DEBUG_DEBUG4) {
+    if (log_get_debug_level(instance) < LOG_DEBUG_DEBUG4) {
         return;
     }
 
     va_start(args, fstr);
 
-    if (logfile) {
-        vfprintf(logfile, fstr, args);
-        fflush(logfile);
+    if (instance->custom && instance->custom->logging_routine) {
+      instance->custom->logging_routine(instance, LOG_DEBUG_DEBUG4, fstr, args);
+    } else if (instance->logfile) {
+      vfprintf(instance->logfile, fstr, args);
+      fflush(instance->logfile);
     } else {
-        vprintf(fstr, args);
-        fflush(stdout);
+      vprintf(fstr, args);
+      fflush(stdout);
     }
 
     va_end(args);
@@ -718,8 +724,9 @@ void
 *
 *********************************************************************/
 void 
-    log_noop (const char *fstr, ...)
+    log_noop (ncx_instance_t *instance, const char *fstr, ...)
 {
+    (void)instance;
     (void)fstr;
 }  /* log_noop */
 
@@ -734,19 +741,20 @@ void
 *
 *********************************************************************/
 void
-    log_set_debug_level (log_debug_t dlevel)
+    log_set_debug_level (ncx_instance_t *instance, log_debug_t dlevel)
 {
     if (dlevel > LOG_DEBUG_DEBUG4) {
         dlevel = LOG_DEBUG_DEBUG4;
     }
 
-    if (dlevel != debug_level) {
+    if (dlevel != instance->debug_level) {
 #ifdef LOG_DEBUG_TRACE
-        log_write("\n\nChanging log-level from '%s' to '%s'\n",
-                  log_get_debug_level_string(debug_level),
-                  log_get_debug_level_string(dlevel));
+        log_write(instance,
+                  "\n\nChanging log-level from '%s' to '%s'\n",
+                  log_get_debug_level_string(instance, instance->debug_level),
+                  log_get_debug_level_string(instance, dlevel));
 #endif
-        debug_level = dlevel;
+        instance->debug_level = dlevel;
     }
 
 }  /* log_set_debug_level */
@@ -761,9 +769,9 @@ void
 *   the global debug level
 *********************************************************************/
 log_debug_t
-    log_get_debug_level (void)
+    log_get_debug_level (ncx_instance_t *instance)
 {
-    return debug_level;
+    return instance->debug_level;
 
 }  /* log_get_debug_level */
 
@@ -780,30 +788,30 @@ log_debug_t
 *   the corresponding enum for the specified debug level
 *********************************************************************/
 log_debug_t
-    log_get_debug_level_enum (const char *str)
+    log_get_debug_level_enum (ncx_instance_t *instance, const char *str)
 {
 #ifdef DEBUG
     if (!str) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return LOG_DEBUG_NONE;
     }
 #endif
 
-    if (!xml_strcmp((const xmlChar *)str, LOG_DEBUG_STR_OFF)) {
+    if (!xml_strcmp(instance, (const xmlChar *)str, LOG_DEBUG_STR_OFF)) {
         return LOG_DEBUG_OFF;
-    } else if (!xml_strcmp((const xmlChar *)str, LOG_DEBUG_STR_ERROR)) {
+    } else if (!xml_strcmp(instance, (const xmlChar *)str, LOG_DEBUG_STR_ERROR)) {
         return LOG_DEBUG_ERROR;
-    } else if (!xml_strcmp((const xmlChar *)str, LOG_DEBUG_STR_WARN)) {
+    } else if (!xml_strcmp(instance, (const xmlChar *)str, LOG_DEBUG_STR_WARN)) {
         return LOG_DEBUG_WARN;
-    } else if (!xml_strcmp((const xmlChar *)str, LOG_DEBUG_STR_INFO)) {
+    } else if (!xml_strcmp(instance, (const xmlChar *)str, LOG_DEBUG_STR_INFO)) {
         return LOG_DEBUG_INFO;
-    } else if (!xml_strcmp((const xmlChar *)str, LOG_DEBUG_STR_DEBUG)) {
+    } else if (!xml_strcmp(instance, (const xmlChar *)str, LOG_DEBUG_STR_DEBUG)) {
         return LOG_DEBUG_DEBUG;
-    } else if (!xml_strcmp((const xmlChar *)str, LOG_DEBUG_STR_DEBUG2)) {
+    } else if (!xml_strcmp(instance, (const xmlChar *)str, LOG_DEBUG_STR_DEBUG2)) {
         return LOG_DEBUG_DEBUG2;
-    } else if (!xml_strcmp((const xmlChar *)str, LOG_DEBUG_STR_DEBUG3)) {
+    } else if (!xml_strcmp(instance, (const xmlChar *)str, LOG_DEBUG_STR_DEBUG3)) {
         return LOG_DEBUG_DEBUG3;
-    } else if (!xml_strcmp((const xmlChar *)str, LOG_DEBUG_STR_DEBUG4)) {
+    } else if (!xml_strcmp(instance, (const xmlChar *)str, LOG_DEBUG_STR_DEBUG4)) {
         return LOG_DEBUG_DEBUG4;
     } else {
         return LOG_DEBUG_NONE;
@@ -825,7 +833,7 @@ log_debug_t
 
 *********************************************************************/
 const xmlChar *
-    log_get_debug_level_string (log_debug_t level)
+    log_get_debug_level_string (ncx_instance_t *instance, log_debug_t level)
 {
     switch (level) {
     case LOG_DEBUG_NONE:
@@ -846,7 +854,7 @@ const xmlChar *
     case LOG_DEBUG_DEBUG4:
         return LOG_DEBUG_STR_DEBUG4;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return LOG_DEBUG_STR_OFF;
     }
     /*NOTREACHED*/
@@ -863,9 +871,9 @@ const xmlChar *
 *   TRUE if logfile open, FALSE otherwise
 *********************************************************************/
 boolean
-    log_is_open (void)
+    log_is_open (ncx_instance_t *instance)
 {
-    return (logfile) ? TRUE : FALSE;
+    return (instance->logfile) ? TRUE : FALSE;
 
 }  /* log_is_open */
 
@@ -880,14 +888,14 @@ boolean
 *
 *********************************************************************/
 void
-    log_indent (int32 indentcnt)
+    log_indent (ncx_instance_t *instance, int32 indentcnt)
 {
     int32  i;
 
     if (indentcnt >= 0) {
-        log_write("\n");
+        log_write(instance, "\n");
         for (i=0; i<indentcnt; i++) {
-            log_write(" ");
+            log_write(instance, " ");
         }
     }
 
@@ -904,14 +912,14 @@ void
 *
 *********************************************************************/
 void
-    log_stdout_indent (int32 indentcnt)
+    log_stdout_indent (ncx_instance_t *instance, int32 indentcnt)
 {
     int32  i;
 
     if (indentcnt >= 0) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
         for (i=0; i<indentcnt; i++) {
-            log_stdout(" ");
+            log_stdout(instance, " ");
         }
     }
 
@@ -929,9 +937,9 @@ void
 *   NULL if no open logfile
 *********************************************************************/
 FILE *
-    log_get_logfile (void)
+    log_get_logfile (ncx_instance_t *instance)
 {
-    return logfile;
+    return instance->logfile;
 
 }  /* log_get_logfile */
 

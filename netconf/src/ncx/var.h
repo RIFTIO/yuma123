@@ -123,7 +123,7 @@ typedef enum var_side_t_ {
 * 
 *********************************************************************/
 extern void
-    var_free (ncx_var_t *var);
+    var_free (struct ncx_instance_t_ *instance, ncx_var_t *var);
 
 
 /********************************************************************
@@ -136,7 +136,7 @@ extern void
 * 
 *********************************************************************/
 extern void
-    var_clean_varQ (dlq_hdr_t *varQ);
+    var_clean_varQ (struct ncx_instance_t_ *instance, dlq_hdr_t *varQ);
 
 
 /********************************************************************
@@ -149,7 +149,8 @@ extern void
 *   vartype == variable type to delete
 *********************************************************************/
 extern void
-    var_clean_type_from_varQ (dlq_hdr_t *varQ, 
+    var_clean_type_from_varQ (struct ncx_instance_t_ *instance, 
+                              dlq_hdr_t *varQ, 
                               var_type_t vartype);
 
 
@@ -169,7 +170,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    var_set_str (runstack_context_t *rcxt,
+    var_set_str (struct ncx_instance_t_ *instance,
+                 runstack_context_t *rcxt,
                  const xmlChar *name,
 		 uint32 namelen,
 		 const val_value_t *value,
@@ -191,7 +193,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    var_set (runstack_context_t *rcxt,
+    var_set (struct ncx_instance_t_ *instance,
+             runstack_context_t *rcxt,
              const xmlChar *name,
 	     const val_value_t *value,
 	     var_type_t vartype);
@@ -212,7 +215,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    var_set_str_que (dlq_hdr_t  *varQ,
+    var_set_str_que (struct ncx_instance_t_ *instance,
+		     dlq_hdr_t  *varQ,
 		     const xmlChar *name,
 		     uint32 namelen,
 		     const val_value_t *value);
@@ -232,7 +236,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    var_set_que (dlq_hdr_t *varQ,
+    var_set_que (struct ncx_instance_t_ *instance,
+		 dlq_hdr_t *varQ,
 		 const xmlChar *name,
 		 const val_value_t *value);
 
@@ -251,7 +256,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    var_set_move_que (dlq_hdr_t *varQ,
+    var_set_move_que (struct ncx_instance_t_ *instance,
+                      dlq_hdr_t *varQ,
                       const xmlChar *name,
                       val_value_t *value);
 
@@ -274,7 +280,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    var_set_move (runstack_context_t *rcxt,
+    var_set_move (struct ncx_instance_t_ *instance,
+                  runstack_context_t *rcxt,
                   const xmlChar *name,
 		  uint32 namelen,
 		  var_type_t vartype,
@@ -295,7 +302,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    var_set_sys (runstack_context_t *rcxt,
+    var_set_sys (struct ncx_instance_t_ *instance,
+                 runstack_context_t *rcxt,
                  const xmlChar *name,
 		 const val_value_t *value);
 
@@ -316,7 +324,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    var_set_from_string (runstack_context_t *rcxt,
+    var_set_from_string (struct ncx_instance_t_ *instance,
+                         runstack_context_t *rcxt,
                          const xmlChar *name,
 			 const xmlChar *valstr,
 			 var_type_t vartype);
@@ -339,7 +348,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    var_unset (runstack_context_t *rcxt,
+    var_unset (struct ncx_instance_t_ *instance,
+               runstack_context_t *rcxt,
                const xmlChar *name,
 	       uint32 namelen,
 	       var_type_t vartype);
@@ -358,7 +368,8 @@ extern status_t
 * 
 *********************************************************************/
 extern status_t
-    var_unset_que (dlq_hdr_t *varQ,
+    var_unset_que (struct ncx_instance_t_ *instance,
+		   dlq_hdr_t *varQ,
 		   const xmlChar *name,
 		   uint32 namelen,
 		   xmlns_id_t  nsid);
@@ -379,7 +390,8 @@ extern status_t
 *   pointer to value, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    var_get_str (runstack_context_t *rcxt,
+    var_get_str (struct ncx_instance_t_ *instance,
+                 runstack_context_t *rcxt,
                  const xmlChar *name,
 		 uint32 namelen,
 		 var_type_t vartype);
@@ -399,7 +411,8 @@ extern val_value_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    var_get (runstack_context_t *rcxt,
+    var_get (struct ncx_instance_t_ *instance,
+             runstack_context_t *rcxt,
              const xmlChar *name,
 	     var_type_t vartype);
 
@@ -420,7 +433,8 @@ extern val_value_t *
 *   var type if found, or VAR_TYP_NONE
 *********************************************************************/
 extern var_type_t
-    var_get_type_str (runstack_context_t *rcxt,
+    var_get_type_str (struct ncx_instance_t_ *instance,
+                      runstack_context_t *rcxt,
                       const xmlChar *name,
 		      uint32 namelen,
 		      boolean globalonly);
@@ -441,7 +455,8 @@ extern var_type_t
 *   var type or VAR_TYP_NONE if not found
 *********************************************************************/
 extern var_type_t
-    var_get_type (runstack_context_t *rcxt,
+    var_get_type (struct ncx_instance_t_ *instance,
+                  runstack_context_t *rcxt,
                   const xmlChar *name,
 		  boolean globalonly);
 
@@ -461,7 +476,8 @@ extern var_type_t
 *   pointer to value, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    var_get_str_que (dlq_hdr_t *varQ,
+    var_get_str_que (struct ncx_instance_t_ *instance,
+		     dlq_hdr_t *varQ,
 		     const xmlChar *name,
 		     uint32 namelen,
 		     xmlns_id_t nsid);
@@ -481,7 +497,8 @@ extern val_value_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    var_get_que (dlq_hdr_t *varQ,
+    var_get_que (struct ncx_instance_t_ *instance,
+		 dlq_hdr_t *varQ,
 		 const xmlChar *name,
 		 xmlns_id_t nsid);
 
@@ -501,7 +518,8 @@ extern val_value_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 extern ncx_var_t *
-    var_get_que_raw (dlq_hdr_t *varQ,
+    var_get_que_raw (struct ncx_instance_t_ *instance,
+		     dlq_hdr_t *varQ,
 		     xmlns_id_t  nsid,
 		     const xmlChar *name);
 
@@ -519,7 +537,8 @@ extern ncx_var_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    var_get_local (runstack_context_t *rcxt,
+    var_get_local (struct ncx_instance_t_ *instance,
+                   runstack_context_t *rcxt,
                    const xmlChar *name);
 
 
@@ -536,7 +555,8 @@ extern val_value_t *
 *   pointer to value, or NULL if not found
 *********************************************************************/
 extern val_value_t *
-    var_get_local_str (runstack_context_t *rcxt,
+    var_get_local_str (struct ncx_instance_t_ *instance,
+                       runstack_context_t *rcxt,
                        const xmlChar *name,
 		       uint32 namelen);
 
@@ -573,7 +593,8 @@ extern val_value_t *
 *    status   
 *********************************************************************/
 extern status_t
-    var_check_ref (runstack_context_t *rcxt,
+    var_check_ref (struct ncx_instance_t_ *instance,
+                   runstack_context_t *rcxt,
                    const xmlChar *line,
 		   var_side_t side,
 		   uint32   *len,
@@ -612,7 +633,8 @@ extern status_t
 *   If no error, then returns pointer to new val or filled in 'val'
 *********************************************************************/
 extern val_value_t *
-    var_get_script_val (runstack_context_t *rcxt,
+    var_get_script_val (struct ncx_instance_t_ *instance,
+                        runstack_context_t *rcxt,
                         obj_template_t *obj,
 			val_value_t *val,
 			const xmlChar *strval,
@@ -657,7 +679,8 @@ extern val_value_t *
 *   If no error, then returns pointer to new val or filled in 'val'
 *********************************************************************/
 extern val_value_t *
-    var_get_script_val_ex (runstack_context_t *rcxt,
+    var_get_script_val_ex (struct ncx_instance_t_ *instance,
+                           runstack_context_t *rcxt,
                            obj_template_t *parentobj,
                            obj_template_t *obj,
                            val_value_t *val,
@@ -695,7 +718,8 @@ extern val_value_t *
 *   If error, then returns NULL
 *********************************************************************/
 extern val_value_t *
-    var_check_script_val (runstack_context_t *rcxt,
+    var_check_script_val (struct ncx_instance_t_ *instance,
+                          runstack_context_t *rcxt,
                           obj_template_t *obj,
 			  const xmlChar *strval,
 			  boolean istop,
@@ -713,7 +737,7 @@ extern val_value_t *
 *
 *********************************************************************/
 extern void
-    var_cvt_generic (dlq_hdr_t *varQ);
+    var_cvt_generic (struct ncx_instance_t_ *instance, dlq_hdr_t *varQ);
 
 
 /********************************************************************
@@ -730,7 +754,8 @@ extern void
 *   pointer to ncx_var_t for the first match found (local or global)
 *********************************************************************/
 extern ncx_var_t *
-    var_find (runstack_context_t *rcxt,
+    var_find (struct ncx_instance_t_ *instance,
+              runstack_context_t *rcxt,
               const xmlChar *varname,
               xmlns_id_t nsid);
 

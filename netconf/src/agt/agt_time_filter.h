@@ -49,7 +49,8 @@ extern "C" {
 
 /* yuma-time-filter module init 1 */
 extern status_t
-    y_yuma_time_filter_init (
+    y_yuma_time_filter_init (struct ncx_instance_t_ *instance,
+        
         const xmlChar *modname,
         const xmlChar *revision);
 

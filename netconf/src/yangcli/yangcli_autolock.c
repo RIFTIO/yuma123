@@ -142,7 +142,7 @@ date         init     comment
 *  server_cb == server control block to use
 *********************************************************************/
 static void
-    setup_lock_cbs (server_cb_t *server_cb)
+    setup_lock_cbs (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     ses_cb_t     *scb;
     mgr_scb_t    *mscb;
@@ -150,7 +150,7 @@ static void
 
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (scb == NULL) {
-        log_error("\nError: active session dropped, cannot lock");
+        log_error(instance, "\nError: active session dropped, cannot lock");
         return;
     }
 
@@ -241,7 +241,8 @@ static boolean
 *    status
 *********************************************************************/
 static status_t
-    send_lock_pdu_to_server (server_cb_t *server_cb,
+    send_lock_pdu_to_server (ncx_instance_t *instance,
+                            server_cb_t *server_cb,
                             lock_cb_t *lockcb,
                             boolean islock)
 {
@@ -257,63 +258,67 @@ static status_t
     res = NO_ERR;
 
     if (LOGDEBUG) {
-        log_debug("\nSending <%s> request",
+        log_debug(instance,
+                  "\nSending <%s> request",
                   (islock) ? NCX_EL_LOCK : NCX_EL_UNLOCK);
     }
 
     if (islock) {
-        rpc = ncx_find_object(get_netconf_mod(server_cb), 
+        rpc = ncx_find_object(instance, 
+                              get_netconf_mod(instance, server_cb), 
                               NCX_EL_LOCK);
     } else {
-        rpc = ncx_find_object(get_netconf_mod(server_cb), 
+        rpc = ncx_find_object(instance, 
+                              get_netconf_mod(instance, server_cb), 
                               NCX_EL_UNLOCK);
     }
     if (!rpc) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    obj_nsid = obj_get_nsid(rpc);
+    obj_nsid = obj_get_nsid(instance, rpc);
 
     /* get the 'input' section container */
-    input = obj_find_child(rpc, NULL, YANG_K_INPUT);
+    input = obj_find_child(instance, rpc, NULL, YANG_K_INPUT);
     if (!input) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* construct a method + parameter tree */
-    reqdata = xml_val_new_struct(obj_get_name(rpc), obj_nsid);
+    reqdata = xml_val_new_struct(instance, obj_get_name(instance, rpc), obj_nsid);
     if (!reqdata) {
-        log_error("\nError allocating a new RPC request");
+        log_error(instance, "\nError allocating a new RPC request");
         return ERR_INTERNAL_MEM;
     }
 
     /* set the [un]lock/input/target node XML namespace */
-    targetval = xml_val_new_struct(NCX_EL_TARGET, obj_nsid);
+    targetval = xml_val_new_struct(instance, NCX_EL_TARGET, obj_nsid);
     if (!targetval) {
-        log_error("\nError allocating a new RPC request");
-        val_free_value(reqdata);
+        log_error(instance, "\nError allocating a new RPC request");
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     } else {
-        val_add_child(targetval, reqdata);
+        val_add_child(instance, targetval, reqdata);
     }
 
-    parmval = xml_val_new_flag(lockcb->config_name,
+    parmval = xml_val_new_flag(instance,
+                               lockcb->config_name,
                                obj_nsid);
     if (!parmval) {
-        val_free_value(reqdata);
+        val_free_value(instance, reqdata);
         return ERR_INTERNAL_MEM;
     } else {
-        val_add_child(parmval, targetval);
+        val_add_child(instance, parmval, targetval);
     }
 
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        res = SET_ERROR(ERR_INTERNAL_PTR);
+        res = SET_ERROR(instance, ERR_INTERNAL_PTR);
     } else {
-        req = mgr_rpc_new_request(scb);
+        req = mgr_rpc_new_request(instance, scb);
         if (!req) {
             res = ERR_INTERNAL_MEM;
-            log_error("\nError allocating a new RPC request");
+            log_error(instance, "\nError allocating a new RPC request");
         } else {
             req->data = reqdata;
             req->rpc = rpc;
@@ -324,8 +329,9 @@ static status_t
     /* if all OK, send the RPC request */
     if (res == NO_ERR) {
         if (LOGDEBUG2) {
-            log_debug2("\nabout to send RPC request with reqdata:");
-            val_dump_value_max(reqdata, 
+            log_debug2(instance, "\nabout to send RPC request with reqdata:");
+            val_dump_value_max(instance, 
+                               reqdata, 
                                0,
                                server_cb->defindent,
                                DUMP_VAL_LOG,
@@ -335,7 +341,7 @@ static status_t
         }
 
         /* the request will be stored if this returns NO_ERR */
-        res = mgr_rpc_send_request(scb, req, yangcli_reply_handler);
+        res = mgr_rpc_send_request(instance, scb, req, (mgr_rpc_cbfn_t)yangcli_reply_handler);
         if (res == NO_ERR) {
             if (islock) {
                 lockcb->lock_state = LOCK_STATE_REQUEST_SENT;
@@ -350,9 +356,9 @@ static status_t
     /* cleanup and set next state */
     if (res != NO_ERR) {
         if (req) {
-            mgr_rpc_free_request(req);
+            mgr_rpc_free_request(instance, req);
         } else if (reqdata) {
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
         }
     } else {
         server_cb->state = MGR_IO_ST_CONN_RPYWAIT;
@@ -381,7 +387,8 @@ static status_t
  *   status
  *********************************************************************/
 status_t
-    do_get_locks (server_cb_t *server_cb,
+    do_get_locks (ncx_instance_t *instance,
+                  server_cb_t *server_cb,
                   obj_template_t *rpc,
                   const xmlChar *line,
                   uint32  len)
@@ -393,17 +400,17 @@ status_t
     status_t       res;
 
     if (server_cb->locks_active) {
-        log_error("\nError: locks are already active");
+        log_error(instance, "\nError: locks are already active");
         return ERR_NCX_OPERATION_FAILED;
     }
     if (server_cb->state != MGR_IO_ST_CONN_IDLE) {
-        log_error("\nError: no active session to lock");
+        log_error(instance, "\nError: no active session to lock");
         return ERR_NCX_OPERATION_FAILED;
     }
 
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (scb == NULL) {
-        log_error("\nError: active session dropped, cannot lock");
+        log_error(instance, "\nError: active session dropped, cannot lock");
         return ERR_NCX_OPERATION_FAILED;
     }
 
@@ -413,10 +420,11 @@ status_t
 
     res = NO_ERR;
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset && res == NO_ERR) {
         /* get the overall lock timeout */
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_LOCK_TIMEOUT);
         if (parm && parm->res == NO_ERR) {
@@ -424,7 +432,8 @@ status_t
         }
 
         /* get the retry interval between failed locks */
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_RETRY_INTERVAL);
         if (parm && parm->res == NO_ERR) {
@@ -432,7 +441,8 @@ status_t
         }
 
         /* get the auto-cleanup flag */
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_CLEANUP);
         if (parm && parm->res == NO_ERR) {
@@ -441,16 +451,17 @@ status_t
     }
 
     /* start the auto-lock procedure */
-    setup_lock_cbs(server_cb);
+    setup_lock_cbs(instance, server_cb);
     server_cb->locks_timeout = locks_timeout;
     server_cb->locks_retry_interval = retry_interval;
     server_cb->locks_cleanup = cleanup;
 
     done = FALSE;
     if (LOGINFO) {
-        log_info("\nSending <lock> operations for get-locks...\n");
+        log_info(instance, "\nSending <lock> operations for get-locks...\n");
     }
-    res = handle_get_locks_request_to_server(server_cb,
+    res = handle_get_locks_request_to_server(instance,
+                                            server_cb,
                                             TRUE,
                                             &done);
     if (res != NO_ERR && done) {
@@ -459,7 +470,7 @@ status_t
     }
 
     if (valset != NULL) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -482,7 +493,8 @@ status_t
  *   status
  *********************************************************************/
 status_t
-    do_release_locks (server_cb_t *server_cb,
+    do_release_locks (ncx_instance_t *instance,
+                      server_cb_t *server_cb,
                       obj_template_t *rpc,
                       const xmlChar *line,
                       uint32  len)
@@ -494,12 +506,12 @@ status_t
     status_t       res;
 
     if (!server_cb->locks_active) {
-        log_error("\nError: locks are not active");
+        log_error(instance, "\nError: locks are not active");
         return ERR_NCX_OPERATION_FAILED;
     }
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (scb == NULL) {
-        log_error("\nError: active session dropped, cannot lock");
+        log_error(instance, "\nError: active session dropped, cannot lock");
         return ERR_NCX_OPERATION_FAILED;
     }
 
@@ -508,7 +520,7 @@ status_t
     cleanup = TRUE;
 
     res = NO_ERR;
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (res == NO_ERR || res == ERR_NCX_SKIPPED) {
 
         /* start the auto-unlock procedure */
@@ -518,12 +530,13 @@ status_t
         needed = setup_unlock_cbs(server_cb);
 
         if (LOGINFO && needed) {
-            log_info("\nSending <unlock> operations for release-locks...\n");
+            log_info(instance, "\nSending <unlock> operations for release-locks...\n");
         }
 
         if (needed) {
             done = FALSE;
-            res = handle_release_locks_request_to_server(server_cb,
+            res = handle_release_locks_request_to_server(instance,
+                                                        server_cb,
                                                         TRUE,
                                                         &done);
             if (done) {
@@ -534,7 +547,7 @@ status_t
     }
 
     if (valset != NULL) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;
@@ -563,7 +576,8 @@ status_t
 *            otherwise done is true on any error
 *********************************************************************/
 status_t
-    handle_get_locks_request_to_server (server_cb_t *server_cb,
+    handle_get_locks_request_to_server (ncx_instance_t *instance,
+                                       server_cb_t *server_cb,
                                        boolean first,
                                        boolean *done)
 {
@@ -576,7 +590,7 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !done) {
-        return  SET_ERROR(ERR_INTERNAL_PTR);
+        return  SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -590,9 +604,9 @@ status_t
     if (first) {
         /* this is the first try, start the overall timer */
         (void)time(&server_cb->locks_start_time);
-    } else if (check_locks_timeout(server_cb)) {
-        log_error("\nError: get-locks timeout");
-        handle_locks_cleanup(server_cb);
+    } else if (check_locks_timeout(instance, server_cb)) {
+        log_error(instance, "\nError: get-locks timeout");
+        handle_locks_cleanup(instance, server_cb);
         return ERR_NCX_TIMEOUT;
     }
 
@@ -610,7 +624,8 @@ status_t
             if (lockcb->lock_state == LOCK_STATE_IDLE) {
                 finddone = TRUE;
             } else if (lockcb->lock_state == LOCK_STATE_FATAL_ERROR) {
-                log_error("\nError: fatal error getting lock"
+                log_error(instance,
+                          "\nError: fatal error getting lock"
                           " on the %s config",
                           lockcb->config_name);
                 return ERR_NCX_OPERATION_FAILED;
@@ -655,7 +670,8 @@ status_t
     /* check if a <lock> request needs to be sent */
     if (finddone && lockcb) {
         server_cb->command_mode = CMD_MODE_AUTOLOCK;
-        res = send_lock_pdu_to_server(server_cb,
+        res = send_lock_pdu_to_server(instance,
+                                     server_cb,
                                      lockcb,
                                      TRUE);
     }
@@ -687,7 +703,8 @@ status_t
 *            otherwise done is true on any error
 *********************************************************************/
 status_t
-    handle_release_locks_request_to_server (server_cb_t *server_cb,
+    handle_release_locks_request_to_server (ncx_instance_t *instance,
+                                           server_cb_t *server_cb,
                                            boolean first,
                                            boolean *done)
 {
@@ -698,7 +715,7 @@ status_t
 
 #ifdef DEBUG
     if (!server_cb || !done) {
-        return  SET_ERROR(ERR_INTERNAL_PTR);
+        return  SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -710,8 +727,8 @@ status_t
     if (first) {
         server_cb->command_mode = CMD_MODE_AUTOUNLOCK;
         (void)time(&server_cb->locks_start_time);
-    } else if (check_locks_timeout(server_cb)) {
-        log_error("\nError: release-locks timeout");
+    } else if (check_locks_timeout(instance, server_cb)) {
+        log_error(instance, "\nError: release-locks timeout");
         clear_lock_cbs(server_cb);
         return ERR_NCX_TIMEOUT;
     }
@@ -733,13 +750,14 @@ status_t
     if (!finddone) {
         /* nothing to do */
         if (first) {
-            log_info("\nNo locks to release");
+            log_info(instance, "\nNo locks to release");
         }
         server_cb->state = MGR_IO_ST_CONN_IDLE;
         clear_lock_cbs(server_cb);
         *done = TRUE;
     } else {
-        res = send_lock_pdu_to_server(server_cb,
+        res = send_lock_pdu_to_server(instance,
+                                     server_cb,
                                      lockcb,
                                      FALSE);
     }
@@ -762,20 +780,20 @@ status_t
 *
 *********************************************************************/
 void
-    handle_locks_cleanup (server_cb_t *server_cb)
+    handle_locks_cleanup (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     status_t        res;
     boolean         done;
 
 #ifdef DEBUG
     if (!server_cb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    if (!use_servercb(server_cb)) {
-        log_error("\nError: connection lost, canceling release-locks");
+    if (!use_servercb(instance, server_cb)) {
+        log_error(instance, "\nError: connection lost, canceling release-locks");
         clear_lock_cbs(server_cb);
         return;
     }
@@ -783,10 +801,12 @@ void
     if (server_cb->locks_cleanup) {
         server_cb->command_mode = CMD_MODE_AUTOUNLOCK;
         done = FALSE;
-        res = handle_release_locks_request_to_server(server_cb,
+        res = handle_release_locks_request_to_server(instance,
+                                                    server_cb,
                                                     TRUE, &done);
         if (res != NO_ERR) {
-            log_error("\nError: handle lock request failed (%)",
+            log_error(instance,
+                      "\nError: handle lock request failed (%)",
                       get_error_string(res));
         }
         if (done) {
@@ -812,14 +832,14 @@ void
 *   FALSE if no timeout has occurred
 *********************************************************************/
 boolean
-    check_locks_timeout (server_cb_t *server_cb)
+    check_locks_timeout (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     time_t          timenow;
     double          timediff;
 
 #ifdef DEBUG
     if (!server_cb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -830,7 +850,7 @@ boolean
         timediff = difftime(timenow,
                             server_cb->locks_start_time);
         if (timediff >= (double)server_cb->locks_timeout) {
-            log_debug("\nlock timeout");
+            log_debug(instance, "\nlock timeout");
             return TRUE;
         }
     }
@@ -851,7 +871,7 @@ boolean
 *    status
 *********************************************************************/
 status_t
-    send_discard_changes_pdu_to_server (server_cb_t *server_cb)
+    send_discard_changes_pdu_to_server (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     obj_template_t        *rpc;
     mgr_rpc_req_t         *req;
@@ -865,33 +885,35 @@ status_t
     res = NO_ERR;
 
     if (LOGDEBUG) {
-        log_debug("\nSending <discard-changes> request");
+        log_debug(instance, "\nSending <discard-changes> request");
     }
     
-    rpc = ncx_find_object(get_netconf_mod(server_cb), 
+    rpc = ncx_find_object(instance, 
+                          get_netconf_mod(instance, server_cb), 
                           NCX_EL_DISCARD_CHANGES);
     if (!rpc) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    obj_nsid = obj_get_nsid(rpc);
+    obj_nsid = obj_get_nsid(instance, rpc);
 
     /* construct a method node */
-    reqdata = xml_val_new_flag(obj_get_name(rpc), 
+    reqdata = xml_val_new_flag(instance, 
+                               obj_get_name(instance, rpc), 
                                obj_nsid);
     if (!reqdata) {
-        log_error("\nError allocating a new RPC request");
+        log_error(instance, "\nError allocating a new RPC request");
         return ERR_INTERNAL_MEM;
     }
 
     scb = mgr_ses_get_scb(server_cb->mysid);
     if (!scb) {
-        res = SET_ERROR(ERR_INTERNAL_PTR);
+        res = SET_ERROR(instance, ERR_INTERNAL_PTR);
     } else {
-        req = mgr_rpc_new_request(scb);
+        req = mgr_rpc_new_request(instance, scb);
         if (!req) {
             res = ERR_INTERNAL_MEM;
-            log_error("\nError allocating a new RPC request");
+            log_error(instance, "\nError allocating a new RPC request");
         } else {
             req->data = reqdata;
             req->rpc = rpc;
@@ -902,8 +924,9 @@ status_t
     /* if all OK, send the RPC request */
     if (res == NO_ERR) {
         if (LOGDEBUG2) {
-            log_debug2("\nabout to send RPC request with reqdata:");
-            val_dump_value_max(reqdata, 
+            log_debug2(instance, "\nabout to send RPC request with reqdata:");
+            val_dump_value_max(instance, 
+                               reqdata, 
                                0,
                                server_cb->defindent,
                                DUMP_VAL_LOG,
@@ -913,7 +936,7 @@ status_t
         }
 
         /* the request will be stored if this returns NO_ERR */
-        res = mgr_rpc_send_request(scb, req, yangcli_reply_handler);
+        res = mgr_rpc_send_request(instance, scb, req, (mgr_rpc_cbfn_t)yangcli_reply_handler);
         if (res == NO_ERR) {
             server_cb->command_mode = CMD_MODE_AUTODISCARD;
         }
@@ -922,9 +945,9 @@ status_t
     /* cleanup and set next state */
     if (res != NO_ERR) {
         if (req) {
-            mgr_rpc_free_request(req);
+            mgr_rpc_free_request(instance, req);
         } else if (reqdata) {
-            val_free_value(reqdata);
+            val_free_value(instance, reqdata);
         }
     } else {
         server_cb->state = MGR_IO_ST_CONN_RPYWAIT;

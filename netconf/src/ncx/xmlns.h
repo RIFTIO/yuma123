@@ -54,6 +54,16 @@ extern "C" {
 *                                                                   *
 *********************************************************************/
 
+/* max registered namespaces/modules in the database
+ * increase to allow more modules loaded at once
+ * (this is an arbitrary limit)
+ */
+#define XMLNS_MAX_NS   4096
+
+#ifdef DEBUG
+#define XMLNS_DEBUG 1
+#endif
+
 #define XMLNS_NULL_NS_ID          0
 
 #define XMLNS                     ((const xmlChar *)"xmlns")
@@ -119,7 +129,7 @@ typedef struct xmlns_pmap_t_ {
 *    none
 *********************************************************************/
 extern void 
-    xmlns_init (void);
+    xmlns_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -133,7 +143,7 @@ extern void
 *    none
 *********************************************************************/
 extern void 
-    xmlns_cleanup (void);
+    xmlns_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -156,7 +166,8 @@ extern void
 *    status, NO_ERR if all okay
 *********************************************************************/
 extern status_t 
-    xmlns_register_ns (const xmlChar *ns,
+    xmlns_register_ns (struct ncx_instance_t_ *instance,
+		       const xmlChar *ns,
 		       const xmlChar *pfix,
 		       const xmlChar *modname,
 		       void *modptr,
@@ -174,7 +185,7 @@ extern status_t
 *    pointer to prefix or NULL if bad params
 *********************************************************************/
 extern const xmlChar * 
-    xmlns_get_ns_prefix (xmlns_id_t ns_id);
+    xmlns_get_ns_prefix (struct ncx_instance_t_ *instance, xmlns_id_t ns_id);
 
 
 /********************************************************************
@@ -188,7 +199,7 @@ extern const xmlChar *
 *    pointer to name or NULL if bad params
 *********************************************************************/
 extern const xmlChar * 
-    xmlns_get_ns_name (xmlns_id_t ns_id);
+    xmlns_get_ns_name (struct ncx_instance_t_ *instance, xmlns_id_t ns_id);
 
 
 /********************************************************************
@@ -203,7 +214,7 @@ extern const xmlChar *
 *    namespace ID or XMLNS_NULL_NS_ID if error
 *********************************************************************/
 extern xmlns_id_t
-    xmlns_find_ns_by_module (const xmlChar *modname);
+    xmlns_find_ns_by_module (struct ncx_instance_t_ *instance, const xmlChar *modname);
 
 
 /********************************************************************
@@ -217,7 +228,7 @@ extern xmlns_id_t
 *    namespace ID or XMLNS_NULL_NS_ID if error
 *********************************************************************/
 extern xmlns_id_t  
-    xmlns_find_ns_by_prefix (const xmlChar *pfix);
+    xmlns_find_ns_by_prefix (struct ncx_instance_t_ *instance, const xmlChar *pfix);
 
 
 /********************************************************************
@@ -231,7 +242,7 @@ extern xmlns_id_t
 *    namespace ID or XMLNS_NULL_NS_ID if error
 *********************************************************************/
 extern xmlns_id_t  
-    xmlns_find_ns_by_name (const xmlChar *name);
+    xmlns_find_ns_by_name (struct ncx_instance_t_ *instance, const xmlChar *name);
 
 
 /********************************************************************
@@ -247,7 +258,8 @@ extern xmlns_id_t
 *    namespace ID or XMLNS_NULL_NS_ID if error
 *********************************************************************/
 extern xmlns_id_t  
-    xmlns_find_ns_by_name_str (const xmlChar *name,
+    xmlns_find_ns_by_name_str (struct ncx_instance_t_ *instance,
+			       const xmlChar *name,
 			       uint32 namelen);
 
 
@@ -262,7 +274,7 @@ extern xmlns_id_t
 *    NETCONF NS ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t  
-    xmlns_nc_id (void);
+    xmlns_nc_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -276,7 +288,7 @@ extern xmlns_id_t
 *    NETCONF-X NS ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t  
-    xmlns_ncx_id (void);
+    xmlns_ncx_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -290,7 +302,7 @@ extern xmlns_id_t
 *    XMLNS NS ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t  
-    xmlns_ns_id (void);
+    xmlns_ns_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -304,7 +316,7 @@ extern xmlns_id_t
 *    INVALID NS ID or 0 if not set yet
 *********************************************************************/
 extern xmlns_id_t  
-    xmlns_inv_id (void);
+    xmlns_inv_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -318,7 +330,7 @@ extern xmlns_id_t
 *    XSD NS ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t 
-    xmlns_xs_id (void);
+    xmlns_xs_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -332,7 +344,7 @@ extern xmlns_id_t
 *    XSI ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t 
-    xmlns_xsi_id (void);
+    xmlns_xsi_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -346,7 +358,7 @@ extern xmlns_id_t
 *    XML ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t 
-    xmlns_xml_id (void);
+    xmlns_xml_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -361,7 +373,7 @@ extern xmlns_id_t
 *    NCN ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t 
-    xmlns_ncn_id (void);
+    xmlns_ncn_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -376,7 +388,7 @@ extern xmlns_id_t
 *    YANG ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t 
-    xmlns_yang_id (void);
+    xmlns_yang_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -391,7 +403,7 @@ extern xmlns_id_t
 *    YIN ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t 
-    xmlns_yin_id (void);
+    xmlns_yin_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -406,7 +418,7 @@ extern xmlns_id_t
 *    Wildcard ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t 
-    xmlns_wildcard_id (void);
+    xmlns_wildcard_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -421,7 +433,7 @@ extern xmlns_id_t
 *    with-defaults default attribute namespace ID or 0 if not found
 *********************************************************************/
 extern xmlns_id_t 
-    xmlns_wda_id (void);
+    xmlns_wda_id (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -436,7 +448,7 @@ extern xmlns_id_t
 *    none
 *********************************************************************/
 extern const xmlChar *
-    xmlns_get_module (xmlns_id_t  nsid);
+    xmlns_get_module (struct ncx_instance_t_ *instance, xmlns_id_t  nsid);
 
 
 /********************************************************************
@@ -450,7 +462,7 @@ extern const xmlChar *
 *    void * cast of the module or NULL
 *********************************************************************/
 extern void *
-    xmlns_get_modptr (xmlns_id_t nsid);
+    xmlns_get_modptr (struct ncx_instance_t_ *instance, xmlns_id_t nsid);
 
 
 /********************************************************************
@@ -464,7 +476,8 @@ extern void *
 *
 *********************************************************************/
 extern void
-    xmlns_set_modptrs (const xmlChar *modname,
+    xmlns_set_modptrs (struct ncx_instance_t_ *instance,
+		       const xmlChar *modname,
 		       void *modptr);
 
 
@@ -481,7 +494,7 @@ extern void
 *    pointer to new struct or NULL if malloc error
 *********************************************************************/
 extern xmlns_pmap_t *
-    xmlns_new_pmap (uint32 buffsize);
+    xmlns_new_pmap (struct ncx_instance_t_ *instance, uint32 buffsize);
 
 
 /********************************************************************
@@ -494,7 +507,7 @@ extern xmlns_pmap_t *
 *
 *********************************************************************/
 extern void
-    xmlns_free_pmap (xmlns_pmap_t *pmap);
+    xmlns_free_pmap (struct ncx_instance_t_ *instance, xmlns_pmap_t *pmap);
 
 
 /********************************************************************
@@ -506,7 +519,7 @@ extern void
 *    pointer to new struct or NULL if malloc error
 *********************************************************************/
 extern xmlns_qname_t *
-    xmlns_new_qname (void);
+    xmlns_new_qname (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -519,7 +532,7 @@ extern xmlns_qname_t *
 *
 *********************************************************************/
 extern void
-    xmlns_free_qname (xmlns_qname_t *qname);
+    xmlns_free_qname (struct ncx_instance_t_ *instance, xmlns_qname_t *qname);
 
 
 /********************************************************************

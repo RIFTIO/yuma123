@@ -162,7 +162,7 @@ typedef struct agt_acm_cache_t_ {
 *   status of the initialization procedure
 *********************************************************************/
 extern status_t 
-    agt_acm_init (void);
+    agt_acm_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -177,7 +177,7 @@ extern status_t
 *   status of the initialization procedure
 *********************************************************************/
 extern status_t 
-    agt_acm_init2 (void);
+    agt_acm_init2 (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -187,7 +187,7 @@ extern status_t
 * 
 *********************************************************************/
 extern void 
-    agt_acm_cleanup (void);
+    agt_acm_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -204,7 +204,8 @@ extern void
 *   TRUE if user allowed invoke this RPC; FALSE otherwise
 *********************************************************************/
 extern boolean 
-    agt_acm_rpc_allowed (xml_msg_hdr_t *msg,
+    agt_acm_rpc_allowed (struct ncx_instance_t_ *instance,
+			 xml_msg_hdr_t *msg,
 			 const xmlChar *user,
 			 const obj_template_t *rpcobj);
 
@@ -224,7 +225,8 @@ extern boolean
 *   FALSE otherwise
 *********************************************************************/
 extern boolean 
-    agt_acm_notif_allowed (const xmlChar *user,
+    agt_acm_notif_allowed (struct ncx_instance_t_ *instance,
+                           const xmlChar *user,
                            const obj_template_t *notifobj);
 
 
@@ -248,7 +250,8 @@ extern boolean
 *   TRUE if user allowed this level of access to the value node
 *********************************************************************/
 extern boolean 
-    agt_acm_val_write_allowed (xml_msg_hdr_t *msg,
+    agt_acm_val_write_allowed (struct ncx_instance_t_ *instance,
+			       xml_msg_hdr_t *msg,
 			       const xmlChar *user,
 			       const val_value_t *newval,
 			       const val_value_t *curval,
@@ -269,7 +272,8 @@ extern boolean
 *   TRUE if user allowed read access to the value node
 *********************************************************************/
 extern boolean 
-    agt_acm_val_read_allowed (xml_msg_hdr_t *msg,
+    agt_acm_val_read_allowed (struct ncx_instance_t_ *instance,
+			      xml_msg_hdr_t *msg,
 			      const xmlChar *user,
 			      const val_value_t *val);
 
@@ -292,7 +296,8 @@ extern boolean
 *   status
 *********************************************************************/
 extern status_t
-    agt_acm_init_msg_cache (ses_cb_t *scb,
+    agt_acm_init_msg_cache (struct ncx_instance_t_ *instance,
+                            ses_cb_t *scb,
                             xml_msg_hdr_t *msg);
 
 
@@ -325,7 +330,7 @@ extern void
 *   scb->acm_cache pointer is freed and set to NULL
 *
 *********************************************************************/
-extern void agt_acm_clear_session_cache (ses_cb_t *scb);
+extern void agt_acm_clear_session_cache (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -370,7 +375,7 @@ extern boolean
 *   FALSE if session is not for the superuser
 *********************************************************************/
 extern boolean
-    agt_acm_session_is_superuser (const ses_cb_t *scb);
+    agt_acm_session_is_superuser (struct ncx_instance_t_ *instance, const ses_cb_t *scb);
 
 
 #ifdef __cplusplus

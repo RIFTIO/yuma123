@@ -93,7 +93,8 @@ extern "C" {
 *    status
 *********************************************************************/
 extern status_t 
-    mgr_val_parse (ses_cb_t  *scb,
+    mgr_val_parse (struct ncx_instance_t_ *instance,
+		   ses_cb_t  *scb,
 		   obj_template_t *obj,
 		   const xml_node_t *startnode,
 		   val_value_t  *retval);
@@ -132,7 +133,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    mgr_val_parse_reply (ses_cb_t  *scb,
+    mgr_val_parse_reply (struct ncx_instance_t_ *instance,
+			 ses_cb_t  *scb,
 			 obj_template_t *obj,
 			 obj_template_t *rpc,
 			 const xml_node_t *startnode,
@@ -163,7 +165,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t 
-    mgr_val_parse_notification (ses_cb_t  *scb,
+    mgr_val_parse_notification (struct ncx_instance_t_ *instance,
+				ses_cb_t  *scb,
 				obj_template_t *notobj,
 				const xml_node_t *startnode,
 				val_value_t  *retval);

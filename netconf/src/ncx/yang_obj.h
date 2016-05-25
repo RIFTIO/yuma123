@@ -199,7 +199,8 @@ extern "C" {
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_consume_datadef (yang_pcb_t *pcb,
+    yang_obj_consume_datadef (struct ncx_instance_t_ *instance,
+                              yang_pcb_t *pcb,
                               tk_chain_t *tkc,
 			      ncx_module_t  *mod,
 			      dlq_hdr_t *que,
@@ -232,7 +233,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_consume_datadef_grp (yang_pcb_t *pcb,
+    yang_obj_consume_datadef_grp (struct ncx_instance_t_ *instance,
+                                  yang_pcb_t *pcb,
                                   tk_chain_t *tkc,
 				  ncx_module_t  *mod,
 				  dlq_hdr_t *que,
@@ -265,7 +267,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_consume_rpc (yang_pcb_t *pcb,
+    yang_obj_consume_rpc (struct ncx_instance_t_ *instance,
+                          yang_pcb_t *pcb,
                           tk_chain_t *tkc,
 			  ncx_module_t  *mod);
 
@@ -293,7 +296,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_consume_notification (yang_pcb_t *pcb,
+    yang_obj_consume_notification (struct ncx_instance_t_ *instance,
+                                   yang_pcb_t *pcb,
                                    tk_chain_t *tkc,
 				   ncx_module_t  *mod);
 
@@ -320,7 +324,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_consume_augment (yang_pcb_t *pcb,
+    yang_obj_consume_augment (struct ncx_instance_t_ *instance,
+                              yang_pcb_t *pcb,
                               tk_chain_t *tkc,
 			      ncx_module_t  *mod);
 
@@ -349,7 +354,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_consume_deviation (yang_pcb_t *pcb,
+    yang_obj_consume_deviation (struct ncx_instance_t_ *instance,
+                                yang_pcb_t *pcb,
                                 tk_chain_t *tkc,
 				ncx_module_t  *mod);
 
@@ -376,7 +382,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_resolve_datadefs (yang_pcb_t *pcb,
+    yang_obj_resolve_datadefs (struct ncx_instance_t_ *instance,
+                               yang_pcb_t *pcb,
                                tk_chain_t *tkc,
 			       ncx_module_t  *mod,
 			       dlq_hdr_t *datadefQ);
@@ -407,7 +414,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_resolve_uses (yang_pcb_t *pcb,
+    yang_obj_resolve_uses (struct ncx_instance_t_ *instance,
+                           yang_pcb_t *pcb,
                            tk_chain_t *tkc,
 			   ncx_module_t  *mod,
 			   dlq_hdr_t *datadefQ);
@@ -435,7 +443,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_resolve_augments (yang_pcb_t *pcb,
+    yang_obj_resolve_augments (struct ncx_instance_t_ *instance,
+                               yang_pcb_t *pcb,
                                tk_chain_t *tkc,
 			       ncx_module_t  *mod,
 			       dlq_hdr_t *datadefQ);
@@ -463,7 +472,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_resolve_augments_final (yang_pcb_t *pcb,
+    yang_obj_resolve_augments_final (struct ncx_instance_t_ *instance,
+                                     yang_pcb_t *pcb,
                                      tk_chain_t *tkc,
                                      ncx_module_t *mod,
                                      dlq_hdr_t *datadefQ);
@@ -487,7 +497,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_resolve_deviations (yang_pcb_t *pcb,
+    yang_obj_resolve_deviations (struct ncx_instance_t_ *instance,
+				 yang_pcb_t *pcb,
 				 tk_chain_t *tkc,
 				 ncx_module_t  *mod);
 
@@ -516,7 +527,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_resolve_final (yang_pcb_t *pcb,
+    yang_obj_resolve_final (struct ncx_instance_t_ *instance,
+                            yang_pcb_t *pcb,
                             tk_chain_t *tkc,
 			    ncx_module_t  *mod,
 			    dlq_hdr_t *datadefQ,
@@ -546,7 +558,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_top_resolve_final (yang_pcb_t *pcb,
+    yang_obj_top_resolve_final (struct ncx_instance_t_ *instance,
+                                yang_pcb_t *pcb,
                                 tk_chain_t *tkc,
                                 ncx_module_t  *mod,
                                 dlq_hdr_t *datadefQ);
@@ -577,7 +590,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_resolve_xpath (tk_chain_t *tkc,
+    yang_obj_resolve_xpath (struct ncx_instance_t_ *instance,
+			    tk_chain_t *tkc,
 			    ncx_module_t  *mod,
 			    dlq_hdr_t *datadefQ);
 
@@ -600,7 +614,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_resolve_xpath_final (yang_pcb_t *pcb,
+    yang_obj_resolve_xpath_final (struct ncx_instance_t_ *instance,
+                                  yang_pcb_t *pcb,
                                   tk_chain_t *tkc,
                                   ncx_module_t *mod,
                                   dlq_hdr_t *datadefQ);
@@ -624,7 +639,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_obj_check_leafref_loops (tk_chain_t *tkc,
+    yang_obj_check_leafref_loops (struct ncx_instance_t_ *instance,
+				  tk_chain_t *tkc,
 				  ncx_module_t  *mod,
 				  dlq_hdr_t *datadefQ);
 
@@ -644,7 +660,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    yang_obj_remove_deleted_nodes (yang_pcb_t *pcb,
+    yang_obj_remove_deleted_nodes (struct ncx_instance_t_ *instance,
+                                   yang_pcb_t *pcb,
                                    tk_chain_t *tkc,
                                    ncx_module_t *mod,
                                    dlq_hdr_t *datadefQ);

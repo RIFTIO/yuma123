@@ -142,9 +142,9 @@ date         init     comment
 *   scb == session control block to use 
 *********************************************************************/
 static void
-    write_empty_col (ses_cb_t *scb)
+    write_empty_col (ncx_instance_t *instance, ses_cb_t *scb)
 {
-    ses_putstr(scb, (const xmlChar *)"\n    '',");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '',");
 
 } /* write_empty_col */
 
@@ -160,14 +160,15 @@ static void
 *   cstr == content string to write
 *********************************************************************/
 static void
-    write_cstring (ses_cb_t *scb,
+    write_cstring (ncx_instance_t *instance,
+                   ses_cb_t *scb,
                    const xmlChar *cstr)
 {
     while (*cstr) {
         if (*cstr == '\'') {
-            ses_putchar(scb, '\\');
+            ses_putchar(instance, scb, '\\');
         }
-        ses_putchar(scb, *cstr);
+        ses_putchar(instance, scb, *cstr);
         cstr++;
     }
 
@@ -186,15 +187,16 @@ static void
 *   count == max number of characters to write
 *********************************************************************/
 static void
-    write_cstring_n (ses_cb_t *scb,
+    write_cstring_n (ncx_instance_t *instance,
+                     ses_cb_t *scb,
                      const xmlChar *cstr,
                      uint32 count)
 {
     while (*cstr && count) {
         if (*cstr == '\'') {
-            ses_putchar(scb, '\\');
+            ses_putchar(instance, scb, '\\');
         }
-        ses_putchar(scb, *cstr);
+        ses_putchar(instance, scb, *cstr);
         cstr++;
         count--;
     }
@@ -212,20 +214,21 @@ static void
 *   buff == malloced buff to use
 *********************************************************************/
 static void
-    write_end_tstamps (ses_cb_t *scb,
+    write_end_tstamps (ncx_instance_t *instance,
+                       ses_cb_t *scb,
                        char *buff)
 {
 
     /* column: created_on */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    tstamp_datetime_sql((xmlChar *)buff);
-    ses_putstr(scb, (const xmlChar *)buff);
-    ses_putstr(scb, (const xmlChar *)"', ");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    tstamp_datetime_sql(instance, (xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)"', ");
 
     /* column: updated_on */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    ses_putstr(scb, (const xmlChar *)buff);
-    ses_putchar(scb, '\'');
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    ses_putstr(instance, scb, (const xmlChar *)buff);
+    ses_putchar(instance, scb, '\'');
 
 } /* write_end_tstamps */
 
@@ -246,7 +249,8 @@ static void
 *              to make the URLs unique (instead of broken)
 *********************************************************************/
 static void
-    write_docurl (ses_cb_t *scb,
+    write_docurl (ncx_instance_t *instance,
+                  ses_cb_t *scb,
                   const ncx_module_t *mod,
                   const yangdump_cvtparms_t *cp,
                   const xmlChar *fragname,
@@ -256,43 +260,43 @@ static void
 
     /* column: docurl */
     if (cp->urlstart && *cp->urlstart) {
-        ses_putstr(scb, (const xmlChar *)"\n    '/modules/");
+        ses_putstr(instance, scb, (const xmlChar *)"\n    '/modules/");
     } else {
-        ses_putstr(scb, (const xmlChar *)"\n    ");
+        ses_putstr(instance, scb, (const xmlChar *)"\n    ");
     }
     if (cp->unified && !mod->ismod) {
-        ses_putstr(scb, mod->belongs);
+        ses_putstr(instance, scb, mod->belongs);
     } else {
-        ses_putstr(scb, mod->name);
+        ses_putstr(instance, scb, mod->name);
     }
     if (cp->versionnames && mod->version) {
         if (cp->simurls) {
-            ses_putchar(scb, NCXMOD_PSCHAR);
+            ses_putchar(instance, scb, NCXMOD_PSCHAR);
         } else {            
-            ses_putchar(scb, YANG_FILE_SEPCHAR);
+            ses_putchar(instance, scb, YANG_FILE_SEPCHAR);
         }
-        ses_putstr(scb, mod->version);
+        ses_putstr(instance, scb, mod->version);
     }
     if (!cp->simurls) {
-        ses_putstr(scb, (const xmlChar *)".html");
+        ses_putstr(instance, scb, (const xmlChar *)".html");
     }
     if (fragname) {
-        ses_putchar(scb, '#');
+        ses_putchar(instance, scb, '#');
         if (cp->unified && !mod->ismod) {
             /* add the submodule to the fragment ID since
              * the line numbers may collide with another definition
              * on the same line in 2 different submodules
              */
-            ses_putstr(scb, mod->name);
-            ses_putchar(scb, '.');
+            ses_putstr(instance, scb, mod->name);
+            ses_putchar(instance, scb, '.');
         }
-        ses_putstr(scb, fragname);
+        ses_putstr(instance, scb, fragname);
         if (linenum) {
             sprintf(numbuff, ".%u", linenum);
-            ses_putstr(scb, (const xmlChar *)numbuff);
+            ses_putstr(instance, scb, (const xmlChar *)numbuff);
         }
     }
-    ses_putstr(scb, (const xmlChar *)"', ");
+    ses_putstr(instance, scb, (const xmlChar *)"', ");
 
 } /* write_docurl */
 
@@ -311,7 +315,8 @@ static void
 *   buff == scratch buff to use
 *********************************************************************/
 static void
-    write_first_tuple (ses_cb_t *scb,
+    write_first_tuple (ncx_instance_t *instance,
+                       ses_cb_t *scb,
                        const ncx_module_t *mod,
                        const xmlChar *name,
                        uint32 linenum,
@@ -324,7 +329,7 @@ static void
             (mod->version) ? mod->version : NCX_EL_NONE,
             name, 
             linenum);
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
 } /* write_first_tuple */
 
@@ -340,20 +345,21 @@ static void
 *   ref == reference string to use (may be NULL)
 *********************************************************************/
 static void
-    write_descr_ref (ses_cb_t *scb,
+    write_descr_ref (ncx_instance_t *instance,
+                     ses_cb_t *scb,
                      const xmlChar *descr,
                      const xmlChar *ref)
 {
 
     /* column: description */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    write_cstring(scb, (descr) ? descr : EMPTY_STRING);
-    ses_putstr(scb, (const xmlChar *)"',");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    write_cstring(instance, scb, (descr) ? descr : EMPTY_STRING);
+    ses_putstr(instance, scb, (const xmlChar *)"',");
 
     /* column: reference */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    write_cstring(scb, (ref) ? ref : EMPTY_STRING);
-    ses_putstr(scb, (const xmlChar *)"',");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    write_cstring(instance, scb, (ref) ? ref : EMPTY_STRING);
+    ses_putstr(instance, scb, (const xmlChar *)"',");
 
 } /* write_descr_ref */
 
@@ -370,25 +376,26 @@ static void
 *
 *********************************************************************/
 static void
-    write_object_list (ses_cb_t *scb,
+    write_object_list (ncx_instance_t *instance,
+                       ses_cb_t *scb,
                        const dlq_hdr_t *datadefQ)
 {
     obj_template_t   *obj, *nextobj;
 
     /* column: object list */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    for (obj = (obj_template_t *)dlq_firstEntry(datadefQ);
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, datadefQ);
          obj != NULL; obj = nextobj) {
-        nextobj = (obj_template_t *)dlq_nextEntry(obj);
-        if (obj_has_name(obj)) {
-            ses_putstr(scb, obj_get_name(obj));
-            if (nextobj && obj_has_name(nextobj)) {
-                ses_putchar(scb, ' ');
+        nextobj = (obj_template_t *)dlq_nextEntry(instance, obj);
+        if (obj_has_name(instance, obj)) {
+            ses_putstr(instance, scb, obj_get_name(instance, obj));
+            if (nextobj && obj_has_name(instance, nextobj)) {
+                ses_putchar(instance, scb, ' ');
             }
         }
     }
 
-    ses_putstr(scb, (const xmlChar *)"',");
+    ses_putstr(instance, scb, (const xmlChar *)"',");
 
 } /* write_object_list */
 
@@ -406,31 +413,34 @@ static void
 *
 *********************************************************************/
 static void
-    write_object_id (ses_cb_t *scb,
+    write_object_id (ncx_instance_t *instance,
+                     ses_cb_t *scb,
                      const obj_template_t *obj,
                      char *buff)
 {
     status_t   res;
     uint32     retlen;
 
-    res = obj_copy_object_id(obj, (xmlChar *)buff, 
+    res = obj_copy_object_id(instance, obj, (xmlChar *)buff, 
                              SQL_BUFFSIZE, &retlen);
     if (res != NO_ERR) {
         /* may ruin the SQL output to SSTDOUT */
-        log_error("\nError: Write SQL Object ID %s failed",
-                  obj_get_name(obj));
+        log_error(instance,
+                  "\nError: Write SQL Object ID %s failed",
+                  obj_get_name(instance, obj));
         return;
     }
 
     if (retlen > MAX_OBJECTID_LEN) {
-        log_error("\nError: Write SQL Object ID %s too big (%u)",
-                  obj_get_name(obj), retlen);
+        log_error(instance,
+                  "\nError: Write SQL Object ID %s too big (%u)",
+                  obj_get_name(instance, obj), retlen);
         return;
     }
 
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    ses_putstr(scb, (const xmlChar *)buff);
-    ses_putstr(scb, (const xmlChar *)"',");    
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    ses_putstr(instance, scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)"',");    
 
 } /* write_object_id */
 
@@ -446,46 +456,47 @@ static void
 *
 *********************************************************************/
 static void
-    write_banner (const ncx_module_t *mod,
+    write_banner (ncx_instance_t *instance,
+                  const ncx_module_t *mod,
                   ses_cb_t *scb)
 {
     status_t       res;
     xmlChar        buffer[NCX_VERSION_BUFFSIZE];
 
-    ses_putstr(scb, (const xmlChar *)"\n#");
-    ses_putstr(scb, (const xmlChar *)"\n# Generated by yangdump version ");
-    res = ncx_get_version(buffer, NCX_VERSION_BUFFSIZE);
+    ses_putstr(instance, scb, (const xmlChar *)"\n#");
+    ses_putstr(instance, scb, (const xmlChar *)"\n# Generated by yangdump version ");
+    res = ncx_get_version(instance, buffer, NCX_VERSION_BUFFSIZE);
     if (res == NO_ERR) {
-        ses_putstr(scb, buffer);
+        ses_putstr(instance, scb, buffer);
     } else {
-        SET_ERROR(res);
+        SET_ERROR(instance, res);
     }
 
-    ses_putstr(scb, (const xmlChar *)"\n#");
-    ses_putstr(scb, (const xmlChar *)"\n# mySQL database: netconfcentral");
-    ses_putstr(scb, (const xmlChar *)"\n# source: ");
-    ses_putstr(scb, mod->source);
+    ses_putstr(instance, scb, (const xmlChar *)"\n#");
+    ses_putstr(instance, scb, (const xmlChar *)"\n# mySQL database: netconfcentral");
+    ses_putstr(instance, scb, (const xmlChar *)"\n# source: ");
+    ses_putstr(instance, scb, mod->source);
 
     if (mod->ismod) {
-        ses_putstr(scb, (const xmlChar *)"\n# module: ");
+        ses_putstr(instance, scb, (const xmlChar *)"\n# module: ");
     } else {
-        ses_putstr(scb, (const xmlChar *)"\n# submodule: ");
+        ses_putstr(instance, scb, (const xmlChar *)"\n# submodule: ");
     }
-    ses_putstr(scb, mod->name);
+    ses_putstr(instance, scb, mod->name);
 
     if (!mod->ismod) {
-        ses_putstr(scb, (const xmlChar *)"\n# belongs-to: ");
-        ses_putstr(scb, mod->belongs);
+        ses_putstr(instance, scb, (const xmlChar *)"\n# belongs-to: ");
+        ses_putstr(instance, scb, mod->belongs);
     }
 
-    ses_putstr(scb, (const xmlChar *)"\n# version: ");
+    ses_putstr(instance, scb, (const xmlChar *)"\n# version: ");
     if (mod->version) {
-        write_cstring(scb, mod->version);
+        write_cstring(instance, scb, mod->version);
     } else {
-        write_cstring(scb, NCX_EL_NONE);
+        write_cstring(instance, scb, NCX_EL_NONE);
     }
-    ses_putstr(scb, (const xmlChar *)"\n#");
-    ses_putstr(scb, SEP_BAR);
+    ses_putstr(instance, scb, (const xmlChar *)"\n#");
+    ses_putstr(instance, scb, SEP_BAR);
 
 }  /* write_banner */
 
@@ -502,7 +513,8 @@ static void
 *   buff == scratch buff to use
 *********************************************************************/
 static void
-    write_quick_module_entry (const ncx_module_t *mod,
+    write_quick_module_entry (ncx_instance_t *instance,
+                              const ncx_module_t *mod,
                               ses_cb_t *scb,
                               char *buff)
 
@@ -512,11 +524,11 @@ static void
         return;
     }
 
-    ses_putstr(scb, (const xmlChar *)"\n\nINSERT INTO ncquickmod VALUES (");
+    ses_putstr(instance, scb, (const xmlChar *)"\n\nINSERT INTO ncquickmod VALUES (");
 
     /* columns: ID, modname, submodname */
     sprintf(buff, "\n    '', '%s');", mod->name);
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
 }  /* write_quick_module_entry */
 
@@ -535,95 +547,96 @@ static void
 *
 *********************************************************************/
 static void
-    write_module_entry (const ncx_module_t *mod,
+    write_module_entry (ncx_instance_t *instance,
+                        const ncx_module_t *mod,
                         const yangdump_cvtparms_t *cp,
                         ses_cb_t *scb,
                         char *buff)
 {
     ncx_revhist_t *revhist;
 
-    ses_putstr(scb, (const xmlChar *)"\n\nINSERT INTO ncmodule VALUES (");
+    ses_putstr(instance, scb, (const xmlChar *)"\n\nINSERT INTO ncmodule VALUES (");
 
     /* columns: ID, modname, submodname */
     sprintf(buff, "\n    '', '%s', '%s', ",
             (mod->ismod) ? mod->name : mod->belongs, mod->name);
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* columns: version, modprefix */
-    ses_putchar(scb, '\'');
+    ses_putchar(instance, scb, '\'');
     if (mod->version) {
-        write_cstring(scb, mod->version);
+        write_cstring(instance, scb, mod->version);
     } else {
-        write_cstring(scb, NCX_EL_NONE);
+        write_cstring(instance, scb, NCX_EL_NONE);
     }
-    ses_putstr(scb, (const xmlChar *)"', ");
+    ses_putstr(instance, scb, (const xmlChar *)"', ");
     sprintf(buff, "'%s',", (mod->prefix) ? mod->prefix : mod->name);
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* column: namespace */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
     if (mod->nsid) {
-        write_cstring(scb, xmlns_get_ns_name(mod->nsid));
+        write_cstring(instance, scb, xmlns_get_ns_name(instance, mod->nsid));
     } else {
-        write_cstring(scb, EMPTY_STRING);
+        write_cstring(instance, scb, EMPTY_STRING);
     }
-    ses_putstr(scb, (const xmlChar *)"',");
+    ses_putstr(instance, scb, (const xmlChar *)"',");
 
     /* column: organization */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    write_cstring(scb, (mod->organization) 
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    write_cstring(instance, scb, (mod->organization) 
                   ? mod->organization : EMPTY_STRING);
-    ses_putstr(scb, (const xmlChar *)"',");
+    ses_putstr(instance, scb, (const xmlChar *)"',");
 
     /* column: abstract -- need to use different abstract!!! */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    write_cstring_n(scb, (mod->descr) 
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    write_cstring_n(instance, scb, (mod->descr) 
                     ? mod->descr : EMPTY_STRING, MAX_ABSTRACT_LEN);
-    if (mod->descr && (xml_strlen(mod->descr) > MAX_ABSTRACT_LEN)) {
-        ses_putstr(scb, (const xmlChar *)"...");
+    if (mod->descr && (xml_strlen(instance, mod->descr) > MAX_ABSTRACT_LEN)) {
+        ses_putstr(instance, scb, (const xmlChar *)"...");
     }
-    ses_putstr(scb, (const xmlChar *)"',");
+    ses_putstr(instance, scb, (const xmlChar *)"',");
 
     /* columns: description, reference */
-    write_descr_ref(scb, mod->descr, mod->ref);
+    write_descr_ref(instance, scb, mod->descr, mod->ref);
 
     /* column: contact */
-    ses_putstr(scb, (const xmlChar *)"\n    '");
-    write_cstring(scb, (mod->contact_info) 
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+    write_cstring(instance, scb, (mod->contact_info) 
                   ? mod->contact_info : EMPTY_STRING);
-    ses_putstr(scb, (const xmlChar *)"',");
+    ses_putstr(instance, scb, (const xmlChar *)"',");
 
     /* column: revcomment */
     revhist = NULL;
     if (mod->version) {
-        revhist = ncx_find_revhist(mod, mod->version);
+        revhist = ncx_find_revhist(instance, mod, mod->version);
     }
     if (revhist && revhist->descr) {
-        ses_putstr(scb, (const xmlChar *)"\n    '");
-        write_cstring(scb, revhist->descr);
-        ses_putstr(scb, (const xmlChar *)"',");
+        ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+        write_cstring(instance, scb, revhist->descr);
+        ses_putstr(instance, scb, (const xmlChar *)"',");
     } else {
-        write_empty_col(scb);
+        write_empty_col(instance, scb);
     }
 
     /* column: xsdurl
      * HARD-WIRED TO
      *   /xsd/modname.xsd OR /xsd/modname@modversion.xsd
      */
-    ses_putstr(scb, (const xmlChar *)"\n    '/xsd/");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '/xsd/");
     if (cp->unified && !mod->ismod) {
-        ses_putstr(scb, mod->belongs);
+        ses_putstr(instance, scb, mod->belongs);
     } else {
-        ses_putstr(scb, mod->name);
+        ses_putstr(instance, scb, mod->name);
     }
     if (cp->versionnames && mod->version) {
-        ses_putchar(scb, YANG_FILE_SEPCHAR);
-        ses_putstr(scb, mod->version);
+        ses_putchar(instance, scb, YANG_FILE_SEPCHAR);
+        ses_putstr(instance, scb, mod->version);
     }
-    ses_putstr(scb, (const xmlChar *)".xsd',");
+    ses_putstr(instance, scb, (const xmlChar *)".xsd',");
 
     /* column: docurl -- not hard-wired, based on cp */
-    write_docurl(scb, mod, cp, NULL, 0);
+    write_docurl(instance, scb, mod, cp, NULL, 0);
 
     /* column: srcurl 
      * HARD-WIRED TO
@@ -631,39 +644,39 @@ static void
      *  OR
      *   /src/modname@modversion.yang 
      */
-    ses_putstr(scb, (const xmlChar *)"\n    '/src/");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '/src/");
     if (cp->unified && !mod->ismod) {
-        ses_putstr(scb, mod->belongs);
+        ses_putstr(instance, scb, mod->belongs);
     } else {
-        ses_putstr(scb, mod->name);
+        ses_putstr(instance, scb, mod->name);
     }
     if (cp->versionnames && mod->version) {
-        ses_putchar(scb,  YANG_FILE_SEPCHAR);
-        ses_putstr(scb, mod->version);
+        ses_putchar(instance,  scb,  YANG_FILE_SEPCHAR);
+        ses_putstr(instance, scb, mod->version);
     }
-    ses_putstr(scb, (const xmlChar *)".yang',");
+    ses_putstr(instance, scb, (const xmlChar *)".yang',");
 
     /* column: sourcespec */
     sprintf(buff, "\n    '%s',", mod->source);
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* column: sourcename */
     sprintf(buff, "\n    '%s',", mod->sourcefn);
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* columns: iscurrent, islatest **** !!!! ****/
-    ses_putstr(scb, (const xmlChar *)" '1', '1',");
+    ses_putstr(instance, scb, (const xmlChar *)" '1', '1',");
 
     /* columns: ismod, isyang */
     sprintf(buff, " '%u', '1',",
             (mod->ismod) ? 1 : 0);
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* columns: created_on, updated_on */
-    write_end_tstamps(scb, buff);
+    write_end_tstamps(instance, scb, buff);
 
     /* end the VALUES clause */
-    ses_putstr(scb, (const xmlChar *)");");
+    ses_putstr(instance, scb, (const xmlChar *)");");
 
 }  /* write_module_entry */
 
@@ -683,7 +696,8 @@ static void
 *
 *********************************************************************/
 static void
-    write_typedef_entry (const ncx_module_t *mod,
+    write_typedef_entry (ncx_instance_t *instance,
+                         const ncx_module_t *mod,
                          const typ_template_t *typ,
                          const yangdump_cvtparms_t *cp,
                          ses_cb_t *scb,
@@ -691,45 +705,45 @@ static void
 {
     const typ_template_t  *parenttyp;
 
-    ses_putstr(scb, (const xmlChar *)"\n\nINSERT INTO nctypedef VALUES (");
+    ses_putstr(instance, scb, (const xmlChar *)"\n\nINSERT INTO nctypedef VALUES (");
 
     /* columns: ID, modname, submodname, version, name, linenum */
-    write_first_tuple(scb, mod, typ->name, typ->tkerr.linenum, buff);
+    write_first_tuple(instance, scb, mod, typ->name, typ->tkerr.linenum, buff);
 
     /* columns: description, reference */
-    write_descr_ref(scb, typ->descr, typ->ref);
+    write_descr_ref(instance, scb, typ->descr, typ->ref);
 
     /* column: docurl */
-    write_docurl(scb, mod, cp, typ->name, typ->tkerr.linenum);
+    write_docurl(instance, scb, mod, cp, typ->name, typ->tkerr.linenum);
 
     /* column: basetypename */
-    sprintf(buff, "'%s', ", (const char *)typ_get_basetype_name(typ));
-    ses_putstr(scb, (const xmlChar *)buff);
+    sprintf(buff, "'%s', ", (const char *)typ_get_basetype_name(instance, typ));
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* column: parenttypename */
-    sprintf(buff, "'%s', ", (const char *)typ_get_parenttype_name(typ));
-    ses_putstr(scb, (const xmlChar *)buff);
+    sprintf(buff, "'%s', ", (const char *)typ_get_parenttype_name(instance, typ));
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* columns: parentmodname, parentlinenum */
-    parenttyp = typ_get_parent_type(typ);
+    parenttyp = typ_get_parent_type(instance, typ);
     if (parenttyp) {
         sprintf(buff, "\n    '%s', '%u', ", 
                 parenttyp->tkerr.mod->name, 
                 parenttyp->tkerr.linenum);
-        ses_putstr(scb, (const xmlChar *)buff);
+        ses_putstr(instance, scb, (const xmlChar *)buff);
     } else {
-        write_empty_col(scb);
-        write_empty_col(scb);
+        write_empty_col(instance, scb);
+        write_empty_col(instance, scb);
     }
 
     /* columns: iscurrent, islatest **** !!!! ****/
-    ses_putstr(scb, (const xmlChar *)"\n    '1', '1',");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '1', '1',");
 
     /* columns: created_on, updated_on */
-    write_end_tstamps(scb, buff);
+    write_end_tstamps(instance, scb, buff);
 
     /* end the VALUES clause */
-    ses_putstr(scb, (const xmlChar *)");");
+    ses_putstr(instance, scb, (const xmlChar *)");");
 
 }  /* write_typedef_entry */
 
@@ -749,34 +763,35 @@ static void
 *
 *********************************************************************/
 static void
-    write_grouping_entry (const ncx_module_t *mod,
+    write_grouping_entry (ncx_instance_t *instance,
+                          const ncx_module_t *mod,
                           const grp_template_t *grp,
                           const yangdump_cvtparms_t *cp,
                           ses_cb_t *scb,
                           char *buff)
 {
-    ses_putstr(scb, (const xmlChar *)"\n\nINSERT INTO ncgrouping VALUES (");
+    ses_putstr(instance, scb, (const xmlChar *)"\n\nINSERT INTO ncgrouping VALUES (");
 
     /* columns: ID, modname, submodname, version, name, linenum */
-    write_first_tuple(scb, mod, grp->name, grp->tkerr.linenum, buff);
+    write_first_tuple(instance, scb, mod, grp->name, grp->tkerr.linenum, buff);
 
     /* columns: description, reference */
-    write_descr_ref(scb, grp->descr, grp->ref);
+    write_descr_ref(instance, scb, grp->descr, grp->ref);
 
     /* column: docurl */
-    write_docurl(scb, mod, cp, grp->name, grp->tkerr.linenum);
+    write_docurl(instance, scb, mod, cp, grp->name, grp->tkerr.linenum);
 
     /* column: object list */
-    write_object_list(scb, &grp->datadefQ);
+    write_object_list(instance, scb, &grp->datadefQ);
 
     /* columns: iscurrent, islatest **** !!!! ****/
-    ses_putstr(scb, (const xmlChar *)"\n    '1', '1',");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '1', '1',");
 
     /* columns: created_on, updated_on */
-    write_end_tstamps(scb, buff);
+    write_end_tstamps(instance, scb, buff);
 
     /* end the VALUES clause */
-    ses_putstr(scb, (const xmlChar *)");");
+    ses_putstr(instance, scb, (const xmlChar *)");");
 
 }  /* write_grouping_entry */
 
@@ -796,7 +811,8 @@ static void
 *
 *********************************************************************/
 static void
-    write_object_entry (const ncx_module_t *mod,
+    write_object_entry (ncx_instance_t *instance,
+                        const ncx_module_t *mod,
                         obj_template_t *obj,
                         const yangdump_cvtparms_t *cp,
                         ses_cb_t *scb,
@@ -806,58 +822,58 @@ static void
     obj_template_t         *chobj;
     const xmlChar          *name, *defval;
 
-    if (!obj_has_name(obj)) {
+    if (!obj_has_name(instance, obj)) {
         return;
     }
 
-    name = obj_get_name(obj);
-    datadefQ = obj_get_datadefQ(obj);
+    name = obj_get_name(instance, obj);
+    datadefQ = obj_get_datadefQ(instance, obj);
 
-    ses_putstr(scb, (const xmlChar *)"\n\nINSERT INTO ncobject VALUES (");
+    ses_putstr(instance, scb, (const xmlChar *)"\n\nINSERT INTO ncobject VALUES (");
 
     /* columns: ID, modname, submodname, version, name, linenum */
-    write_first_tuple(scb, mod, name, obj->tkerr.linenum, buff);
+    write_first_tuple(instance, scb, mod, name, obj->tkerr.linenum, buff);
 
     /* column: objectid */
-    write_object_id(scb, obj, buff);
+    write_object_id(instance, scb, obj, buff);
 
     /* columns: description, reference */
-    write_descr_ref(scb, obj_get_description(obj),
-                    obj_get_reference(obj));
+    write_descr_ref(instance, scb, obj_get_description(instance, obj),
+                    obj_get_reference(instance, obj));
 
     /* column: docurl */
-    write_docurl(scb, mod, cp, name, obj->tkerr.linenum);
+    write_docurl(instance, scb, mod, cp, name, obj->tkerr.linenum);
 
     /* column: objtyp */
-    sprintf(buff, "\n    '%s', ", (const char *)obj_get_typestr(obj));
-    ses_putstr(scb, (const xmlChar *)buff);
+    sprintf(buff, "\n    '%s', ", (const char *)obj_get_typestr(instance, obj));
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* column: parentid */
     if (obj->parent && !obj_is_root(obj->parent)) {
-        write_object_id(scb, obj->parent, buff);
+        write_object_id(instance, scb, obj->parent, buff);
     } else {
-        write_empty_col(scb);
+        write_empty_col(instance, scb);
     }
 
     /* column: istop */
     sprintf(buff, 
             "\n    '%u',",  
             (obj->parent && !obj_is_root(obj->parent)) ? 0 : 1);
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* column: isdata -- config DB data only */
-    sprintf(buff, "\n    '%u',", obj_is_data_db(obj) ? 1 : 0);
-    ses_putstr(scb, (const xmlChar *)buff);
+    sprintf(buff, "\n    '%u',", obj_is_data_db(instance, obj) ? 1 : 0);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* column: typename, or groupname if uses */
     switch (obj->objtype) {
     case OBJ_TYP_LEAF:
         sprintf(buff, "\n    '%s',", 
-                typ_get_name(obj->def.leaf->typdef));
+                typ_get_name(instance, obj->def.leaf->typdef));
         break;
     case OBJ_TYP_LEAF_LIST:
         sprintf(buff, "\n    '%s',", 
-                typ_get_name(obj->def.leaflist->typdef));
+                typ_get_name(instance, obj->def.leaflist->typdef));
         break;
     case OBJ_TYP_USES:
         sprintf(buff, "\n    '%s',", obj->def.uses->grp->name);
@@ -865,79 +881,79 @@ static void
     default:
         sprintf(buff, "\n    '',");
     }
-    ses_putstr(scb, (const xmlChar *)buff);
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* column: augwhen */
     if (obj->augobj && obj->augobj->when &&
         obj->augobj->when->exprstr) {
-        ses_putstr(scb, (const xmlChar *)"\n    '");
-        write_cstring(scb, obj->augobj->when->exprstr);
-        ses_putstr(scb, (const xmlChar *)"',");
+        ses_putstr(instance, scb, (const xmlChar *)"\n    '");
+        write_cstring(instance, scb, obj->augobj->when->exprstr);
+        ses_putstr(instance, scb, (const xmlChar *)"',");
     } else {
-        write_empty_col(scb);
+        write_empty_col(instance, scb);
     }
 
     /* column: childlist */
     if (datadefQ) {
-        write_object_list(scb, datadefQ);
+        write_object_list(instance, scb, datadefQ);
     } else {
-        write_empty_col(scb);
+        write_empty_col(instance, scb);
     }
 
     /* column: defval */
-    defval = obj_get_default(obj);
+    defval = obj_get_default(instance, obj);
     if (defval) {
         sprintf(buff, "\n    '%s',",  defval);  
-        ses_putstr(scb, (const xmlChar *)buff);
+        ses_putstr(instance, scb, (const xmlChar *)buff);
     } else {
-        write_empty_col(scb);
+        write_empty_col(instance, scb);
     }
 
     /* column: listkey */
-    if (obj_get_keystr(obj) != NULL) {
-        sprintf(buff, "\n    '%s',", obj_get_keystr(obj));
-        ses_putstr(scb, (const xmlChar *)buff);
+    if (obj_get_keystr(instance, obj) != NULL) {
+        sprintf(buff, "\n    '%s',", obj_get_keystr(instance, obj));
+        ses_putstr(instance, scb, (const xmlChar *)buff);
     } else {
-        write_empty_col(scb);
+        write_empty_col(instance, scb);
     }   
    
     /* columns: config, mandatory, level */
     sprintf(buff, "\n    '%u', '%u', '%u',",
-            obj_get_config_flag(obj) ? 1 : 0,
-            obj_is_mandatory(obj) ? 1 : 0,
-            obj_get_level(obj));
-    ses_putstr(scb, (const xmlChar *)buff);
+            obj_get_config_flag(instance, obj) ? 1 : 0,
+            obj_is_mandatory(instance, obj) ? 1 : 0,
+            obj_get_level(instance, obj));
+    ses_putstr(instance, scb, (const xmlChar *)buff);
 
     /* columns: minelements, maxelements */
     if (obj->objtype == OBJ_TYP_LEAF_LIST) {
         sprintf(buff, "\n    '%u', '%u',",
                 obj->def.leaflist->minelems,
                 obj->def.leaflist->maxelems);
-        ses_putstr(scb, (const xmlChar *)buff);
+        ses_putstr(instance, scb, (const xmlChar *)buff);
     } else if (obj->objtype == OBJ_TYP_LIST) {
         sprintf(buff, "\n    '%u', '%u',",
                 obj->def.list->minelems,
                 obj->def.list->maxelems);
-        ses_putstr(scb, (const xmlChar *)buff);
+        ses_putstr(instance, scb, (const xmlChar *)buff);
     } else {
-        ses_putstr(scb, (const xmlChar *)"\n    '0', '0',");
+        ses_putstr(instance, scb, (const xmlChar *)"\n    '0', '0',");
     }
     
     /* columns: iscurrent, islatest **** !!!! ****/
-    ses_putstr(scb, (const xmlChar *)"\n    '1', '1',");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '1', '1',");
 
     /* columns: created_on, updated_on */
-    write_end_tstamps(scb, buff);
+    write_end_tstamps(instance, scb, buff);
 
     /* end the VALUES clause */
-    ses_putstr(scb, (const xmlChar *)");");
+    ses_putstr(instance, scb, (const xmlChar *)");");
 
     /* write an entry for each child node */
     if (datadefQ) {
-        for (chobj = (obj_template_t *)dlq_firstEntry(datadefQ);
+        for (chobj = (obj_template_t *)dlq_firstEntry(instance, datadefQ);
              chobj != NULL;
-             chobj = (obj_template_t *)dlq_nextEntry(chobj)) {
-            write_object_entry(mod, chobj, cp, scb, buff);
+             chobj = (obj_template_t *)dlq_nextEntry(instance, chobj)) {
+            write_object_entry(instance, mod, chobj, cp, scb, buff);
         }
     }
 
@@ -959,41 +975,42 @@ static void
 *
 *********************************************************************/
 static void
-    write_extension_entry (const ncx_module_t *mod,
+    write_extension_entry (ncx_instance_t *instance,
+                           const ncx_module_t *mod,
                            const ext_template_t *ext,
                            const yangdump_cvtparms_t *cp,
                            ses_cb_t *scb,
                            char *buff)
 {
-    ses_putstr(scb, (const xmlChar *)"\n\nINSERT INTO ncextension VALUES (");
+    ses_putstr(instance, scb, (const xmlChar *)"\n\nINSERT INTO ncextension VALUES (");
 
     /* columns: ID, modname, submodname, version, myid, myname, linenum */
-    write_first_tuple(scb, mod, ext->name, ext->tkerr.linenum, buff);
+    write_first_tuple(instance, scb, mod, ext->name, ext->tkerr.linenum, buff);
 
     /* columns: description, reference */
-    write_descr_ref(scb, ext->descr, ext->ref);
+    write_descr_ref(instance, scb, ext->descr, ext->ref);
 
     /* column: docurl */
-    write_docurl(scb, mod, cp, ext->name, ext->tkerr.linenum);
+    write_docurl(instance, scb, mod, cp, ext->name, ext->tkerr.linenum);
 
     /* columns: argument, yinelement */
     if (ext->arg) {
         sprintf(buff, "\n    '%s', '%u',",
                 (const char *)ext->arg, 
                 (ext->argel) ? 1 : 0);
-        ses_putstr(scb, (const xmlChar *)buff); 
+        ses_putstr(instance, scb, (const xmlChar *)buff); 
     } else {    
-        ses_putstr(scb, (const xmlChar *)"\n    '', '0',");
+        ses_putstr(instance, scb, (const xmlChar *)"\n    '', '0',");
     }
 
     /* columns: iscurrent, islatest **** !!!! ****/
-    ses_putstr(scb, (const xmlChar *)"\n    '1', '1',");
+    ses_putstr(instance, scb, (const xmlChar *)"\n    '1', '1',");
 
     /* columns: created_on, updated_on */
-    write_end_tstamps(scb, buff);
+    write_end_tstamps(instance, scb, buff);
 
     /* end the VALUES clause */
-    ses_putstr(scb, (const xmlChar *)");");
+    ses_putstr(instance, scb, (const xmlChar *)");");
 
 }  /* write_extension_entry */
 
@@ -1011,7 +1028,8 @@ static void
 *
 *********************************************************************/
 static void
-    convert_one_module (const ncx_module_t *mod,
+    convert_one_module (ncx_instance_t *instance,
+                        const ncx_module_t *mod,
                         const yangdump_cvtparms_t *cp,
                         ses_cb_t *scb)
 {
@@ -1023,53 +1041,53 @@ static void
 #ifdef DEBUG
     /* copy namespace ID if this is a submodule */
     if (!mod->ismod && !mod->nsid) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     /* write the application banner */
-    write_banner(mod, scb);
+    write_banner(instance, mod, scb);
 
     /* write the ncquickmod table entry */
-    write_quick_module_entry(mod, scb, cp->buff);
+    write_quick_module_entry(instance, mod, scb, cp->buff);
 
     /* write the ncmodule table entry */
-    write_module_entry(mod, cp, scb, cp->buff);
+    write_module_entry(instance, mod, cp, scb, cp->buff);
 
     /* write the typedef table entries */
-    for (typ = (const typ_template_t *)dlq_firstEntry(&mod->typeQ);
+    for (typ = (const typ_template_t *)dlq_firstEntry(instance, &mod->typeQ);
          typ != NULL;
-         typ = (const typ_template_t *)dlq_nextEntry(typ)) {
-        write_typedef_entry(mod, typ, cp, scb, cp->buff);
+         typ = (const typ_template_t *)dlq_nextEntry(instance, typ)) {
+        write_typedef_entry(instance, mod, typ, cp, scb, cp->buff);
     }
 
     /* write the ncgrouping table entries */
-    for (grp = (const grp_template_t *)dlq_firstEntry(&mod->groupingQ);
+    for (grp = (const grp_template_t *)dlq_firstEntry(instance, &mod->groupingQ);
          grp != NULL;
-         grp = (const grp_template_t *)dlq_nextEntry(grp)) {
-        write_grouping_entry(mod, grp, cp, scb, cp->buff);
+         grp = (const grp_template_t *)dlq_nextEntry(instance, grp)) {
+        write_grouping_entry(instance, mod, grp, cp, scb, cp->buff);
     }
 
     /* write the ncobject table entries */
-    for (obj = (obj_template_t *)dlq_firstEntry(&mod->datadefQ);
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, &mod->datadefQ);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
 
-        if (obj_is_hidden(obj)) {
+        if (obj_is_hidden(instance, obj)) {
             continue;
         }
 
-        write_object_entry(mod, obj, cp, scb, cp->buff);
+        write_object_entry(instance, mod, obj, cp, scb, cp->buff);
     }
 
     /* write the ncextension table entries */
-    for (ext = (const ext_template_t *)dlq_firstEntry(&mod->extensionQ);
+    for (ext = (const ext_template_t *)dlq_firstEntry(instance, &mod->extensionQ);
          ext != NULL;
-         ext = (const ext_template_t *)dlq_nextEntry(ext)) {
-        write_extension_entry(mod, ext, cp, scb, cp->buff);
+         ext = (const ext_template_t *)dlq_nextEntry(instance, ext)) {
+        write_extension_entry(instance, mod, ext, cp, scb, cp->buff);
     }
 
-    ses_putchar(scb, '\n');
+    ses_putchar(instance, scb, '\n');
 
 }   /* convert_one_module */
 
@@ -1093,7 +1111,8 @@ static void
 *   status
 *********************************************************************/
 status_t
-    sql_convert_module (const yang_pcb_t *pcb,
+    sql_convert_module (ncx_instance_t *instance,
+                        const yang_pcb_t *pcb,
                         const yangdump_cvtparms_t *cp,
                         ses_cb_t *scb)
 {
@@ -1103,17 +1122,17 @@ status_t
     /* the module should already be parsed and loaded */
     mod = pcb->top;
     if (!mod) {
-        return SET_ERROR(ERR_NCX_MOD_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_MOD_NOT_FOUND);
     }
 
-    convert_one_module(mod, cp, scb);
+    convert_one_module(instance, mod, cp, scb);
 
     if (cp->unified && mod->ismod) {
-        for (node = (const yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (const yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (const yang_node_t *)dlq_nextEntry(node)) {
+             node = (const yang_node_t *)dlq_nextEntry(instance, node)) {
             if (node->submod) {
-                convert_one_module(node->submod, cp, scb);
+                convert_one_module(instance, node->submod, cp, scb);
             }
         }
     }

@@ -83,7 +83,8 @@ extern "C" {
 *    status
 *********************************************************************/
 extern status_t
-    autoload_setup_tempdir (server_cb_t *server_cb,
+    autoload_setup_tempdir (struct ncx_instance_t_ *instance,
+                            server_cb_t *server_cb,
                             ses_cb_t *scb);
 
 
@@ -109,7 +110,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    autoload_start_get_modules (server_cb_t *server_cb,
+    autoload_start_get_modules (struct ncx_instance_t_ *instance,
+                                server_cb_t *server_cb,
                                 ses_cb_t *scb);
 
 
@@ -138,7 +140,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    autoload_handle_rpc_reply (server_cb_t *server_cb,
+    autoload_handle_rpc_reply (struct ncx_instance_t_ *instance,
+                               server_cb_t *server_cb,
                                ses_cb_t *scb,
                                val_value_t *reply,
                                boolean anyerrors);
@@ -172,7 +175,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    autoload_compile_modules (server_cb_t *server_cb,
+    autoload_compile_modules (struct ncx_instance_t_ *instance,
+                              server_cb_t *server_cb,
                               ses_cb_t *scb);
 
 #ifdef __cplusplus

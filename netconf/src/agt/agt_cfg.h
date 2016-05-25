@@ -236,8 +236,9 @@ typedef struct agt_cfg_commit_test_t_ {
 * RETURNS:
 *    malloced transaction struct; need to call agt_cfg_free_transaction
 *********************************************************************/
-agt_cfg_transaction_t *
-    agt_cfg_new_transaction (ncx_cfg_t cfgid,
+extern agt_cfg_transaction_t *
+    agt_cfg_new_transaction (struct ncx_instance_t_ *instance,
+                             ncx_cfg_t cfgid,
                              agt_cfg_edit_type_t edit_type,
                              boolean rootcheck,
                              boolean is_validate,
@@ -253,7 +254,7 @@ agt_cfg_transaction_t *
 *    txcb == transaction struct to free
 *********************************************************************/
 extern void
-    agt_cfg_free_transaction (agt_cfg_transaction_t *txcb);
+    agt_cfg_free_transaction (struct ncx_instance_t_ *instance, agt_cfg_transaction_t *txcb);
 
 
 /********************************************************************
@@ -268,7 +269,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    agt_cfg_init_transactions (const xmlChar *txidfile,
+    agt_cfg_init_transactions (struct ncx_instance_t_ *instance,
+                               const xmlChar *txidfile,
                                boolean foundfile);
 
 
@@ -283,7 +285,7 @@ extern status_t
 *    txid of transaction in progress or 0 if none
 *********************************************************************/
 extern cfg_transaction_id_t
-    agt_cfg_txid_in_progress (ncx_cfg_t cfgid);
+    agt_cfg_txid_in_progress (struct ncx_instance_t_ *instance, ncx_cfg_t cfgid);
 
 
 /********************************************************************
@@ -297,7 +299,7 @@ extern cfg_transaction_id_t
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 extern agt_cfg_undo_rec_t *
-    agt_cfg_new_undorec (void);
+    agt_cfg_new_undorec (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -311,7 +313,7 @@ extern agt_cfg_undo_rec_t *
 *   none
 *********************************************************************/
 extern void
-    agt_cfg_init_undorec (agt_cfg_undo_rec_t *undo);
+    agt_cfg_init_undorec (struct ncx_instance_t_ *instance, agt_cfg_undo_rec_t *undo);
 
 
 /********************************************************************
@@ -325,7 +327,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    agt_cfg_free_undorec (agt_cfg_undo_rec_t *undorec);
+    agt_cfg_free_undorec (struct ncx_instance_t_ *instance, agt_cfg_undo_rec_t *undorec);
 
 
 /********************************************************************
@@ -343,7 +345,7 @@ extern void
 *   none
 *********************************************************************/
 extern void 
-    agt_cfg_clean_undorec (agt_cfg_undo_rec_t *undo);
+    agt_cfg_clean_undorec (struct ncx_instance_t_ *instance, agt_cfg_undo_rec_t *undo);
 
 
 /********************************************************************
@@ -359,7 +361,8 @@ extern void
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 extern agt_cfg_audit_rec_t *
-    agt_cfg_new_auditrec (const xmlChar *target,
+    agt_cfg_new_auditrec (struct ncx_instance_t_ *instance,
+                          const xmlChar *target,
                           op_editop_t editop);
 
 
@@ -375,7 +378,7 @@ extern agt_cfg_audit_rec_t *
 *   none
 *********************************************************************/
 extern void 
-    agt_cfg_free_auditrec (agt_cfg_audit_rec_t *auditrec);
+    agt_cfg_free_auditrec (struct ncx_instance_t_ *instance, agt_cfg_audit_rec_t *auditrec);
 
 
 /********************************************************************
@@ -387,7 +390,7 @@ extern void
 *   malloced commit test struct or NULL if ERR_INTERNAL_MEM
 *********************************************************************/
 extern agt_cfg_commit_test_t *
-    agt_cfg_new_commit_test (void);
+    agt_cfg_new_commit_test (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -400,7 +403,7 @@ extern agt_cfg_commit_test_t *
 *
 *********************************************************************/
 extern void
-    agt_cfg_free_commit_test (agt_cfg_commit_test_t *commit_test);
+    agt_cfg_free_commit_test (struct ncx_instance_t_ *instance, agt_cfg_commit_test_t *commit_test);
 
 
 /********************************************************************
@@ -414,7 +417,7 @@ extern void
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 extern agt_cfg_nodeptr_t *
-    agt_cfg_new_nodeptr (val_value_t *node);
+    agt_cfg_new_nodeptr (struct ncx_instance_t_ *instance, val_value_t *node);
 
 
 /********************************************************************
@@ -426,7 +429,7 @@ extern agt_cfg_nodeptr_t *
 *   nodeptr == agt_cfg_nodeptr_t to clean and delete
 *********************************************************************/
 extern void 
-    agt_cfg_free_nodeptr (agt_cfg_nodeptr_t *nodeptr);
+    agt_cfg_free_nodeptr (struct ncx_instance_t_ *instance, agt_cfg_nodeptr_t *nodeptr);
 
 /********************************************************************
 * FUNCTION agt_cfg_update_txid
@@ -437,7 +440,7 @@ extern void
 *   status
 *********************************************************************/
 extern status_t 
-    agt_cfg_update_txid (void);
+    agt_cfg_update_txid (struct ncx_instance_t_ *instance);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

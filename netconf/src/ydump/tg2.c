@@ -223,7 +223,8 @@ date         init     comment
 *   status
 *********************************************************************/
 status_t
-    tg2_convert_module_model (const yang_pcb_t *pcb,
+    tg2_convert_module_model (ncx_instance_t *instance,
+                              const yang_pcb_t *pcb,
                               const yangdump_cvtparms_t *cp,
                               ses_cb_t *scb)
 {
@@ -234,18 +235,18 @@ status_t
     /* the module should already be parsed and loaded */
     mod = pcb->top;
     if (!mod) {
-        return SET_ERROR(ERR_NCX_MOD_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_MOD_NOT_FOUND);
     }
 
     /* start the python file */
-    write_py_header(scb, mod, cp);
+    write_py_header(instance, scb, mod, cp);
 
     /* convert_one_module_model(mod, cp, scb); */
 
     if (cp->unified && mod->ismod) {
-        for (node = (const yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (const yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (const yang_node_t *)dlq_nextEntry(node)) {
+             node = (const yang_node_t *)dlq_nextEntry(instance, node)) {
             if (node->submod) {
                 /* convert_one_module_model(node->submod, cp, scb); */
             }
@@ -253,7 +254,7 @@ status_t
     }
 
     /* end the python file */
-    write_py_footer(scb, mod);
+    write_py_footer(instance, scb, mod);
 
     return NO_ERR;
 

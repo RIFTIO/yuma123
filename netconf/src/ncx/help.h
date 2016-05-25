@@ -92,7 +92,8 @@ typedef enum help_mode_t_ {
 *
 *********************************************************************/
 extern void
-    help_program_module (const xmlChar *modname,
+    help_program_module (struct ncx_instance_t_ *instance,
+			 const xmlChar *modname,
 			 const xmlChar *cliname,
 			 help_mode_t mode);
 
@@ -107,7 +108,8 @@ extern void
 *    mode == help mode requested
 *********************************************************************/
 extern void
-    help_data_module (const ncx_module_t *mod,
+    help_data_module (struct ncx_instance_t_ *instance,
+		      const ncx_module_t *mod,
 		      help_mode_t mode);
 
 
@@ -121,7 +123,8 @@ extern void
 *    mode == help mode requested
 *********************************************************************/
 extern void
-    help_type (const typ_template_t *typ,
+    help_type (struct ncx_instance_t_ *instance,
+	       const typ_template_t *typ,
 	       help_mode_t mode);
 
 
@@ -135,7 +138,8 @@ extern void
 *    mode == help mode requested
 *********************************************************************/
 extern void
-    help_object (obj_template_t *obj,
+    help_object (struct ncx_instance_t_ *instance,
+		 obj_template_t *obj,
 		 help_mode_t mode);
 
 
@@ -151,7 +155,8 @@ extern void
  *    startnl == TRUE if start with a newline, FALSE otherwise
  *********************************************************************/
 extern void
-    help_write_lines (const xmlChar *str,
+    help_write_lines (struct ncx_instance_t_ *instance,
+		      const xmlChar *str,
 		      uint32 indent,
 		      boolean startnl);
 
@@ -169,7 +174,8 @@ extern void
  *    maxlen == 0..N max number of chars to output
  *********************************************************************/
 extern void
-    help_write_lines_max (const xmlChar *str,
+    help_write_lines_max (struct ncx_instance_t_ *instance,
+			  const xmlChar *str,
 			  uint32 indent,
 			  boolean startnl,
 			  uint32 maxlen);

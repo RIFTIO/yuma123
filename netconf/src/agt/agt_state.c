@@ -224,7 +224,8 @@ static obj_template_t *myschemaobj;
  * \return status
  */
 static status_t 
-    get_caps (ses_cb_t *scb,
+    get_caps (ncx_instance_t *instance,
+              ses_cb_t *scb,
               getcb_mode_t cbmode,
               val_value_t *virval,
               val_value_t  *dstval)
@@ -237,16 +238,16 @@ static status_t
     res = NO_ERR;
 
     if (cbmode == GETCB_GET_VALUE) {
-        capsval = val_clone(agt_cap_get_capsval());
+        capsval = val_clone(instance, agt_cap_get_capsval());
         if (!capsval) {
             return ERR_INTERNAL_MEM;
         }
         /* change the namespace to this module, 
          * and get rid of the netconf NSID 
          */
-        val_change_nsid(capsval, statemod->nsid);
-        val_move_children(capsval, dstval);
-        val_free_value(capsval);
+        val_change_nsid(instance, capsval, statemod->nsid);
+        val_move_children(instance, capsval, dstval);
+        val_free_value(instance, capsval);
     } else {
         res = ERR_NCX_OPERATION_NOT_SUPPORTED;
     }
@@ -266,7 +267,8 @@ static status_t
  * malloc error
  */
 static val_value_t *
-    make_plock_entry (plock_cb_t *plcb,
+    make_plock_entry (ncx_instance_t *instance,
+                      plock_cb_t *plcb,
                       obj_template_t *plockobj,
                       status_t *res)
 {
@@ -280,143 +282,150 @@ static val_value_t *
 
     *res = NO_ERR;
 
-    selectobj = obj_find_child(plockobj,
+    selectobj = obj_find_child(instance,
+                               plockobj,
                                AGT_STATE_MODULE,
                                AGT_STATE_OBJ_SELECT);
     if (selectobj == NULL) {
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
-    lockednodeobj = obj_find_child(plockobj,
+    lockednodeobj = obj_find_child(instance,
+                                   plockobj,
                                    AGT_STATE_MODULE,
                                    AGT_STATE_OBJ_LOCKED_NODES);
     if (lockednodeobj == NULL) {
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
                                
-    plockval = val_new_value();
+    plockval = val_new_value(instance);
     if (plockval == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_from_template(plockval, plockobj);
+    val_init_from_template(instance, plockval, plockobj);
 
     /* add the list key: lock-id */
-    leafval = agt_make_uint_leaf(plockobj,
+    leafval = agt_make_uint_leaf(instance,
+                                 plockobj,
                                  AGT_STATE_OBJ_LOCK_ID,
-                                 plock_get_id(plcb),
+                                 plock_get_id(instance, plcb),
                                  res);
     if (leafval == NULL) {
-        val_free_value(plockval);
+        val_free_value(instance, plockval);
         return NULL;
     }
-    val_add_child(leafval, plockval);
+    val_add_child(instance, leafval, plockval);
 
     /* add the session ID of the lock-owner */
-    leafval = agt_make_uint_leaf(plockobj,
+    leafval = agt_make_uint_leaf(instance,
+                                 plockobj,
                                  AGT_STATE_OBJ_LOCKED_BY_SESSION,
-                                 plock_get_sid(plcb),
+                                 plock_get_sid(instance, plcb),
                                  res);
     if (leafval == NULL) {
-        val_free_value(plockval);
+        val_free_value(instance, plockval);
         return NULL;
     }
-    val_add_child(leafval, plockval);
+    val_add_child(instance, leafval, plockval);
 
     /* add the lock start timestamp */
-    leafval = agt_make_leaf(plockobj,
+    leafval = agt_make_leaf(instance,
+                            plockobj,
                             AGT_STATE_OBJ_LOCKED_TIME,
-                            plock_get_timestamp(plcb),
+                            plock_get_timestamp(instance, plcb),
                             res);
     if (leafval == NULL) {
-        val_free_value(plockval);
+        val_free_value(instance, plockval);
         return NULL;
     }
-    val_add_child(leafval, plockval);
+    val_add_child(instance, leafval, plockval);
 
     /* add a 'select' leaf for each parm in the request */
-    for (xpathpcb = plock_get_first_select(plcb);
+    for (xpathpcb = plock_get_first_select(instance, plcb);
          xpathpcb != NULL;
-         xpathpcb = plock_get_next_select(xpathpcb)) {
+         xpathpcb = plock_get_next_select(instance, xpathpcb)) {
 
         /* cobble an XPath string together making sure to
          * preserve the XML prefix mappings originally parsed
          */
-        leafval = val_new_value();
+        leafval = val_new_value(instance);
         if (leafval == NULL) {
-            val_free_value(plockval);
+            val_free_value(instance, plockval);
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
-        val_init_from_template(leafval, selectobj);
-        VAL_STR(leafval) = xml_strdup(xpathpcb->exprstr);
+        val_init_from_template(instance, leafval, selectobj);
+        VAL_STR(leafval) = xml_strdup(instance, xpathpcb->exprstr);
         if (VAL_STR(leafval) == NULL) {
-            val_free_value(plockval);
+            val_free_value(instance, plockval);
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
-        leafval->xpathpcb = xpath_clone_pcb(xpathpcb);
+        leafval->xpathpcb = xpath_clone_pcb(instance, xpathpcb);
         if (leafval->xpathpcb == NULL) {
-            val_free_value(plockval);
+            val_free_value(instance, plockval);
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
-        val_add_child(leafval, plockval);
+        val_add_child(instance, leafval, plockval);
     }
 
     /* add a 'locked-nodes' leaf for each valptr in the 
      * final node-set result
      */
     pathbuff = NULL;
-    result = plock_get_final_result(plcb);
-    for (resnode = xpath_get_first_resnode(result);
+    result = plock_get_final_result(instance, plcb);
+    for (resnode = xpath_get_first_resnode(instance, result);
          resnode != NULL;
-         resnode = xpath_get_next_resnode(resnode)) {
+         resnode = xpath_get_next_resnode(instance, resnode)) {
 
         /* cobble an i-i string together making sure to
          * preserve the XML prefix mappings originally parsed
          */
-        leafval = val_new_value();
+        leafval = val_new_value(instance);
         if (leafval == NULL) {
-            val_free_value(plockval);
+            val_free_value(instance, plockval);
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
-        val_init_from_template(leafval, lockednodeobj);
+        val_init_from_template(instance, leafval, lockednodeobj);
 
-        valptr = xpath_get_resnode_valptr(resnode);
-        *res = val_gen_instance_id(NULL, 
+        valptr = xpath_get_resnode_valptr(instance, resnode);
+        *res = val_gen_instance_id(instance, 
+                                   NULL, 
                                    valptr,
                                    NCX_IFMT_XPATH1,
                                    &pathbuff);
         if (*res != NO_ERR) {
             if (pathbuff != NULL) {
-                m__free(pathbuff);
+                m__free(instance, pathbuff);
             }
-            val_free_value(leafval);
-            val_free_value(plockval);
+            val_free_value(instance, leafval);
+            val_free_value(instance, plockval);
             return NULL;
         }
 
-        *res = val_set_simval_obj(leafval,
+        *res = val_set_simval_obj(instance,
+                                  leafval,
                                   lockednodeobj,
                                   pathbuff);
         if (*res != NO_ERR) {
-            m__free(pathbuff);
-            val_free_value(leafval);
-            val_free_value(plockval);
+            m__free(instance, pathbuff);
+            val_free_value(instance, leafval);
+            val_free_value(instance, plockval);
             return NULL;
         }
-        val_add_child(leafval, plockval);
-        m__free(pathbuff);
+        val_add_child(instance, leafval, plockval);
+        m__free(instance, pathbuff);
         pathbuff = NULL;
     }
 
-    *res = val_gen_index_chain(plockobj, plockval);
+    *res = val_gen_index_chain(instance, plockobj, plockval);
     if (*res != NO_ERR) {
-        val_free_value(plockval);
+        val_free_value(instance, plockval);
         return NULL;
     }
 
@@ -439,7 +448,8 @@ static val_value_t *
  * \return status
  */   
 static status_t 
-    get_locks (ses_cb_t *scb,
+    get_locks (ncx_instance_t *instance,
+               ses_cb_t *scb,
                getcb_mode_t cbmode,
                val_value_t *virval,
                val_value_t  *dstval)
@@ -456,78 +466,84 @@ static status_t
     res = NO_ERR;
 
     if (cbmode == GETCB_GET_VALUE) {
-        globallock = obj_find_child(virval->obj,
+        globallock = obj_find_child(instance,
+                                    virval->obj,
                                     AGT_STATE_MODULE,
                                     AGT_STATE_OBJ_GLOBAL_LOCK);
         if (!globallock) {
-            return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+            return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
         }
 
 
-        plockobj = obj_find_child(virval->obj,
+        plockobj = obj_find_child(instance,
+                                  virval->obj,
                                   AGT_STATE_MODULE,
                                   AGT_STATE_OBJ_PARTIAL_LOCK);
         if (!plockobj) {
-            return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+            return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
         }
 
-        nameval = val_find_child(virval->parent,
+        nameval = val_find_child(instance,
+                                 virval->parent,
                                  AGT_STATE_MODULE,
                                  AGT_STATE_OBJ_NAME);
         if (!nameval) {
-            return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+            return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
         }
         
-        cfg = cfg_get_config(VAL_ENUM_NAME(nameval));
+        cfg = cfg_get_config(instance, VAL_ENUM_NAME(nameval));
         if (!cfg) {
-            return SET_ERROR(ERR_NCX_CFG_NOT_FOUND);            
+            return SET_ERROR(instance, ERR_NCX_CFG_NOT_FOUND);            
         }
 
-        if (cfg_is_global_locked(cfg)) {
+        if (cfg_is_global_locked(instance, cfg)) {
             /* make the 2 return value leafs to put into
              * the retval container
              */
-            res = cfg_get_global_lock_info(cfg, &sid, &locktime);
+            res = cfg_get_global_lock_info(instance, cfg, &sid, &locktime);
             if (res == NO_ERR) {
                 /* add locks/global-lock */
-                globallockval = val_new_value();
+                globallockval = val_new_value(instance);
                 if (!globallockval) {
                     return ERR_INTERNAL_MEM;
                 }
-                val_init_from_template(globallockval, globallock);
-                val_add_child(globallockval, dstval);
+                val_init_from_template(instance, globallockval, globallock);
+                val_add_child(instance, globallockval, dstval);
 
                 /* add locks/global-lock/locked-by-session */ 
                 newval = 
-                    agt_make_uint_leaf(globallock,
+                    agt_make_uint_leaf(instance,
+                                       globallock,
                                        AGT_STATE_OBJ_LOCKED_BY_SESSION,
                                        sid,
                                        &res);
                 if (newval) {
-                    val_add_child(newval, globallockval);
+                    val_add_child(instance, newval, globallockval);
                 }
 
                 /* add locks/global-lock/locked-time */ 
-                newval = agt_make_leaf(globallock,
+                newval = agt_make_leaf(instance,
+                                       globallock,
                                        AGT_STATE_OBJ_LOCKED_TIME,
                                        locktime, 
                                        &res);
                 if (newval) {
-                    val_add_child(newval, globallockval);
+                    val_add_child(instance, newval, globallockval);
                 } else {
                     res = ERR_INTERNAL_MEM;
                 }
             }
-        } else if (cfg_is_partial_locked(cfg)) {
-            for (plcb = cfg_first_partial_lock(cfg);
+        } else if (cfg_is_partial_locked(instance, cfg)) {
+            for (plcb = cfg_first_partial_lock(instance, cfg);
                  plcb != NULL && res == NO_ERR;
-                 plcb = cfg_next_partial_lock(plcb)) {
+                 plcb = cfg_next_partial_lock(instance, plcb)) {
 
-                plockval = make_plock_entry(plcb, 
+                plockval = make_plock_entry(instance, 
+                                            plcb, 
                                             plockobj,
                                             &res);
                 if (plockval) {
-                    val_add_child(plockval, dstval);
+                    val_add_child(instance, plockval, dstval);
                 }
             }
         } else {
@@ -551,7 +567,8 @@ static status_t
  * \return status
  */
 static status_t 
-    get_datastore_name (const val_value_t *virval,
+    get_datastore_name (ncx_instance_t *instance,
+                        const val_value_t *virval,
                         const xmlChar **retname)
 {
     const val_value_t  *parentval, *nameval;
@@ -561,8 +578,9 @@ static status_t
         return ERR_NCX_DEF_NOT_FOUND;
     }
 
-    nameval = val_find_child(parentval,
-                             obj_get_mod_name(parentval->obj),
+    nameval = val_find_child(instance,
+                             parentval,
+                             obj_get_mod_name(instance, parentval->obj),
                              (const xmlChar *)"name");
 
     if (nameval == NULL) {
@@ -587,7 +605,8 @@ static status_t
  * \return status
  */
 static status_t 
-    get_last_modified (ses_cb_t *scb,
+    get_last_modified (ncx_instance_t *instance,
+                       ses_cb_t *scb,
                        getcb_mode_t cbmode,
                        const val_value_t *virval,
                        val_value_t  *dstval)
@@ -602,17 +621,17 @@ static status_t
         return ERR_NCX_OPERATION_NOT_SUPPORTED;
     }
 
-    res = get_datastore_name(virval, &name);
+    res = get_datastore_name(instance, virval, &name);
     if (res != NO_ERR) {
         return res;
     }
 
-    cfg = cfg_get_config(name);
+    cfg = cfg_get_config(instance, name);
     if (cfg == NULL) {
         return ERR_DB_NOT_FOUND;
     }
 
-    VAL_STR(dstval) = xml_strdup(cfg->last_ch_time);
+    VAL_STR(dstval) = xml_strdup(instance, cfg->last_ch_time);
     if (VAL_STR(dstval) == NULL) {
         return ERR_INTERNAL_MEM;
     }
@@ -631,7 +650,8 @@ static status_t
  * \return malloced value struct or NULL if some error
  */
 static val_value_t *
-    make_datastore_val (const xmlChar *confname,
+    make_datastore_val (ncx_instance_t *instance,
+                        const xmlChar *confname,
                         obj_template_t *confobj,
                         status_t *res)
 {
@@ -641,61 +661,64 @@ static val_value_t *
     *res = NO_ERR;
 
     /* create datastore node */
-    confval = val_new_value();
+    confval = val_new_value(instance);
     if (!confval) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_from_template(confval, confobj);
+    val_init_from_template(instance, confval, confobj);
 
-    nameval = agt_make_leaf(confobj,
+    nameval = agt_make_leaf(instance,
+                            confobj,
                             NCX_EL_NAME,
                             confname,
                             res);
     if (*res != NO_ERR) {
         if (nameval != NULL) {
-            val_free_value(nameval);
+            val_free_value(instance, nameval);
         }
-        val_free_value(confval);
+        val_free_value(instance, confval);
         return NULL;
     }
-    val_add_child(nameval, confval);
+    val_add_child(instance, nameval, confval);
     
     /* create datastore/locks */
-    testobj = obj_find_child(confobj, 
+    testobj = obj_find_child(instance, 
+                             confobj, 
                              AGT_STATE_MODULE, 
                              AGT_STATE_OBJ_LOCKS);
     if (!testobj) {
-        val_free_value(confval);
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        val_free_value(instance, confval);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
-    leafval = val_new_value();
+    leafval = val_new_value(instance);
     if (!leafval) {
-        val_free_value(confval);
+        val_free_value(instance, confval);
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_virtual(leafval, get_locks, testobj);
-    val_add_child(leafval, confval);
+    val_init_virtual(instance, leafval, get_locks, testobj);
+    val_add_child(instance, leafval, confval);
 
     /* create datastore/last-modified */
-    testobj = obj_find_child(confobj, 
+    testobj = obj_find_child(instance, 
+                             confobj, 
                              y_yuma_time_filter_M_yuma_time_filter, 
                              NCX_EL_LAST_MODIFIED);
     if (!testobj) {
-        val_free_value(confval);
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        val_free_value(instance, confval);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
-    leafval = val_new_value();
+    leafval = val_new_value(instance);
     if (!leafval) {
-        val_free_value(confval);
+        val_free_value(instance, confval);
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_virtual(leafval, get_last_modified, testobj);
-    val_add_child(leafval, confval);
+    val_init_virtual(instance, leafval, get_last_modified, testobj);
+    val_add_child(instance, leafval, confval);
 
     *res = NO_ERR;
     return confval;
@@ -713,7 +736,8 @@ static val_value_t *
  * \return malloced value struct or NULL if some error
  */
 static val_value_t *
-    make_schema_val (ncx_module_t *mod,
+    make_schema_val (ncx_instance_t *instance,
+                     ncx_module_t *mod,
                      obj_template_t *schemaobj,
                      status_t *res)
 {
@@ -722,71 +746,76 @@ static val_value_t *
     *res = NO_ERR;
 
     /* create schema node */
-    schemaval = val_new_value();
+    schemaval = val_new_value(instance);
     if (!schemaval) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_from_template(schemaval, schemaobj);
+    val_init_from_template(instance, schemaval, schemaobj);
 
     /* create schema/identifier */
-    childval = agt_make_leaf(schemaobj,
+    childval = agt_make_leaf(instance,
+                             schemaobj,
                              AGT_STATE_OBJ_IDENTIFIER,
                              ncx_get_modname(mod), 
                              res);
     if (!childval) {
-        val_free_value(schemaval);
+        val_free_value(instance, schemaval);
         return NULL;
     }
-    val_add_child(childval, schemaval);
+    val_add_child(instance, childval, schemaval);
 
     /* create schema/version */
-    childval = agt_make_leaf(schemaobj,
+    childval = agt_make_leaf(instance,
+                             schemaobj,
                              AGT_STATE_OBJ_VERSION,
                              ncx_get_modversion(mod), 
                              res);
     if (!childval) {
-        val_free_value(schemaval);
+        val_free_value(instance, schemaval);
         return NULL;
     }
-    val_add_child(childval, schemaval);
+    val_add_child(instance, childval, schemaval);
 
     /* create schema/format */
-    childval = agt_make_leaf(schemaobj,
+    childval = agt_make_leaf(instance,
+                             schemaobj,
                              AGT_STATE_OBJ_FORMAT,
                              AGT_STATE_FORMAT_YANG, 
                              res);
     if (!childval) {
-        val_free_value(schemaval);
+        val_free_value(instance, schemaval);
         return NULL;
     }
-    val_add_child(childval, schemaval);
+    val_add_child(instance, childval, schemaval);
 
     /* create schema/namespace */
-    childval = agt_make_leaf(schemaobj,
+    childval = agt_make_leaf(instance,
+                             schemaobj,
                              AGT_STATE_OBJ_NAMESPACE,
                              ncx_get_modnamespace(mod), 
                              res);
     if (!childval) {
-        val_free_value(schemaval);
+        val_free_value(instance, schemaval);
         return NULL;
     }
-    val_add_child(childval, schemaval);
+    val_add_child(instance, childval, schemaval);
 
     /* create schema/location */
-    childval = agt_make_leaf(schemaobj,
+    childval = agt_make_leaf(instance,
+                             schemaobj,
                              AGT_STATE_OBJ_LOCATION,
                              AGT_STATE_ENUM_NETCONF, 
                              res);
     if (!childval) {
-        val_free_value(schemaval);
+        val_free_value(instance, schemaval);
         return NULL;
     }
-    val_add_child(childval, schemaval);
+    val_add_child(instance, childval, schemaval);
 
-    *res = val_gen_index_chain(schemaobj, schemaval);
+    *res = val_gen_index_chain(instance, schemaobj, schemaval);
     if (*res != NO_ERR) {
-        val_free_value(schemaval);
+        val_free_value(instance, schemaval);
         return NULL;
     }
 
@@ -805,7 +834,8 @@ static val_value_t *
  * \return malloced value struct or NULL if some error
  */
 static val_value_t *
-    make_session_val (ses_cb_t *scb,
+    make_session_val (ncx_instance_t *instance,
+                      ses_cb_t *scb,
                       obj_template_t *sessionobj,
                       status_t *res)
 {
@@ -815,116 +845,125 @@ static val_value_t *
     *res = NO_ERR;
 
     /* create session node */
-    sessionval = val_new_value();
+    sessionval = val_new_value(instance);
     if (!sessionval) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_from_template(sessionval, sessionobj);
+    val_init_from_template(instance, sessionval, sessionobj);
 
     /* create session/sessionId */
     snprintf((char *)numbuff, sizeof(numbuff), "%u", scb->sid);
-    childval = agt_make_leaf(sessionobj,
+    childval = agt_make_leaf(instance,
+                             sessionobj,
                              AGT_STATE_OBJ_SESSIONID,
                              numbuff, 
                              res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
 
     /* create session/transport */
-    childval = agt_make_leaf(sessionobj,
+    childval = agt_make_leaf(instance,
+                             sessionobj,
                              AGT_STATE_OBJ_TRANSPORT,
-                             ses_get_transport_name(scb->transport),
+                             ses_get_transport_name(instance, scb->transport),
                              res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
     
     /* create session/username */
-    childval = agt_make_leaf(sessionobj,
+    childval = agt_make_leaf(instance,
+                             sessionobj,
                              AGT_STATE_OBJ_USERNAME,
                              scb->username,
                              res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
 
     /* create session/sourceHost */
-    childval = agt_make_leaf(sessionobj,
+    childval = agt_make_leaf(instance,
+                             sessionobj,
                              AGT_STATE_OBJ_SOURCEHOST,
                              scb->peeraddr,
                              res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
 
     /* create session/loginTime */
-    childval = agt_make_leaf(sessionobj,
+    childval = agt_make_leaf(instance,
+                             sessionobj,
                              AGT_STATE_OBJ_LOGINTIME,
                              scb->start_time,
                              res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
 
     /* create session/inRpcs */
-    childval = agt_make_virtual_leaf(sessionobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     sessionobj,
                                      AGT_STATE_OBJ_IN_RPCS,
                                      agt_ses_get_session_inRpcs,
                              res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
 
     /* create session/inBadRpcs */
-    childval = agt_make_virtual_leaf(sessionobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     sessionobj,
                                      AGT_STATE_OBJ_IN_BAD_RPCS,
                                      agt_ses_get_session_inBadRpcs,
                                      res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
 
     /* create session/outRpcErrors */
-    childval = agt_make_virtual_leaf(sessionobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     sessionobj,
                                      AGT_STATE_OBJ_OUT_RPC_ERRORS,
                                      agt_ses_get_session_outRpcErrors,
                                      res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
 
     /* create session/outNotifications */
-    childval = agt_make_virtual_leaf(sessionobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     sessionobj,
                                      AGT_STATE_OBJ_OUT_NOTIFICATIONS,
                                      agt_ses_get_session_outNotifications,
                                      res);
     if (!childval) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
-    val_add_child(childval, sessionval);
+    val_add_child(instance, childval, sessionval);
 
-    *res = val_gen_index_chain(sessionobj, sessionval);
+    *res = val_gen_index_chain(instance, sessionobj, sessionval);
     if (*res != NO_ERR) {
-        val_free_value(sessionval);
+        val_free_value(instance, sessionval);
         return NULL;
     }
 
@@ -941,108 +980,117 @@ static val_value_t *
  * \return malloced value struct or NULL if some error
  */
 static val_value_t *
-    make_statistics_val (obj_template_t *statisticsobj,
+    make_statistics_val (ncx_instance_t *instance,
+                         obj_template_t *statisticsobj,
                          status_t *res)
 {
     val_value_t            *statsval, *childval;
     xmlChar                tbuff[TSTAMP_MIN_SIZE+1];
 
     /* create statistics node */
-    statsval = val_new_value();
+    statsval = val_new_value(instance);
     if (!statsval) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_from_template(statsval, statisticsobj);
+    val_init_from_template(instance, statsval, statisticsobj);
 
     /* add statistics/netconfStartTime static leaf */
-    tstamp_datetime(tbuff);
-    childval = agt_make_leaf(statisticsobj,
+    tstamp_datetime(instance, tbuff);
+    childval = agt_make_leaf(instance,
+                             statisticsobj,
                              AGT_STATE_OBJ_NETCONF_START_TIME,
                              tbuff,
                              res);
     if (!childval) {
-        val_free_value(statsval);
+        val_free_value(instance, statsval);
         return NULL;
     }
-    val_add_child(childval, statsval);
+    val_add_child(instance, childval, statsval);
 
     /* add statistics/inBadHellos virtual leaf */
-    childval = agt_make_virtual_leaf(statisticsobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     statisticsobj,
                                      AGT_STATE_OBJ_IN_BAD_HELLOS,
                                      agt_ses_get_inBadHellos,
                                      res);
     if (!childval) {
-        val_free_value(statsval);
+        val_free_value(instance, statsval);
         return NULL;
     }
-    val_add_child(childval, statsval);
+    val_add_child(instance, childval, statsval);
 
     /* add statistics/inSessions virtual leaf */
-    childval = agt_make_virtual_leaf(statisticsobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     statisticsobj,
                                      AGT_STATE_OBJ_IN_SESSIONS,
                                      agt_ses_get_inSessions,
                                      res);
     if (!childval) {
-        val_free_value(statsval);
+        val_free_value(instance, statsval);
         return NULL;
     }
-    val_add_child(childval, statsval);
+    val_add_child(instance, childval, statsval);
 
     /* add statistics/droppedSessions virtual leaf */
-    childval = agt_make_virtual_leaf(statisticsobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     statisticsobj,
                                      AGT_STATE_OBJ_DROPPED_SESSIONS,
                                      agt_ses_get_droppedSessions,
                                      res);
     if (!childval) {
-        val_free_value(statsval);
+        val_free_value(instance, statsval);
         return NULL;
     }
-    val_add_child(childval, statsval);
+    val_add_child(instance, childval, statsval);
 
     /* add statistics/inRpcs virtual leaf */
-    childval = agt_make_virtual_leaf(statisticsobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     statisticsobj,
                                      AGT_STATE_OBJ_IN_RPCS,
                                      agt_ses_get_inRpcs,
                                      res);
     if (!childval) {
-        val_free_value(statsval);
+        val_free_value(instance, statsval);
         return NULL;
     }
-    val_add_child(childval, statsval);
+    val_add_child(instance, childval, statsval);
 
     /* add statistics/inBadRpcs virtual leaf */
-    childval = agt_make_virtual_leaf(statisticsobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     statisticsobj,
                                      AGT_STATE_OBJ_IN_BAD_RPCS,
                                      agt_ses_get_inBadRpcs,
                                      res);
     if (!childval) {
-        val_free_value(statsval);
+        val_free_value(instance, statsval);
         return NULL;
     }
-    val_add_child(childval, statsval);
+    val_add_child(instance, childval, statsval);
 
     /* add statistics/outRpcErrors virtual leaf */
-    childval = agt_make_virtual_leaf(statisticsobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     statisticsobj,
                                      AGT_STATE_OBJ_OUT_RPC_ERRORS,
                                      agt_ses_get_outRpcErrors,
                                      res);
     if (!childval) {
-        val_free_value(statsval);
+        val_free_value(instance, statsval);
         return NULL;
     }
-    val_add_child(childval, statsval);
+    val_add_child(instance, childval, statsval);
 
     /* add statistics/outNotifications virtual leaf */
-    childval = agt_make_virtual_leaf(statisticsobj,
+    childval = agt_make_virtual_leaf(instance,
+                                     statisticsobj,
                                      AGT_STATE_OBJ_OUT_NOTIFICATIONS,
                                      agt_ses_get_outNotifications,
                                      res);
     if (!childval) {
-        val_free_value(statsval);
+        val_free_value(instance, statsval);
         return NULL;
     }
-    val_add_child(childval, statsval);
+    val_add_child(instance, childval, statsval);
 
     return statsval;
 
@@ -1059,7 +1107,8 @@ static val_value_t *
  * \param see agt_rpc.h
  * \return status
  ******************************************************************************/
-static status_t get_schema_validate( ses_cb_t *scb, 
+static status_t get_schema_validate(ncx_instance_t *instance, 
+                                      ses_cb_t *scb, 
                                      rpc_msg_t *msg, 
                                      xml_node_t *methnode)
 {
@@ -1084,7 +1133,8 @@ static status_t get_schema_validate( ses_cb_t *scb,
     nsid = 0;
 
     /* get the identifier parameter */
-    validentifier = val_find_child(msg->rpc_input, 
+    validentifier = val_find_child(instance, 
+                                   msg->rpc_input, 
                                    AGT_STATE_MODULE,
                                    AGT_STATE_OBJ_IDENTIFIER);
     if (validentifier && validentifier->res == NO_ERR) {
@@ -1092,7 +1142,8 @@ static status_t get_schema_validate( ses_cb_t *scb,
     }
 
     /* get the version parameter */
-    valversion = val_find_child(msg->rpc_input, 
+    valversion = val_find_child(instance, 
+                                msg->rpc_input, 
                                 AGT_STATE_MODULE,
                                 AGT_STATE_OBJ_VERSION);
     if (valversion && valversion->res == NO_ERR) {
@@ -1100,7 +1151,8 @@ static status_t get_schema_validate( ses_cb_t *scb,
     }
 
     /* get the format parameter */
-    valformat = val_find_child(msg->rpc_input, 
+    valformat = val_find_child(instance, 
+                               msg->rpc_input, 
                                AGT_STATE_MODULE,
                                AGT_STATE_OBJ_FORMAT);
     if (valformat && valformat->res == NO_ERR) {
@@ -1108,7 +1160,8 @@ static status_t get_schema_validate( ses_cb_t *scb,
         nsid = VAL_IDREF_NSID(valformat);
         if (nsid != statemod->nsid) {
             res = ERR_NCX_INVALID_VALUE;
-            agt_record_error(scb, 
+            agt_record_error(instance, 
+                             scb, 
                              &msg->mhdr, 
                              NCX_LAYER_OPERATION, 
                              res, 
@@ -1132,16 +1185,17 @@ static status_t get_schema_validate( ses_cb_t *scb,
     }
 
     /* check format parameter: only YANG and YIN supported for now */
-    if (!xml_strcmp(format, AGT_STATE_FORMAT_YANG)) {
+    if (!xml_strcmp(instance, format, AGT_STATE_FORMAT_YANG)) {
         modformat = NCX_MODFORMAT_YANG;
-    } else if (!xml_strcmp(format, AGT_STATE_FORMAT_YIN)) {
+    } else if (!xml_strcmp(instance, format, AGT_STATE_FORMAT_YIN)) {
         modformat = NCX_MODFORMAT_YIN;
     } else {
         modformat = NCX_MODFORMAT_NONE;
     }
     if (nsid != statemod->nsid) {
         res = ERR_NCX_WRONG_NS;
-        agt_record_error(scb,
+        agt_record_error(instance,
+                         scb,
                          &msg->mhdr, 
                          NCX_LAYER_OPERATION, 
                          res, 
@@ -1152,7 +1206,8 @@ static status_t get_schema_validate( ses_cb_t *scb,
                          valformat);
     } else if (modformat == NCX_MODFORMAT_NONE) {
         res = ERR_NCX_VALUE_NOT_SUPPORTED;
-        agt_record_error(scb, 
+        agt_record_error(instance, 
+                         scb, 
                          &msg->mhdr, 
                          NCX_LAYER_OPERATION, 
                          res, 
@@ -1164,9 +1219,10 @@ static status_t get_schema_validate( ses_cb_t *scb,
     }
 
     /* check the identifier: must be valid module name */
-    if (!ncx_valid_name2(identifier)) {
+    if (!ncx_valid_name2(instance, identifier)) {
         res = ERR_NCX_NO_MATCHES;
-        agt_record_error(scb, 
+        agt_record_error(instance, 
+                         scb, 
                          &msg->mhdr, 
                          NCX_LAYER_OPERATION, 
                          res, 
@@ -1187,10 +1243,11 @@ static status_t get_schema_validate( ses_cb_t *scb,
 
     /* client must specify a revision if the server has more than 1 */
     if (version == NULL) {
-        revcount = ncx_mod_revision_count(identifier);
+        revcount = ncx_mod_revision_count(instance, identifier);
         if (revcount > 1) {
             res = ERR_NCX_GET_SCHEMA_DUPLICATES;
-            agt_record_error(scb, 
+            agt_record_error(instance, 
+                             scb, 
                              &msg->mhdr, 
                              NCX_LAYER_OPERATION, 
                              res, 
@@ -1208,18 +1265,19 @@ static status_t get_schema_validate( ses_cb_t *scb,
      * instead of just returning the format loaded into memory
      */
     if (res == NO_ERR) {
-        findmod = ncx_find_module(identifier, version);
+        findmod = ncx_find_module(instance, identifier, version);
         if (findmod == NULL) {
             val_value_t *errval = validentifier;
 
             res = ERR_NCX_NO_MATCHES;
             if (version != NULL) {
-                findmod = ncx_find_module(identifier, NULL);
+                findmod = ncx_find_module(instance, identifier, NULL);
                 if (findmod != NULL) {
                     errval = valversion;
                 }
             }
-            agt_record_error(scb, 
+            agt_record_error(instance, 
+                             scb, 
                              &msg->mhdr, 
                              NCX_LAYER_OPERATION,
                              res, 
@@ -1232,20 +1290,21 @@ static status_t get_schema_validate( ses_cb_t *scb,
             /* check if format is correct for request */
             switch (modformat) {
             case NCX_MODFORMAT_YANG:
-                if (yang_fileext_is_yin(findmod->source)) {
+                if (yang_fileext_is_yin(instance, findmod->source)) {
                     res = ERR_NCX_VALUE_NOT_SUPPORTED;
                 }
                 break;
             case NCX_MODFORMAT_YIN:
-                if (yang_fileext_is_yang(findmod->source)) {
+                if (yang_fileext_is_yang(instance, findmod->source)) {
                     res = ERR_NCX_VALUE_NOT_SUPPORTED;
                 }
                 break;
             default:
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
             if (res != NO_ERR) {
-                agt_record_error(scb, 
+                agt_record_error(instance, 
+                                 scb, 
                                  &msg->mhdr, 
                                  NCX_LAYER_OPERATION, 
                                  res, 
@@ -1280,21 +1339,22 @@ static status_t get_schema_validate( ses_cb_t *scb,
  * \brief Initialize the agent state monitor module data structures
  * \return status
  */
-status_t agt_state_init (void)
+status_t agt_state_init (ncx_instance_t *instance)
 {
     agt_profile_t   *agt_profile;
     status_t         res;
 
     if (agt_state_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
-    log_debug2("\nagt: Loading netconf-state module");
+    log_debug2(instance, "\nagt: Loading netconf-state module");
 
     agt_profile = agt_get_profile();
 
     /* load the netconf-state module */
-    res = ncxmod_load_module(AGT_STATE_MODULE, 
+    res = ncxmod_load_module(instance, 
+                             AGT_STATE_MODULE, 
                              NULL, 
                              &agt_profile->agt_savedevQ,
                              &statemod);
@@ -1321,7 +1381,7 @@ status_t agt_state_init (void)
  */
 
 status_t
-    agt_state_init2 (void)
+    agt_state_init2 (ncx_instance_t *instance)
 {
     obj_template_t  *topobj, *confsobj, *confobj;
     obj_template_t  *sessionsobj, *statisticsobj;
@@ -1334,178 +1394,192 @@ status_t
     status_t         res;
 
     if (!agt_state_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
     /* set up get-schema RPC operation */
-    res = agt_rpc_register_method(AGT_STATE_MODULE,
+    res = agt_rpc_register_method(instance,
+                                  AGT_STATE_MODULE,
                                   AGT_STATE_GET_SCHEMA,
                                   AGT_RPC_PH_VALIDATE,
                                   get_schema_validate);
     if (res != NO_ERR) {
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
-    runningcfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+    runningcfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
     if (!runningcfg || !runningcfg->root) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* get all the object nodes first */
-    topobj = obj_find_template_top(statemod, 
+    topobj = obj_find_template_top(instance, 
+                                   statemod, 
                                    AGT_STATE_MODULE,
                                    AGT_STATE_TOP_CONTAINER);
     if (!topobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    capsobj = obj_find_child(topobj, 
+    capsobj = obj_find_child(instance, 
+                             topobj, 
                              AGT_STATE_MODULE, 
                              AGT_STATE_OBJ_CAPABILITIES);
     if (!capsobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    confsobj = obj_find_child(topobj, 
+    confsobj = obj_find_child(instance, 
+                              topobj, 
                               AGT_STATE_MODULE, 
                               AGT_STATE_OBJ_DATASTORES);
     if (!confsobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    confobj = obj_find_child(confsobj,
+    confobj = obj_find_child(instance,
+                             confsobj,
                              AGT_STATE_MODULE,
                              AGT_STATE_OBJ_DATASTORE);
     if (!confobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    schemasobj = obj_find_child(topobj,
+    schemasobj = obj_find_child(instance,
+                                topobj,
                                 AGT_STATE_MODULE,
                                 AGT_STATE_OBJ_SCHEMAS);
     if (!schemasobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    myschemaobj = obj_find_child(schemasobj,
+    myschemaobj = obj_find_child(instance,
+                                 schemasobj,
                                  AGT_STATE_MODULE,
                                  AGT_STATE_OBJ_SCHEMA);
     if (!myschemaobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    sessionsobj = obj_find_child(topobj,
+    sessionsobj = obj_find_child(instance,
+                                 topobj,
                                  AGT_STATE_MODULE,
                                  AGT_STATE_OBJ_SESSIONS);
     if (!sessionsobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    mysessionobj = obj_find_child(sessionsobj,
+    mysessionobj = obj_find_child(instance,
+                                  sessionsobj,
                                   AGT_STATE_MODULE,
                                   AGT_STATE_OBJ_SESSION);
     if (!mysessionobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    statisticsobj = obj_find_child(topobj,
+    statisticsobj = obj_find_child(instance,
+                                   topobj,
                                    AGT_STATE_MODULE,
                                    AGT_STATE_OBJ_STATISTICS);
     if (!statisticsobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* add /ietf-netconf-state */
-    topval = val_new_value();
+    topval = val_new_value(instance);
     if (!topval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(topval, topobj);
+    val_init_from_template(instance, topval, topobj);
 
     /* handing off the malloced memory here */
-    val_add_child_sorted(topval, runningcfg->root);
+    val_add_child_sorted(instance, topval, runningcfg->root);
 
     /* add /ietf-netconf-state/capabilities virtual node */
-    capsval = val_new_value();
+    capsval = val_new_value(instance);
     if (!capsval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_virtual(capsval, get_caps, capsobj);
-    val_add_child(capsval, topval);
+    val_init_virtual(instance, capsval, get_caps, capsobj);
+    val_add_child(instance, capsval, topval);
 
     /* add /ietf-netconf-state/datastores */
-    confsval = val_new_value();
+    confsval = val_new_value(instance);
     if (!confsval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(confsval, confsobj);
-    val_add_child(confsval, topval);
+    val_init_from_template(instance, confsval, confsobj);
+    val_add_child(instance, confsval, topval);
 
     /* add /ietf-netconf-state/datastores/datastore[1] */
     if (agt_cap_std_set(CAP_STDID_CANDIDATE)) {
-        confval = make_datastore_val(NCX_EL_CANDIDATE,
+        confval = make_datastore_val(instance,
+                                     NCX_EL_CANDIDATE,
                                      confobj,
                                      &res);
         if (!confval) {
             return res;
         }
-        val_add_child(confval, confsval);
+        val_add_child(instance, confval, confsval);
     }
 
     /* add /ietf-netconf-state/datastores/datastore[2] */
-    confval = make_datastore_val(NCX_EL_RUNNING,
+    confval = make_datastore_val(instance,
+                                 NCX_EL_RUNNING,
                                  confobj,
                                  &res);
     if (!confval) {
         return res;
     }
-    val_add_child(confval, confsval);
+    val_add_child(instance, confval, confsval);
 
     /* add /ietf-netconf-state/datastores/datastore[3] */
     if (agt_cap_std_set(CAP_STDID_STARTUP)) {
-        confval = make_datastore_val(NCX_EL_STARTUP,
+        confval = make_datastore_val(instance,
+                                     NCX_EL_STARTUP,
                                      confobj,
                                      &res);
         if (!confval) {
             return res;
         }
-        val_add_child(confval, confsval);
+        val_add_child(instance, confval, confsval);
     }
 
     /* add /ietf-netconf-state/schemas */
-    myschemasval = val_new_value();
+    myschemasval = val_new_value(instance);
     if (!myschemasval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(myschemasval, schemasobj);
-    val_add_child(myschemasval, topval);
+    val_init_from_template(instance, myschemasval, schemasobj);
+    val_add_child(instance, myschemasval, topval);
 
     /* add all the /ietf-netconf-state/schemas/schema nodes */
-    for (mod = ncx_get_first_module();
+    for (mod = ncx_get_first_module(instance);
          mod != NULL;
-         mod = ncx_get_next_module(mod)) {
-        res = agt_state_add_module_schema(mod);
+         mod = ncx_get_next_module(instance, mod)) {
+        res = agt_state_add_module_schema(instance, mod);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* add /ietf-netconf-state/sessions */
-    sessionsval = val_new_value();
+    sessionsval = val_new_value(instance);
     if (!sessionsval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(sessionsval, sessionsobj);
-    val_add_child(sessionsval, topval);
+    val_init_from_template(instance, sessionsval, sessionsobj);
+    val_add_child(instance, sessionsval, topval);
     mysessionsval = sessionsval;
 
     /* add /ietf-netconf-state/statistics */
-    statisticsval = make_statistics_val(statisticsobj,
+    statisticsval = make_statistics_val(instance,
+                                        statisticsobj,
                                         &res);
     if (!statisticsval) {
         return ERR_INTERNAL_MEM;
     }
-    val_add_child(statisticsval, topval);
+    val_add_child(instance, statisticsval, topval);
 
     return NO_ERR;
 
@@ -1518,7 +1592,7 @@ status_t
  * \brief Cleanup the module data structures
  * \return none
  */
-void agt_state_cleanup (void)
+void agt_state_cleanup (ncx_instance_t *instance)
 {
     if (agt_state_init_done) {
 
@@ -1528,7 +1602,8 @@ void agt_state_cleanup (void)
         mysessionobj = NULL;
         myschemaobj = NULL;
 
-        agt_rpc_unregister_method(AGT_STATE_MODULE, 
+        agt_rpc_unregister_method(instance, 
+                                  AGT_STATE_MODULE, 
                                   AGT_STATE_GET_SCHEMA);
 
         agt_state_init_done = FALSE;
@@ -1543,7 +1618,7 @@ void agt_state_cleanup (void)
  * \param scb session control block to use for the info
  * \return status
  */
-status_t agt_state_add_session (ses_cb_t *scb)
+status_t agt_state_add_session (ncx_instance_t *instance, ses_cb_t *scb)
 {
     val_value_t *session;
     status_t     res;
@@ -1551,12 +1626,12 @@ status_t agt_state_add_session (ses_cb_t *scb)
     assert (scb && " param scb is NULL");
 
     res = NO_ERR;
-    session = make_session_val(scb, mysessionobj, &res);
+    session = make_session_val(instance, scb, mysessionobj, &res);
     if (!session) {
         return res;
     }
 
-    val_add_child(session, mysessionsval);
+    val_add_child(instance, session, mysessionsval);
     return NO_ERR;
 
 }  /* agt_state_add_session */
@@ -1570,7 +1645,7 @@ status_t agt_state_add_session (ses_cb_t *scb)
  * \return none
  */
 void
-    agt_state_remove_session (ses_id_t sid)
+    agt_state_remove_session (ncx_instance_t *instance, ses_id_t sid)
 {
     val_value_t  *sessionval, *idval;
 
@@ -1579,18 +1654,19 @@ void
         return;
     }
 
-    for (sessionval = val_get_first_child(mysessionsval);
+    for (sessionval = val_get_first_child(instance, mysessionsval);
          sessionval != NULL;
-         sessionval = val_get_next_child(sessionval)) {
+         sessionval = val_get_next_child(instance, sessionval)) {
 
-        idval = val_find_child(sessionval, 
+        idval = val_find_child(instance, 
+                               sessionval, 
                                AGT_STATE_MODULE, 
                                AGT_STATE_OBJ_SESSIONID);
         if (!idval) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else if (VAL_UINT(idval) == sid) {
-            dlq_remove(sessionval);
-            val_free_value(sessionval);
+            dlq_remove(instance, sessionval);
+            val_free_value(instance, sessionval);
             return;
         }
     }
@@ -1607,24 +1683,24 @@ void
  * \param mod module to add
  * \return status
  */
-status_t agt_state_add_module_schema (ncx_module_t *mod)
+status_t agt_state_add_module_schema (ncx_instance_t *instance, ncx_module_t *mod)
 {
     val_value_t *schema;
     status_t     res;
 
     assert ( mod && " param mod is NULL");
 
-    if (!agt_advertise_module_needed(mod->name)) {
+    if (!agt_advertise_module_needed(instance, mod->name)) {
         return NO_ERR;
     }
 
     res = NO_ERR;
-    schema = make_schema_val(mod, myschemaobj, &res);
+    schema = make_schema_val(instance, mod, myschemaobj, &res);
     if (!schema) {
         return res;
     }
 
-    val_add_child(schema, myschemasval);
+    val_add_child(instance, schema, myschemasval);
     return res;
 
 }  /* agt_state_add_module_schema */

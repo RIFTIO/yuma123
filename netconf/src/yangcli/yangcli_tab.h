@@ -79,7 +79,8 @@ extern "C" {
  *                         1 - Error.
  */
 extern int
-    yangcli_tab_callback (WordCompletion *cpl, 
+    yangcli_tab_callback (struct ncx_instance_t_ *instance, 
+			  WordCompletion *cpl, 
 			  void *data,
 			  const char *line, 
 			  int word_end);

@@ -102,7 +102,7 @@ extern void
 *   none
 *********************************************************************/
 extern void 
-    mgr_ses_cleanup (void);
+    mgr_ses_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -142,7 +142,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    mgr_ses_new_session (const xmlChar *user,
+    mgr_ses_new_session (struct ncx_instance_t_ *instance,
+                         const xmlChar *user,
                          const xmlChar *password,
                          const char *pubkeyfile,
                          const char *privkeyfile,
@@ -165,7 +166,7 @@ extern status_t
 *
 *********************************************************************/
 extern void
-    mgr_ses_free_session (ses_id_t sid);
+    mgr_ses_free_session (struct ncx_instance_t_ *instance, ses_id_t sid);
 
 
 /********************************************************************
@@ -179,7 +180,7 @@ extern void
 *   pointer to initialized dummy SCB, or NULL if malloc error
 *********************************************************************/
 extern ses_cb_t *
-    mgr_ses_new_dummy_session (void);
+    mgr_ses_new_dummy_session (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -192,7 +193,7 @@ extern ses_cb_t *
 *
 *********************************************************************/
 extern void
-    mgr_ses_free_dummy_session (ses_cb_t *scb);
+    mgr_ses_free_dummy_session (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -205,7 +206,7 @@ extern void
 *     FALSE if the readyQ was empty
 *********************************************************************/
 extern boolean
-    mgr_ses_process_first_ready (void);
+    mgr_ses_process_first_ready (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -227,7 +228,8 @@ extern boolean
 *********************************************************************/
 
 extern uint32
-    mgr_ses_fill_writeset (fd_set *fdset,
+    mgr_ses_fill_writeset (struct ncx_instance_t_ *instance,
+			   fd_set *fdset,
 			   int *maxfdnum);
 
 
@@ -244,7 +246,7 @@ extern uint32
 *********************************************************************/
 
 extern ses_cb_t *
-    mgr_ses_get_first_outready (void);
+    mgr_ses_get_first_outready (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -346,7 +348,7 @@ extern ses_cb_t *
 *   pointer to manager session control block or NULL if invalid
 *********************************************************************/
 extern mgr_scb_t *
-    mgr_ses_get_mscb (ses_cb_t *scb);
+    mgr_ses_get_mscb (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 #ifdef __cplusplus

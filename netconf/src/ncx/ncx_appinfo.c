@@ -126,7 +126,8 @@ date         init     comment
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_appinfo_entry (tk_chain_t *tkc,
+    consume_appinfo_entry (ncx_instance_t *instance,
+                           tk_chain_t *tkc,
                            ncx_module_t  *mod,
                            dlq_hdr_t     *appinfoQ,
                            boolean bkup)
@@ -136,7 +137,7 @@ static status_t
 
     /* right brace means appinfo is done */
     if (tkc->source == TK_SOURCE_YANG && !bkup) {
-        if (tk_next_typ(tkc)==TK_TT_RBRACE) {
+        if (tk_next_typ(instance, tkc)==TK_TT_RBRACE) {
             return ERR_NCX_SKIPPED;
         }
     }
@@ -145,10 +146,10 @@ static status_t
     retres = NO_ERR;
     appinfo = NULL;
 
-    appinfo = ncx_new_appinfo(FALSE);
+    appinfo = ncx_new_appinfo(instance, FALSE);
     if (!appinfo) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -158,14 +159,15 @@ static status_t
      * if OK then malloc a new appinfo struct and make
      * a copy of the token value.
      */
-    res = yang_consume_pid_string(tkc, 
+    res = yang_consume_pid_string(instance, 
+                                  tkc, 
                                   mod,
                                   &appinfo->prefix,
                                   &appinfo->name);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
-            ncx_free_appinfo(appinfo);
+            ncx_free_appinfo(instance, appinfo);
             return retres;
         }
     }
@@ -184,35 +186,35 @@ static status_t
      * move to the 2nd token, either a string or a semicolon
      * if the value is missing
      */
-    switch (tk_next_typ(tkc)) {
+    switch (tk_next_typ(instance, tkc)) {
     case TK_TT_SEMICOL:
     case TK_TT_LBRACE:
         break;
     default:
-        res = yang_consume_string(tkc, mod, &appinfo->value);
+        res = yang_consume_string(instance, tkc, mod, &appinfo->value);
         if (res != NO_ERR) {
             retres = res;
             if (NEED_EXIT(res)) {
-                ncx_free_appinfo(appinfo);
+                ncx_free_appinfo(instance, appinfo);
                 return retres;
             }
         }
     }
 
     /* go around and get nested extension statements or semi-colon */
-    res = yang_consume_semiapp(tkc, mod, appinfo->appinfoQ);
+    res = yang_consume_semiapp(instance, tkc, mod, appinfo->appinfoQ);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
-            ncx_free_appinfo(appinfo);
+            ncx_free_appinfo(instance, appinfo);
             return retres;
         }
     }
 
     if (retres != NO_ERR || !appinfoQ) {
-        ncx_free_appinfo(appinfo);
+        ncx_free_appinfo(instance, appinfo);
     } else {
-        dlq_enque(appinfo, appinfoQ);
+        dlq_enque(instance, appinfo, appinfoQ);
     }
 
     return retres;
@@ -241,7 +243,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    consume_appinfo (tk_chain_t *tkc,
+    consume_appinfo (ncx_instance_t *instance,
+                     tk_chain_t *tkc,
                      ncx_module_t  *mod,
                      dlq_hdr_t *appinfoQ,
                      boolean bkup)
@@ -254,13 +257,14 @@ static status_t
          * already parsed the MSTRING since extensions
          * can be spread out throughout the file
          */
-        TK_BKUP(tkc);
+        TK_BKUP(instance, tkc);
     }
 
     res = NO_ERR;
     done = FALSE;
     while (!done) {
-        res = consume_appinfo_entry(tkc, 
+        res = consume_appinfo_entry(instance, 
+                                    tkc, 
                                     mod, 
                                     appinfoQ, 
                                     bkup);
@@ -289,11 +293,11 @@ static status_t
 *    malloced appinfo entry or NULL if malloc error
 *********************************************************************/
 ncx_appinfo_t *
-    ncx_new_appinfo (boolean isclone)
+    ncx_new_appinfo (ncx_instance_t *instance, boolean isclone)
 {
     ncx_appinfo_t *appinfo;
 
-    appinfo = m__getObj(ncx_appinfo_t);
+    appinfo = m__getObj(instance, ncx_appinfo_t);
     if (!appinfo) {
         return NULL;
     }
@@ -301,9 +305,9 @@ ncx_appinfo_t *
     appinfo->isclone = isclone;
 
     if (!isclone) {
-        appinfo->appinfoQ = dlq_createQue();
+        appinfo->appinfoQ = dlq_createQue(instance);
         if (!appinfo->appinfoQ) {
-            m__free(appinfo);
+            m__free(instance, appinfo);
             appinfo = NULL;
         }
     }
@@ -322,31 +326,31 @@ ncx_appinfo_t *
 *    appinfo == ncx_appinfo_t data structure to free
 *********************************************************************/
 void 
-    ncx_free_appinfo (ncx_appinfo_t *appinfo)
+    ncx_free_appinfo (ncx_instance_t *instance, ncx_appinfo_t *appinfo)
 {
 #ifdef DEBUG
     if (!appinfo) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (!appinfo->isclone) {
         if (appinfo->prefix) {
-            m__free(appinfo->prefix);
+            m__free(instance, appinfo->prefix);
         }
         if (appinfo->name) {
-            m__free(appinfo->name);
+            m__free(instance, appinfo->name);
         }
         if (appinfo->value) {
-            m__free(appinfo->value);
+            m__free(instance, appinfo->value);
         }
         if (appinfo->appinfoQ) {
-            ncx_clean_appinfoQ(appinfo->appinfoQ);
-            dlq_destroyQue(appinfo->appinfoQ);
+            ncx_clean_appinfoQ(instance, appinfo->appinfoQ);
+            dlq_destroyQue(instance, appinfo->appinfoQ);
         }
     }
-    m__free(appinfo);
+    m__free(instance, appinfo);
 
 }  /* ncx_free_appinfo */
 
@@ -369,7 +373,8 @@ void
 *    NULL if the entry is not found
 *********************************************************************/
 ncx_appinfo_t *
-    ncx_find_appinfo (dlq_hdr_t *appinfoQ,
+    ncx_find_appinfo (ncx_instance_t *instance,
+                      dlq_hdr_t *appinfoQ,
                       const xmlChar *prefix,
                       const xmlChar *varname)
 {
@@ -377,21 +382,21 @@ ncx_appinfo_t *
 
 #ifdef DEBUG
     if (!appinfoQ || !varname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (appinfo = (ncx_appinfo_t *)dlq_firstEntry(appinfoQ);
+    for (appinfo = (ncx_appinfo_t *)dlq_firstEntry(instance, appinfoQ);
          appinfo != NULL;
-         appinfo = (ncx_appinfo_t *)dlq_nextEntry(appinfo)) {
+         appinfo = (ncx_appinfo_t *)dlq_nextEntry(instance, appinfo)) {
 
         if (prefix && appinfo->prefix &&
-            xml_strcmp(prefix, appinfo->prefix)) {
+            xml_strcmp(instance, prefix, appinfo->prefix)) {
             continue;
         }
 
-        if (!xml_strcmp(varname, appinfo->name)) {
+        if (!xml_strcmp(instance, varname, appinfo->name)) {
             return appinfo;
         }
     }
@@ -418,7 +423,8 @@ ncx_appinfo_t *
 *    NULL if the entry is not found
 *********************************************************************/
 const ncx_appinfo_t *
-    ncx_find_const_appinfo (const dlq_hdr_t *appinfoQ,
+    ncx_find_const_appinfo (ncx_instance_t *instance,
+                            const dlq_hdr_t *appinfoQ,
                             const xmlChar *prefix,
                             const xmlChar *varname)
 {
@@ -426,21 +432,21 @@ const ncx_appinfo_t *
 
 #ifdef DEBUG
     if (!appinfoQ || !varname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (appinfo = (const ncx_appinfo_t *)dlq_firstEntry(appinfoQ);
+    for (appinfo = (const ncx_appinfo_t *)dlq_firstEntry(instance, appinfoQ);
          appinfo != NULL;
-         appinfo = (const ncx_appinfo_t *)dlq_nextEntry(appinfo)) {
+         appinfo = (const ncx_appinfo_t *)dlq_nextEntry(instance, appinfo)) {
 
         if (prefix && appinfo->prefix &&
-            xml_strcmp(prefix, appinfo->prefix)) {
+            xml_strcmp(instance, prefix, appinfo->prefix)) {
             continue;
         }
 
-        if (!xml_strcmp(varname, appinfo->name)) {
+        if (!xml_strcmp(instance, varname, appinfo->name)) {
             return appinfo;
         }
     }
@@ -468,7 +474,8 @@ const ncx_appinfo_t *
 *    NULL if the entry is not found
 *********************************************************************/
 const ncx_appinfo_t *
-    ncx_find_next_appinfo (const ncx_appinfo_t *current,
+    ncx_find_next_appinfo (ncx_instance_t *instance,
+                           const ncx_appinfo_t *current,
                            const xmlChar *prefix,
                            const xmlChar *varname)
 {
@@ -476,21 +483,21 @@ const ncx_appinfo_t *
 
 #ifdef DEBUG
     if (!current || !varname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (appinfo = (ncx_appinfo_t *)dlq_nextEntry(current);
+    for (appinfo = (ncx_appinfo_t *)dlq_nextEntry(instance, current);
          appinfo != NULL;
-         appinfo = (ncx_appinfo_t *)dlq_nextEntry(appinfo)) {
+         appinfo = (ncx_appinfo_t *)dlq_nextEntry(instance, appinfo)) {
 
         if (prefix && appinfo->prefix &&
-            xml_strcmp(prefix, appinfo->prefix)) {
+            xml_strcmp(instance, prefix, appinfo->prefix)) {
             continue;
         }
 
-        if (!xml_strcmp(varname, appinfo->name)) {
+        if (!xml_strcmp(instance, varname, appinfo->name)) {
             return appinfo;
         }
     }
@@ -518,7 +525,8 @@ const ncx_appinfo_t *
 *    NULL if the entry is not found
 *********************************************************************/
 ncx_appinfo_t *
-    ncx_find_next_appinfo2 (ncx_appinfo_t *current,
+    ncx_find_next_appinfo2 (ncx_instance_t *instance,
+                           ncx_appinfo_t *current,
                            const xmlChar *prefix,
                            const xmlChar *varname)
 {
@@ -526,21 +534,21 @@ ncx_appinfo_t *
 
 #ifdef DEBUG
     if (!current || !varname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (appinfo = (ncx_appinfo_t *)dlq_nextEntry(current);
+    for (appinfo = (ncx_appinfo_t *)dlq_nextEntry(instance, current);
          appinfo != NULL;
-         appinfo = (ncx_appinfo_t *)dlq_nextEntry(appinfo)) {
+         appinfo = (ncx_appinfo_t *)dlq_nextEntry(instance, appinfo)) {
 
         if (prefix && appinfo->prefix &&
-            xml_strcmp(prefix, appinfo->prefix)) {
+            xml_strcmp(instance, prefix, appinfo->prefix)) {
             continue;
         }
 
-        if (!xml_strcmp(varname, appinfo->name)) {
+        if (!xml_strcmp(instance, varname, appinfo->name)) {
             return appinfo;
         }
     }
@@ -562,18 +570,18 @@ ncx_appinfo_t *
 *    NULL if a malloc error
 *********************************************************************/
 ncx_appinfo_t *
-    ncx_clone_appinfo (ncx_appinfo_t *appinfo)
+    ncx_clone_appinfo (ncx_instance_t *instance, ncx_appinfo_t *appinfo)
 {
     ncx_appinfo_t *newapp;
 
 #ifdef DEBUG
     if (!appinfo) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    newapp = ncx_new_appinfo(TRUE);
+    newapp = ncx_new_appinfo(instance, TRUE);
     if (!newapp) {
         return NULL;
     }
@@ -581,6 +589,8 @@ ncx_appinfo_t *
     newapp->name = appinfo->name;
     newapp->value = appinfo->value;
     newapp->appinfoQ = appinfo->appinfoQ;
+    newapp->ext = appinfo->ext;
+    newapp->tkerr = appinfo->tkerr;
 
     return newapp;
 
@@ -597,20 +607,20 @@ ncx_appinfo_t *
 *    appinfoQ == Q of ncx_appinfo_t data structures to free
 *********************************************************************/
 void 
-    ncx_clean_appinfoQ (dlq_hdr_t *appinfoQ)
+    ncx_clean_appinfoQ (ncx_instance_t *instance, dlq_hdr_t *appinfoQ)
 {
     ncx_appinfo_t *appinfo;
 
 #ifdef DEBUG
     if (!appinfoQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    while (!dlq_empty(appinfoQ)) {
-        appinfo = (ncx_appinfo_t *)dlq_deque(appinfoQ);
-        ncx_free_appinfo(appinfo);
+    while (!dlq_empty(instance, appinfoQ)) {
+        appinfo = (ncx_appinfo_t *)dlq_deque(instance, appinfoQ);
+        ncx_free_appinfo(instance, appinfo);
     }
 } /* ncx_clean_appinfoQ */
 
@@ -634,18 +644,19 @@ void
 *   status of the operation
 *********************************************************************/
 status_t 
-    ncx_consume_appinfo (tk_chain_t *tkc,
+    ncx_consume_appinfo (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          ncx_module_t  *mod,
                          dlq_hdr_t *appinfoQ)
 {
 
 #ifdef DEBUG
     if (!tkc || !appinfoQ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return consume_appinfo(tkc, mod, appinfoQ, TRUE);
+    return consume_appinfo(instance, tkc, mod, appinfoQ, TRUE);
 
 }  /* ncx_consume_appinfo */
 
@@ -672,17 +683,18 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    ncx_consume_appinfo2 (tk_chain_t *tkc,
+    ncx_consume_appinfo2 (ncx_instance_t *instance,
+                          tk_chain_t *tkc,
                           ncx_module_t  *mod,
                           dlq_hdr_t *appinfoQ)
 {
 #ifdef DEBUG
     if (!tkc || !appinfoQ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return consume_appinfo(tkc, mod, appinfoQ, FALSE);
+    return consume_appinfo(instance, tkc, mod, appinfoQ, FALSE);
 
 }  /* ncx_consume_appinfo2 */
 
@@ -705,7 +717,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    ncx_resolve_appinfoQ (yang_pcb_t *pcb,
+    ncx_resolve_appinfoQ (ncx_instance_t *instance,
+                          yang_pcb_t *pcb,
                           tk_chain_t *tkc,
                           ncx_module_t  *mod,
                           dlq_hdr_t *appinfoQ)
@@ -716,15 +729,15 @@ status_t
 
 #ifdef DEBUG
     if (!tkc || !mod || !appinfoQ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     retres = NO_ERR;
 
-    for (appinfo = (ncx_appinfo_t *)dlq_firstEntry(appinfoQ);
+    for (appinfo = (ncx_appinfo_t *)dlq_firstEntry(instance, appinfoQ);
          appinfo != NULL;
-         appinfo = (ncx_appinfo_t *)dlq_nextEntry(appinfo)) {
+         appinfo = (ncx_appinfo_t *)dlq_nextEntry(instance, appinfo)) {
 
         if (appinfo->isclone) {
             continue;
@@ -737,9 +750,10 @@ status_t
 
         res = NO_ERR;
         if (appinfo->prefix &&
-            xml_strcmp(appinfo->prefix, mod->prefix)) {
+            xml_strcmp(instance, appinfo->prefix, mod->prefix)) {
 
-            res = yang_find_imp_extension(pcb,
+            res = yang_find_imp_extension(instance,
+                                          pcb,
                                           tkc, 
                                           mod, 
                                           appinfo->prefix,
@@ -748,13 +762,14 @@ status_t
                                           &ext);
             CHK_EXIT(res, retres);
         } else if (appinfo->prefix != NULL) {
-            ext = ext_find_extension(mod, appinfo->name);
+            ext = ext_find_extension(instance, mod, appinfo->name);
             if (!ext) {
-                log_error("\nError: Local module extension '%s' not found",
+                log_error(instance,
+                          "\nError: Local module extension '%s' not found",
                           appinfo->name);
                 res = retres = ERR_NCX_DEF_NOT_FOUND;
                 tkc->curerr = &appinfo->tkerr;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             } else {
                 res = NO_ERR;
             }
@@ -764,24 +779,26 @@ status_t
             appinfo->ext = ext;
             if (ext->arg && !appinfo->value) {
                 retres = ERR_NCX_MISSING_PARM;
-                log_error("\nError: argument missing for extension '%s:%s' ",
+                log_error(instance,
+                          "\nError: argument missing for extension '%s:%s' ",
                           appinfo->prefix, ext->name);
                 tkc->curerr = &appinfo->tkerr;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             } else if (!ext->arg && appinfo->value) {
                 retres = ERR_NCX_EXTRA_PARM;
-                log_error("\nError: argument '%s' provided for"
+                log_error(instance,
+                          "\nError: argument '%s' provided for"
                           " extension '%s:%s' is not allowed",
                           appinfo->value, 
                           appinfo->prefix, 
                           ext->name);
                 tkc->curerr = &appinfo->tkerr;
-                ncx_print_errormsg(tkc, mod, retres);
+                ncx_print_errormsg(instance, tkc, mod, retres);
             }
         }
 
         /* recurse through any nested appinfo statements */
-        res = ncx_resolve_appinfoQ(pcb, tkc, mod, appinfo->appinfoQ);
+        res = ncx_resolve_appinfoQ(instance, pcb, tkc, mod, appinfo->appinfoQ);
         CHK_EXIT(res, retres);
     }
 
@@ -803,11 +820,11 @@ status_t
 *    NULL if no value
 *********************************************************************/
 const xmlChar *
-    ncx_get_appinfo_value (const ncx_appinfo_t *appinfo)
+    ncx_get_appinfo_value (ncx_instance_t *instance, const ncx_appinfo_t *appinfo)
 {
 #ifdef DEBUG
     if (appinfo == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif

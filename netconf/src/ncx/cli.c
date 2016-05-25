@@ -96,7 +96,8 @@ date         init     comment
 *   status 
 *********************************************************************/
 static status_t
-    parse_parm_cmn (runstack_context_t *rcxt,
+    parse_parm_cmn (ncx_instance_t *instance,
+                    runstack_context_t *rcxt,
                     val_value_t *new_parm,
                     const xmlChar *strval,
                     boolean script)
@@ -117,25 +118,26 @@ static status_t
      */
     if (obj_is_root(obj)) {
         if (script) {
-            (void)var_get_script_val(rcxt, obj, new_parm, strval, ISPARM, &res);
+            (void)var_get_script_val(instance, rcxt, obj, new_parm, strval, ISPARM, &res);
         } else {
-            log_error("\nError: ncx:root object only "
+            log_error(instance, "\nError: ncx:root object only "
                       "supported in script mode");
             res = ERR_NCX_INVALID_VALUE;
         }
     } else if (obj->objtype == OBJ_TYP_CONTAINER) {
         /* check if the only child is an OBJ_TYP_CHOICE */
-        choiceobj = obj_first_child(obj);
+        choiceobj = obj_first_child(instance, obj);
         if (choiceobj == NULL) {
-            log_error("\nError: container %s does not have any child nodes", 
-                      obj_get_name(obj));
+            log_error(instance, 
+                      "\nError: container %s does not have any child nodes", 
+                      obj_get_name(instance, obj));
             return ERR_NCX_INVALID_VALUE;
         }
 
         /* check that empty string was not entered, for a default
          * there is no default for a container   */
         if (strval == NULL || *strval == 0) {
-            log_error("\nError: 'missing value string");
+            log_error(instance, "\nError: 'missing value string");
             return ERR_NCX_INVALID_VALUE;
         }
 
@@ -145,27 +147,28 @@ static status_t
         if (*strval == '$' || *strval == '@') {
             /* this is a file or var reference */
             if (script) {
-                newchild = var_get_script_val_ex(rcxt, obj, choiceobj, NULL,
+                newchild = var_get_script_val_ex(instance, rcxt, obj, choiceobj, NULL,
                                                  strval, ISPARM, NULL, &res);
                 if (newchild != NULL) {
                     if (newchild->obj == obj) {
-                        val_replace(newchild, new_parm);
-                        val_free_value(newchild);
+                        val_replace(instance, newchild, new_parm);
+                        val_free_value(instance, newchild);
                     } else {
-                        val_add_child(newchild, new_parm);
+                        val_add_child(instance, newchild, new_parm);
                     }
                 }
             } else {
-                log_error("\nError: var or file reference only "
+                log_error(instance, "\nError: var or file reference only "
                           "supported in script mode");
                 return ERR_NCX_INVALID_VALUE;
             }
         } else {
             if (choiceobj->objtype != OBJ_TYP_CHOICE) {
-                log_error("\nError: child %s in container %s must be "
+                log_error(instance,
+                          "\nError: child %s in container %s must be "
                           "a 'choice' object",
-                          obj_get_name(choiceobj),
-                          obj_get_name(obj));
+                          obj_get_name(instance, choiceobj),
+                          obj_get_name(instance, obj));
                 return ERR_NCX_INVALID_VALUE;
             }
 
@@ -174,81 +177,84 @@ static status_t
              * within a choice or case with the same name
              * as a member of the choice or case node
              */
-            targobj = obj_find_child(choiceobj, obj_get_mod_name(choiceobj),
+            targobj = obj_find_child(instance, choiceobj, obj_get_mod_name(instance, choiceobj),
                                      strval);
             if (targobj == NULL) {
-                log_error("\nError: choice %s in container %s"
+                log_error(instance,
+                          "\nError: choice %s in container %s"
                           " does not have any child nodes named '%s'",
-                          obj_get_name(choiceobj), obj_get_name(obj),
+                          obj_get_name(instance, choiceobj), obj_get_name(instance, obj),
                           strval);
                 return ERR_NCX_INVALID_VALUE;
             }
 
             if (targobj->objtype != OBJ_TYP_LEAF) {
-                log_error("\nError: case %s in choice %s in container %s"
+                log_error(instance,
+                          "\nError: case %s in choice %s in container %s"
                           " is not a leaf node",
-                          obj_get_name(targobj), obj_get_name(choiceobj),
-                          obj_get_name(obj));
+                          obj_get_name(instance, targobj), obj_get_name(instance, choiceobj),
+                          obj_get_name(instance, obj));
                 return ERR_NCX_INVALID_VALUE;
             }
 
-            if (obj_get_basetype(targobj) != NCX_BT_EMPTY) {
-                log_error("\nError: leaf %s in choice %s in container %s"
+            if (obj_get_basetype(instance, targobj) != NCX_BT_EMPTY) {
+                log_error(instance,
+                          "\nError: leaf %s in choice %s in container %s"
                           " is not type 'empty'",
-                          obj_get_name(targobj),
-                          obj_get_name(choiceobj),
-                          obj_get_name(obj));
+                          obj_get_name(instance, targobj),
+                          obj_get_name(instance, choiceobj),
+                          obj_get_name(instance, obj));
                 return ERR_NCX_INVALID_VALUE;
             }
 
             /* found a match so create a value node */
-            newchild = val_new_value();
+            newchild = val_new_value(instance);
             if (!newchild) {
                 res = ERR_INTERNAL_MEM;
             } else {
-                val_init_from_template(newchild, targobj);
-                val_add_child(newchild, new_parm);
+                val_init_from_template(instance, newchild, targobj);
+                val_add_child(instance, newchild, new_parm);
             }
         }
     } else if (obj->objtype == OBJ_TYP_CHOICE && strval != NULL) {
         if (*strval == '$' || *strval == '@') {
             if (script) {
-                newchild = var_get_script_val(rcxt, obj, NULL, strval, 
+                newchild = var_get_script_val(instance, rcxt, obj, NULL, strval, 
                                               ISPARM, &res);
                 if (newchild != NULL) {
-                    val_replace(newchild, new_parm);
-                    val_free_value(newchild);
+                    val_replace(instance, newchild, new_parm);
+                    val_free_value(instance, newchild);
                 }
             } else {
                 res = ERR_NCX_INVALID_VALUE;
             }
         } else {
             /* check if a child of any case is named 'strval' */
-            targobj = obj_find_child(obj, obj_get_mod_name(obj), strval);
+            targobj = obj_find_child(instance, obj, obj_get_mod_name(instance, obj), strval);
             if (targobj && 
-                obj_get_basetype(targobj) == NCX_BT_EMPTY) {
+                obj_get_basetype(instance, targobj) == NCX_BT_EMPTY) {
                 /* found a match so set the value node to type empty */
-                val_init_from_template(new_parm, targobj);
-                val_set_name(new_parm, obj_get_name(targobj),
-                             xml_strlen(obj_get_name(targobj)));
+                val_init_from_template(instance, new_parm, targobj);
+                val_set_name(instance, new_parm, obj_get_name(instance, targobj),
+                             xml_strlen(instance, obj_get_name(instance, targobj)));
             } else {
                 res = ERR_NCX_INVALID_VALUE;
             }
         }
     } else {
         if (script) {
-            (void)var_get_script_val(rcxt, obj, new_parm, strval, ISPARM, &res);
+            (void)var_get_script_val(instance, rcxt, obj, new_parm, strval, ISPARM, &res);
         } else {
             /* get the base type value */
-            btyp = obj_get_basetype(obj);
-            if (btyp == NCX_BT_ANY || typ_is_simple(btyp)) {
+            btyp = obj_get_basetype(instance, obj);
+            if (btyp == NCX_BT_ANY || typ_is_simple(instance, btyp)) {
                 typdef = obj_get_typdef(obj);
                 if (btyp != NCX_BT_ANY) {
-                    res = val_simval_ok(typdef, strval);
+                    res = val_simval_ok(instance, typdef, strval);
                 }
                 if (res == NO_ERR) {
-                    res = val_set_simval(new_parm, typdef, obj_get_nsid(obj),
-                                         obj_get_name(obj), strval);
+                    res = val_set_simval(instance, new_parm, typdef, obj_get_nsid(instance, obj),
+                                         obj_get_name(instance, obj), strval);
                 }
             } else {
                 res = ERR_NCX_WRONG_DATATYP;
@@ -285,7 +291,8 @@ static status_t
 *   status 
 *********************************************************************/
 static status_t
-    parse_cli_parm (runstack_context_t *rcxt,
+    parse_cli_parm (ncx_instance_t *instance,
+                    runstack_context_t *rcxt,
                     val_value_t *val,
                     obj_template_t *obj,
                     const xmlChar *strval,
@@ -295,19 +302,19 @@ static status_t
     status_t              res;
 
     /* create a new parm and fill it in */
-    new_parm = val_new_value();
+    new_parm = val_new_value(instance);
     if (!new_parm) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(new_parm, obj);
+    val_init_from_template(instance, new_parm, obj);
 
-    res = parse_parm_cmn(rcxt, new_parm, strval, script);
+    res = parse_parm_cmn(instance, rcxt, new_parm, strval, script);
 
     /* save or free the new child node */
     if (res != NO_ERR) {
-        val_free_value(new_parm);
+        val_free_value(instance, new_parm);
     } else {
-        val_add_child_sorted(new_parm, val);
+        val_add_child_sorted(instance, new_parm, val);
     }
 
     return res;
@@ -341,7 +348,8 @@ static status_t
 *   status 
 *********************************************************************/
 static status_t
-    parse_parm_ex (runstack_context_t *rcxt,
+    parse_parm_ex (ncx_instance_t *instance,
+                   runstack_context_t *rcxt,
                    val_value_t *val,
                    obj_template_t *obj,
                    xmlns_id_t  nsid,
@@ -353,22 +361,22 @@ static status_t
     status_t           res;
     
     /* create a new parm and fill it in */
-    new_parm = val_new_value();
+    new_parm = val_new_value(instance);
     if (!new_parm) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(new_parm, obj);
+    val_init_from_template(instance, new_parm, obj);
 
     /* adjust namespace ID and name */
-    val_set_name(new_parm, name, xml_strlen(name));
+    val_set_name(instance, new_parm, name, xml_strlen(instance, name));
     new_parm->nsid = nsid;
 
-    res = parse_parm_cmn(rcxt, new_parm, strval, script);
+    res = parse_parm_cmn(instance, rcxt, new_parm, strval, script);
 
     if (res != NO_ERR) {
-        val_free_value(new_parm);
+        val_free_value(instance, new_parm);
     } else {
-        val_add_child(new_parm, val);
+        val_add_child(instance, new_parm, val);
     }
     return res;
 
@@ -389,20 +397,22 @@ static status_t
 *   raw parm entry if found, NULL if not
 *********************************************************************/
 static cli_rawparm_t *
-    find_rawparm (dlq_hdr_t *parmQ,
+    find_rawparm (ncx_instance_t *instance,
+                  dlq_hdr_t *parmQ,
                   const char *name,
                   int32 namelen)
 {
     cli_rawparm_t  *parm;
+    (void)instance;
 
     if (!namelen) {
         return NULL;
     }
 
     /* check exact match only */
-    for (parm = (cli_rawparm_t *)dlq_firstEntry(parmQ);
+    for (parm = (cli_rawparm_t *)dlq_firstEntry(instance, parmQ);
          parm != NULL;
-         parm = (cli_rawparm_t *)dlq_nextEntry(parm)) {
+         parm = (cli_rawparm_t *)dlq_nextEntry(instance, parm)) {
 
         if (strlen(parm->name) == (size_t)namelen &&
             !strncmp(parm->name, name, namelen)) {
@@ -429,7 +439,8 @@ static cli_rawparm_t *
 *   number of chars written to the buffer
 *********************************************************************/
 static int32
-    copy_argv (char *buffer,
+    copy_argv (ncx_instance_t *instance,
+               char *buffer,
                const char *parmstr)
 {
     const char   *str;
@@ -445,7 +456,8 @@ static int32
     }
     if (*str == '\0') {
         /* no whitespace, so nothing to worry about */
-        return (int32)xml_strcpy((xmlChar *)buffer, 
+        return (int32)xml_strcpy(instance, 
+                                 (xmlChar *)buffer, 
                                  (const xmlChar *)parmstr);
     } 
 
@@ -458,7 +470,8 @@ static int32
         /* the string is all whitespace, just copy it
          * and it will be skipped later
          */
-        return  (int32)xml_strcpy((xmlChar *)buffer, 
+        return  (int32)xml_strcpy(instance, 
+                                  (xmlChar *)buffer, 
                                   (const xmlChar *)parmstr);
     } else if (str != parmstr) {
         /* there was starting whitespace
@@ -467,7 +480,8 @@ static int32
          */
         str2 = buffer;
         *str2++ = '"';
-        str2 += (int32)xml_strcpy((xmlChar *)str2,
+        str2 += (int32)xml_strcpy(instance,
+                                  (xmlChar *)str2,
                                   (const xmlChar *)parmstr);
         *str2++ = '"';
         *str2 = '\0';
@@ -496,7 +510,7 @@ static int32
         }
     } else {
         /* should not have hit end of string */
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 0;
     }
      
@@ -504,11 +518,13 @@ static int32
      * guess where the original quotes were located
      */
     str2 = buffer;
-    str2 += (int32)xml_strncpy((xmlChar *)str2, 
+    str2 += (int32)xml_strncpy(instance, 
+                               (xmlChar *)str2, 
                                (const xmlChar *)parmstr,
                                (uint32)(str - parmstr));
     *str2++ = '"';
-    str2 += (int32)xml_strcpy((xmlChar *)str2, 
+    str2 += (int32)xml_strcpy(instance, 
+                              (xmlChar *)str2, 
                               (const xmlChar *)str);
     *str2++ = '"';
     *str2 = '\0';
@@ -544,7 +560,8 @@ static int32
 *   as if it were 1 long command line
 *********************************************************************/
 static char *
-    copy_argv_to_buffer (int argc,
+    copy_argv_to_buffer (ncx_instance_t *instance,
+                         int argc,
                          char *argv[],
                          cli_mode_t mode,
                          int32 *bufflen,
@@ -598,7 +615,7 @@ static char *
         padamount = 1;
         break;
     default:
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
@@ -606,7 +623,7 @@ static char *
         *bufflen += (strlen(argv[parmnum]) + padamount);
     }
 
-    buff = m__getMem(*bufflen + 1);
+    buff = m__getMem(instance, *bufflen + 1);
     if (!buff) {
         /* non-recoverable error */
         *res = ERR_INTERNAL_MEM;
@@ -618,9 +635,10 @@ static char *
 
     for (parmnum=1; parmnum < argc; parmnum++) {
         if (mode == CLI_MODE_PROGRAM) {
-            buffpos += copy_argv(&buff[buffpos], argv[parmnum]);
+            buffpos += copy_argv(instance, &buff[buffpos], argv[parmnum]);
         } else {
-            buffpos += (int32)xml_strcpy((xmlChar *)&buff[buffpos], 
+            buffpos += (int32)xml_strcpy(instance, 
+                                         (xmlChar *)&buff[buffpos], 
                                          (const xmlChar *)argv[parmnum]);
         }
         if (parmnum+1 < argc) {
@@ -656,7 +674,7 @@ static char *
 *   new parm entry, NULL if malloc failed
 *********************************************************************/
 cli_rawparm_t *
-    cli_new_rawparm (const xmlChar *name)
+    cli_new_rawparm (ncx_instance_t *instance, const xmlChar *name)
 {
     cli_rawparm_t  *parm;
 
@@ -666,7 +684,7 @@ cli_rawparm_t *
     }
 #endif
 
-    parm = m__getObj(cli_rawparm_t);
+    parm = m__getObj(instance, cli_rawparm_t);
     if (parm) {
         memset(parm, 0x0, sizeof(cli_rawparm_t));
         parm->name = (const char *)name;
@@ -689,7 +707,7 @@ cli_rawparm_t *
 *   new parm entry, NULL if malloc failed
 *********************************************************************/
 cli_rawparm_t *
-    cli_new_empty_rawparm (const xmlChar *name)
+    cli_new_empty_rawparm (ncx_instance_t *instance, const xmlChar *name)
 {
     cli_rawparm_t  *parm;
 
@@ -699,7 +717,7 @@ cli_rawparm_t *
     }
 #endif
 
-    parm = m__getObj(cli_rawparm_t);
+    parm = m__getObj(instance, cli_rawparm_t);
     if (parm) {
         memset(parm, 0x0, sizeof(cli_rawparm_t));
         parm->name = (const char *)name;
@@ -718,7 +736,7 @@ cli_rawparm_t *
 *   parm == raw parm entry to free
 *********************************************************************/
 void
-    cli_free_rawparm (cli_rawparm_t *parm)
+    cli_free_rawparm (ncx_instance_t *instance, cli_rawparm_t *parm)
 {
 #ifdef DEBUG
     if (!parm) {
@@ -727,9 +745,9 @@ void
 #endif
 
     if (parm->value) {
-        m__free(parm->value);
+        m__free(instance, parm->value);
     }
-    m__free(parm);
+    m__free(instance, parm);
 
 } /* cli_free_rawparm */
 
@@ -743,7 +761,7 @@ void
 *   parmQ == Q of raw parm entry to free
 *********************************************************************/
 void
-    cli_clean_rawparmQ (dlq_hdr_t *parmQ)
+    cli_clean_rawparmQ (ncx_instance_t *instance, dlq_hdr_t *parmQ)
 {
     cli_rawparm_t  *parm;
 
@@ -753,9 +771,9 @@ void
     }
 #endif
 
-    while (!dlq_empty(parmQ)) {
-        parm = (cli_rawparm_t *)dlq_deque(parmQ);
-        cli_free_rawparm(parm);
+    while (!dlq_empty(instance, parmQ)) {
+        parm = (cli_rawparm_t *)dlq_deque(instance, parmQ);
+        cli_free_rawparm(instance, parm);
     }
 
 } /* cli_clean_rawparmQ */
@@ -774,7 +792,8 @@ void
 *   raw parm entry if found, NULL if not
 *********************************************************************/
 cli_rawparm_t *
-    cli_find_rawparm (const xmlChar *name,
+    cli_find_rawparm (ncx_instance_t *instance,
+                      const xmlChar *name,
                       dlq_hdr_t *parmQ)
 {
 #ifdef DEBUG
@@ -783,7 +802,8 @@ cli_rawparm_t *
     }
 #endif
 
-    return find_rawparm(parmQ, 
+    return find_rawparm(instance, 
+                        parmQ, 
                         (const char *)name, 
                         strlen((const char *)name));
 
@@ -846,7 +866,8 @@ cli_rawparm_t *
 *   status
 *********************************************************************/
 status_t
-    cli_parse_raw (int argc, 
+    cli_parse_raw (ncx_instance_t *instance, 
+                   int argc, 
                    char *argv[],
                    dlq_hdr_t *rawparmQ)
 {
@@ -860,7 +881,7 @@ status_t
     if (!argv || !rawparmQ) {
         return ERR_INTERNAL_PTR;
     }
-    if (dlq_empty(rawparmQ)) {
+    if (dlq_empty(instance, rawparmQ)) {
         return ERR_INTERNAL_VAL;
     }
 #endif
@@ -871,15 +892,15 @@ status_t
     }
 
     if (LOGDEBUG2) {
-        log_debug("\nCLI bootstrap: input parameters:");
+        log_debug(instance, "\nCLI bootstrap: input parameters:");
         for (i=0; i<argc; i++) {
-            log_debug("\n   arg%d: '%s'", i, argv[i]);
+            log_debug(instance, "\n   arg%d: '%s'", i, argv[i]);
         }
     }
 
     res = NO_ERR;
     bufflen = 0;
-    buff = copy_argv_to_buffer(argc, argv, CLI_MODE_PROGRAM, &bufflen, &res);
+    buff = copy_argv_to_buffer(instance, argc, argv, CLI_MODE_PROGRAM, &bufflen, &res);
     if (!buff) {
         return res;
     }
@@ -940,7 +961,7 @@ status_t
         parmval = NULL;
 
         /* check if this parameter name is in the parmset def */
-        rawparm = find_rawparm(rawparmQ, parmname, parmnamelen);
+        rawparm = find_rawparm(instance, rawparmQ, parmname, parmnamelen);
         if (rawparm) {
             rawparm->count++;
             if (!rawparm->hasvalue) {
@@ -1000,17 +1021,17 @@ status_t
 
         if (rawparm) {
             if (rawparm->value) {
-                m__free(rawparm->value);
+                m__free(instance, rawparm->value);
             }
             rawparm->value = (char *)
-                xml_strdup((const xmlChar *)parmval);
+                xml_strdup(instance, (const xmlChar *)parmval);
             if (!rawparm->value) {
                 res = ERR_INTERNAL_MEM;
             }
         }
     }
 
-    m__free(buff);
+    m__free(instance, buff);
 
     return res;
 
@@ -1110,7 +1131,8 @@ status_t
 *   pointer to the malloced and filled in val_value_t
 *********************************************************************/
 val_value_t *
-    cli_parse (runstack_context_t *rcxt,
+    cli_parse (ncx_instance_t *instance,
+               runstack_context_t *rcxt,
                int argc, 
                char *argv[],
                obj_template_t *obj,
@@ -1137,11 +1159,11 @@ val_value_t *
 
 #ifdef DEBUG
     if (!status) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (!argv || !obj) {
-        *status = SET_ERROR(ERR_INTERNAL_PTR);
+        *status = SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -1155,8 +1177,8 @@ val_value_t *
      * This is a quick check to make sure the CLI code will work
      * with the provided object template.
      */
-    if (!script && !obj_ok_for_cli(obj)) {
-        *status = SET_ERROR(ERR_NCX_OPERATION_FAILED);
+    if (!script && !obj_ok_for_cli(instance, obj)) {
+        *status = SET_ERROR(instance, ERR_NCX_OPERATION_FAILED);
         return NULL;
     }
 
@@ -1167,33 +1189,33 @@ val_value_t *
     }
 
     if (LOGDEBUG3) {
-        log_debug3("\nCLI: input parameters:");
+        log_debug3(instance, "\nCLI: input parameters:");
         for (i=0; i<argc; i++) {
-            log_debug3("\n   arg%d: '%s'", i, argv[i]);
+            log_debug3(instance, "\n   arg%d: '%s'", i, argv[i]);
         }
     }
 
     /* allocate a new container value to hold the output */
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         *status = ERR_INTERNAL_MEM;
         return NULL;
     }
-    val_init_from_template(val, obj);
+    val_init_from_template(instance, val, obj);
 
     if (script) {
         /* set the parmset name to the application pathname */
-        val->dname = xml_strdup((const xmlChar *)argv[0]);
+        val->dname = xml_strdup(instance, (const xmlChar *)argv[0]);
         val->name = val->dname;
     } else {
         /* set the parmset name to the PSD static name */
-        val->name = obj_get_name(obj);
+        val->name = obj_get_name(instance, obj);
     }
 
     /* check for a malloc error */
     if (!val->name) {
         *status = ERR_INTERNAL_MEM;
-        val_free_value(val);
+        val_free_value(instance, val);
         return NULL;
     }
 
@@ -1206,7 +1228,7 @@ val_value_t *
     if (argc < 2) {
         /* 2) add any defaults for optional parms that are not set */
         if (!valonly) {
-            res = val_add_defaults(val, NULL, NULL, script);
+            res = val_add_defaults(instance, val, NULL, NULL, script);
         }
 
         /* 3) CLI Instance Check
@@ -1217,7 +1239,7 @@ val_value_t *
          * The choice test is also performed by this function call
          */
         if (res == NO_ERR && !valonly) {
-            res = val_instance_check(val, val->obj);
+            res = val_instance_check(instance, val, val->obj);
         }
         *status = res;
         return val;
@@ -1226,9 +1248,9 @@ val_value_t *
     /* need to parse some CLI parms
      * get 1 normalized buffer
      */
-    buff = copy_argv_to_buffer(argc, argv, mode, &bufflen, status);
+    buff = copy_argv_to_buffer(instance, argc, argv, mode, &bufflen, status);
     if (!buff) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return NULL;
     }
 
@@ -1308,14 +1330,14 @@ val_value_t *
                 copylen = parmnamelen;
 
                 /* check if this parameter name is in the parmset def */
-                chobj = obj_find_child_str(obj, NULL, 
+                chobj = obj_find_child_str(instance, obj, NULL, 
                                            (const xmlChar *)parmname,
                                            parmnamelen);
 
                 /* check if parm was found, try partial name if not */
                 if (!chobj && autocomp) {
                     matchcount = 0;
-                    chobj = obj_match_child_str(obj, NULL,
+                    chobj = obj_match_child_str(instance, obj, NULL,
                                                 (const xmlChar *)parmname,
                                                 parmnamelen,
                                                 &matchcount);
@@ -1337,9 +1359,10 @@ val_value_t *
 
             if (res != NO_ERR) {
                 if (res == ERR_NCX_INVALID_VALUE) {
-                    log_error("\nError: invalid CLI parameter prefix");
+                    log_error(instance, "\nError: invalid CLI parameter prefix");
                 } else {
-                    log_error("\nError: invalid CLI syntax (%s)",
+                    log_error(instance,
+                              "\nError: invalid CLI syntax (%s)",
                               get_error_string(res));
                 }
                 continue;
@@ -1352,7 +1375,7 @@ val_value_t *
                     /* check if next char is an equals sign and
                      * the default-parm-equals_ok flag is set
                      */
-                    if (obj_is_cli_equals_ok(obj) && buff[idx] == '=') {
+                    if (obj_is_cli_equals_ok(instance, obj) && buff[idx] == '=') {
                         finish_equals_ok = TRUE;
                     } else {
                         /* check for whitespace following value */
@@ -1376,13 +1399,14 @@ val_value_t *
                      * if any defined, then use the unknown parm
                      * name as a parameter value for the default parm
                      */
-                    chobj = obj_get_default_parm(obj);
+                    chobj = obj_get_default_parm(instance, obj);
                     if (chobj) {
                         if (chobj->objtype != OBJ_TYP_LEAF_LIST &&
                             gotdefaultparm) {
-                            log_error("\nError: default parm '%s' "
+                            log_error(instance,
+                                      "\nError: default parm '%s' "
                                       "already entered",
-                                      obj_get_name(chobj));
+                                      obj_get_name(instance, chobj));
                             res = ERR_NCX_DUP_ENTRY;
                             continue;
                         }
@@ -1396,7 +1420,7 @@ val_value_t *
                 res = ERR_NCX_UNKNOWN_PARM;
             } else {
                 /* do not check parameter order for CLI */
-                btyp = obj_get_basetype(chobj);
+                btyp = obj_get_basetype(instance, chobj);
                 parmval = NULL;
 
                 /* skip past any whitespace after the parm name */
@@ -1409,9 +1433,10 @@ val_value_t *
                 /* check if ended on space of EOLN */
                 if (btyp == NCX_BT_EMPTY) {
                     if (buff[buffpos] == '=') {
-                        log_error("\nError: cannot assign value "
+                        log_error(instance, 
+                                  "\nError: cannot assign value "
                                   "to empty leaf '%s'", 
-                                  obj_get_name(obj));
+                                  obj_get_name(instance, obj));
                         res = ERR_NCX_INVALID_VALUE;
                     }
                 } else if (buffpos < bufflen) {
@@ -1444,7 +1469,7 @@ val_value_t *
 
                             j = buffpos+testidx+1;
                             if (buff[buffpos+testidx] != '=') {
-                                res = SET_ERROR(ERR_INTERNAL_VAL);
+                                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                             } else {
                                 if (j < bufflen) {
                                     if (buff[j] == NCX_QUOTE_CH ||
@@ -1461,7 +1486,7 @@ val_value_t *
                                                 str = &buff[j+1];
                                             } else {
                                                 res = SET_ERROR
-                                                    (ERR_INTERNAL_VAL);
+                                                    (instance, ERR_INTERNAL_VAL);
                                             }
                                         } else {
                                             str = &buff[j];
@@ -1503,7 +1528,7 @@ val_value_t *
                                     str++;
                                 }
                             } else {
-                                log_error("\nError: unfinished string "
+                                log_error(instance, "\nError: unfinished string "
                                           "found '%s'", parmval);
                                 res = ERR_NCX_UNENDED_QSTRING;
                             }
@@ -1545,7 +1570,7 @@ val_value_t *
                             /* skip buffpos past eo-string */
                             buffpos += (uint32)((str - parmval) + 1);  
                         } else {
-                            res = SET_ERROR(ERR_INTERNAL_VAL);
+                            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                         }
                     }
                 }
@@ -1557,7 +1582,8 @@ val_value_t *
                  */
                 if (res==NO_ERR && !parmval && btyp != NCX_BT_EMPTY) {
                     if (!(typ_is_string(btyp) &&
-                        (val_simval_ok(obj_get_typdef(chobj),
+                        (val_simval_ok(instance,
+                                       obj_get_typdef(chobj),
                                        EMPTY_STRING) == NO_ERR))) {
                         res = ERR_NCX_EMPTY_VAL;
                     }
@@ -1567,7 +1593,7 @@ val_value_t *
 
         /* create a new val_value struct and set the value */
         if (res == NO_ERR) {
-            res = parse_cli_parm(rcxt, val, chobj, 
+            res = parse_cli_parm(instance, rcxt, val, chobj, 
                                  (const xmlChar *)parmval, script);
         } else if (res == ERR_NCX_EMPTY_VAL &&
                    gotmatch && !gotdashes) {
@@ -1575,11 +1601,11 @@ val_value_t *
              * check if this is intended to be a
              * parameter value for the default-parm
              */
-            chobj = obj_get_default_parm(obj);
+            chobj = obj_get_default_parm(instance, obj);
             if (chobj) {
                 savechar = parmname[parmnamelen];
                 parmname[parmnamelen] = 0;
-                res = parse_cli_parm(rcxt, val, chobj, 
+                res = parse_cli_parm(instance, rcxt, val, chobj, 
                                      (const xmlChar *)parmname, script);
                 parmname[parmnamelen] = savechar;
             }
@@ -1590,52 +1616,56 @@ val_value_t *
             msg = get_error_string(res);
             errbuff[0] = 0;
             if (parmname != NULL) {
-                xml_strncpy(errbuff, (const xmlChar *)parmname, 
+                xml_strncpy(instance, errbuff, (const xmlChar *)parmname, 
                             min(parmnamelen, ERRLEN));
             }
             switch (res) {
             case ERR_NCX_UNKNOWN_PARM:
-                log_error("\nError: Unknown parameter (%s)", errbuff);
+                log_error(instance, "\nError: Unknown parameter (%s)", errbuff);
                 break;
             case ERR_NCX_AMBIGUOUS_CMD:
                 parmname[parmnamelen] = 0;
-                log_error("\nError: multiple matches for '%s'",
+                log_error(instance,
+                          "\nError: multiple matches for '%s'",
                           parmname);
                 break;
             default:
                 if (*errbuff) {
                     if (parmval != NULL) {
-                        log_error("\nError: %s (%s = %s)", 
+                        log_error(instance, 
+                                  "\nError: %s (%s = %s)", 
                                   msg, 
                                   errbuff, 
                                   parmval);
                     } else if (buffpos < bufflen) {
-                        log_error("\nError: %s (%s = %s)", 
+                        log_error(instance, 
+                                  "\nError: %s (%s = %s)", 
                                   msg, 
                                   errbuff, 
                                   &buff[buffpos]);
                     } else {
-                        log_error("\nError: %s (%s)", 
+                        log_error(instance, 
+                                  "\nError: %s (%s)", 
                                   msg, 
                                   errbuff);
                     }
                 } else {
-                    log_error("\nError: %s", msg);
+                    log_error(instance, "\nError: %s", msg);
                 }
             }
-            m__free(buff);
+            m__free(instance, buff);
             *status = res;
             return val;
         }
     }
 
     /* cleanup after loop */
-    m__free(buff);
+    m__free(instance, buff);
     buff = NULL;
 
     /* 2) add any defaults for optional parms that are not set */
     if (res == NO_ERR && !valonly) {
-        res = val_add_defaults(val, NULL, NULL, script);
+        res = val_add_defaults(instance, val, NULL, NULL, script);
     }
 
     /* 3) CLI Instance Check
@@ -1646,7 +1676,7 @@ val_value_t *
      * The choice test is also performed by this function call
      */
     if (res == NO_ERR && !valonly) {
-        res = val_instance_check(val, val->obj);
+        res = val_instance_check(instance, val, val->obj);
     }
 
     *status = res;
@@ -1681,13 +1711,14 @@ val_value_t *
 *   status 
 *********************************************************************/
 status_t
-    cli_parse_parm (runstack_context_t *rcxt,
+    cli_parse_parm (ncx_instance_t *instance,
+                    runstack_context_t *rcxt,
                     val_value_t *val,
                     obj_template_t *obj,
                     const xmlChar *strval,
                     boolean script)
 {
-    return parse_cli_parm(rcxt, val, obj, strval, script);
+    return parse_cli_parm(instance, rcxt, val, obj, strval, script);
 
 }  /* cli_parse_parm */
 
@@ -1720,7 +1751,8 @@ status_t
 *   status 
 *********************************************************************/
 status_t
-    cli_parse_parm_ex (runstack_context_t *rcxt,
+    cli_parse_parm_ex (ncx_instance_t *instance,
+                       runstack_context_t *rcxt,
                        val_value_t *val,
                        obj_template_t *obj,
                        const xmlChar *strval,
@@ -1730,27 +1762,29 @@ status_t
     obj_template_t  *genstr;
     status_t         res;
 
-    res = parse_cli_parm(rcxt, val, obj, strval, script);
+    res = parse_cli_parm(instance, rcxt, val, obj, strval, script);
     if (res == NO_ERR || NEED_EXIT(res)) {
         return res;
     }
 
     switch (bad_data) {
     case NCX_BAD_DATA_WARN:
-        if (ncx_warning_enabled(ERR_NCX_USING_BADDATA)) {
-            log_warn("\nWarning: invalid value "
+        if (ncx_warning_enabled(instance, ERR_NCX_USING_BADDATA)) {
+            log_warn(instance,
+                     "\nWarning: invalid value "
                      "'%s' used for parm '%s'",
                      (strval) ? strval : EMPTY_STRING,
-                     obj_get_name(obj));
+                     obj_get_name(instance, obj));
         }
         /* drop through */
     case NCX_BAD_DATA_IGNORE:
-        genstr = ncx_get_gen_string();
-        res = parse_parm_ex(rcxt,
+        genstr = ncx_get_gen_string(instance);
+        res = parse_parm_ex(instance,
+                            rcxt,
                             val, 
                             genstr, 
-                            obj_get_nsid(obj),
-                            obj_get_name(obj),
+                            obj_get_nsid(instance, obj),
+                            obj_get_name(instance, obj),
                             strval, 
                             script);
         return res;
@@ -1758,7 +1792,7 @@ status_t
     case NCX_BAD_DATA_ERROR:
         return res;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     /*NOTREACHED*/
 

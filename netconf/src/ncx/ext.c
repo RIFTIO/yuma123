@@ -100,16 +100,16 @@ date         init     comment
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 ext_template_t * 
-    ext_new_template (void)
+    ext_new_template (ncx_instance_t *instance)
 {
     ext_template_t  *ext;
 
-    ext = m__getObj(ext_template_t);
+    ext = m__getObj(instance, ext_template_t);
     if (!ext) {
         return NULL;
     }
     (void)memset(ext, 0x0, sizeof(ext_template_t));
-    dlq_createSQue(&ext->appinfoQ);
+    dlq_createSQue(instance, &ext->appinfoQ);
     ext->status = NCX_STATUS_CURRENT;   /* default */
     return ext;
 
@@ -128,31 +128,31 @@ ext_template_t *
 *    ext == ext_template_t data structure to free
 *********************************************************************/
 void 
-    ext_free_template (ext_template_t *ext)
+    ext_free_template (ncx_instance_t *instance, ext_template_t *ext)
 {
 #ifdef DEBUG
     if (!ext) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (ext->name) {
-        m__free(ext->name);
+        m__free(instance, ext->name);
     }
     if (ext->descr) {
-        m__free(ext->descr);
+        m__free(instance, ext->descr);
     }
     if (ext->ref) {
-        m__free(ext->ref);
+        m__free(instance, ext->ref);
     }
     if (ext->arg) {
-        m__free(ext->arg);
+        m__free(instance, ext->arg);
     }
 
-    ncx_clean_appinfoQ(&ext->appinfoQ);
+    ncx_clean_appinfoQ(instance, &ext->appinfoQ);
 
-    m__free(ext);
+    m__free(instance, ext);
 
 }  /* ext_free_template */
 
@@ -166,20 +166,20 @@ void
 *    que == Q of ext_template_t data structures to free
 *********************************************************************/
 void 
-    ext_clean_extensionQ (dlq_hdr_t *que)
+    ext_clean_extensionQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     ext_template_t *ext;
 
 #ifdef DEBUG
     if (!que) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    while (!dlq_empty(que)) {
-        ext = (ext_template_t *)dlq_deque(que);
-        ext_free_template(ext);
+    while (!dlq_empty(instance, que)) {
+        ext = (ext_template_t *)dlq_deque(instance, que);
+        ext_free_template(instance, ext);
     }
 
 }  /* ext_clean_groupingQ */
@@ -198,7 +198,8 @@ void
 *   pointer to found entry, or NULL if not found
 *********************************************************************/
 ext_template_t *
-    ext_find_extension (ncx_module_t *mod,
+    ext_find_extension (ncx_instance_t *instance,
+                        ncx_module_t *mod,
                         const xmlChar *name)
 {
     ext_template_t  *extension;
@@ -208,12 +209,12 @@ ext_template_t *
 
 #ifdef DEBUG
     if (!mod || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    extension = ext_find_extension_que(&mod->extensionQ, name);
+    extension = ext_find_extension_que(instance, &mod->extensionQ, name);
     if (extension) {
         return extension;
     }
@@ -223,13 +224,14 @@ ext_template_t *
     /* check all the submodules, but only the ones visible
      * to this module or submodule
      */
-    for (inc = (ncx_include_t *)dlq_firstEntry(&mod->includeQ);
+    for (inc = (ncx_include_t *)dlq_firstEntry(instance, &mod->includeQ);
          inc != NULL;
-         inc = (ncx_include_t *)dlq_nextEntry(inc)) {
+         inc = (ncx_include_t *)dlq_nextEntry(instance, inc)) {
 
         /* get the real submodule struct */
         if (!inc->submod) {
-            node = yang_find_node(que, 
+            node = yang_find_node(instance, 
+                                  que, 
                                   inc->submodule,
                                   inc->revision);
             if (node) {
@@ -242,7 +244,7 @@ ext_template_t *
         }
 
         /* check the extension Q in this submodule */
-        extension = ext_find_extension_que(&inc->submod->extensionQ, name);
+        extension = ext_find_extension_que(instance, &inc->submod->extensionQ, name);
         if (extension) {
             return extension;
         }
@@ -266,23 +268,24 @@ ext_template_t *
 *    pointer to found extension or NULL if not found
 *********************************************************************/
 ext_template_t *
-    ext_find_extension_que (dlq_hdr_t *extensionQ,
+    ext_find_extension_que (ncx_instance_t *instance,
+                            dlq_hdr_t *extensionQ,
                             const xmlChar *name)
 {
     ext_template_t *extension;
 
 #ifdef DEBUG
     if (!extensionQ || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (extension = (ext_template_t *)dlq_firstEntry(extensionQ);
+    for (extension = (ext_template_t *)dlq_firstEntry(instance, extensionQ);
          extension != NULL;
-         extension = (ext_template_t *)dlq_nextEntry(extension)) {
+         extension = (ext_template_t *)dlq_nextEntry(instance, extension)) {
 
-        if (!xml_strcmp(extension->name, name)) {
+        if (!xml_strcmp(instance, extension->name, name)) {
             return extension;
         }
     }
@@ -305,7 +308,8 @@ ext_template_t *
 *   pointer to found entry, or NULL if not found
 *********************************************************************/
 ext_template_t *
-    ext_find_extension_all (ncx_module_t *mod,
+    ext_find_extension_all (ncx_instance_t *instance,
+                            ncx_module_t *mod,
                             const xmlChar *name)
 {
     ext_template_t  *extension;
@@ -314,12 +318,12 @@ ext_template_t *
 
 #ifdef DEBUG
     if (!mod || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    extension = ext_find_extension_que(&mod->extensionQ, name);
+    extension = ext_find_extension_que(instance, &mod->extensionQ, name);
     if (extension) {
         return extension;
     }
@@ -329,13 +333,14 @@ ext_template_t *
     /* check all the submodules, but only the ones visible
      * to this module or submodule
      */
-    for (node = (yang_node_t *)dlq_firstEntry(que);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, que);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         if (node->submod) {
             /* check the extension Q in this submodule */
-            extension = ext_find_extension_que(&node->submod->extensionQ, 
+            extension = ext_find_extension_que(instance, 
+                                               &node->submod->extensionQ, 
                                                name);
             if (extension) {
                 return extension;

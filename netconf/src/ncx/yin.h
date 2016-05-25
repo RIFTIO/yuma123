@@ -77,7 +77,7 @@ typedef struct yin_mapping_t_ {
 *   pointer to found entry, NULL if none found
 *********************************************************************/
 extern const yin_mapping_t *
-    yin_find_mapping (const xmlChar *name);
+    yin_find_mapping (struct ncx_instance_t_ *instance, const xmlChar *name);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

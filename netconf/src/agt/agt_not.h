@@ -184,7 +184,7 @@ typedef struct agt_not_subscription_t_ {
 *   status
 *********************************************************************/
 extern status_t
-    agt_not_init (void);
+    agt_not_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -200,7 +200,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    agt_not_init2 (void);
+    agt_not_init2 (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -214,7 +214,7 @@ extern status_t
 *   none
 *********************************************************************/
 extern void 
-    agt_not_cleanup (void);
+    agt_not_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -237,7 +237,7 @@ extern void
 *    used for simple burst throttling
 *********************************************************************/
 extern uint32
-    agt_not_send_notifications (void);
+    agt_not_send_notifications (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -248,7 +248,7 @@ extern uint32
 *
 *********************************************************************/
 extern void
-    agt_not_clean_eventlog (void);
+    agt_not_clean_eventlog (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -261,7 +261,7 @@ extern void
 *    sid == session ID to use
 *********************************************************************/
 extern void
-    agt_not_remove_subscription (ses_id_t sid);
+    agt_not_remove_subscription (struct ncx_instance_t_ *instance, ses_id_t sid);
 
 
 /********************************************************************
@@ -276,7 +276,7 @@ extern void
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 extern agt_not_msg_t * 
-    agt_not_new_notification (obj_template_t *eventType);
+    agt_not_new_notification (struct ncx_instance_t_ *instance, obj_template_t *eventType);
 
 
 /********************************************************************
@@ -291,7 +291,7 @@ extern agt_not_msg_t *
 *    notif == agt_not_template_t to delete
 *********************************************************************/
 extern void 
-    agt_not_free_notification (agt_not_msg_t *notif);
+    agt_not_free_notification (struct ncx_instance_t_ *instance, agt_not_msg_t *notif);
 
 
 /********************************************************************
@@ -313,7 +313,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_not_add_to_payload (agt_not_msg_t *notif,
+    agt_not_add_to_payload (struct ncx_instance_t_ *instance,
+			    agt_not_msg_t *notif,
 			    val_value_t *val);
 
 
@@ -336,7 +337,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    agt_not_queue_notification (agt_not_msg_t *notif);
+    agt_not_queue_notification (struct ncx_instance_t_ *instance, agt_not_msg_t *notif);
 
 
 /********************************************************************
@@ -354,7 +355,7 @@ extern void
 *   FALSE otherwise
 *********************************************************************/
 extern boolean
-    agt_not_is_replay_event (const obj_template_t *notifobj);
+    agt_not_is_replay_event (struct ncx_instance_t_ *instance, const obj_template_t *notifobj);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

@@ -47,7 +47,8 @@ extern "C" {
 *    status
 *********************************************************************/
 extern status_t
-    xml_rd_open_file (FILE *fp,
+    xml_rd_open_file (ncx_instance_t *instance,
+                      FILE *fp,
                       obj_template_t *obj, 
                       val_value_t **val);
 

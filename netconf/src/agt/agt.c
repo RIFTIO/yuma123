@@ -67,6 +67,7 @@ date         init     comment
 #include "ncxconst.h"
 #include "ncxmod.h"
 #include "status.h"
+#include "agt_not_queue_notification_cb.h"
 
 
 /********************************************************************
@@ -101,13 +102,13 @@ static dlq_hdr_t          agt_dynlibQ;
 *
 *********************************************************************/
 static void
-    init_server_profile (void)
+    init_server_profile (ncx_instance_t *instance)
 {
     memset(&agt_profile, 0x0, sizeof(agt_profile_t));
 
     /* init server state variables stored here */
-    dlq_createSQue(&agt_profile.agt_savedevQ);
-    dlq_createSQue(&agt_profile.agt_commit_testQ);
+    dlq_createSQue(instance, &agt_profile.agt_savedevQ);
+    dlq_createSQue(instance, &agt_profile.agt_commit_testQ);
     agt_profile.agt_config_state = AGT_CFG_STATE_INIT;
 
     /* Set the default values for the user parameters
@@ -115,7 +116,7 @@ static void
      */
     agt_profile.agt_targ = NCX_AGT_TARG_CANDIDATE;
     agt_profile.agt_start = NCX_AGT_START_MIRROR;
-    agt_profile.agt_loglevel = log_get_debug_level();
+    agt_profile.agt_loglevel = log_get_debug_level(instance);
     agt_profile.agt_log_acm_reads = FALSE;
     agt_profile.agt_log_acm_writes = TRUE;
 
@@ -178,18 +179,18 @@ static void
 *
 *********************************************************************/
 static void
-    clean_server_profile (void)
+    clean_server_profile (ncx_instance_t *instance)
 {
-    ncx_clean_save_deviationsQ(&agt_profile.agt_savedevQ);
+    ncx_clean_save_deviationsQ(instance, &agt_profile.agt_savedevQ);
 
-    while (!dlq_empty(&agt_profile.agt_commit_testQ)) {
+    while (!dlq_empty(instance, &agt_profile.agt_commit_testQ)) {
         agt_cfg_commit_test_t *commit_test = (agt_cfg_commit_test_t *)
-            dlq_deque(&agt_profile.agt_commit_testQ);
-        agt_cfg_free_commit_test(commit_test);
+            dlq_deque(instance, &agt_profile.agt_commit_testQ);
+        agt_cfg_free_commit_test(instance, commit_test);
     }
 
     if (agt_profile.agt_startup_txid_file) {
-        m__free(agt_profile.agt_startup_txid_file);
+        m__free(instance, agt_profile.agt_startup_txid_file);
         agt_profile.agt_startup_txid_file = NULL;
     }
 
@@ -216,7 +217,8 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    load_running_config (const xmlChar *startup,
+    load_running_config (ncx_instance_t *instance,
+                         const xmlChar *startup,
                          boolean *loaded)
 {
     cfg_template_t  *cfg;
@@ -228,19 +230,19 @@ static status_t
     *loaded = FALSE;
     profile = agt_get_profile();
 
-    cfg = cfg_get_config(NCX_CFG_RUNNING);
+    cfg = cfg_get_config(instance, NCX_CFG_RUNNING);
     if (!cfg) {
-        log_error("\nagt: No running config found!!");
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        log_error(instance, "\nagt: No running config found!!");
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* use the user-set startup or default filename */
     if (startup) {
         /* relative filespec, use search path */
-        fname = ncxmod_find_data_file(startup, FALSE, &res);
+        fname = ncxmod_find_data_file(instance, startup, FALSE, &res);
     } else {
         /* search for the default startup-cfg.xml filename */
-        fname = ncxmod_find_data_file(NCX_DEF_STARTUP_FILE, FALSE, &res);
+        fname = ncxmod_find_data_file(instance, NCX_DEF_STARTUP_FILE, FALSE, &res);
     }
 
     /* check if error finding the filespec */
@@ -249,23 +251,25 @@ static status_t
             if (res == NO_ERR) {
                 res = ERR_NCX_MISSING_FILE;
             }
-            log_error("\nError: Startup config file (%s) not found (%s).",
+            log_error(instance,
+                      "\nError: Startup config file (%s) not found (%s).",
                       startup, get_error_string(res));
             return res;
         } else {
-            log_info("\nDefault startup config file (%s) not found."
+            log_info(instance,
+                     "\nDefault startup config file (%s) not found."
                      "\n   Booting with default running configuration!\n",
                      NCX_DEF_STARTUP_FILE);
             return NO_ERR;
         }
     } else if (LOGDEBUG2) {
-        log_debug2("\nFound startup config: '%s'", fname);
+        log_debug2(instance, "\nFound startup config: '%s'", fname);
     }
     
     /* try to load the config file that was found or given */
-    res = agt_ncx_cfg_load(cfg, CFG_LOC_FILE, fname);
+    res = agt_ncx_cfg_load(instance, cfg, CFG_LOC_FILE, fname);
     if (res == ERR_XML_READER_START_FAILED) {
-        log_error("\nagt: Error: Could not open startup config file"
+        log_error(instance, "\nagt: Error: Could not open startup config file"
                   "\n     (%s)\n", fname);
     } else if (res != NO_ERR) {
         /* if an error is returned then it was a hard error
@@ -274,9 +278,10 @@ static status_t
          * An error in the setup or in the AGT_RPC_PH_INVOKE phase
          * of the <load-config> operation occurred
          */
-        log_error("\nError: load startup config failed (%s)",
+        log_error(instance,
+                  "\nError: load startup config failed (%s)",
                   get_error_string(res));
-        if (!dlq_empty(&cfg->load_errQ)) {
+        if (!dlq_empty(instance, &cfg->load_errQ)) {
             *loaded = TRUE;
         }
     } else {
@@ -294,13 +299,13 @@ static status_t
         if (profile->agt_load_validate_errors) {
             if (profile->agt_startup_error) {
                 /* quit if any startup validation errors */
-                log_error("\nError: validation errors occurred loading the "
+                log_error(instance, "\nError: validation errors occurred loading the "
                           "<running> database\n   from NV-storage"
                           " (%s)\n", fname);
                 errdone = TRUE;
             } else {
                 /* continue if any startup errors */
-                log_warn("\nWarning: validation errors occurred loading "
+                log_warn(instance, "\nWarning: validation errors occurred loading "
                          "the <running> database\n   from NV-storage"
                          " (%s)\n", fname);
                 errcontinue = TRUE;
@@ -309,13 +314,13 @@ static status_t
         if (!errdone && profile->agt_load_rootcheck_errors) {
             if (profile->agt_startup_error) {
                 /* quit if any startup root-check validation errors */
-                log_error("\nError: root-check validation errors "
+                log_error(instance, "\nError: root-check validation errors "
                           "occurred loading the <running> database\n"
                           "   from NV-storage (%s)\n", fname);
                 errdone = TRUE;
             } else {
                 /* continue if any root-check validation errors */
-                log_warn("\nWarning: root-check validation errors "
+                log_warn(instance, "\nWarning: root-check validation errors "
                          "occurred loading the <running> database\n"
                          "   from NV-storage (%s)\n", fname);
                 errcontinue = TRUE;
@@ -324,13 +329,13 @@ static status_t
         if (!errdone && profile->agt_load_top_rootcheck_errors) {
             if (profile->agt_running_error) {
                 /* quit if any top-level root-check validation errors */
-                log_error("\nError: top-node root-check validation errors "
+                log_error(instance, "\nError: top-node root-check validation errors "
                           "occurred loading the <running> database\n"
                           "   from NV-storage (%s)\n", fname);
                 errdone = TRUE;
             } else {
                 /* continue if any startup errors */
-                log_warn("\nWarning: top-node root-check validation errors "
+                log_warn(instance, "\nWarning: top-node root-check validation errors "
                          "occurred loading the <running> database\n"
                          "   from NV-storage (%s)\n", fname);
                 profile->agt_config_state = AGT_CFG_STATE_BAD;
@@ -340,7 +345,7 @@ static status_t
         if (!errdone && profile->agt_load_apply_errors) {
             /* quit if any apply-to-running SIL errors */
             errdone = TRUE;
-            log_error("\nError: fatal errors "
+            log_error(instance, "\nError: fatal errors "
                       "occurred loading the <running> database "
                       "from NV-storage\n     (%s)\n", fname);
         }
@@ -348,23 +353,24 @@ static status_t
         if (errdone) {
             res = ERR_NCX_OPERATION_FAILED;
         } else if (errcontinue) {
-            val_purge_errors_from_root(cfg->root);
-            log_info("\nagt: Startup config loaded after pruning error nodes\n"
+            val_purge_errors_from_root(instance, cfg->root);
+            log_info(instance, "\nagt: Startup config loaded after pruning error nodes\n"
                      "Source: %s\n", fname);
         } else {
-            log_info("\nagt: Startup config loaded OK\n     Source: %s\n",
+            log_info(instance,
+                     "\nagt: Startup config loaded OK\n     Source: %s\n",
                      fname);
         }
     }
 
     if (LOGDEBUG) {
-        log_debug("\nContents of %s configuration:", cfg->name);
-        val_dump_value(cfg->root, 0);
-        log_debug("\n");
+        log_debug(instance, "\nContents of %s configuration:", cfg->name);
+        val_dump_value(instance, cfg->root, 0);
+        log_debug(instance, "\n");
     }
 
     if (fname) {
-        m__free(fname);
+        m__free(instance, fname);
     }
 
     return res;
@@ -381,11 +387,11 @@ static status_t
 *    malloced struct or NULL if malloc error
 *********************************************************************/
 static agt_dynlib_cb_t *
-    new_dynlib_cb (void)
+    new_dynlib_cb (ncx_instance_t *instance)
 {
     agt_dynlib_cb_t *dynlib;
 
-    dynlib = m__getObj(agt_dynlib_cb_t);
+    dynlib = m__getObj(instance, agt_dynlib_cb_t);
     if (dynlib == NULL) {
         return NULL;
     }
@@ -404,16 +410,16 @@ static agt_dynlib_cb_t *
 *     dynlib == dynamic library control block to free
 *********************************************************************/
 static void
-    free_dynlib_cb (agt_dynlib_cb_t *dynlib)
+    free_dynlib_cb (ncx_instance_t *instance, agt_dynlib_cb_t *dynlib)
 {
 
     if (dynlib->modname) {
-        m__free(dynlib->modname);
+        m__free(instance, dynlib->modname);
     }
     if (dynlib->revision) {
-        m__free(dynlib->revision);
+        m__free(instance, dynlib->revision);
     }
-    m__free(dynlib);
+    m__free(instance, dynlib);
 
 } /* free_dynlib_cb */
 
@@ -428,9 +434,9 @@ static void
 *    status
 *********************************************************************/
 static status_t
-    set_initial_transaction_id (void)
+    set_initial_transaction_id (ncx_instance_t *instance)
 {
-    cfg_template_t *cfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+    cfg_template_t *cfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
     if (cfg == NULL) {
         return ERR_NCX_CFG_NOT_FOUND;
     }
@@ -445,51 +451,53 @@ static status_t
     /* figure out which transaction ID file to use */
     if (profile->agt_startup_txid_file == NULL) {
         /* search for the default startup-cfg.xml filename */
-        xmlChar *fname = ncxmod_find_data_file(NCX_DEF_STARTUP_TXID_FILE, 
+        xmlChar *fname = ncxmod_find_data_file(instance, 
+                                               NCX_DEF_STARTUP_TXID_FILE, 
                                                FALSE, &res);
         if (fname == NULL || res != NO_ERR || *fname == 0) {
             /* need to set the default startup transaction ID file name */
-            log_debug("\nSetting initial transaction ID file to default");
+            log_debug(instance, "\nSetting initial transaction ID file to default");
             if (fname) {
-                m__free(fname);
+                m__free(instance, fname);
             }
             res = NO_ERR;
-            fname = agt_get_startup_filespec(&res);
+            fname = agt_get_startup_filespec(instance, &res);
             if (fname == NULL || res != NO_ERR) {
                 if (res == NO_ERR) {
                     res = ERR_NCX_OPERATION_FAILED;
                 }
-                log_error("\nFailed to set initial transaction ID file (%s)",
+                log_error(instance,
+                          "\nFailed to set initial transaction ID file (%s)",
                           get_error_string(res));
                 if (fname) {
-                    m__free(fname);
+                    m__free(instance, fname);
                 }
                 return res;
             }
             /* get dir part and append the TXID file name to it */
-            uint32 fnamelen = xml_strlen(fname);
+            uint32 fnamelen = xml_strlen(instance, fname);
             xmlChar *str = &fname[fnamelen - 1];
             while (str >= fname && *str && *str != NCX_PATHSEP_CH) {
                 str--;
             }
             if (*str != NCX_PATHSEP_CH) {
-                log_error("\nFailed to set initial transaction ID file");
-                m__free(fname);
+                log_error(instance, "\nFailed to set initial transaction ID file");
+                m__free(instance, fname);
                 return ERR_NCX_INVALID_VALUE;
             }
 
             /* copy base filespec + 1 for the path-sep-ch */
             uint32 baselen = (uint32)(str - fname) + 1;
-            uint32 newlen =  baselen + xml_strlen(NCX_DEF_STARTUP_TXID_FILE);
-            xmlChar *newstr = m__getMem(newlen + 1);
+            uint32 newlen =  baselen + xml_strlen(instance, NCX_DEF_STARTUP_TXID_FILE);
+            xmlChar *newstr = m__getMem(instance, newlen + 1);
             if (newstr == NULL) {
-                m__free(fname);
+                m__free(instance, fname);
                 return ERR_INTERNAL_MEM;
             }
             str = newstr;
-            str += xml_strncpy(str, fname, baselen);
-            xml_strcpy(str, NCX_DEF_STARTUP_TXID_FILE);
-            m__free(fname);
+            str += xml_strncpy(instance, str, fname, baselen);
+            xml_strcpy(instance, str, NCX_DEF_STARTUP_TXID_FILE);
+            m__free(instance, fname);
             profile->agt_startup_txid_file = newstr; // pass off memory here
         } else {
             foundfile = TRUE;
@@ -498,9 +506,10 @@ static status_t
     }
 
     /* initialize the starting transaction ID in the config module */
-    res = agt_cfg_init_transactions(profile->agt_startup_txid_file, foundfile);
+    res = agt_cfg_init_transactions(instance, profile->agt_startup_txid_file, foundfile);
     if (res != NO_ERR) {
-        log_error("\nError: cfg-init transaction ID failed (%s)",
+        log_error(instance,
+                  "\nError: cfg-init transaction ID failed (%s)",
                   get_error_string(res));
     }
     return res;
@@ -532,7 +541,8 @@ static status_t
 *   status of the initialization procedure
 *********************************************************************/
 status_t 
-    agt_init1 (int argc,
+    agt_init1 (ncx_instance_t *instance,
+               int argc,
                char *argv[],
                boolean *showver,
                help_mode_t *showhelpmode)
@@ -543,7 +553,7 @@ status_t
         return NO_ERR;
     }
 
-    log_debug3("\nServer Init Starting...");
+    log_debug3(instance, "\nServer Init Starting...");
 
     res = NO_ERR;
 
@@ -551,7 +561,7 @@ status_t
     agt_shutdown = FALSE;
     agt_shutdown_started = FALSE;
     agt_shutmode = NCX_SHUT_NONE;
-    dlq_createSQue(&agt_dynlibQ);
+    dlq_createSQue(instance, &agt_dynlibQ);
 
     *showver = FALSE;
     *showhelpmode = HELP_MODE_NONE;
@@ -559,16 +569,16 @@ status_t
     /* allow cleanup to run even if this fn does not complete */
     agt_init_done = TRUE;
 
-    init_server_profile();
+    init_server_profile(instance);
 
     /* setup $HOME/.yuma directory */
-    res = ncxmod_setup_yumadir();
+    res = ncxmod_setup_yumadir(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get the command line params and also any config file params */
-    res = agt_cli_process_input(argc, argv, &agt_profile, showver, 
+    res = agt_cli_process_input(instance, argc, argv, &agt_profile, showver, 
                                 showhelpmode);
     if (res != NO_ERR) {
         return res;
@@ -600,7 +610,7 @@ status_t
 *   status
 *********************************************************************/
 status_t 
-    agt_init2 (void)
+    agt_init2 (ncx_instance_t *instance)
 {
     val_value_t        *clivalset;
     ncx_module_t       *retmod;
@@ -612,36 +622,36 @@ status_t
     uint32              modlen;
     boolean             startup_loaded;
 
-    log_debug3("\nServer Init-2 Starting...");
+    log_debug3(instance, "\nServer Init-2 Starting...");
 
     startup_loaded = FALSE;
 
     /* init user callback support */
-    agt_cb_init();
-    agt_commit_complete_init();
-    agt_commit_validate_init();
-    agt_not_queue_notification_cb_init();
+    agt_cb_init(instance);
+    agt_commit_complete_init(instance);
+    agt_commit_validate_init(instance);
+    agt_not_queue_notification_cb_init(instance);
 
     /* initial signal handler first to allow clean exit */
     agt_signal_init();
 
     /* initialize the server timer service */
-    agt_timer_init();
+    agt_timer_init(instance);
     
     /* initialize the RPC server callback structures */
-    res = agt_rpc_init();
+    res = agt_rpc_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* initialize the NCX connect handler */
-    res = agt_connect_init();
+    res = agt_connect_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* initialize the NCX hello handler */
-    res = agt_hello_init();
+    res = agt_hello_init(instance);
     if (res != NO_ERR) {
         return res;
     }
@@ -650,21 +660,22 @@ status_t
      * The config state is still CFG_ST_INIT
      * so no user access can occur yet (except OP_LOAD by root)
      */
-    res = cfg_init_static_db(NCX_CFGID_RUNNING);
+    res = cfg_init_static_db(instance, NCX_CFGID_RUNNING);
     if (res != NO_ERR) {
         return res;
     }
 
     /* set the 'ordered-by system' sorted/not-sorted flag */
-    ncx_set_system_sorted(agt_profile.agt_system_sorted);
+    ncx_set_system_sorted(instance, agt_profile.agt_system_sorted);
 
     /* set the 'top-level mandatory objects allowed' flag */
-    ncx_set_top_mandatory_allowed(!agt_profile.agt_running_error);
+    ncx_set_top_mandatory_allowed(instance, !agt_profile.agt_running_error);
 
     /*** All Server profile parameters should be set by now ***/
 
     /* must set the server capabilities after the profile is set */
-    res = agt_cap_set_caps(agt_profile.agt_targ, 
+    res = agt_cap_set_caps(instance, 
+                           agt_profile.agt_targ, 
                            agt_profile.agt_start,
                            agt_profile.agt_defaultStyle);
     if (res != NO_ERR) {
@@ -673,7 +684,7 @@ status_t
 
     /* setup the candidate config if it is used */
     if (agt_profile.agt_targ==NCX_AGT_TARG_CANDIDATE) {
-        res = cfg_init_static_db(NCX_CFGID_CANDIDATE);
+        res = cfg_init_static_db(instance, NCX_CFGID_CANDIDATE);
         if (res != NO_ERR) {
             return res;
         }
@@ -681,55 +692,56 @@ status_t
 
     /* setup the startup config if it is used */
     if (agt_profile.agt_start==NCX_AGT_START_DISTINCT) {
-        res = cfg_init_static_db(NCX_CFGID_STARTUP);
+        res = cfg_init_static_db(instance, NCX_CFGID_STARTUP);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* initialize the server access control model */
-    res = agt_acm_init();
+    res = agt_acm_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* initialize the session handler data structures */
-    agt_ses_init();
+    agt_ses_init(instance);
 
     /* load the system module */
-    res = agt_sys_init();
+    res = agt_sys_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the NETCONF state monitoring data model module */
-    res = agt_state_init();
+    res = agt_state_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the NETCONF Notifications data model module */
-    res = agt_not_init();
+    res = agt_not_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the NETCONF /proc monitoring data model module */
-    res = agt_proc_init();
+    res = agt_proc_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the partial lock module */
     res = y_ietf_netconf_partial_lock_init
-        (y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
+        (instance,
+         y_ietf_netconf_partial_lock_M_ietf_netconf_partial_lock,
          NULL);
     if (res != NO_ERR) {
         return res;
     }
 #if 0
     /* load the NETCONF interface monitoring data model module */
-    res = agt_if_init();
+    res = agt_if_init(instance);
     if (res != NO_ERR) {
         return res;
     }
@@ -738,20 +750,20 @@ status_t
      * the schema (yuma-netconf.yang) for these callbacks was 
      * already loaded in the common ncx_init
      * */
-    res = agt_ncx_init();
+    res = agt_ncx_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the yuma-time-filter module */
     res = y_yuma_time_filter_init
-        (y_yuma_time_filter_M_yuma_time_filter, NULL);
+        (instance, y_yuma_time_filter_M_yuma_time_filter, NULL);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the yuma-arp module */
-    res = y_yuma_arp_init(y_yuma_arp_M_yuma_arp, NULL);
+    res = y_yuma_arp_init(instance, y_yuma_arp_M_yuma_arp, NULL);
     if (res != NO_ERR) {
         return res;
     }
@@ -764,29 +776,31 @@ status_t
     if (clivalset) {
 
         if (LOGDEBUG) {
-            log_debug("\n\nnetconfd final CLI + .conf parameters:\n");
-            val_dump_value_max(clivalset, 0, NCX_DEF_INDENT, DUMP_VAL_LOG,
+            log_debug(instance, "\n\nnetconfd final CLI + .conf parameters:\n");
+            val_dump_value_max(instance, clivalset, 0, NCX_DEF_INDENT, DUMP_VAL_LOG,
                                NCX_DISPLAY_MODE_PLAIN, FALSE, /* withmeta */
                                TRUE /* config only */);
-            log_debug("\n");
+            log_debug(instance, "\n");
         }
 
         /* first check if there are any deviations to load */
-        val = val_find_child(clivalset, NCXMOD_NETCONFD, NCX_EL_DEVIATION);
+        val = val_find_child(instance, clivalset, NCXMOD_NETCONFD, NCX_EL_DEVIATION);
         while (val) {
-            res = ncxmod_load_deviation(VAL_STR(val), 
+            res = ncxmod_load_deviation(instance, 
+                                        VAL_STR(val), 
                                         &agt_profile.agt_savedevQ);
             if (res != NO_ERR) {
                 return res;
             } else {
-                val = val_find_next_child(clivalset,
+                val = val_find_next_child(instance,
+                                          clivalset,
                                           NCXMOD_NETCONFD,
                                           NCX_EL_DEVIATION,
                                           val);
             }
         }
 
-        val = val_find_child(clivalset, NCXMOD_NETCONFD, NCX_EL_MODULE);
+        val = val_find_child(instance, clivalset, NCXMOD_NETCONFD, NCX_EL_MODULE);
 
         /* attempt all dynamically loaded modules */
         while (val && res == NO_ERR) {
@@ -798,38 +812,42 @@ status_t
             savestr = NULL;
             savechar = '\0';
 
-            if (yang_split_filename(VAL_STR(val), &modlen)) {
+            if (yang_split_filename(instance, VAL_STR(val), &modlen)) {
                 savestr = &(VAL_STR(val)[modlen]);
                 savechar = *savestr;
                 *savestr = '\0';
                 revision = savestr + 1;
             }
 
-            retmod = ncx_find_module(VAL_STR(val), revision);
+            retmod = ncx_find_module(instance, VAL_STR(val), revision);
             if (retmod == NULL) {
 #ifdef STATIC_SERVER
                 /* load just the module
                  * SIL initialization is assumed to be
                  * handled elsewhere
                  */
-                res = ncxmod_load_module(VAL_STR(val),
+                res = ncxmod_load_module(instance,
+                                         VAL_STR(val),
                                          revision,
                                          &agt_profile.agt_savedevQ,
                                          &retmod);
 #else
                 /* load the SIL and it will load its own module */
-                res = agt_load_sil_code(VAL_STR(val), revision, FALSE);
+                res = agt_load_sil_code(instance, VAL_STR(val), revision, FALSE);
                 if (res == ERR_NCX_SKIPPED) {
-                    log_warn("\nWarning: SIL code for module '%s' not found",
+                    log_warn(instance,
+                             "\nWarning: SIL code for module '%s' not found",
                              VAL_STR(val));
-                    res = ncxmod_load_module(VAL_STR(val),
+                    res = ncxmod_load_module(instance,
+                                             VAL_STR(val),
                                              revision,
                                              &agt_profile.agt_savedevQ,
                                              &retmod);
                 }
 #endif
             } else {
-                log_info("\nCLI: Skipping 'module' parm '%s', already loaded",
+                log_info(instance,
+                         "\nCLI: Skipping 'module' parm '%s', already loaded",
                          VAL_STR(val));
             }
 
@@ -838,7 +856,8 @@ status_t
             }
 
             if (res == NO_ERR) {
-                val = val_find_next_child(clivalset,
+                val = val_find_next_child(instance,
+                                          clivalset,
                                           NCXMOD_NETCONFD,
                                           NCX_EL_MODULE,
                                           val);
@@ -848,33 +867,33 @@ status_t
 
     /*** ALL INITIAL YANG MODULES SHOULD BE LOADED AT THIS POINT ***/
     if (res != NO_ERR) {
-        log_error("\nError: one or more modules could not be loaded");
+        log_error(instance, "\nError: one or more modules could not be loaded");
         return ERR_NCX_OPERATION_FAILED;
     }
 
-    if (ncx_any_mod_errors()) {
-        log_error("\nError: one or more pre-loaded YANG modules"
+    if (ncx_any_mod_errors(instance)) {
+        log_error(instance, "\nError: one or more pre-loaded YANG modules"
                   " has fatal errors\n");
         return ERR_NCX_OPERATION_FAILED;
     }
 
     /* set the initial module capabilities in the server <hello> message */
-    res = agt_cap_set_modules(&agt_profile);
+    res = agt_cap_set_modules(instance, &agt_profile);
     if (res != NO_ERR) {
         return res;
     }
 
     /* prune all the obsolete objects */
-    ncx_delete_all_obsolete_objects();
+    ncx_delete_all_obsolete_objects(instance);
 
     /* safe to create the commit-task object list now */
-    res = agt_val_init_commit_tests();
+    res = agt_val_init_commit_tests(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* get or initialize the startup and running transaction-id */
-    res = set_initial_transaction_id();
+    res = set_initial_transaction_id(instance);
     if (res != NO_ERR) {
         return res;
     }
@@ -884,18 +903,18 @@ status_t
     /* load the NV startup config into the running config if it exists */
     if (agt_profile.agt_factorystartup) {
         /* force the startup to be the factory startup */
-        log_info("\nagt: Startup configuration skipped due "
+        log_info(instance, "\nagt: Startup configuration skipped due "
                  "to factory-startup CLI option\n");
     } else if (agt_profile.agt_usestartup) {
         if (LOGDEBUG2) {
-            log_debug2("\nAttempting to load running config from startup");
+            log_debug2(instance, "\nAttempting to load running config from startup");
         }
-        res = load_running_config(agt_profile.agt_startup, &startup_loaded);
+        res = load_running_config(instance, agt_profile.agt_startup, &startup_loaded);
         if (res != NO_ERR) {
             return res;
         }
     } else {
-        log_info("\nagt: Startup configuration skipped due "
+        log_info(instance, "\nagt: Startup configuration skipped due "
                  "to no-startup CLI option\n");
     }
 
@@ -911,19 +930,19 @@ status_t
      ** or edit running config */
 
     /* load the nacm access control DM module */
-    res = agt_acm_init2();
+    res = agt_acm_init2(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load any system module non-config data */
-    res = agt_sys_init2();
+    res = agt_sys_init2(instance);
     if (res != NO_ERR) {
         return res;
     }
     
     /* load any server state monitoring data */
-    res = agt_state_init2();
+    res = agt_state_init2(instance);
     if (res != NO_ERR) {
         return res;
     }
@@ -935,19 +954,19 @@ status_t
     }
 
     /* load the notifications callback functions and data */
-    res = agt_not_init2();
+    res = agt_not_init2(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the /proc monitoring callback functions and data */
-    res = agt_proc_init2();
+    res = agt_proc_init2(instance);
     if (res != NO_ERR) {
         return res;
     }
 #if 0
     /* load the interface monitoring callback functions and data */
-    res = agt_if_init2();
+    res = agt_if_init2(instance);
     if (res != NO_ERR) {
         return res;
     }
@@ -961,7 +980,7 @@ status_t
     }
 
     /* load the yuma arp callbacks */
-    res = y_yuma_arp_init2();
+    res = y_yuma_arp_init2(instance);
     if (res != NO_ERR) {
         return res;
     }
@@ -971,16 +990,17 @@ status_t
      * initialized here
      */
 #else
-    for (dynlib = (agt_dynlib_cb_t *)dlq_firstEntry(&agt_dynlibQ);
+    for (dynlib = (agt_dynlib_cb_t *)dlq_firstEntry(instance, &agt_dynlibQ);
          dynlib != NULL;
-         dynlib = (agt_dynlib_cb_t *)dlq_nextEntry(dynlib)) {
+         dynlib = (agt_dynlib_cb_t *)dlq_nextEntry(instance, dynlib)) {
 
         if (dynlib->init_status == NO_ERR &&
             !dynlib->init2_done &&
             !dynlib->cleanup_done) {
 
             if (LOGDEBUG2) {
-                log_debug2("\nCalling SIL Init2 fn for module '%s'",
+                log_debug2(instance,
+                           "\nCalling SIL Init2 fn for module '%s'",
                            dynlib->modname);
             }
             res = (*dynlib->init2fn)();
@@ -988,7 +1008,8 @@ status_t
             dynlib->init2_done = TRUE;
 
             if (res != NO_ERR) {
-                log_error("\nError: SIL init2 function "
+                log_error(instance,
+                          "\nError: SIL init2 function "
                           "failed for module '%s' (%s)",
                           dynlib->modname,
                           get_error_string(res));
@@ -1006,12 +1027,13 @@ status_t
     /* add any top-level defaults to the running config
      * that were not covered by SIL callbacks
      */
-    for (retmod = ncx_get_first_module();
+    for (retmod = ncx_get_first_module(instance);
          retmod != NULL;
-         retmod = ncx_get_next_module(retmod)) {
-        res = agt_set_mod_defaults(retmod);
+         retmod = ncx_get_next_module(instance, retmod)) {
+        res = agt_set_mod_defaults(instance, retmod);
         if (res != NO_ERR) {
-            log_error("\nError: Set mod defaults for module '%s' failed (%s)",
+            log_error(instance,
+                      "\nError: Set mod defaults for module '%s' failed (%s)",
                       retmod->name,
                       get_error_string(res));
             return res;
@@ -1021,12 +1043,13 @@ status_t
     /* dump the running config at boot-time */
     if (LOGDEBUG3) {
         if (startup_loaded) {
-            log_debug3("\nRunning config contents after all init done");
+            log_debug3(instance, "\nRunning config contents after all init done");
         } else {
-            log_debug3("\nFactory default running config contents");
+            log_debug3(instance, "\nFactory default running config contents");
         }
-        cfg = cfg_get_config_id(NCX_CFGID_RUNNING);
-        val_dump_value_max(cfg->root, 
+        cfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
+        val_dump_value_max(instance, 
+                           cfg->root, 
                            0,
                            NCX_DEF_INDENT,
                            DUMP_VAL_LOG,
@@ -1034,7 +1057,7 @@ status_t
                            FALSE,
                            TRUE);
         
-        log_debug3("\n");
+        log_debug3(instance, "\n");
     }
 
     if (startup_loaded) {
@@ -1047,46 +1070,46 @@ status_t
          * mandatory nodes; if so, and init2 phase did not add them
          * then the running config will be invalid */
         xml_msg_hdr_t  mhdr; 
-        xml_msg_init_hdr(&mhdr);
-        cfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+        xml_msg_init_hdr(instance, &mhdr);
+        cfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
 
         /* allocate a transaction control block */
         agt_cfg_transaction_t *txcb = 
-            agt_cfg_new_transaction(NCX_CFGID_RUNNING, AGT_CFG_EDIT_TYPE_FULL,
+            agt_cfg_new_transaction(instance, NCX_CFGID_RUNNING, AGT_CFG_EDIT_TYPE_FULL,
                                     FALSE, FALSE, &res);
         if (txcb == NULL || res != NO_ERR) {
             if (res == NO_ERR) {
                 res = ERR_NCX_OPERATION_FAILED;
             }
         } else {
-            res = agt_val_root_check(NULL, &mhdr, txcb, cfg->root);
+            res = agt_val_root_check(instance, NULL, &mhdr, txcb, cfg->root);
             if (res != NO_ERR) {
                 agt_profile.agt_load_rootcheck_errors = TRUE;
                 agt_profile.agt_config_state = AGT_CFG_STATE_BAD;
                 if (agt_profile.agt_running_error) {
                     /* quit if any running config errors */
-                    log_error("\nError: validation errors occurred loading the "
+                    log_error(instance, "\nError: validation errors occurred loading the "
                               "factory default database\n");
                 } else {
                     /* continue if any running errors */
-                    log_warn("\nWarning: validation errors occurred "
+                    log_warn(instance, "\nWarning: validation errors occurred "
                              "loading the factory default database\n");
                     res = NO_ERR;
                 }
 
                 /* move any error messages to the config error Q */
-                dlq_block_enque(&mhdr.errQ, &cfg->load_errQ);
+                dlq_block_enque(instance, &mhdr.errQ, &cfg->load_errQ);
             } else {
                 agt_profile.agt_config_state = AGT_CFG_STATE_OK;
             }
         }
-        xml_msg_clean_hdr(&mhdr);
-        agt_cfg_free_transaction(txcb);
+        xml_msg_clean_hdr(instance, &mhdr);
+        agt_cfg_free_transaction(instance, txcb);
 
         /* check to see if factory default startup mode is active */
         if (agt_profile.agt_factorystartup && res == NO_ERR) {
-            log_info("\nSaving factory default config to startup config");
-            res = agt_ncx_cfg_save(cfg, FALSE);
+            log_info(instance, "\nSaving factory default config to startup config");
+            res = agt_ncx_cfg_save(instance, cfg, FALSE);
             if (res == NO_ERR) {
                 agt_profile.agt_factorystartup = FALSE;
             }
@@ -1098,23 +1121,23 @@ status_t
     }
 
     /* allow users to access the configuration databases now */
-    cfg_set_state(NCX_CFGID_RUNNING, CFG_ST_READY);
+    cfg_set_state(instance, NCX_CFGID_RUNNING, CFG_ST_READY);
 
     /* set the correct configuration target */
     if (agt_profile.agt_targ==NCX_AGT_TARG_CANDIDATE) {
-        res = cfg_fill_candidate_from_running();
+        res = cfg_fill_candidate_from_running(instance);
         if (res != NO_ERR) {
             return res;
         }
-        cfg_set_state(NCX_CFGID_CANDIDATE, CFG_ST_READY);
-        cfg_set_target(NCX_CFGID_CANDIDATE);
+        cfg_set_state(instance, NCX_CFGID_CANDIDATE, CFG_ST_READY);
+        cfg_set_target(instance, NCX_CFGID_CANDIDATE);
     } else {
-        cfg_set_target(NCX_CFGID_RUNNING);
+        cfg_set_target(instance, NCX_CFGID_RUNNING);
     }
 
     /* setup the startup config only if used */
     if (agt_profile.agt_start==NCX_AGT_START_DISTINCT) {
-        cfg_set_state(NCX_CFGID_STARTUP, CFG_ST_READY);
+        cfg_set_state(instance, NCX_CFGID_STARTUP, CFG_ST_READY);
     }
 
     /* data modules can be accessed now, and still added
@@ -1138,52 +1161,52 @@ status_t
 *
 *********************************************************************/
 void
-    agt_cleanup (void)
+    agt_cleanup (ncx_instance_t *instance)
 {
     agt_dynlib_cb_t *dynlib;
 
     if (agt_init_done) {
-        log_debug3("\nServer Cleanup Starting...\n");
+        log_debug3(instance, "\nServer Cleanup Starting...\n");
 
         /* cleanup all the dynamically loaded modules */
-        while (!dlq_empty(&agt_dynlibQ)) {
-            dynlib = (agt_dynlib_cb_t *)dlq_deque(&agt_dynlibQ);
+        while (!dlq_empty(instance, &agt_dynlibQ)) {
+            dynlib = (agt_dynlib_cb_t *)dlq_deque(instance, &agt_dynlibQ);
 #ifndef STATIC_SERVER
             if (!dynlib->cleanup_done) {
                 (*dynlib->cleanupfn)();
             }
             dlclose(dynlib->handle);
 #endif
-            free_dynlib_cb(dynlib);
+            free_dynlib_cb(instance, dynlib);
         }
                 
 
-        clean_server_profile();
-        agt_acm_cleanup();
-        agt_ncx_cleanup();
-        agt_hello_cleanup();
-        agt_cli_cleanup();
-        agt_sys_cleanup();
-        agt_state_cleanup();
-        agt_not_cleanup();
+        clean_server_profile(instance);
+        agt_acm_cleanup(instance);
+        agt_ncx_cleanup(instance);
+        agt_hello_cleanup(instance);
+        agt_cli_cleanup(instance);
+        agt_sys_cleanup(instance);
+        agt_state_cleanup(instance);
+        agt_not_cleanup(instance);
         agt_proc_cleanup();
-        y_ietf_netconf_partial_lock_cleanup();
+        y_ietf_netconf_partial_lock_cleanup(instance);
         agt_if_cleanup();
         y_yuma_time_filter_cleanup();
-        y_yuma_arp_cleanup();
-        agt_ses_cleanup();
-        agt_cap_cleanup();
-        agt_rpc_cleanup();
+        y_yuma_arp_cleanup(instance);
+        agt_ses_cleanup(instance);
+        agt_cap_cleanup(instance);
+        agt_rpc_cleanup(instance);
         agt_signal_cleanup();
-        agt_timer_cleanup();
-        agt_connect_cleanup();
-        agt_commit_complete_cleanup();
-        agt_cb_cleanup();
+        agt_timer_cleanup(instance);
+        agt_connect_cleanup(instance);
+        agt_commit_complete_cleanup(instance);
+        agt_cb_cleanup(instance);
 
-        print_errors();
+        print_errors(instance);
 
-        log_audit_close();
-        log_close();
+        log_audit_close(instance);
+        log_close(instance);
 
         agt_init_done = FALSE;
     }
@@ -1218,11 +1241,11 @@ agt_profile_t *
 *
 *********************************************************************/
 void
-    agt_request_shutdown (ncx_shutdowntyp_t mode)
+    agt_request_shutdown (ncx_instance_t *instance, ncx_shutdowntyp_t mode)
 {
 #ifdef DEBUG
     if (mode <= NCX_SHUT_NONE || mode > NCX_SHUT_EXIT) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 #endif
@@ -1285,7 +1308,7 @@ ncx_shutdowntyp_t
 *    const string for this enum
 *********************************************************************/
 const xmlChar *
-    agt_cbtype_name (agt_cbtyp_t cbtyp)
+    agt_cbtype_name (ncx_instance_t *instance, agt_cbtyp_t cbtyp)
 {
     switch (cbtyp) {
     case AGT_CB_VALIDATE:
@@ -1297,7 +1320,7 @@ const xmlChar *
     case AGT_CB_ROLLBACK:
         return (const xmlChar *)"rollback";
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return (const xmlChar *)"invalid";
     }
 }  /* agt_cbtyp_name */
@@ -1319,7 +1342,8 @@ const xmlChar *
 *    const string for this enum
 *********************************************************************/
 status_t
-    agt_load_sil_code (const xmlChar *modname,
+    agt_load_sil_code (ncx_instance_t *instance,
+                       const xmlChar *modname,
                        const xmlChar *revision,
                        boolean cfgloaded)
 {
@@ -1341,109 +1365,113 @@ status_t
     /* create a buffer for the library name
      * and later for function names
      */
-    bufflen = xml_strlen(modname) + 32;
-    buffer = m__getMem(bufflen);
+    bufflen = xml_strlen(instance, modname) + 32;
+    buffer = m__getMem(instance, bufflen);
     if (buffer == NULL) {
         return ERR_INTERNAL_MEM;
     }
 
     p = buffer;
-    p += xml_strcpy(p, (const xmlChar *)"lib");    
-    p += xml_strcpy(p, modname);
-    xml_strcpy(p, (const xmlChar *)".so");
+    p += xml_strcpy(instance, p, (const xmlChar *)"lib");    
+    p += xml_strcpy(instance, p, modname);
+    xml_strcpy(instance, p, (const xmlChar *)".so");
 
     /* try to find it directly for loading */
-    pathspec = ncxmod_find_sil_file(buffer, FALSE, &res);
+    pathspec = ncxmod_find_sil_file(instance, buffer, FALSE, &res);
     if (pathspec == NULL) {
-        m__free(buffer);
+        m__free(instance, buffer);
         return ERR_NCX_SKIPPED;
     }
 
     handle = dlopen((const char *)pathspec, RTLD_NOW);
     if (handle == NULL) {
-        log_error("\nError: could not open '%s' (%s)\n", 
+        log_error(instance, 
+                  "\nError: could not open '%s' (%s)\n", 
                   pathspec,
                   dlerror());
-        m__free(buffer);
-        m__free(pathspec);
+        m__free(instance, buffer);
+        m__free(instance, pathspec);
         return ERR_NCX_OPERATION_FAILED;
     } else if (LOGDEBUG2) {
-        log_debug2("\nOpened SIL (%s) OK", pathspec);
+        log_debug2(instance, "\nOpened SIL (%s) OK", pathspec);
     }
 
-    m__free(pathspec);
+    m__free(instance, pathspec);
     pathspec = NULL;
 
     p = buffer;
-    p += xml_strcpy(p, Y_PREFIX);
+    p += xml_strcpy(instance, p, Y_PREFIX);
     p += ncx_copy_c_safe_str(p, modname);
-    xml_strcpy(p, INIT_SUFFIX);
+    xml_strcpy(instance, p, INIT_SUFFIX);
 
     initfn = dlsym(handle, (const char *)buffer);
     error = dlerror();
     if (error != NULL) {
-        log_error("\nError: could not open '%s' (%s)\n", 
+        log_error(instance, 
+                  "\nError: could not open '%s' (%s)\n", 
                   buffer,
                   dlerror());
-        m__free(buffer);
+        m__free(instance, buffer);
         dlclose(handle);
         return ERR_NCX_OPERATION_FAILED;
     }
 
-    xml_strcpy(p, INIT2_SUFFIX);
+    xml_strcpy(instance, p, INIT2_SUFFIX);
     init2fn = dlsym(handle, (const char *)buffer);
     error = dlerror();
     if (error != NULL) {
-        log_error("\nError: could not open '%s' (%s)\n", 
+        log_error(instance, 
+                  "\nError: could not open '%s' (%s)\n", 
                   buffer,
                   dlerror());
-        m__free(buffer);
+        m__free(instance, buffer);
         dlclose(handle);
         return ERR_NCX_OPERATION_FAILED;
     }
 
-    xml_strcpy(p, CLEANUP_SUFFIX);
+    xml_strcpy(instance, p, CLEANUP_SUFFIX);
     cleanupfn = dlsym(handle, (const char *)buffer);
     error = dlerror();
     if (error != NULL) {
-        log_error("\nError: could not open '%s' (%s)\n", 
+        log_error(instance, 
+                  "\nError: could not open '%s' (%s)\n", 
                   buffer,
                   dlerror());
-        m__free(buffer);
+        m__free(instance, buffer);
         dlclose(handle);
         return ERR_NCX_OPERATION_FAILED;
     }
 
     if (LOGDEBUG2) {
-        log_debug2("\nLoaded SIL functions OK");
+        log_debug2(instance, "\nLoaded SIL functions OK");
     }
 
-    m__free(buffer);
+    m__free(instance, buffer);
     buffer = NULL;
 
-    dynlib = new_dynlib_cb();
+    dynlib = new_dynlib_cb(instance);
     if (dynlib == NULL) {
-        log_error("\nError: dynlib CB malloc failed");
+        log_error(instance, "\nError: dynlib CB malloc failed");
         dlclose(handle);
         return ERR_INTERNAL_MEM;
     }
 
     dynlib->handle = handle;
 
-    dynlib->modname = xml_strdup(modname);
+    dynlib->modname = xml_strdup(instance, modname);
     if (dynlib->modname == NULL) {
-        log_error("\nError: dynlib CB malloc failed");
+        log_error(instance, "\nError: dynlib CB malloc failed");
         dlclose(handle);
-        free_dynlib_cb(dynlib);
+        free_dynlib_cb(instance, dynlib);
         return ERR_INTERNAL_MEM;
     }
 
     if (revision) {
-        dynlib->revision = xml_strdup(revision);
+        dynlib->revision = xml_strdup(instance, revision);
         if (dynlib->revision == NULL) {
-            log_error("\nError: dynlib CB malloc failed");
+            log_error(instance, "\nError: dynlib CB malloc failed");
             dlclose(handle);
-            free_dynlib_cb(dynlib);
+            free_dynlib_cb(instance, dynlib);
             return ERR_INTERNAL_MEM;
         }
     }
@@ -1451,12 +1479,13 @@ status_t
     dynlib->initfn = initfn;
     dynlib->init2fn = init2fn;
     dynlib->cleanupfn = cleanupfn;
-    dlq_enque(dynlib, &agt_dynlibQ);
+    dlq_enque(instance, dynlib, &agt_dynlibQ);
 
     res = (*initfn)(modname, revision);
     dynlib->init_status = res;
     if (res != NO_ERR) {
-        log_error("\nError: SIL init function "
+        log_error(instance,
+                  "\nError: SIL init function "
                   "failed for module %s (%s)",
                   modname,
                   get_error_string(res));
@@ -1464,7 +1493,8 @@ status_t
         dynlib->cleanup_done = TRUE;
         return res;
     } else if (LOGDEBUG2) {
-        log_debug2("\nRan SIL init function OK for module '%s'",
+        log_debug2(instance,
+                   "\nRan SIL init function OK for module '%s'",
                    modname);
     }
 
@@ -1473,7 +1503,8 @@ status_t
         dynlib->init2_done = TRUE;
         dynlib->init2_status = res;
         if (res != NO_ERR) {
-            log_error("\nError: SIL init2 function "
+            log_error(instance,
+                      "\nError: SIL init2 function "
                       "failed for module %s (%s)",
                       modname,
                       get_error_string(res));
@@ -1481,7 +1512,8 @@ status_t
             dynlib->cleanup_done = TRUE;
             return res;
         } else if (LOGDEBUG2) {
-            log_debug2("\nRan SIL init2 function OK for module '%s'",
+            log_debug2(instance,
+                       "\nRan SIL init2 function OK for module '%s'",
                        modname);
         }
     }
@@ -1504,35 +1536,36 @@ status_t
 *    none
 *********************************************************************/
 boolean
-    agt_advertise_module_needed (const xmlChar *modname)
+    agt_advertise_module_needed (ncx_instance_t *instance, const xmlChar *modname)
 {
     val_value_t* val;
     val_value_t* clivalset;
 
-    if (!xml_strcmp(modname, NCXMOD_NETCONF)) {
+    if (!xml_strcmp(instance, modname, NCXMOD_NETCONF)) {
         return FALSE;
     }
 
-    if (!xml_strcmp(modname, NCXMOD_IETF_NETCONF)) {
+    if (!xml_strcmp(instance, modname, NCXMOD_IETF_NETCONF)) {
         return FALSE;
     }
 
-    if (!xml_strcmp(modname, NCX_EL_XSD)) {
+    if (!xml_strcmp(instance, modname, NCX_EL_XSD)) {
         return FALSE;
     }
 
-    if (!xml_strcmp(modname, NCXMOD_NETCONFD)) {
+    if (!xml_strcmp(instance, modname, NCXMOD_NETCONFD)) {
         return FALSE;
     }
 
     clivalset = agt_cli_get_valset();
-    val = val_find_child(clivalset, NCXMOD_NETCONFD, NCX_EL_NON_ADVERTISED_MODULE);
+    val = val_find_child(instance, clivalset, NCXMOD_NETCONFD, NCX_EL_NON_ADVERTISED_MODULE);
 
     while (val) {
-        if (!xml_strcmp(modname, VAL_STRING(val))) {
+        if (!xml_strcmp(instance, modname, VAL_STRING(val))) {
             return FALSE;
         }
-        val = val_find_next_child(clivalset,
+        val = val_find_next_child(instance,
+                                  clivalset,
                                   NCXMOD_NETCONFD,
                                   NCX_EL_NON_ADVERTISED_MODULE,
                                   val);

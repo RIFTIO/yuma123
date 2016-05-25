@@ -33,12 +33,12 @@ typedef status_t (*agt_not_queue_notification_cb_t)(agt_not_msg_t *notif);
 /**
  * Initialise the callback commit module.
  */
-extern void agt_not_queue_notification_cb_init( void );
+extern void agt_not_queue_notification_cb_init( struct ncx_instance_t_ *instance );
 
 /**
  * Cleanup the callback commit module.
  */
-extern void agt_not_queue_notification_cb_cleanup( void );
+extern void agt_not_queue_notification_cb_cleanup( struct ncx_instance_t_ *instance );
 
 /**
  * Register a queue notification callback.
@@ -49,7 +49,8 @@ extern void agt_not_queue_notification_cb_cleanup( void );
  * \param cb the commit complete function.
  * \return the status of the operation.
  */
-extern status_t agt_not_queue_notification_cb_register( const xmlChar *modname,
+extern status_t agt_not_queue_notification_cb_register(struct ncx_instance_t_ *instance,
+                                               const xmlChar *modname,
                                               agt_not_queue_notification_cb_t cb );
 
 /**
@@ -58,7 +59,7 @@ extern status_t agt_not_queue_notification_cb_register( const xmlChar *modname,
  *
  * \param modname the name of the module unregistering the callback
  */
-extern void agt_not_queue_notification_cb_unregister( const xmlChar *modname );
+extern void agt_not_queue_notification_cb_unregister(struct ncx_instance_t_ *instance,  const xmlChar *modname );
 
 /**
  * This function simply calls each registered queue notification
@@ -68,7 +69,7 @@ extern void agt_not_queue_notification_cb_unregister( const xmlChar *modname );
  *
  * \return the ERR_OK or the status of the first failing callback.
  */
-extern status_t agt_not_queue_notification_cb( agt_not_msg_t *notif );
+extern status_t agt_not_queue_notification_cb(struct ncx_instance_t_ *instance,  agt_not_msg_t *notif );
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

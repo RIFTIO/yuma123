@@ -76,7 +76,7 @@ extern "C" {
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 extern status_t 
-    agt_connect_init (void);
+    agt_connect_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -87,7 +87,7 @@ extern status_t
 *
 *********************************************************************/
 extern void 
-    agt_connect_cleanup (void);
+    agt_connect_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -100,7 +100,8 @@ extern void
 *   top == top element descriptor
 *********************************************************************/
 extern void
-    agt_connect_dispatch (ses_cb_t *scb,
+    agt_connect_dispatch (struct ncx_instance_t_ *instance,
+			  ses_cb_t *scb,
 			  xml_node_t *top);
 
 #ifdef __cplusplus

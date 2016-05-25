@@ -102,7 +102,8 @@ extern "C" {
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_grp_consume_grouping (yang_pcb_t *pcb,
+    yang_grp_consume_grouping (struct ncx_instance_t_ *instance,
+                               yang_pcb_t *pcb,
                                tk_chain_t *tkc,
 			       ncx_module_t  *mod,
 			       dlq_hdr_t *que,
@@ -135,7 +136,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_grp_resolve_groupings (yang_pcb_t *pcb,
+    yang_grp_resolve_groupings (struct ncx_instance_t_ *instance,
+                                yang_pcb_t *pcb,
                                 tk_chain_t *tkc,
 				ncx_module_t  *mod,
 				dlq_hdr_t *groupingQ,
@@ -168,7 +170,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_grp_resolve_complete (yang_pcb_t *pcb,
+    yang_grp_resolve_complete (struct ncx_instance_t_ *instance,
+                               yang_pcb_t *pcb,
                                tk_chain_t *tkc,
 			       ncx_module_t  *mod,
 			       dlq_hdr_t *groupingQ,
@@ -195,7 +198,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_grp_resolve_final (yang_pcb_t *pcb,
+    yang_grp_resolve_final (struct ncx_instance_t_ *instance,
+                            yang_pcb_t *pcb,
                             tk_chain_t *tkc,
 			    ncx_module_t  *mod,
 			    dlq_hdr_t *groupingQ);
@@ -232,7 +236,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_grp_check_nest_loop (tk_chain_t *tkc,
+    yang_grp_check_nest_loop (struct ncx_instance_t_ *instance,
+			      tk_chain_t *tkc,
 			      ncx_module_t  *mod,
 			      obj_template_t *obj,
 			      grp_template_t *grp);

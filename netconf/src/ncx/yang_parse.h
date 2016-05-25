@@ -92,7 +92,8 @@ extern "C" {
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_parse_from_filespec (const xmlChar *filespec,
+    yang_parse_from_filespec (struct ncx_instance_t_ *instance,
+                              const xmlChar *filespec,
                               yang_pcb_t *pcb,
 			      yang_parsetype_t ptyp,
                               boolean isyang);

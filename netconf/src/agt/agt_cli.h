@@ -106,7 +106,8 @@ extern "C" {
 *    NO_ERR if all goes well
 *********************************************************************/
 extern status_t
-    agt_cli_process_input (int argc,
+    agt_cli_process_input (struct ncx_instance_t_ *instance,
+			   int argc,
 			   char *argv[],
 			   agt_profile_t *agt_profile,
 			   boolean *showver,
@@ -132,7 +133,7 @@ extern val_value_t *
 *
 *********************************************************************/
 extern void
-    agt_cli_cleanup (void);
+    agt_cli_cleanup (struct ncx_instance_t_ *instance);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

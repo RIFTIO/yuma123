@@ -81,7 +81,7 @@ extern "C" {
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 extern status_t 
-    mgr_hello_init (void);
+    mgr_hello_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -92,7 +92,7 @@ extern status_t
 *
 *********************************************************************/
 extern void 
-    mgr_hello_cleanup (void);
+    mgr_hello_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -105,7 +105,8 @@ extern void
 *   top == top element descriptor
 *********************************************************************/
 extern void 
-    mgr_hello_dispatch (ses_cb_t *scb,
+    mgr_hello_dispatch (struct ncx_instance_t_ *instance,
+			ses_cb_t *scb,
 			xml_node_t *top);
 
 
@@ -122,7 +123,7 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    mgr_hello_send (ses_cb_t *scb);
+    mgr_hello_send (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

@@ -69,7 +69,8 @@ date         init     comment
 *
 *********************************************************************/
 static void
-    do_errmsg (tk_chain_t *tkc,
+    do_errmsg (ncx_instance_t *instance,
+               tk_chain_t *tkc,
                ncx_module_t *mod,
                ncx_error_t *tkerr,
                status_t  res)
@@ -77,7 +78,7 @@ static void
     if (tkc) {
         tkc->curerr = tkerr;
     }
-    ncx_print_errormsg(tkc, mod, res);
+    ncx_print_errormsg(instance, tkc, mod, res);
 
 }  /* do_errmsg */
 
@@ -110,7 +111,8 @@ static void
 *    status
 *********************************************************************/
 static status_t
-    next_nodeid (tk_chain_t *tkc,
+    next_nodeid (ncx_instance_t *instance,
+                 tk_chain_t *tkc,
                  ncx_module_t *mod,
                  obj_template_t *obj,
                  const xmlChar *target,
@@ -134,23 +136,24 @@ static status_t
     cnt = (uint32)(p-target);
 
     if (!ncx_valid_name(target, cnt)) {
-        log_error("\nError: invalid name string (%s)", 
+        log_error(instance, 
+                  "\nError: invalid name string (%s)", 
                   target);
         res = ERR_NCX_INVALID_NAME;
-        do_errmsg(tkc, mod, &obj->tkerr, res);
+        do_errmsg(instance, tkc, mod, &obj->tkerr, res);
         return res;
     }
 
     if (*p==':') {
         /* copy prefix, then get name portion */
-        *prefix = m__getMem(cnt+1);
+        *prefix = m__getMem(instance, cnt+1);
         if (!*prefix) {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             res = ERR_INTERNAL_MEM;
-            do_errmsg(tkc, mod, &obj->tkerr, res);
+            do_errmsg(instance, tkc, mod, &obj->tkerr, res);
             return res;
         }
-        xml_strncpy(*prefix, target, cnt);
+        xml_strncpy(instance, *prefix, target, cnt);
 
         q = ++p;
         while (*q && *q != '/') {
@@ -159,41 +162,42 @@ static status_t
         cnt = (uint32)(q-p);
 
         if (!ncx_valid_name(p, cnt)) {
-            log_error("\nError: invalid name string (%s)", 
+            log_error(instance, 
+                      "\nError: invalid name string (%s)", 
                       target);
             res = ERR_NCX_INVALID_NAME;
-            do_errmsg(tkc, mod, &obj->tkerr, res);
+            do_errmsg(instance, tkc, mod, &obj->tkerr, res);
             if (*prefix) {
-                m__free(*prefix);
+                m__free(instance, *prefix);
                 *prefix = NULL;
             }
             return res;
         }
 
-        *name = m__getMem(cnt+1);
+        *name = m__getMem(instance, cnt+1);
         if (!*name) {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             res = ERR_INTERNAL_MEM;
-            do_errmsg(tkc, mod, &obj->tkerr, res);
+            do_errmsg(instance, tkc, mod, &obj->tkerr, res);
             if (*prefix) {
-                m__free(*prefix);
+                m__free(instance, *prefix);
                 *prefix = NULL;
             }
             return res;
         }
 
-        xml_strncpy(*name, p, cnt);
+        xml_strncpy(instance, *name, p, cnt);
         *len = (uint32)(q-target);
     } else  {
         /* found EOS or pathsep, got just one 'name' string */
-        *name = m__getMem(cnt+1);
+        *name = m__getMem(instance, cnt+1);
         if (!*name) {
-            log_error("\nError: malloc failed");
+            log_error(instance, "\nError: malloc failed");
             res = ERR_INTERNAL_MEM;
-            do_errmsg(tkc, mod, &obj->tkerr, res);
+            do_errmsg(instance, tkc, mod, &obj->tkerr, res);
             return res;
         }
-        xml_strncpy(*name, target, cnt);
+        xml_strncpy(instance, *name, target, cnt);
         *len = cnt;
     }
     return NO_ERR;
@@ -225,7 +229,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    next_nodeid_noerr (const xmlChar *target,
+    next_nodeid_noerr (ncx_instance_t *instance,
+                       const xmlChar *target,
                        xmlChar **prefix,
                        xmlChar **name,
                        uint32 *len)
@@ -249,12 +254,12 @@ static status_t
     }
 
     if (*p==':') {
-        *prefix = m__getMem(cnt+1);
+        *prefix = m__getMem(instance, cnt+1);
         if (!*prefix) {
             return ERR_INTERNAL_MEM;
         }
         /* copy prefix, then get name portion */
-        xml_strncpy(*prefix, target, cnt);
+        xml_strncpy(instance, *prefix, target, cnt);
 
         q = ++p;
         while (*q && *q != '/') {
@@ -264,30 +269,30 @@ static status_t
 
         if (!ncx_valid_name(p, cnt)) {
             if (*prefix) {
-                m__free(*prefix);
+                m__free(instance, *prefix);
                 *prefix = NULL;
             }
             return ERR_NCX_INVALID_NAME;
         }
 
-        *name = m__getMem(cnt+1);
+        *name = m__getMem(instance, cnt+1);
         if (!*name) {
             if (*prefix) {
-                m__free(*prefix);
+                m__free(instance, *prefix);
                 *prefix = NULL;
             }
             return ERR_INTERNAL_MEM;
         }
             
-        xml_strncpy(*name, p, cnt);
+        xml_strncpy(instance, *name, p, cnt);
         *len = (uint32)(q-target);
     } else  {
         /* found EOS or pathsep, got just one 'name' string */
-        *name = m__getMem(cnt+1);
+        *name = m__getMem(instance, cnt+1);
         if (!*name) {
             return ERR_INTERNAL_MEM;
         }
-        xml_strncpy(*name, target, cnt);
+        xml_strncpy(instance, *name, target, cnt);
         *len = cnt;
     }
     return NO_ERR;
@@ -321,7 +326,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    next_val_nodeid (const xmlChar *target,
+    next_val_nodeid (ncx_instance_t *instance,
+                     const xmlChar *target,
                      boolean logerrors,
                      xmlChar **prefix,
                      xmlChar **name,
@@ -343,19 +349,20 @@ static status_t
 
     if (!ncx_valid_name(target, cnt)) {
         if (logerrors) {
-            log_error("\nError: invalid name string (%s)", 
+            log_error(instance, 
+                      "\nError: invalid name string (%s)", 
                       target);
         }
         return ERR_NCX_INVALID_NAME;
     }
 
     if (*p==':') {
-        *prefix = m__getMem(cnt+1);
+        *prefix = m__getMem(instance, cnt+1);
         if (!*prefix) {
             return ERR_INTERNAL_MEM;
         }
         /* copy prefix, then get name portion */
-        xml_strncpy(*prefix, target, cnt);
+        xml_strncpy(instance, *prefix, target, cnt);
 
         q = ++p;
         while (*q && *q != '/') {
@@ -365,31 +372,32 @@ static status_t
 
         if (!ncx_valid_name(p, cnt)) {
             if (logerrors) {
-                log_error("\nError: invalid name string (%s)", 
+                log_error(instance, 
+                          "\nError: invalid name string (%s)", 
                           target);
             }
-            m__free(*prefix);
+            m__free(instance, *prefix);
             *prefix = NULL;
             return ERR_NCX_INVALID_NAME;
         }
 
-        *name = m__getMem(cnt+1);
+        *name = m__getMem(instance, cnt+1);
         if (!*name) {
             if (*prefix) {
-                m__free(*prefix);
+                m__free(instance, *prefix);
                 *prefix = NULL;
             }
             return ERR_INTERNAL_MEM;
         }
-        xml_strncpy(*name, p, cnt);
+        xml_strncpy(instance, *name, p, cnt);
         *len = (uint32)(q-target);
     } else  {
-        *name = m__getMem(cnt+1);
+        *name = m__getMem(instance, cnt+1);
         if (!*name) {
             return ERR_INTERNAL_MEM;
         }
         /* found EOS or pathsep, got just one 'name' string */
-        xml_strncpy(*name, target, cnt);
+        xml_strncpy(instance, *name, target, cnt);
         *len = cnt;
     }
     return NO_ERR;
@@ -427,7 +435,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    find_schema_node (yang_pcb_t *pcb,
+    find_schema_node (ncx_instance_t *instance,
+                      yang_pcb_t *pcb,
                       tk_chain_t *tkc,
                       ncx_module_t *mod,
                       obj_template_t *obj,
@@ -461,13 +470,13 @@ static status_t
     }
 
     /* get the first QName (prefix, name) */
-    res = next_nodeid(tkc, mod, obj, str, &prefix, &name, &len);
+    res = next_nodeid(instance, tkc, mod, obj, str, &prefix, &name, &len);
     if (res != NO_ERR) {
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     } else {
@@ -475,18 +484,19 @@ static status_t
     }
 
     /* get the import if there is a real prefix entered */
-    if (prefix && xml_strcmp(prefix, mod->prefix)) {
-        imp = ncx_find_pre_import(mod, prefix);
+    if (prefix && xml_strcmp(instance, prefix, mod->prefix)) {
+        imp = ncx_find_pre_import(instance, mod, prefix);
         if (!imp) {
-            log_error("\nError: prefix '%s' not found in module imports"
+            log_error(instance, 
+                      "\nError: prefix '%s' not found in module imports"
                       " in Xpath target %s", 
                       prefix, 
                       target);
             res = ERR_NCX_INVALID_NAME;
-            do_errmsg(tkc, mod, tkerr, res);
-            m__free(prefix);
+            do_errmsg(instance, tkc, mod, tkerr, res);
+            m__free(instance, prefix);
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         }
@@ -494,66 +504,71 @@ static status_t
 
     /* get the first object template */
     if (imp) {
-        curobj = ncx_locate_modqual_import(pcb,
+        curobj = ncx_locate_modqual_import(instance,
+                                           pcb,
                                            imp, 
                                            name, 
                                            &dtyp);
     } else if (*target == '/') {
-        curobj = obj_find_template_top(mod,
+        curobj = obj_find_template_top(instance,
+                                       mod,
                                        ncx_get_modname(mod),
                                        name);
     } else {
-        curobj = obj_find_template(datadefQ, 
+        curobj = obj_find_template(instance, 
+                                   datadefQ, 
                                    ncx_get_modname(mod), 
                                    name);
     }
 
     if (!curobj) {
-        if (ncx_valid_name2(name)) {
+        if (ncx_valid_name2(instance, name)) {
             res = ERR_NCX_DEF_NOT_FOUND;
         } else {
             res = ERR_NCX_INVALID_NAME;
         }
-        log_error("\nError: object '%s' not found in module %s"
+        log_error(instance,
+                  "\nError: object '%s' not found in module %s"
                   " in Xpath target %s",
                   name, (imp && imp->mod) ? imp->mod->name : mod->name,
                   target);
-        do_errmsg(tkc, mod, tkerr, res);
+        do_errmsg(instance, tkc, mod, tkerr, res);
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     } else {
         curQ = datadefQ;
     }
 
-    if (obj_is_augclone(curobj)) {
+    if (obj_is_augclone(instance, curobj)) {
         res = ERR_NCX_INVALID_VALUE;
-        log_error("\nError: augment is external: node '%s'"
+        log_error(instance,
+                  "\nError: augment is external: node '%s'"
                   " from module %s, line %u in Xpath target %s",
                   (name) ? name : NCX_EL_NONE,
                   curobj->tkerr.mod->name,
                   curobj->tkerr.linenum, 
                   target);
-        do_errmsg(tkc, mod, tkerr, res);
+        do_errmsg(instance, tkc, mod, tkerr, res);
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     }
 
     if (prefix) {
-        m__free(prefix);
+        m__free(instance, prefix);
         prefix = NULL;
     }
     if (name) {
-        m__free(name);
+        m__free(instance, name);
         name = NULL;
     }
 
@@ -569,13 +584,13 @@ static status_t
         }
 
         /* get the next QName (prefix, name) */
-        res = next_nodeid(tkc, mod, obj, str, &prefix, &name, &len);
+        res = next_nodeid(instance, tkc, mod, obj, str, &prefix, &name, &len);
         if (res != NO_ERR) {
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         } else {
@@ -583,17 +598,18 @@ static status_t
         }
 
         /* make sure the prefix is valid, if present */
-        if (prefix && xml_strcmp(prefix, mod->prefix)) {
-            imp = ncx_find_pre_import(mod, prefix);
+        if (prefix && xml_strcmp(instance, prefix, mod->prefix)) {
+            imp = ncx_find_pre_import(instance, mod, prefix);
             if (!imp) {
-                log_error("\nError: prefix '%s' not found in module"
+                log_error(instance,
+                          "\nError: prefix '%s' not found in module"
                           " imports in Xpath target '%s'",
                           prefix, target);
                 res = ERR_NCX_INVALID_NAME;
-                do_errmsg(tkc, mod, tkerr, res);
-                m__free(prefix);
+                do_errmsg(instance, tkc, mod, tkerr, res);
+                m__free(instance, prefix);
                 if (name) {
-                    m__free(name);
+                    m__free(instance, name);
                 }
                 return res;
             }
@@ -602,62 +618,65 @@ static status_t
         }
 
         /* make sure the name is a valid name string */
-        if (name && !ncx_valid_name2(name)) {
-            log_error("\nError: object name '%s' not a valid "
+        if (name && !ncx_valid_name2(instance, name)) {
+            log_error(instance,
+                      "\nError: object name '%s' not a valid "
                       "identifier in Xpath target '%s'",
                       name, target);
             res = ERR_NCX_INVALID_NAME;
-            do_errmsg(tkc, mod, tkerr, res);
+            do_errmsg(instance, tkc, mod, tkerr, res);
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
-            m__free(name);
+            m__free(instance, name);
             return res;
         }
 
         /* determine 'nextval' based on [curval, prefix, name] */
-        curQ = obj_get_datadefQ(curobj);
+        curQ = obj_get_datadefQ(instance, curobj);
 
         if (name && curQ) {
-            nextobj = obj_find_template(curQ,
+            nextobj = obj_find_template(instance,
+                                        curQ,
                                         (imp && imp->mod) ? imp->mod->name : 
                                         ncx_get_modname(mod), 
                                         name);
         } else {
             res = ERR_NCX_DEFSEG_NOT_FOUND;
-            log_error("\nError: '%s' in Xpath target '%s' invalid: "
+            log_error(instance,
+                      "\nError: '%s' in Xpath target '%s' invalid: "
                       "%s on line %u is a %s",
                       name, 
                       target, 
-                      obj_get_name(curobj),
+                      obj_get_name(instance, curobj),
                       curobj->tkerr.linenum, 
-                      obj_get_typestr(curobj));
-            do_errmsg(tkc, mod, tkerr, res);
+                      obj_get_typestr(instance, curobj));
+            do_errmsg(instance, tkc, mod, tkerr, res);
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         }
 
         if(nextobj->parent != curobj) {
             res = ERR_NCX_DEFSEG_NOT_FOUND;
-            log_error("\nError: in '%s' the schema node parent of '%s' is '%s' while '%s' is its document node parent. Schema nodes like (case, choice, input or output) are mandatory in schema node identifier expressions: "
+            log_error(instance, "\nError: in '%s' the schema node parent of '%s' is '%s' while '%s' is its document node parent. Schema nodes like (case, choice, input or output) are mandatory in schema node identifier expressions: "
                       "%s on line %u",
                       target,
-                      obj_get_name(nextobj),
-                      obj_get_name(nextobj->parent),
-                      obj_get_name(curobj),
+                      obj_get_name(instance, nextobj),
+                      obj_get_name(instance, nextobj->parent),
+                      obj_get_name(instance, curobj),
                       tkerr->mod->name,
                       tkerr->linenum);
-            do_errmsg(tkc, mod, tkerr, res);
+            do_errmsg(instance, tkc, mod, tkerr, res);
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         }
@@ -666,25 +685,26 @@ static status_t
             curobj = nextobj;
         } else {
             res = ERR_NCX_DEFSEG_NOT_FOUND;
-            log_error("\nError: object '%s' not found in module %s",
+            log_error(instance,
+                      "\nError: object '%s' not found in module %s",
                       name, 
                       (imp && imp->mod) ? imp->mod->name : mod->name);
-            do_errmsg(tkc, mod, tkerr, res);
+            do_errmsg(instance, tkc, mod, tkerr, res);
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         }
 
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
             prefix = NULL;
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
             name = NULL;
         }
     }
@@ -697,10 +717,10 @@ static status_t
     }
 
     if (prefix) {
-        m__free(prefix);
+        m__free(instance, prefix);
     }
     if (name) {
-        m__free(name);
+        m__free(instance, name);
     }
 
     return NO_ERR;
@@ -730,7 +750,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    find_schema_node_int (const xmlChar *target,
+    find_schema_node_int (ncx_instance_t *instance,
+                          const xmlChar *target,
                           obj_template_t **targobj)
 {
     obj_template_t *curobj, *nextobj;
@@ -757,13 +778,13 @@ static status_t
     }
 
     /* get the first QName (prefix, name) */
-    res = next_nodeid_noerr(str, &prefix, &name, &len);
+    res = next_nodeid_noerr(instance, str, &prefix, &name, &len);
     if (res != NO_ERR) {
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     } else {
@@ -772,49 +793,49 @@ static status_t
 
     /* get the import if there is a real prefix entered */
     if (prefix) {
-        mod = (ncx_module_t *)xmlns_get_modptr(xmlns_find_ns_by_prefix(prefix));
+        mod = (ncx_module_t *)xmlns_get_modptr(instance, xmlns_find_ns_by_prefix(instance, prefix));
         if (!mod) {
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return ERR_NCX_INVALID_NAME;
         }
         /* get the first object template */
-        curobj = obj_find_template_top(mod, ncx_get_modname(mod), name);
+        curobj = obj_find_template_top(instance, mod, ncx_get_modname(mod), name);
     } else {
         /* no prefix given, check all top-level objects */
-        curobj = ncx_find_any_object(name);
+        curobj = ncx_find_any_object(instance, name);
     }
 
     /* check if first level object found */
     if (!curobj) {
-        if (ncx_valid_name2(name)) {
+        if (ncx_valid_name2(instance, name)) {
             res = ERR_NCX_DEF_NOT_FOUND;
         } else {
             res = ERR_NCX_INVALID_NAME;
         }
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     }
 
     if (prefix) {
-        m__free(prefix);
+        m__free(instance, prefix);
         prefix = NULL;
     }
     if (name) {
-        m__free(name);
+        m__free(instance, name);
         name = NULL;
     }
 
-    if (obj_is_augclone(curobj)) {
+    if (obj_is_augclone(instance, curobj)) {
         return ERR_NCX_INVALID_VALUE;
     }
 
@@ -824,13 +845,13 @@ static status_t
     while (*str == '/') {
         str++;
         /* get the next QName (prefix, name) */
-        res = next_nodeid_noerr(str, &prefix, &name, &len);
+        res = next_nodeid_noerr(instance, str, &prefix, &name, &len);
         if (res != NO_ERR) {
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         } else {
@@ -838,24 +859,24 @@ static status_t
         }
 
         /* make sure the name is a valid name string */
-        if (!name || !ncx_valid_name2(name)) {
+        if (!name || !ncx_valid_name2(instance, name)) {
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return ERR_NCX_INVALID_NAME;
         }
 
         /* determine 'nextval' based on [curval, prefix, name] */
-        curQ = obj_get_datadefQ(curobj);
+        curQ = obj_get_datadefQ(instance, curobj);
         if (!curQ) {
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return ERR_NCX_DEFSEG_NOT_FOUND;
         }
@@ -863,27 +884,27 @@ static status_t
         /* make sure the prefix is valid, if present */
         if (prefix) {
             mod = (ncx_module_t *)xmlns_get_modptr
-                (xmlns_find_ns_by_prefix(prefix));
+                (instance, xmlns_find_ns_by_prefix(instance, prefix));
             if (!mod) {
-                m__free(prefix);
-                m__free(name);
+                m__free(instance, prefix);
+                m__free(instance, name);
                 return ERR_NCX_INVALID_NAME;
             }
-            nextobj = obj_find_template(curQ, ncx_get_modname(mod), name);
+            nextobj = obj_find_template(instance, curQ, ncx_get_modname(mod), name);
         } else {
             /* no prefix given; try current module first */
-            nextobj = obj_find_template(curQ, obj_get_mod_name(curobj), name); 
+            nextobj = obj_find_template(instance, curQ, obj_get_mod_name(instance, curobj), name); 
             if (!nextobj) {
-                nextobj = obj_find_template(curQ, NULL, name); 
+                nextobj = obj_find_template(instance, curQ, NULL, name); 
             }
         }
 
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
             prefix = NULL;
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
             name = NULL;
         }
 
@@ -931,7 +952,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    find_val_node (val_value_t *startval,
+    find_val_node (ncx_instance_t *instance,
+                   val_value_t *startval,
                    ncx_module_t *mod,
                    const xmlChar *target,
                    val_value_t **targval)
@@ -943,30 +965,31 @@ static status_t
     status_t res = NO_ERR;
 
     assert(startval!=NULL);
+    (void)mod;
 
     *targval=NULL;
 
     for(root_val=startval;!obj_is_root(root_val->obj);root_val=root_val->parent);
 
-    xpathpcb = xpath_new_pcb(target, NULL);
+    xpathpcb = xpath_new_pcb(instance, target, NULL);
 
     result =
-            xpath1_eval_expr(xpathpcb, startval, root_val, FALSE /* logerrors */, FALSE /* non-configonly */, &res);
+            xpath1_eval_expr(instance, xpathpcb, startval, root_val, FALSE /* logerrors */, FALSE /* non-configonly */, &res);
     if(res!=NO_ERR) {
-        xpath_free_pcb(xpathpcb);
+        xpath_free_pcb(instance, xpathpcb);
         return res;
     }
     assert(result);
 
     /* return the first value even if there are more */
-    for (resnode = (xpath_resnode_t *)dlq_firstEntry(&result->r.nodeQ);
+    for (resnode = (xpath_resnode_t *)dlq_firstEntry(instance, &result->r.nodeQ);
          resnode != NULL;
-         resnode = (xpath_resnode_t *)dlq_nextEntry(resnode)) {
+         resnode = (xpath_resnode_t *)dlq_nextEntry(instance, resnode)) {
         *targval = resnode->node.valptr;
     }
 
     free(result);
-    xpath_free_pcb(xpathpcb);
+    xpath_free_pcb(instance, xpathpcb);
     return NO_ERR;
 }  /* find_val_node */
 
@@ -1010,7 +1033,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    find_val_node_unique (val_value_t *startval,
+    find_val_node_unique (ncx_instance_t *instance,
+                          val_value_t *startval,
                           ncx_module_t *mod,
                           const xmlChar *target,
                           boolean logerrors,
@@ -1035,68 +1059,70 @@ static status_t
     }
 
     /* get the first QName (prefix, name) */
-    res = next_val_nodeid(str, logerrors, &prefix, &name, &len);
+    res = next_val_nodeid(instance, str, logerrors, &prefix, &name, &len);
     if (res != NO_ERR) {
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     } else {
         str += len;
     }
 
-    res = xpath_get_curmod_from_prefix(prefix, mod, &usemod);
+    res = xpath_get_curmod_from_prefix(instance, prefix, mod, &usemod);
     if (res != NO_ERR) {
         if (prefix) {
             if (logerrors) {
-                log_error("\nError: module not found for prefix %s"
+                log_error(instance,
+                          "\nError: module not found for prefix %s"
                           " in Xpath target %s",
                           prefix, target);
             }
-            m__free(prefix);
+            m__free(instance, prefix);
         } else {
             if (logerrors) {
-                log_error("\nError: no module prefix specified"
+                log_error(instance, "\nError: no module prefix specified"
                           " in Xpath target %s", target);
             }
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return ERR_NCX_MOD_NOT_FOUND;
     }
 
     /* get the first value node */
-    curval = val_find_child(startval, usemod->name, name);
+    curval = val_find_child(instance, startval, usemod->name, name);
     if (!curval) {
-        if (ncx_valid_name2(name)) {
+        if (ncx_valid_name2(instance, name)) {
             res = ERR_NCX_DEF_NOT_FOUND;
         } else {
             res = ERR_NCX_INVALID_NAME;
         }
         if (logerrors) {
-            log_error("\nError: value node '%s' not found for module %s"
+            log_error(instance,
+                      "\nError: value node '%s' not found for module %s"
                       " in Xpath target %s",
                       name, usemod->name, target);
         }
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     }
 
     if (prefix) {
-        m__free(prefix);
+        m__free(instance, prefix);
         prefix = NULL;
     }
     if (name) {
-        m__free(name);
+        m__free(instance, name);
         name = NULL;
     }
     
@@ -1106,36 +1132,37 @@ static status_t
     while (*str == '/') {
         str++;
         /* get the next QName (prefix, name) */
-        res = next_val_nodeid(str, logerrors, &prefix, &name, &len);
+        res = next_val_nodeid(instance, str, logerrors, &prefix, &name, &len);
         if (res != NO_ERR) {
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         } else {
             str += len;
         }
 
-        res = xpath_get_curmod_from_prefix(prefix, mod, &usemod);
+        res = xpath_get_curmod_from_prefix(instance, prefix, mod, &usemod);
         if (res != NO_ERR) {
             if (prefix) {
                 if (logerrors) {
-                    log_error("\nError: module not found for prefix %s"
+                    log_error(instance,
+                              "\nError: module not found for prefix %s"
                               " in Xpath target %s",
                               prefix, target);
                 }
-                m__free(prefix);
+                m__free(instance, prefix);
             } else {
                 if (logerrors) {
-                    log_error("\nError: no module prefix specified"
+                    log_error(instance, "\nError: no module prefix specified"
                               " in Xpath target %s", target);
                 }
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return ERR_NCX_MOD_NOT_FOUND;
         }
@@ -1149,25 +1176,26 @@ static status_t
         case OBJ_TYP_RPC:
         case OBJ_TYP_RPCIO:
         case OBJ_TYP_NOTIF:
-            curval = val_find_child(curval, usemod->name, name);
+            curval = val_find_child(instance, curval, usemod->name, name);
             if (!curval) {
-                if (ncx_valid_name2(name)) {
+                if (ncx_valid_name2(instance, name)) {
                     res = ERR_NCX_DEF_NOT_FOUND;
                 } else {
                     res = ERR_NCX_INVALID_NAME;
                 }
                 if (logerrors) {
-                    log_error("\nError: value node '%s' not found for module %s"
+                    log_error(instance,
+                              "\nError: value node '%s' not found for module %s"
                               " in Xpath target %s",
                               (name) ? name : NCX_EL_NONE, 
                               usemod->name, 
                               target);
                 }
                 if (prefix) {
-                    m__free(prefix);
+                    m__free(instance, prefix);
                 }
                 if (name) {
-                    m__free(name);
+                    m__free(instance, name);
                 }
                 return res;
             }
@@ -1176,49 +1204,50 @@ static status_t
         case OBJ_TYP_LEAF_LIST:
             res = ERR_NCX_DEFSEG_NOT_FOUND;
             if (logerrors) {
-                log_error("\nError: '%s' in Xpath target '%s' invalid: "
+                log_error(instance,
+                          "\nError: '%s' in Xpath target '%s' invalid: "
                           "%s is a %s",
                           (name) ? name : NCX_EL_NONE, 
                           target, 
                           curval->name,
-                          obj_get_typestr(curval->obj));
+                          obj_get_typestr(instance, curval->obj));
             }
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             if (logerrors) {
-                do_errmsg(NULL, mod, NULL, res);
+                do_errmsg(instance, NULL, mod, NULL, res);
             }
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         }
 
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
             prefix = NULL;
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
             name = NULL;
         }
     }
 
     if (prefix) {
-        m__free(prefix);
+        m__free(instance, prefix);
     }
     if (name) {
-        m__free(name);
+        m__free(instance, name);
     }
 
     if (targval) {
@@ -1268,7 +1297,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    find_obj_node_unique (obj_template_t *startobj,
+    find_obj_node_unique (ncx_instance_t *instance,
+                          obj_template_t *startobj,
                           ncx_module_t *mod,
                           const xmlChar *target,
                           boolean logerrors,
@@ -1288,68 +1318,70 @@ static status_t
     }
 
     /* get the first QName (prefix, name) */
-    status_t res = next_val_nodeid(str, logerrors, &prefix, &name, &len);
+    status_t res = next_val_nodeid(instance, str, logerrors, &prefix, &name, &len);
     if (res != NO_ERR) {
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     } else {
         str += len;
     }
 
-    res = xpath_get_curmod_from_prefix(prefix, mod, &usemod);
+    res = xpath_get_curmod_from_prefix(instance, prefix, mod, &usemod);
     if (res != NO_ERR) {
         if (prefix) {
             if (logerrors) {
-                log_error("\nError: module not found for prefix %s"
+                log_error(instance,
+                          "\nError: module not found for prefix %s"
                           " in Xpath target %s",
                           prefix, target);
             }
-            m__free(prefix);
+            m__free(instance, prefix);
         } else {
             if (logerrors) {
-                log_error("\nError: no module prefix specified"
+                log_error(instance, "\nError: no module prefix specified"
                           " in Xpath target %s", target);
             }
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return ERR_NCX_MOD_NOT_FOUND;
     }
 
     /* get the first value node */
-    obj_template_t *curobj = obj_find_child(startobj, usemod->name, name);
+    obj_template_t *curobj = obj_find_child(instance, startobj, usemod->name, name);
     if (!curobj) {
-        if (ncx_valid_name2(name)) {
+        if (ncx_valid_name2(instance, name)) {
             res = ERR_NCX_DEF_NOT_FOUND;
         } else {
             res = ERR_NCX_INVALID_NAME;
         }
         if (logerrors) {
-            log_error("\nError: value node '%s' not found for module %s"
+            log_error(instance,
+                      "\nError: value node '%s' not found for module %s"
                       " in Xpath target %s",
                       name, usemod->name, target);
         }
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
         }
         return res;
     }
 
     if (prefix) {
-        m__free(prefix);
+        m__free(instance, prefix);
         prefix = NULL;
     }
     if (name) {
-        m__free(name);
+        m__free(instance, name);
         name = NULL;
     }
     
@@ -1359,36 +1391,37 @@ static status_t
     while (*str == '/') {
         str++;
         /* get the next QName (prefix, name) */
-        res = next_val_nodeid(str, logerrors, &prefix, &name, &len);
+        res = next_val_nodeid(instance, str, logerrors, &prefix, &name, &len);
         if (res != NO_ERR) {
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         } else {
             str += len;
         }
 
-        res = xpath_get_curmod_from_prefix(prefix, mod, &usemod);
+        res = xpath_get_curmod_from_prefix(instance, prefix, mod, &usemod);
         if (res != NO_ERR) {
             if (prefix) {
                 if (logerrors) {
-                    log_error("\nError: module not found for prefix %s"
+                    log_error(instance,
+                              "\nError: module not found for prefix %s"
                               " in Xpath target %s",
                               prefix, target);
                 }
-                m__free(prefix);
+                m__free(instance, prefix);
             } else {
                 if (logerrors) {
-                    log_error("\nError: no module prefix specified"
+                    log_error(instance, "\nError: no module prefix specified"
                               " in Xpath target %s", target);
                 }
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return ERR_NCX_MOD_NOT_FOUND;
         }
@@ -1402,25 +1435,26 @@ static status_t
         case OBJ_TYP_RPC:
         case OBJ_TYP_RPCIO:
         case OBJ_TYP_NOTIF:
-            curobj = obj_find_child(curobj, usemod->name, name);
+            curobj = obj_find_child(instance, curobj, usemod->name, name);
             if (!curobj) {
-                if (ncx_valid_name2(name)) {
+                if (ncx_valid_name2(instance, name)) {
                     res = ERR_NCX_DEF_NOT_FOUND;
                 } else {
                     res = ERR_NCX_INVALID_NAME;
                 }
                 if (logerrors) {
-                    log_error("\nError: value node '%s' not found for module %s"
+                    log_error(instance,
+                              "\nError: value node '%s' not found for module %s"
                               " in Xpath target %s",
                               (name) ? name : NCX_EL_NONE, 
                               usemod->name, 
                               target);
                 }
                 if (prefix) {
-                    m__free(prefix);
+                    m__free(instance, prefix);
                 }
                 if (name) {
-                    m__free(name);
+                    m__free(instance, name);
                 }
                 return res;
             }
@@ -1429,49 +1463,50 @@ static status_t
         case OBJ_TYP_LEAF_LIST:
             res = ERR_NCX_DEFSEG_NOT_FOUND;
             if (logerrors) {
-                log_error("\nError: '%s' in Xpath target '%s' invalid: "
+                log_error(instance,
+                          "\nError: '%s' in Xpath target '%s' invalid: "
                           "%s is a %s",
                           (name) ? name : NCX_EL_NONE, 
                           target, 
-                          obj_get_name(curobj),
-                          obj_get_typestr(curobj));
+                          obj_get_name(instance, curobj),
+                          obj_get_typestr(instance, curobj));
             }
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             if (logerrors) {
-                do_errmsg(NULL, mod, NULL, res);
+                do_errmsg(instance, NULL, mod, NULL, res);
             }
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
             if (name) {
-                m__free(name);
+                m__free(instance, name);
             }
             return res;
         }
 
         if (prefix) {
-            m__free(prefix);
+            m__free(instance, prefix);
             prefix = NULL;
         }
         if (name) {
-            m__free(name);
+            m__free(instance, name);
             name = NULL;
         }
     }
 
     if (prefix) {
-        m__free(prefix);
+        m__free(instance, prefix);
     }
     if (name) {
-        m__free(name);
+        m__free(instance, name);
     }
 
     if (targobj) {
@@ -1501,7 +1536,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    decode_url_string (const xmlChar *urlstr,
+    decode_url_string (ncx_instance_t *instance,
+                       const xmlChar *urlstr,
                        uint32 urlstrlen,
                        xmlChar *buffer,
                        uint32 *cnt)
@@ -1518,7 +1554,7 @@ static status_t
     writeptr = buffer;
     inlen = 0;
     outlen = 0;
-    ncx_init_num(&num);
+    ncx_init_num(instance, &num);
 
     /* normal case, there is some top-level node next */
     done = FALSE;
@@ -1540,16 +1576,17 @@ static status_t
                 numbuff[0] = instr[0];
                 numbuff[1] = instr[1];
                 numbuff[2] = 0;
-                res = ncx_convert_num(numbuff,
+                res = ncx_convert_num(instance,
+                                      numbuff,
                                       NCX_NF_HEX,
                                       NCX_BT_UINT8,
                                       &num);
                 if (res != NO_ERR) {
-                    ncx_clean_num(NCX_BT_UINT8, &num);
+                    ncx_clean_num(instance, NCX_BT_UINT8, &num);
                     return res;
                 }
                 ch = (xmlChar)num.u;
-                ncx_clean_num(NCX_BT_UINT8, &num);
+                ncx_clean_num(instance, NCX_BT_UINT8, &num);
                 instr += 2;
                 inlen += 2;
             } else {
@@ -1599,7 +1636,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    decode_url_esc_string (const xmlChar *urlstr,
+    decode_url_esc_string (ncx_instance_t *instance,
+                           const xmlChar *urlstr,
                            xmlChar *buffer,
                            uint32 *incnt,
                            uint32 *outcnt)
@@ -1617,7 +1655,7 @@ static status_t
     writeptr = buffer;
     outlen = 0;
     done = FALSE;
-    ncx_init_num(&num);
+    ncx_init_num(instance, &num);
     res = NO_ERR;
 
     /* normal case, there is some top-level node next */
@@ -1648,16 +1686,17 @@ static status_t
                 numbuff[0] = instr[0];
                 numbuff[1] = instr[1];
                 numbuff[2] = 0;
-                res = ncx_convert_num(numbuff,
+                res = ncx_convert_num(instance,
+                                      numbuff,
                                       NCX_NF_HEX,
                                       NCX_BT_UINT8,
                                       &num);
                 if (res != NO_ERR) {
-                    ncx_clean_num(NCX_BT_UINT8, &num);
+                    ncx_clean_num(instance, NCX_BT_UINT8, &num);
                     return res;
                 }
                 ch = (xmlChar)num.u;
-                ncx_clean_num(NCX_BT_UINT8, &num);
+                ncx_clean_num(instance, NCX_BT_UINT8, &num);
                 instr += 2;
             } else {
                 /* invalid escaped char found */
@@ -1710,7 +1749,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    fill_xpath_string (const xmlChar *urlpath,
+    fill_xpath_string (ncx_instance_t *instance,
+                       const xmlChar *urlpath,
                        xmlChar *buffer,
                        ncx_name_match_t match_names,
                        boolean alt_naming,
@@ -1793,7 +1833,7 @@ static status_t
 
             /* got some string content; convert to plain string */
             if (inlen >= MAX_FILL) {
-                tempbuff = m__getMem(inlen + 1);
+                tempbuff = m__getMem(instance, inlen + 1);
                 if (tempbuff == NULL) {
                     return ERR_INTERNAL_MEM;
                 }
@@ -1804,7 +1844,8 @@ static status_t
             
             /* get the identifier into the name buffer first */
             outlen = 0;
-            res = decode_url_string(startstr,
+            res = decode_url_string(instance,
+                                    startstr,
                                     inlen,
                                     usebuff,
                                     &outlen);
@@ -1814,12 +1855,14 @@ static status_t
                 /* get the target database object to use */
                 if (targobj == NULL) {
                     /* find a top-level data node object */
-                    targobj = ncx_match_any_object(usebuff, 
+                    targobj = ncx_match_any_object(instance, 
+                                                   usebuff, 
                                                    match_names,
                                                    alt_naming,
                                                    &res);
                 } else {
-                    targobj = obj_find_child_ex(targobj, 
+                    targobj = obj_find_child_ex(instance, 
+                                                targobj, 
                                                 NULL,   /* match any module */
                                                 usebuff,
                                                 match_names,
@@ -1828,17 +1871,17 @@ static status_t
                                                 &res);
                 }
                 if (targobj != NULL) {
-                    testname = obj_get_name(targobj);
+                    testname = obj_get_name(instance, targobj);
                     if (writeptr != NULL) {
-                        writeptr += xml_strcpy(writeptr, testname);
+                        writeptr += xml_strcpy(instance, writeptr, testname);
                     }
-                    outtotal += xml_strlen(testname);
+                    outtotal += xml_strlen(instance, testname);
                 }
             }
 
             /* cleanup temp buff */
             if (tempbuff != NULL) {
-                m__free(tempbuff);
+                m__free(instance, tempbuff);
                 tempbuff = NULL;
             }
 
@@ -1858,18 +1901,19 @@ static status_t
              * if dataonly is set to TRUE above
              */
             if (targobj->objtype == OBJ_TYP_RPC) {
-                targobj = obj_find_child(targobj, 
+                targobj = obj_find_child(instance, 
+                                         targobj, 
                                          NULL, 
                                          YANG_K_INPUT);
                 if (targobj == NULL) {
-                    return SET_ERROR(ERR_INTERNAL_VAL);
+                    return SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             }
 
             objkey = NULL;
             if (withkeys) {
                 /* check list keys to follow */
-                objkey = obj_first_key(targobj);
+                objkey = obj_first_key(instance, targobj);
                 if (objkey != NULL) {
                     expectnode = FALSE;
                 }
@@ -1884,10 +1928,10 @@ static status_t
             }
         } else {
             /* expecting a key value */
-            const xmlChar *namestr = obj_get_name(objkey->keyobj);
+            const xmlChar *namestr = obj_get_name(instance, objkey->keyobj);
 
             if (namestr == NULL) {
-                return SET_ERROR(ERR_INTERNAL_VAL);
+                return SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
 
             /* check if this key is being skipped */
@@ -1906,10 +1950,10 @@ static status_t
                  * account for [foo='val'] predicate
                  * first the [foo=' part
                  */
-                outtotal += (1 + xml_strlen(namestr) + 2);
+                outtotal += (1 + xml_strlen(instance, namestr) + 2);
                 if (writeptr != NULL) {
                     *writeptr++ = '[';
-                    writeptr += xml_strcpy(writeptr, namestr);
+                    writeptr += xml_strcpy(instance, writeptr, namestr);
                     *writeptr++ = '=';
                     *writeptr++ = '\'';
                 }
@@ -1917,7 +1961,8 @@ static status_t
                 /* get the decoded value into the real buffer if used */
                 inlen = 0;
                 outlen = 0;
-                res = decode_url_esc_string(startstr,
+                res = decode_url_esc_string(instance,
+                                            startstr,
                                             writeptr,
                                             &inlen,
                                             &outlen);
@@ -1941,7 +1986,7 @@ static status_t
             /* set up next key if any 
              * account for next '/' if needed
              */
-            objkey = obj_next_key(objkey);
+            objkey = obj_next_key(instance, objkey);
             if (objkey == NULL) {
                 expectnode = TRUE;
 
@@ -2009,7 +2054,8 @@ static status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_find_schema_target (yang_pcb_t *pcb,
+    xpath_find_schema_target (ncx_instance_t *instance,
+                              yang_pcb_t *pcb,
                               tk_chain_t *tkc,
                               ncx_module_t *mod,
                               obj_template_t *obj,
@@ -2018,7 +2064,8 @@ status_t
                               obj_template_t **targobj,
                               dlq_hdr_t **targQ)
 {
-    return xpath_find_schema_target_err(pcb,
+    return xpath_find_schema_target_err(instance,
+                                        pcb,
                                         tkc, 
                                         mod, 
                                         obj, 
@@ -2060,7 +2107,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_find_schema_target_err (yang_pcb_t *pcb,
+    xpath_find_schema_target_err (ncx_instance_t *instance,
+                                  yang_pcb_t *pcb,
                                   tk_chain_t *tkc,
                                   ncx_module_t *mod,
                                   obj_template_t *obj,
@@ -2074,22 +2122,23 @@ status_t
 
 #ifdef DEBUG
     if (!mod || !datadefQ || !target) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (*target == '/') {
         /* check error: if nested object is using an abs. Xpath */
         if (obj && obj->parent && !obj_is_root(obj->parent)) {
-            log_error("\nError: Absolute Xpath expression not "
+            log_error(instance, "\nError: Absolute Xpath expression not "
                       "allowed here (%s)", target);
             res = ERR_NCX_INVALID_VALUE;
-            do_errmsg(tkc, mod, tkerr ? tkerr : &obj->tkerr, res);
+            do_errmsg(instance, tkc, mod, tkerr ? tkerr : &obj->tkerr, res);
             return res;
         }
     }
 
-    res = find_schema_node(pcb,
+    res = find_schema_node(instance,
+                           pcb,
                            tkc, 
                            mod, 
                            obj, 
@@ -2126,16 +2175,17 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_find_schema_target_int (const xmlChar *target,
+    xpath_find_schema_target_int (ncx_instance_t *instance,
+                                  const xmlChar *target,
                                   obj_template_t **targobj)
 {
 #ifdef DEBUG
     if (!target) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return find_schema_node_int(target, targobj);
+    return find_schema_node_int(instance, target, targobj);
 
 }  /* xpath_find_schema_target_int */
 
@@ -2175,7 +2225,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_find_val_target (val_value_t *startval,
+    xpath_find_val_target (ncx_instance_t *instance,
+                           val_value_t *startval,
                            ncx_module_t *mod,
                            const xmlChar *target,
                            val_value_t **targval)
@@ -2183,11 +2234,11 @@ status_t
 
 #ifdef DEBUG
     if (!startval || !target) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return find_val_node(startval, mod, target, targval);
+    return find_val_node(instance, startval, mod, target, targval);
 
 }  /* xpath_find_val_target */
 
@@ -2225,7 +2276,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_find_val_unique (val_value_t *startval,
+    xpath_find_val_unique (ncx_instance_t *instance,
+                           val_value_t *startval,
                            ncx_module_t *mod,
                            const xmlChar *target,
                            val_value_t *root,
@@ -2246,7 +2298,7 @@ status_t
      * containing the unique-stmt
      */
     obj_template_t *targobj = NULL;
-    status_t res = find_obj_node_unique(startval->obj, mod, target,
+    status_t res = find_obj_node_unique(instance, startval->obj, mod, target,
                                         logerrors, &targobj);
     if (res != NO_ERR) {
         return res;
@@ -2255,20 +2307,20 @@ status_t
         return ERR_NCX_OPERATION_FAILED;
     }
 
-    xpath_pcb_t *pcb = xpath_new_pcb(NULL, NULL);
+    xpath_pcb_t *pcb = xpath_new_pcb(instance, NULL, NULL);
     if (pcb == NULL) {
         return ERR_INTERNAL_MEM;
     }
 
-    res = obj_gen_object_id_unique(targobj, startval->obj, &pcb->exprstr);
+    res = obj_gen_object_id_unique(instance, targobj, startval->obj, &pcb->exprstr);
     if (res != NO_ERR) {
-        xpath_free_pcb(pcb);
+        xpath_free_pcb(instance, pcb);
         return res;
     }
 
-    pcb->result = xpath1_eval_expr(pcb, startval, root, logerrors, FALSE, &res);
+    pcb->result = xpath1_eval_expr(instance, pcb, startval, root, logerrors, FALSE, &res);
     if (pcb->result == NULL || res != NO_ERR) {
-        xpath_free_pcb(pcb);
+        xpath_free_pcb(instance, pcb);
         if (res == NO_ERR) {
             res = ERR_NCX_OPERATION_FAILED;
         }
@@ -2303,11 +2355,12 @@ status_t
 *   pointer to malloced struct, NULL if malloc error
 *********************************************************************/
 xpath_pcb_t *
-    xpath_new_pcb (const xmlChar *xpathstr,
+    xpath_new_pcb (ncx_instance_t *instance,
+                   const xmlChar *xpathstr,
                    xpath_getvar_fn_t  getvar_fn)
 {
 
-    return xpath_new_pcb_ex(xpathstr, getvar_fn, NULL);
+    return xpath_new_pcb_ex(instance, xpathstr, getvar_fn, NULL);
 
 }  /* xpath_new_pcb */
 
@@ -2333,13 +2386,14 @@ xpath_pcb_t *
 *   pointer to malloced struct, NULL if malloc error
 *********************************************************************/
 xpath_pcb_t *
-    xpath_new_pcb_ex (const xmlChar *xpathstr,
+    xpath_new_pcb_ex (ncx_instance_t *instance,
+                      const xmlChar *xpathstr,
                       xpath_getvar_fn_t  getvar_fn,
                       void *cookie)
 {
     xpath_pcb_t *pcb;
 
-    pcb = m__getObj(xpath_pcb_t);
+    pcb = m__getObj(instance, xpath_pcb_t);
     if (!pcb) {
         return NULL;
     }
@@ -2347,9 +2401,9 @@ xpath_pcb_t *
     memset(pcb, 0x0, sizeof(xpath_pcb_t));
 
     if (xpathstr) {
-        pcb->exprstr = xml_strdup(xpathstr);
+        pcb->exprstr = xml_strdup(instance, xpathstr);
         if (!pcb->exprstr) {
-            m__free(pcb);
+            m__free(instance, pcb);
             return NULL;
         }
     }
@@ -2361,9 +2415,9 @@ xpath_pcb_t *
     pcb->cookie = cookie;
     pcb->missing_errors = TRUE;
 
-    dlq_createSQue(&pcb->result_cacheQ);
-    dlq_createSQue(&pcb->resnode_cacheQ);
-    dlq_createSQue(&pcb->varbindQ);
+    dlq_createSQue(instance, &pcb->result_cacheQ);
+    dlq_createSQue(instance, &pcb->resnode_cacheQ);
+    dlq_createSQue(instance, &pcb->varbindQ);
 
     return pcb;
 
@@ -2386,27 +2440,27 @@ xpath_pcb_t *
 *   data will be set
 *********************************************************************/
 xpath_pcb_t *
-    xpath_clone_pcb (const xpath_pcb_t *srcpcb)
+    xpath_clone_pcb (ncx_instance_t *instance, const xpath_pcb_t *srcpcb)
 {
     xpath_pcb_t *newpcb;
     status_t     res;
 
 #ifdef DEBUG
     if (!srcpcb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    newpcb = xpath_new_pcb(srcpcb->exprstr, srcpcb->getvar_fn);
+    newpcb = xpath_new_pcb(instance, srcpcb->exprstr, srcpcb->getvar_fn);
     if (!newpcb) {
         return NULL;
     }
 
     if (srcpcb->tkc) {
-        newpcb->tkc = tk_clone_chain(srcpcb->tkc);
+        newpcb->tkc = tk_clone_chain(instance, srcpcb->tkc);
         if (!newpcb->tkc) {
-            xpath_free_pcb(newpcb);
+            xpath_free_pcb(instance, newpcb);
             return NULL;
         }
     }
@@ -2417,9 +2471,9 @@ xpath_pcb_t *
     newpcb->reader = srcpcb->reader;
     newpcb->source = srcpcb->source;
 
-    res = ncx_copy_errinfo(&srcpcb->errinfo, &newpcb->errinfo);
+    res = ncx_copy_errinfo(instance, &srcpcb->errinfo, &newpcb->errinfo);
     if (res != NO_ERR) {
-        xpath_free_pcb(newpcb);
+        xpath_free_pcb(instance, newpcb);
         return NULL;
     }
     newpcb->logerrors = srcpcb->logerrors;
@@ -2467,24 +2521,25 @@ xpath_pcb_t *
 *   pointer to found xpath_pcb_t or NULL if not found
 *********************************************************************/
 xpath_pcb_t *
-    xpath_find_pcb (dlq_hdr_t *pcbQ,
+    xpath_find_pcb (ncx_instance_t *instance,
+                    dlq_hdr_t *pcbQ,
                     const xmlChar *exprstr)
 {
     xpath_pcb_t *pcb;
 
 #ifdef DEBUG
     if (!pcbQ || !exprstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (pcb = (xpath_pcb_t *)dlq_firstEntry(pcbQ);
+    for (pcb = (xpath_pcb_t *)dlq_firstEntry(instance, pcbQ);
          pcb != NULL;
-         pcb = (xpath_pcb_t *)dlq_nextEntry(pcb)) {
+         pcb = (xpath_pcb_t *)dlq_nextEntry(instance, pcb)) {
 
         if (pcb->exprstr && 
-            !xml_strcmp(exprstr, pcb->exprstr)) {
+            !xml_strcmp(instance, exprstr, pcb->exprstr)) {
             return pcb;
         }
     }
@@ -2498,7 +2553,7 @@ xpath_pcb_t *
  *
  * \param pcb pointer to parser control block to free
  *********************************************************************/
-void xpath_free_pcb (xpath_pcb_t *pcb)
+void xpath_free_pcb (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
     xpath_result_t   *result;
     xpath_resnode_t  *resnode;
@@ -2508,34 +2563,34 @@ void xpath_free_pcb (xpath_pcb_t *pcb)
     }
 
     if (pcb->tkc) {
-        tk_free_chain(pcb->tkc);
+        tk_free_chain(instance, pcb->tkc);
     }
 
     if (pcb->exprstr) {
-        m__free(pcb->exprstr);
+        m__free(instance, pcb->exprstr);
     }
 
     if (pcb->result) {
-        xpath_free_result(pcb->result);
+        xpath_free_result(instance, pcb->result);
     }
 
-    ncx_clean_errinfo(&pcb->errinfo);
+    ncx_clean_errinfo(instance, &pcb->errinfo);
 
-    while (!dlq_empty(&pcb->result_cacheQ)) {
+    while (!dlq_empty(instance, &pcb->result_cacheQ)) {
         result = (xpath_result_t *)
-            dlq_deque(&pcb->result_cacheQ);
-        xpath_free_result(result);
+            dlq_deque(instance, &pcb->result_cacheQ);
+        xpath_free_result(instance, result);
     }
 
-    while (!dlq_empty(&pcb->resnode_cacheQ)) {
+    while (!dlq_empty(instance, &pcb->resnode_cacheQ)) {
         resnode = (xpath_resnode_t *)
-            dlq_deque(&pcb->resnode_cacheQ);
-        xpath_free_resnode(resnode);
+            dlq_deque(instance, &pcb->resnode_cacheQ);
+        xpath_free_resnode(instance, resnode);
     }
 
-    var_clean_varQ(&pcb->varbindQ);
+    var_clean_varQ(instance, &pcb->varbindQ);
 
-    m__free(pcb);
+    m__free(instance, pcb);
 
 }  /* xpath_free_pcb */
 
@@ -2553,15 +2608,15 @@ void xpath_free_pcb (xpath_pcb_t *pcb)
 *   pointer to malloced struct, NULL if malloc error
 *********************************************************************/
 xpath_result_t *
-    xpath_new_result (xpath_restype_t  restype)
+    xpath_new_result (ncx_instance_t *instance, xpath_restype_t  restype)
 {
     xpath_result_t *result;
 
-    result = m__getObj(xpath_result_t);
+    result = m__getObj(instance, xpath_result_t);
     if (!result) {
         return NULL;
     }
-    xpath_init_result(result, restype);
+    xpath_init_result(instance, result, restype);
     return result;
 
 }  /* xpath_new_result */
@@ -2578,12 +2633,13 @@ xpath_result_t *
 *   restype == the desired result type
 *********************************************************************/
 void 
-    xpath_init_result (xpath_result_t *result,
+    xpath_init_result (ncx_instance_t *instance,
+                       xpath_result_t *result,
                        xpath_restype_t  restype)
 {
 #ifdef DEBUG
     if (!result) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2593,11 +2649,11 @@ void
 
     switch (restype) {
     case XP_RT_NODESET:
-        dlq_createSQue(&result->r.nodeQ);
+        dlq_createSQue(instance, &result->r.nodeQ);
         break;
     case XP_RT_NUMBER:
-        ncx_init_num(&result->r.num);
-        ncx_set_num_zero(&result->r.num, NCX_BT_FLOAT64);
+        ncx_init_num(instance, &result->r.num);
+        ncx_set_num_zero(instance, &result->r.num, NCX_BT_FLOAT64);
         result->isval = TRUE;
         break;
     case XP_RT_STRING:
@@ -2605,7 +2661,7 @@ void
         result->isval = TRUE;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 }  /* xpath_init_result */
@@ -2619,14 +2675,14 @@ void
 * INPUTS:
 *   result == pointer to result struct to free
 *********************************************************************/
-void xpath_free_result (xpath_result_t *result)
+void xpath_free_result (ncx_instance_t *instance, xpath_result_t *result)
 {
     if (!result) {
         return;
     }
 
-    xpath_clean_result(result);
-    m__free(result);
+    xpath_clean_result(instance, result);
+    m__free(instance, result);
 
 }  /* xpath_free_result */
 
@@ -2640,30 +2696,30 @@ void xpath_free_result (xpath_result_t *result)
 *   result == pointer to result struct to clean
 *********************************************************************/
 void
-    xpath_clean_result (xpath_result_t *result)
+    xpath_clean_result (ncx_instance_t *instance, xpath_result_t *result)
 {
     xpath_resnode_t *resnode;
 
 #ifdef DEBUG
     if (!result) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     switch (result->restype) {
     case XP_RT_NODESET:
-        while (!dlq_empty(&result->r.nodeQ)) {
-            resnode = (xpath_resnode_t *)dlq_deque(&result->r.nodeQ);
-            xpath_free_resnode(resnode);
+        while (!dlq_empty(instance, &result->r.nodeQ)) {
+            resnode = (xpath_resnode_t *)dlq_deque(instance, &result->r.nodeQ);
+            xpath_free_resnode(instance, resnode);
         }
         break;
     case XP_RT_NUMBER:
-        ncx_clean_num(NCX_BT_FLOAT64, &result->r.num);
+        ncx_clean_num(instance, NCX_BT_FLOAT64, &result->r.num);
         break;
     case XP_RT_STRING:
         if (result->r.str) {
-            m__free(result->r.str);
+            m__free(instance, result->r.str);
             result->r.str = NULL;
         }
         break;
@@ -2673,7 +2729,7 @@ void
     case XP_RT_NONE:
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     result->restype = XP_RT_NONE;
@@ -2694,16 +2750,16 @@ void
 *   pointer to malloced struct, NULL if malloc error
 *********************************************************************/
 xpath_resnode_t *
-    xpath_new_resnode (void)
+    xpath_new_resnode (ncx_instance_t *instance)
 {
     xpath_resnode_t *resnode;
 
-    resnode = m__getObj(xpath_resnode_t);
+    resnode = m__getObj(instance, xpath_resnode_t);
     if (!resnode) {
         return NULL;
     }
     
-    xpath_init_resnode(resnode);
+    xpath_init_resnode(instance, resnode);
     return resnode;
 
 }  /* xpath_new_resnode */
@@ -2718,11 +2774,11 @@ xpath_resnode_t *
 *   resnode == pointer to result node struct to initialize
 *********************************************************************/
 void 
-    xpath_init_resnode (xpath_resnode_t *resnode)
+    xpath_init_resnode (ncx_instance_t *instance, xpath_resnode_t *resnode)
 {
 #ifdef DEBUG
     if (!resnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2741,17 +2797,17 @@ void
 *   resnode == pointer to result node struct to free
 *********************************************************************/
 void
-    xpath_free_resnode (xpath_resnode_t *resnode)
+    xpath_free_resnode (ncx_instance_t *instance, xpath_resnode_t *resnode)
 {
 #ifdef DEBUG
     if (!resnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    xpath_clean_resnode(resnode);
-    m__free(resnode);
+    xpath_clean_resnode(instance, resnode);
+    m__free(instance, resnode);
 
 }  /* xpath_free_resnode */
 
@@ -2765,17 +2821,17 @@ void
 *   resnode == pointer to result node struct to free
 *********************************************************************/
 void
-    xpath_delete_resnode (xpath_resnode_t *resnode)
+    xpath_delete_resnode (ncx_instance_t *instance, xpath_resnode_t *resnode)
 {
 #ifdef DEBUG
     if (!resnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
-    dlq_remove(resnode);
-    xpath_clean_resnode(resnode);
-    m__free(resnode);
+    dlq_remove(instance, resnode);
+    xpath_clean_resnode(instance, resnode);
+    m__free(instance, resnode);
 
 }  /* xpath_delete_resnode */
 
@@ -2789,12 +2845,12 @@ void
 *   resnode == pointer to result node struct to clean
 *********************************************************************/
 void
-    xpath_clean_resnode (xpath_resnode_t *resnode)
+    xpath_clean_resnode (ncx_instance_t *instance, xpath_resnode_t *resnode)
 {
 
 #ifdef DEBUG
     if (!resnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2825,7 +2881,8 @@ void
 *   status
 *********************************************************************/
 status_t
-    xpath_get_curmod_from_prefix (const xmlChar *prefix,
+    xpath_get_curmod_from_prefix (ncx_instance_t *instance,
+                                  const xmlChar *prefix,
                                   ncx_module_t *mod,
                                   ncx_module_t **targmod)
 {
@@ -2834,7 +2891,7 @@ status_t
     
 #ifdef DEBUG
     if (!targmod) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2844,19 +2901,19 @@ status_t
     if (prefix && *prefix) {
         if (!mod) {
             *targmod = (ncx_module_t *)xmlns_get_modptr
-                (xmlns_find_ns_by_prefix(prefix));
+                (instance, xmlns_find_ns_by_prefix(instance, prefix));
             if (!*targmod) {
                 res = ERR_NCX_MOD_NOT_FOUND;
             }
-        } else if (xml_strcmp(prefix, mod->prefix)) {
-            imp = ncx_find_pre_import(mod, prefix);
+        } else if (xml_strcmp(instance, prefix, mod->prefix)) {
+            imp = ncx_find_pre_import(instance, mod, prefix);
             if (!imp) {
                 res = ERR_NCX_INVALID_NAME;
             } else {
                 if (imp->mod) {
                     *targmod = imp->mod;
                 } else {
-                    *targmod = ncx_find_module(imp->module, imp->revision);
+                    *targmod = ncx_find_module(instance, imp->module, imp->revision);
                 }
                 if (!*targmod) {
                     res = ERR_NCX_MOD_NOT_FOUND;
@@ -2903,7 +2960,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_get_curmod_from_prefix_str (const xmlChar *prefix,
+    xpath_get_curmod_from_prefix_str (ncx_instance_t *instance,
+                                      const xmlChar *prefix,
                                       uint32 prefixlen,
                                       ncx_module_t *mod,
                                       ncx_module_t **targmod)
@@ -2913,24 +2971,24 @@ status_t
 
 #ifdef DEBUG
     if (!targmod) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (prefix && prefixlen) {
-        buff = m__getMem(prefixlen+1);
+        buff = m__getMem(instance, prefixlen+1);
         if (!buff) {
             return ERR_INTERNAL_MEM;
         }
-        xml_strncpy(buff, prefix, prefixlen);
+        xml_strncpy(instance, buff, prefix, prefixlen);
 
-        res = xpath_get_curmod_from_prefix(buff, mod, targmod);
+        res = xpath_get_curmod_from_prefix(instance, buff, mod, targmod);
         
-        m__free(buff);
+        m__free(instance, buff);
 
         return res;
     } else {
-        return xpath_get_curmod_from_prefix(NULL, mod, targmod);
+        return xpath_get_curmod_from_prefix(instance, NULL, mod, targmod);
     }
     /*NOTREACHED*/
 
@@ -2954,22 +3012,23 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xpath_parse_token (xpath_pcb_t *pcb,
+    xpath_parse_token (ncx_instance_t *instance,
+                       xpath_pcb_t *pcb,
                        tk_type_t  tktype)
 {
     status_t     res;
 
 #ifdef DEBUG
     if (!pcb) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* get the next token */
-    res = TK_ADV(pcb->tkc);
+    res = TK_ADV(instance, pcb->tkc);
     if (res != NO_ERR) {
         if (pcb->logerrors) {
-            ncx_print_errormsg(pcb->tkc, pcb->tkerr.mod, res);
+            ncx_print_errormsg(instance, pcb->tkc, pcb->tkerr.mod, res);
         }
         return res;
     }
@@ -2977,7 +3036,8 @@ status_t
     if (TK_CUR_TYP(pcb->tkc) != tktype) {
         res = ERR_NCX_WRONG_TKTYPE;
         if (pcb->logerrors) {
-            ncx_mod_exp_err(pcb->tkc, 
+            ncx_mod_exp_err(instance, 
+                            pcb->tkc, 
                             pcb->tkerr.mod, 
                             res,
                             tk_get_token_name(tktype));
@@ -3002,11 +3062,11 @@ status_t
 *   TRUE or FALSE depending on conversion
 *********************************************************************/
 boolean
-    xpath_cvt_boolean (const xpath_result_t *result)
+    xpath_cvt_boolean (ncx_instance_t *instance, const xpath_result_t *result)
 {
 #ifdef DEBUG
     if (!result) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -3015,17 +3075,17 @@ boolean
     case XP_RT_NONE:
         return FALSE;
     case XP_RT_NODESET:
-        return (dlq_empty(&result->r.nodeQ)) ? FALSE : TRUE;
+        return (dlq_empty(instance, &result->r.nodeQ)) ? FALSE : TRUE;
     case XP_RT_NUMBER:
-        return (ncx_num_zero(&result->r.num, NCX_BT_FLOAT64)) ?
+        return (ncx_num_zero(instance, &result->r.num, NCX_BT_FLOAT64)) ?
             FALSE : TRUE;
     case XP_RT_STRING:
-        return (result->r.str && xml_strlen(result->r.str)) ?
+        return (result->r.str && xml_strlen(instance, result->r.str)) ?
             TRUE : FALSE;
     case XP_RT_BOOLEAN:
         return result->r.boo;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -3047,7 +3107,8 @@ boolean
 *
 *********************************************************************/
 void
-    xpath_cvt_number (const xpath_result_t *result,
+    xpath_cvt_number (ncx_instance_t *instance,
+                      const xpath_result_t *result,
                       ncx_num_t *num)
 {
     const xpath_resnode_t   *resnode;
@@ -3058,7 +3119,7 @@ void
 
 #ifdef DEBUG
     if (!result || !num) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -3067,53 +3128,56 @@ void
 
     switch (result->restype) {
     case XP_RT_NONE:
-        ncx_set_num_nan(num, NCX_BT_FLOAT64);
+        ncx_set_num_nan(instance, num, NCX_BT_FLOAT64);
         break;
     case XP_RT_NODESET:
-        if (dlq_empty(&result->r.nodeQ)) {
-            ncx_set_num_nan(num, NCX_BT_FLOAT64);
+        if (dlq_empty(instance, &result->r.nodeQ)) {
+            ncx_set_num_nan(instance, num, NCX_BT_FLOAT64);
         } else {
             if (result->isval) {
                 resnode = (const xpath_resnode_t *)
-                    dlq_firstEntry(&result->r.nodeQ);
-                val = val_get_first_leaf(resnode->node.valptr);
+                    dlq_firstEntry(instance, &result->r.nodeQ);
+                val = val_get_first_leaf(instance, resnode->node.valptr);
                 if (val && typ_is_number(val->btyp)) {
-                    res = ncx_cast_num(&val->v.num,
+                    res = ncx_cast_num(instance,
+                                       &val->v.num,
                                        val->btyp,
                                        num,
                                        NCX_BT_FLOAT64);
                     if (res != NO_ERR) {
-                        ncx_set_num_nan(num, NCX_BT_FLOAT64);
+                        ncx_set_num_nan(instance, num, NCX_BT_FLOAT64);
                     }
                 } else if (val && val->btyp == NCX_BT_STRING) {
-                    ncx_init_num(&testnum);
-                    res = ncx_convert_num(result->r.str,
+                    ncx_init_num(instance, &testnum);
+                    res = ncx_convert_num(instance,
+                                          result->r.str,
                                           NCX_NF_NONE,
                                           NCX_BT_FLOAT64,
                                           &testnum);
                     if (res == NO_ERR) {
-                        (void)ncx_copy_num(&testnum, 
+                        (void)ncx_copy_num(instance, 
+                                           &testnum, 
                                            num, 
                                            NCX_BT_FLOAT64);
                     } else {
-                        ncx_set_num_nan(num, NCX_BT_FLOAT64);
+                        ncx_set_num_nan(instance, num, NCX_BT_FLOAT64);
                     }
-                    ncx_clean_num(NCX_BT_FLOAT64, &testnum);
+                    ncx_clean_num(instance, NCX_BT_FLOAT64, &testnum);
                 } else {
-                    ncx_set_num_nan(num, NCX_BT_FLOAT64);
+                    ncx_set_num_nan(instance, num, NCX_BT_FLOAT64);
                 }
             } else {
                 /* does not matter */
-                ncx_set_num_zero(num, NCX_BT_FLOAT64);
+                ncx_set_num_zero(instance, num, NCX_BT_FLOAT64);
             }
         }
         break;
     case XP_RT_NUMBER:
-        ncx_copy_num(&result->r.num, num, NCX_BT_FLOAT64);
+        ncx_copy_num(instance, &result->r.num, num, NCX_BT_FLOAT64);
         break;
     case XP_RT_STRING:
         if (result->r.str) {
-            numformat = ncx_get_numfmt(result->r.str);
+            numformat = ncx_get_numfmt(instance, result->r.str);
             switch (numformat) {
             case NCX_NF_DEC:
             case NCX_NF_REAL:
@@ -3124,37 +3188,38 @@ void
                 res = ERR_NCX_WRONG_NUMTYP;
                 break;
             default:
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
 
             if (res == NO_ERR) {
-                ncx_init_num(&testnum);
-                res = ncx_convert_num(result->r.str,
+                ncx_init_num(instance, &testnum);
+                res = ncx_convert_num(instance,
+                                      result->r.str,
                                       numformat,
                                       NCX_BT_FLOAT64,
                                       &testnum);
                 if (res == NO_ERR) {
-                    (void)ncx_copy_num(&testnum, num, NCX_BT_FLOAT64);
+                    (void)ncx_copy_num(instance, &testnum, num, NCX_BT_FLOAT64);
                 } else {
-                    ncx_set_num_nan(num, NCX_BT_FLOAT64);
+                    ncx_set_num_nan(instance, num, NCX_BT_FLOAT64);
                 }
-                ncx_clean_num(NCX_BT_FLOAT64, &testnum);
+                ncx_clean_num(instance, NCX_BT_FLOAT64, &testnum);
             } else {
-                ncx_set_num_nan(num, NCX_BT_FLOAT64);
+                ncx_set_num_nan(instance, num, NCX_BT_FLOAT64);
             }
         } else {
-            ncx_set_num_nan(num, NCX_BT_FLOAT64);
+            ncx_set_num_nan(instance, num, NCX_BT_FLOAT64);
         }
         break;
     case XP_RT_BOOLEAN:
         if (result->r.boo) {
-            ncx_set_num_one(num, NCX_BT_FLOAT64);
+            ncx_set_num_one(instance, num, NCX_BT_FLOAT64);
         } else {
-            ncx_set_num_zero(num, NCX_BT_FLOAT64);
+            ncx_set_num_zero(instance, num, NCX_BT_FLOAT64);
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 }  /* xpath_cvt_number */
@@ -3177,7 +3242,8 @@ void
 *   status; could get an ERR_INTERNAL_MEM error or NO_RER
 *********************************************************************/
 status_t
-    xpath_cvt_string (xpath_pcb_t *pcb,
+    xpath_cvt_string (ncx_instance_t *instance,
+                      xpath_pcb_t *pcb,
                       const xpath_result_t *result,
                       xmlChar **str)
 {
@@ -3186,7 +3252,7 @@ status_t
 
 #ifdef DEBUG
     if (!result || !str) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3196,21 +3262,22 @@ status_t
 
     switch (result->restype) {
     case XP_RT_NONE:
-        *str = xml_strdup(EMPTY_STRING);
+        *str = xml_strdup(instance, EMPTY_STRING);
         break;
     case XP_RT_NODESET:
-        if (dlq_empty(&result->r.nodeQ)) {
-            *str = xml_strdup(EMPTY_STRING);
+        if (dlq_empty(instance, &result->r.nodeQ)) {
+            *str = xml_strdup(instance, EMPTY_STRING);
         } else {
             if (result->isval) {
-                res = xpath1_stringify_nodeset(pcb, result, str);
+                res = xpath1_stringify_nodeset(instance, pcb, result, str);
             } else {
-                *str = xml_strdup(EMPTY_STRING);
+                *str = xml_strdup(instance, EMPTY_STRING);
             }
         }
         break;
     case XP_RT_NUMBER:
-        res = ncx_sprintf_num(NULL, 
+        res = ncx_sprintf_num(instance, 
+                              NULL, 
                               &result->r.num,
                               NCX_BT_FLOAT64,
                               &len);
@@ -3218,14 +3285,15 @@ status_t
             return res;
         }
 
-        *str = m__getMem(len+1);
+        *str = m__getMem(instance, len+1);
         if (*str) {
-            res = ncx_sprintf_num(*str,
+            res = ncx_sprintf_num(instance,
+                                  *str,
                                   &result->r.num,
                                   NCX_BT_FLOAT64,
                                   &len);
             if (res != NO_ERR) {
-                m__free(*str);
+                m__free(instance, *str);
                 *str = NULL;
                 return res;
             }
@@ -3233,20 +3301,20 @@ status_t
         break;
     case XP_RT_STRING:
         if (result->r.str) {
-            *str = xml_strdup(result->r.str);
+            *str = xml_strdup(instance, result->r.str);
         } else {
-            *str = xml_strdup(EMPTY_STRING);
+            *str = xml_strdup(instance, EMPTY_STRING);
         }
         break;
     case XP_RT_BOOLEAN:
         if (result->r.boo) {
-            *str = xml_strdup(NCX_EL_TRUE);
+            *str = xml_strdup(instance, NCX_EL_TRUE);
         } else {
-            *str = xml_strdup(NCX_EL_FALSE);
+            *str = xml_strdup(instance, NCX_EL_FALSE);
         }
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (!*str) {
@@ -3269,11 +3337,11 @@ status_t
 *   pointer to resnodeQ or NULL if some error
 *********************************************************************/
 dlq_hdr_t *
-    xpath_get_resnodeQ (xpath_result_t *result)
+    xpath_get_resnodeQ (ncx_instance_t *instance, xpath_result_t *result)
 {
 #ifdef DEBUG
     if (!result) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3298,11 +3366,11 @@ dlq_hdr_t *
 *   pointer to resnode or NULL if some error
 *********************************************************************/
 xpath_resnode_t *
-    xpath_get_first_resnode (xpath_result_t *result)
+    xpath_get_first_resnode (ncx_instance_t *instance, xpath_result_t *result)
 {
 #ifdef DEBUG
     if (!result) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3312,7 +3380,7 @@ xpath_resnode_t *
     }
 
     return (xpath_resnode_t *)
-        dlq_firstEntry(&result->r.nodeQ);
+        dlq_firstEntry(instance, &result->r.nodeQ);
 
 }  /* xpath_get_first_resnode */
 
@@ -3329,16 +3397,16 @@ xpath_resnode_t *
 *   pointer to resnode or NULL if some error
 *********************************************************************/
 xpath_resnode_t *
-    xpath_get_next_resnode (xpath_resnode_t *resnode)
+    xpath_get_next_resnode (ncx_instance_t *instance, xpath_resnode_t *resnode)
 {
 #ifdef DEBUG
     if (!resnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (xpath_resnode_t *)dlq_nextEntry(resnode);
+    return (xpath_resnode_t *)dlq_nextEntry(instance, resnode);
 
 }  /* xpath_get_next_resnode */
 
@@ -3355,11 +3423,11 @@ xpath_resnode_t *
 *   pointer to resnode or NULL if some error
 *********************************************************************/
 val_value_t *
-    xpath_get_resnode_valptr (xpath_resnode_t *resnode)
+    xpath_get_resnode_valptr (ncx_instance_t *instance, xpath_resnode_t *resnode)
 {
 #ifdef DEBUG
     if (!resnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3381,11 +3449,11 @@ val_value_t *
 *   pointer to varbindQ or NULL if some error
 *********************************************************************/
 dlq_hdr_t *
-    xpath_get_varbindQ (xpath_pcb_t *pcb)
+    xpath_get_varbindQ (ncx_instance_t *instance, xpath_pcb_t *pcb)
 {
 #ifdef DEBUG
     if (!pcb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3412,27 +3480,29 @@ dlq_hdr_t *
 *    srcresult nodes will be moved to the target result
 *********************************************************************/
 void
-    xpath_move_nodeset (xpath_result_t *srcresult,
+    xpath_move_nodeset (ncx_instance_t *instance,
+                        xpath_result_t *srcresult,
                         xpath_result_t *destresult)
 {
 #ifdef DEBUG
     if (srcresult == NULL || destresult == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (srcresult->restype != XP_RT_NODESET) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     if (destresult->restype != XP_RT_NODESET) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
-    dlq_block_enque(&srcresult->r.nodeQ,
+    dlq_block_enque(instance,
+                    &srcresult->r.nodeQ,
                     &destresult->r.nodeQ);
 
 }  /* xpath_move_nodeset */
@@ -3451,11 +3521,11 @@ void
 *    FALSE if not empty or not a nodeset
 *********************************************************************/
 boolean
-    xpath_nodeset_empty (const xpath_result_t *result)
+    xpath_nodeset_empty (ncx_instance_t *instance, const xpath_result_t *result)
 {
 #ifdef DEBUG
     if (result == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -3464,7 +3534,7 @@ boolean
         return FALSE;
     }
 
-    return dlq_empty(&result->r.nodeQ) ? TRUE : FALSE;
+    return dlq_empty(instance, &result->r.nodeQ) ? TRUE : FALSE;
 
 }  /* xpath_nodeset_empty */
 
@@ -3482,7 +3552,8 @@ boolean
 *
 *********************************************************************/
 void
-    xpath_nodeset_swap_valptr (xpath_result_t *result,
+    xpath_nodeset_swap_valptr (ncx_instance_t *instance,
+                               xpath_result_t *result,
                                val_value_t *oldval,
                                val_value_t *newval)
 {
@@ -3490,17 +3561,17 @@ void
 
 #ifdef DEBUG
     if (result == NULL || oldval == NULL || newval == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
     if (result->restype != XP_RT_NODESET) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
-    for (resnode = xpath_get_first_resnode(result);
+    for (resnode = xpath_get_first_resnode(instance, result);
          resnode != NULL;
-         resnode = xpath_get_next_resnode(resnode)) {
+         resnode = xpath_get_next_resnode(instance, resnode)) {
         if (resnode->node.valptr == oldval) {
             resnode->node.valptr = newval;
         }            
@@ -3521,7 +3592,8 @@ void
 *
 *********************************************************************/
 void
-    xpath_nodeset_delete_valptr (xpath_result_t *result,
+    xpath_nodeset_delete_valptr (ncx_instance_t *instance,
+                                 xpath_result_t *result,
                                  val_value_t *oldval)
 {
     xpath_resnode_t *resnode, *nextnode;
@@ -3530,19 +3602,19 @@ void
 
 #ifdef DEBUG
     if (result == NULL || oldval == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
     if (result->restype != XP_RT_NODESET) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
-    for (resnode = xpath_get_first_resnode(result);
+    for (resnode = xpath_get_first_resnode(instance, result);
          resnode != NULL;
          resnode = nextnode) {
 
-        nextnode = xpath_get_next_resnode(resnode);
+        nextnode = xpath_get_next_resnode(instance, resnode);
 
         /* check if the oldval is an ancestor-or-self
          * node for this valptr in the result node-set
@@ -3551,8 +3623,8 @@ void
         done = FALSE;
         while (!done) {
             if (valptr == oldval) {
-                dlq_remove(resnode);
-                xpath_free_resnode(resnode);
+                dlq_remove(instance, resnode);
+                xpath_free_resnode(instance, resnode);
                 done = TRUE;
             } else if (valptr->parent != NULL &&
                        !obj_is_root(valptr->parent->obj)) {
@@ -3590,7 +3662,8 @@ void
 *   NULL if some error
 *********************************************************************/
 xmlChar *
-    xpath_convert_url_to_path (const xmlChar *urlpath,
+    xpath_convert_url_to_path (ncx_instance_t *instance,
+                               const xmlChar *urlpath,
                                ncx_name_match_t match_names,
                                boolean alt_naming,
                                boolean wildcards,
@@ -3602,13 +3675,14 @@ xmlChar *
 
 #ifdef DEBUG
     if (urlpath == NULL || res == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     buff = NULL;
-    *res = fill_xpath_string(urlpath, 
+    *res = fill_xpath_string(instance, 
+                             urlpath, 
                              NULL, 
                              match_names, 
                              alt_naming, 
@@ -3616,12 +3690,13 @@ xmlChar *
                              withkeys,
                              &cnt);
     if (*res == NO_ERR) {
-        buff = m__getMem(cnt+1);
+        buff = m__getMem(instance, cnt+1);
         if (buff == NULL) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
         }
-        *res = fill_xpath_string(urlpath, 
+        *res = fill_xpath_string(instance, 
+                                 urlpath, 
                                  buff, 
                                  match_names,
                                  alt_naming,
@@ -3629,10 +3704,11 @@ xmlChar *
                                  withkeys,
                                  &cnt);
         if (*res != NO_ERR) {
-            m__free(buff);
+            m__free(instance, buff);
             buff = NULL;
         } else if (LOGDEBUG2) {
-            log_debug2("\nConverted urlstring '%s' to XPath '%s'",
+            log_debug2(instance,
+                       "\nConverted urlstring '%s' to XPath '%s'",
                        urlpath, 
                        buff);
         }

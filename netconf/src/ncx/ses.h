@@ -343,6 +343,8 @@ typedef struct ses_cb_t_ {
      */
     struct agt_acm_cache_t_ *acm_cache;
 
+    struct ncx_instance_t_ *instance; // ATTN: Set me!
+
 } ses_cb_t;
 
 
@@ -364,7 +366,7 @@ typedef struct ses_cb_t_ {
 *   pointer to initialized SCB, or NULL if malloc error
 *********************************************************************/
 extern ses_cb_t *
-    ses_new_scb (void);
+    ses_new_scb (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -378,7 +380,7 @@ extern ses_cb_t *
 *   pointer to initialized SCB, or NULL if malloc error
 *********************************************************************/
 extern ses_cb_t *
-    ses_new_dummy_scb (void);
+    ses_new_dummy_scb (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -392,7 +394,7 @@ extern ses_cb_t *
 *   none
 *********************************************************************/
 extern void
-    ses_free_scb (ses_cb_t *scb);
+    ses_free_scb (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -413,7 +415,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_putchar (ses_cb_t *scb,
+    ses_putchar (struct ncx_instance_t_ *instance,
+		 ses_cb_t *scb,
 		 uint32    ch);
 
 
@@ -430,7 +433,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_putstr (ses_cb_t *scb,
+    ses_putstr (struct ncx_instance_t_ *instance,
+		ses_cb_t *scb,
 		const xmlChar *str);
 
 
@@ -450,7 +454,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_putstr_indent (ses_cb_t *scb,
+    ses_putstr_indent (struct ncx_instance_t_ *instance,
+		       ses_cb_t *scb,
 		       const xmlChar *str,
 		       int32 indent);
 
@@ -471,7 +476,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_putcstr (ses_cb_t *scb,
+    ses_putcstr (struct ncx_instance_t_ *instance,
+		 ses_cb_t *scb,
 		 const xmlChar *str,
 		 int32 indent);
 
@@ -491,7 +497,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_puthstr (ses_cb_t *scb,
+    ses_puthstr (struct ncx_instance_t_ *instance,
+                 ses_cb_t *scb,
                  const xmlChar *str);
 
 
@@ -513,7 +520,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_putcchar (ses_cb_t *scb,
+    ses_putcchar (struct ncx_instance_t_ *instance,
+                  ses_cb_t *scb,
                   uint32    ch);
 
 
@@ -533,7 +541,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_putastr (ses_cb_t *scb,
+    ses_putastr (struct ncx_instance_t_ *instance,
+                 ses_cb_t *scb,
                  const xmlChar *str,
                  int32 indent);
 
@@ -554,7 +563,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_putjstr (ses_cb_t *scb,
+    ses_putjstr (struct ncx_instance_t_ *instance,
+                 ses_cb_t *scb,
                  const xmlChar *str,
                  int32 indent);
 
@@ -576,7 +586,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ses_indent (ses_cb_t *scb,
+    ses_indent (struct ncx_instance_t_ *instance,
+		ses_cb_t *scb,
 		int32 indent);
 
 
@@ -608,7 +619,8 @@ extern int32
 *
 *********************************************************************/
 extern void
-    ses_set_indent (ses_cb_t *scb,
+    ses_set_indent (struct ncx_instance_t_ *instance,
+		    ses_cb_t *scb,
 		    int32 indent);
 
 
@@ -655,7 +667,7 @@ extern ses_mode_t
 *   status
 *********************************************************************/
 extern status_t
-    ses_start_msg (ses_cb_t *scb);
+    ses_start_msg (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -669,7 +681,7 @@ extern status_t
 *   none
 *********************************************************************/
 extern void
-    ses_finish_msg (ses_cb_t *scb);
+    ses_finish_msg (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -723,7 +735,7 @@ extern int
 *   status
 *********************************************************************/
 extern status_t
-    ses_accept_input (ses_cb_t *scb);
+    ses_accept_input (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -738,7 +750,7 @@ extern status_t
 *   staing corresponding to the state name
 *********************************************************************/
 extern const xmlChar *
-    ses_state_name (ses_state_t state);
+    ses_state_name (struct ncx_instance_t_ *instance, ses_state_t state);
 
 
 /********************************************************************
@@ -753,7 +765,7 @@ extern const xmlChar *
 *   with-defaults value for the session
 *********************************************************************/
 extern ncx_withdefaults_t
-    ses_withdef (const ses_cb_t *scb);
+    ses_withdef (struct ncx_instance_t_ *instance, const ses_cb_t *scb);
 
 
 /********************************************************************
@@ -783,7 +795,8 @@ extern uint32
 *
 *********************************************************************/
 extern void
-    ses_put_extern (ses_cb_t *scb,
+    ses_put_extern (struct ncx_instance_t_ *instance,
+		    ses_cb_t *scb,
 		    const xmlChar *fname);
 
 
@@ -796,7 +809,7 @@ extern void
 *  pointer to the global session stats struct 
 *********************************************************************/
 extern ses_total_stats_t *
-    ses_get_total_stats (void);
+    ses_get_total_stats (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -811,7 +824,7 @@ extern ses_total_stats_t *
 *   pointer to the string value for the specified enum
 *********************************************************************/
 extern const xmlChar *
-    ses_get_transport_name (ses_transport_t transport);
+    ses_get_transport_name (struct ncx_instance_t_ *instance, ses_transport_t transport);
 
 
 /********************************************************************
@@ -855,7 +868,8 @@ extern boolean
 *    status
 *********************************************************************/
 extern status_t
-    ses_set_protocol (ses_cb_t *scb,
+    ses_set_protocol (struct ncx_instance_t_ *instance,
+                      ses_cb_t *scb,
                       ncx_protocol_t proto);
 
 
@@ -871,7 +885,7 @@ extern status_t
 *   protocol enumeration in use
 *********************************************************************/
 extern ncx_protocol_t
-    ses_get_protocol (const ses_cb_t *scb);
+    ses_get_protocol (struct ncx_instance_t_ *instance, const ses_cb_t *scb);
 
 
 /********************************************************************
@@ -886,7 +900,8 @@ extern ncx_protocol_t
 *    status
 *********************************************************************/
 extern void
-    ses_set_protocols_requested (ses_cb_t *scb,
+    ses_set_protocols_requested (struct ncx_instance_t_ *instance,
+                                 ses_cb_t *scb,
                                  ncx_protocol_t proto);
 
 
@@ -902,7 +917,8 @@ extern void
 *    TRUE is requested; FALSE otherwise
 *********************************************************************/
 extern boolean
-    ses_protocol_requested (ses_cb_t *scb,
+    ses_protocol_requested (struct ncx_instance_t_ *instance,
+                            ses_cb_t *scb,
                             ncx_protocol_t proto);
 
 

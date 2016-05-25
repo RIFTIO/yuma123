@@ -85,7 +85,7 @@ extern "C" {
 *   pointer to new entry, or NULL if memory error
 *********************************************************************/
 extern ncx_list_t *
-    ncx_new_list (ncx_btype_t btyp);
+    ncx_new_list (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -98,7 +98,8 @@ extern ncx_list_t *
 *    btyp == base type for the list
 *********************************************************************/
 extern void
-    ncx_init_list (ncx_list_t *list,
+    ncx_init_list (struct ncx_instance_t_ *instance,
+		   ncx_list_t *list,
 		   ncx_btype_t btyp);
 
 
@@ -111,7 +112,7 @@ extern void
 *    list == ncx_list_t struct to clean
 *********************************************************************/
 extern void 
-    ncx_clean_list (ncx_list_t *list);
+    ncx_clean_list (struct ncx_instance_t_ *instance, ncx_list_t *list);
 
 
 /********************************************************************
@@ -123,7 +124,7 @@ extern void
 *    list == pointer to ncx_list_t memory
 *********************************************************************/
 extern void
-    ncx_free_list (ncx_list_t *list);
+    ncx_free_list (struct ncx_instance_t_ *instance, ncx_list_t *list);
 
 
 /********************************************************************
@@ -137,7 +138,7 @@ extern void
 *    number of entries counted
 *********************************************************************/
 extern uint32
-    ncx_list_cnt (const ncx_list_t *list);
+    ncx_list_cnt (struct ncx_instance_t_ *instance, const ncx_list_t *list);
 
 
 /********************************************************************
@@ -152,7 +153,7 @@ extern uint32
 *    FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_list_empty (const ncx_list_t *list);
+    ncx_list_empty (struct ncx_instance_t_ *instance, const ncx_list_t *list);
 
 
 /********************************************************************
@@ -169,7 +170,8 @@ extern boolean
 *     TRUE if string is found; FALSE otherwise
 *********************************************************************/
 extern boolean
-    ncx_string_in_list (const xmlChar *str,
+    ncx_string_in_list (struct ncx_instance_t_ *instance,
+			const xmlChar *str,
 			const ncx_list_t *list);
 
 /********************************************************************
@@ -188,7 +190,8 @@ extern boolean
 *      1 if list1 is > list2
 *********************************************************************/
 extern int32
-    ncx_compare_lists (const ncx_list_t *list1,
+    ncx_compare_lists (struct ncx_instance_t_ *instance,
+		       const ncx_list_t *list1,
 		       const ncx_list_t *list2);
 
 
@@ -209,7 +212,8 @@ extern int32
 *     status
 *********************************************************************/
 extern status_t
-    ncx_copy_list (const ncx_list_t *list1,
+    ncx_copy_list (struct ncx_instance_t_ *instance,
+		   const ncx_list_t *list1,
 		   ncx_list_t *list2);
 
 
@@ -243,7 +247,8 @@ extern status_t
 *   none
 *********************************************************************/
 extern void
-    ncx_merge_list (ncx_list_t *src,
+    ncx_merge_list (struct ncx_instance_t_ *instance,
+		    ncx_list_t *src,
 		    ncx_list_t *dest,
 		    ncx_merge_t mergetyp,
 		    boolean allow_dups);
@@ -265,7 +270,8 @@ extern void
 *     status
 *********************************************************************/
 extern status_t
-    ncx_set_strlist (const xmlChar *liststr,
+    ncx_set_strlist (struct ncx_instance_t_ *instance,
+		     const xmlChar *liststr,
 		     ncx_list_t *list);
 
 /********************************************************************
@@ -293,7 +299,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t 
-    ncx_set_list (ncx_btype_t btyp,
+    ncx_set_list (struct ncx_instance_t_ *instance,
+		  ncx_btype_t btyp,
 		  const xmlChar *strval,
 		  ncx_list_t  *list);
 
@@ -319,7 +326,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    ncx_finish_list (typ_def_t *typdef,
+    ncx_finish_list (struct ncx_instance_t_ *instance,
+		     typ_def_t *typdef,
 		     ncx_list_t *list);
 
 
@@ -335,7 +343,7 @@ extern status_t
 *   NULL if malloc error
 *********************************************************************/
 extern ncx_lmem_t *
-    ncx_new_lmem (void);
+    ncx_new_lmem (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -348,7 +356,8 @@ extern ncx_lmem_t *
 *    btyp == base type of list member (lmem)
 *********************************************************************/
 extern void
-    ncx_clean_lmem (ncx_lmem_t *lmem,
+    ncx_clean_lmem (struct ncx_instance_t_ *instance,
+		    ncx_lmem_t *lmem,
 		    ncx_btype_t btyp);
 
 
@@ -363,7 +372,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    ncx_free_lmem (ncx_lmem_t *lmem,
+    ncx_free_lmem (struct ncx_instance_t_ *instance,
+		   ncx_lmem_t *lmem,
 		   ncx_btype_t btyp);
 
 
@@ -380,7 +390,8 @@ extern void
 *  pointer to the first instance of this value, or NULL if none
 *********************************************************************/
 extern ncx_lmem_t *
-    ncx_find_lmem (ncx_list_t *list,
+    ncx_find_lmem (struct ncx_instance_t_ *instance,
+		   ncx_list_t *list,
 		   const ncx_lmem_t *memval);
 
 
@@ -398,7 +409,8 @@ extern ncx_lmem_t *
 *   none
 *********************************************************************/
 extern void
-    ncx_insert_lmem (ncx_list_t *list,
+    ncx_insert_lmem (struct ncx_instance_t_ *instance,
+		     ncx_list_t *list,
 		     ncx_lmem_t *memval,
 		     ncx_merge_t mergetyp);
 
@@ -415,7 +427,7 @@ extern void
 *  pointer to the first list member or NULL if none
 *********************************************************************/
 extern ncx_lmem_t *
-    ncx_first_lmem (ncx_list_t *list);
+    ncx_first_lmem (struct ncx_instance_t_ *instance, ncx_list_t *list);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

@@ -29,6 +29,7 @@ static ncx_module_t *helloworld_mod;
 
 status_t
     y_helloworld_init (
+        ncx_instance_t *instance,
         const xmlChar *modname,
         const xmlChar *revision)
 {
@@ -38,7 +39,7 @@ status_t
     agt_profile = agt_get_profile();
 
     res = ncxmod_load_module(
-        "helloworld",
+        instance, "helloworld",
         NULL,
         &agt_profile->agt_savedevQ,
         &helloworld_mod);
@@ -53,7 +54,8 @@ status_t
 
 
 status_t
-    y_helloworld_init2 (void)
+    y_helloworld_init2 (
+        ncx_instance_t *instance)
 {
     status_t res;
     cfg_template_t* runningcfg;
@@ -64,45 +66,45 @@ status_t
 
     res = NO_ERR;
 
-    runningcfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+    runningcfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
     if (!runningcfg || !runningcfg->root) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     helloworld_obj = ncx_find_object(
-        helloworld_mod,
+        instance, helloworld_mod,
         "helloworld");
     if (helloworld_obj == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    helloworld_val = val_new_value();
+    helloworld_val = val_new_value(instance);
     if (helloworld_val == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    val_init_from_template(helloworld_val,
+    val_init_from_template(instance, helloworld_val,
                  helloworld_obj);
 
-    val_add_child(helloworld_val, runningcfg->root);
+    val_add_child(instance, helloworld_val, runningcfg->root);
 
-    message_obj = obj_find_child(helloworld_obj,
+    message_obj = obj_find_child(instance, helloworld_obj,
                                  "helloworld",
                                  "message");
     if (message_obj == NULL) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
-    message_val = val_new_value();
+    message_val = val_new_value(instance);
     if (message_val == NULL) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    val_init_from_template(message_val,message_obj);
+    val_init_from_template(instance, message_val,message_obj);
     
-    res = val_set_simval_obj(message_val,message_val->obj, "Hello World!");
+    res = val_set_simval_obj(instance, message_val,message_val->obj, "Hello World!");
 
-    val_add_child(message_val, helloworld_val);
+    val_add_child(instance, message_val, helloworld_val);
     
     return res;
 }

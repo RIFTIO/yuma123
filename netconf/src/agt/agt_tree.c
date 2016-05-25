@@ -137,16 +137,17 @@ date         init     comment
 *    NULL if malloc error
 *********************************************************************/
 static ncx_filptr_t *
-    save_filptr (ncx_filptr_t *parent,
+    save_filptr (ncx_instance_t *instance,
+                 ncx_filptr_t *parent,
                  val_value_t *valnode)
 {
     ncx_filptr_t  *filptr;
 
-    filptr = ncx_new_filptr();
+    filptr = ncx_new_filptr(instance);
 
     if (filptr) {
         filptr->node = valnode;
-        dlq_enque(filptr, &parent->childQ);
+        dlq_enque(instance, filptr, &parent->childQ);
     }
 
     return filptr;
@@ -168,14 +169,16 @@ static ncx_filptr_t *
 *    NULL if not found
 *********************************************************************/
 static ncx_filptr_t *
-    find_filptr (ncx_filptr_t *parent,
+    find_filptr (ncx_instance_t *instance,
+                 ncx_filptr_t *parent,
                  val_value_t *valnode)
 {
     ncx_filptr_t  *filptr;
+    (void)instance;
 
-    for (filptr = (ncx_filptr_t *)dlq_firstEntry(&parent->childQ);
+    for (filptr = (ncx_filptr_t *)dlq_firstEntry(instance, &parent->childQ);
          filptr != NULL;
-         filptr = (ncx_filptr_t *)dlq_nextEntry(filptr)) {
+         filptr = (ncx_filptr_t *)dlq_nextEntry(instance, filptr)) {
 
         if (filptr->node == valnode) {
             return filptr;
@@ -201,7 +204,8 @@ static ncx_filptr_t *
 *    FALSE if any tests fail (exits at first failure)
 *********************************************************************/
 static boolean
-    attr_test (val_value_t *filval,
+    attr_test (ncx_instance_t *instance,
+               val_value_t *filval,
                val_value_t  *targval)
 {
     val_value_t  *m1;
@@ -209,9 +213,9 @@ static boolean
     xmlns_id_t          invid;
     boolean             done, ret;
 
-    invid = xmlns_inv_id();
+    invid = xmlns_inv_id(instance);
 
-    metaQ = val_get_metaQ(filval);
+    metaQ = val_get_metaQ(instance, filval);
     if (!metaQ) {
         return TRUE;
     }
@@ -219,13 +223,13 @@ static boolean
     ret = TRUE;
     done = FALSE;
 
-    for (m1 = val_get_first_meta(metaQ);
+    for (m1 = val_get_first_meta(instance, metaQ);
          m1 != NULL && !done;
-         m1 = val_get_next_meta(m1)) {
+         m1 = val_get_next_meta(instance, m1)) {
         if (m1->nsid == invid) {
             ret = FALSE;
             done = TRUE;
-        } else if (!val_meta_match(targval, m1)) {
+        } else if (!val_meta_match(instance, targval, m1)) {
             ret = FALSE;
             done = TRUE;
         }
@@ -252,7 +256,8 @@ static boolean
 *          type and not a simple type
 *********************************************************************/
 static boolean
-    content_match_test (ses_cb_t *scb,
+    content_match_test (ncx_instance_t *instance,
+                        ses_cb_t *scb,
                         const xmlChar *testval, 
                         val_value_t *curval)
 {
@@ -270,17 +275,18 @@ static boolean
     v_val = NULL;
 
     /* skip matches of any password object */
-    if (obj_is_password(curval->obj)) {
+    if (obj_is_password(instance, curval->obj)) {
         return FALSE;
     }
 
     /* handle virtual compare differently */
-    if (val_is_virtual(curval)) {
+    if (val_is_virtual(instance, curval)) {
         /* get temp value to store virtual value */
-        v_val = val_get_virtual_value(scb, curval, &res);
+        v_val = val_get_virtual_value(instance, scb, curval, &res);
         if (!v_val) {
             if (res != ERR_NCX_SKIPPED) {
-                log_error("\agt_tree: get virtual failed %s",
+                log_error(instance,
+                          "\agt_tree: get virtual failed %s",
                           get_error_string(res));
             }
             return FALSE;
@@ -292,19 +298,19 @@ static boolean
 
     switch (cmpval->btyp) {
     case NCX_BT_BOOLEAN:
-        if (!xml_strcmp(testval, NCX_EL_TRUE) ||
-            !xml_strcmp(testval, (const xmlChar *)"1")) {
+        if (!xml_strcmp(instance, testval, NCX_EL_TRUE) ||
+            !xml_strcmp(instance, testval, (const xmlChar *)"1")) {
             testres = cmpval->v.boo;
-        } else if (!xml_strcmp(testval, NCX_EL_FALSE) ||
-                   !xml_strcmp(testval, (const xmlChar *)"0")) {
+        } else if (!xml_strcmp(instance, testval, NCX_EL_FALSE) ||
+                   !xml_strcmp(instance, testval, (const xmlChar *)"0")) {
             testres = !cmpval->v.boo;
         }
         break;
     case NCX_BT_BINARY:
-        binlen = xml_strlen(testval);
-        binbuff = m__getMem(binlen);
+        binlen = xml_strlen(instance, testval);
+        binbuff = m__getMem(instance, binlen);
         if (!binbuff) {
-            SET_ERROR(ERR_INTERNAL_MEM);
+            SET_ERROR(instance, ERR_INTERNAL_MEM);
             return 0;
         }
         res = b64_decode(testval, binlen,
@@ -312,10 +318,10 @@ static boolean
         if (res == NO_ERR) {
             testres = !memcmp(binbuff, cmpval->v.binary.ustr, retlen);
         } else {
-            SET_ERROR(res);
+            SET_ERROR(instance, res);
             testres = 0;
         }
-        m__free(binbuff);
+        m__free(instance, binbuff);
         break;
     case NCX_BT_INT8:
     case NCX_BT_INT16:
@@ -327,33 +333,34 @@ static boolean
     case NCX_BT_UINT64:
     case NCX_BT_DECIMAL64:
     case NCX_BT_FLOAT64:
-        ncx_init_num(&num);
-        res = ncx_decode_num(testval, cmpval->btyp, &num);
+        ncx_init_num(instance, &num);
+        res = ncx_decode_num(instance, testval, cmpval->btyp, &num);
         if (res == NO_ERR) {
-            testres = !ncx_compare_nums(&num, 
+            testres = !ncx_compare_nums(instance, 
+                                        &num, 
                                         &cmpval->v.num, 
                                         curval->btyp) 
                 ? TRUE : FALSE;
         }
-        ncx_clean_num(cmpval->btyp, &num);
+        ncx_clean_num(instance, cmpval->btyp, &num);
         break;
     case NCX_BT_ENUM:
     case NCX_BT_STRING:
     case NCX_BT_INSTANCE_ID:
     case NCX_BT_IDREF:
     case NCX_BT_LEAFREF: /****/
-        testlen = xml_strlen(testval);
+        testlen = xml_strlen(instance, testval);
         retlen = 0;
-        res = val_sprintf_simval_nc(NULL, cmpval, &retlen);
+        res = val_sprintf_simval_nc(instance, NULL, cmpval, &retlen);
         if (res == NO_ERR && retlen == testlen) {
-            binbuff = m__getMem(retlen+1);
+            binbuff = m__getMem(instance, retlen+1);
             if (binbuff) {
-                res = val_sprintf_simval_nc(binbuff, cmpval, &retlen);
+                res = val_sprintf_simval_nc(instance, binbuff, cmpval, &retlen);
                 if (res == NO_ERR) {
-                    testres = (xml_strcmp(binbuff, testval)) 
+                    testres = (xml_strcmp(instance, binbuff, testval)) 
                         ? FALSE : TRUE;
                 }
-                m__free(binbuff);
+                m__free(instance, binbuff);
             }
         }
         break;
@@ -409,7 +416,8 @@ static boolean
 *     status, NO_ERR or malloc error
 *********************************************************************/
 static status_t
-    process_val (xml_msg_hdr_t *msg,
+    process_val (ncx_instance_t *instance,
+                 xml_msg_hdr_t *msg,
                  ses_cb_t *scb,
                  boolean getop,
                  boolean isnotif,
@@ -434,7 +442,7 @@ static status_t
      * and just set the NETCONF namespace at
      * the top level, and uses it for everything
      */
-    ncid = xmlns_nc_id();
+    ncid = xmlns_nc_id(instance);
 
     /* base:1.1 subtree filtering allows 
      * wildcard namespace ID xmlns=""
@@ -445,7 +453,7 @@ static status_t
      * !!! This wildid nsid code is in case a different
      * !!! xml parser is used.
      */
-    wildid = xmlns_wildcard_id();
+    wildid = xmlns_wildcard_id(instance);
 
     /* The filval is the same level as the curval
      *
@@ -460,8 +468,9 @@ static status_t
     /* check if this is a real or a virtual value */
     res = NO_ERR;
     virtualval = NULL;
-    if (val_is_virtual(curval)) {
-        virtualval = val_get_virtual_value(scb,
+    if (val_is_virtual(instance, curval)) {
+        virtualval = val_get_virtual_value(instance,
+                                           scb,
                                            curval,
                                            &res);
         if (virtualval == NULL) {
@@ -478,9 +487,9 @@ static status_t
      * they must all be true or this entire sibling
      * set is rejected
      */
-    for (filchild = val_get_first_child(filval);
+    for (filchild = val_get_first_child(instance, filval);
          filchild != NULL;
-         filchild = val_get_next_child(filchild)) {
+         filchild = val_get_next_child(instance, filchild)) {
 
         if (!isnotif && filchild->nsid == ncid) {
             /* no content in NETCONF namespace, so assume
@@ -496,7 +505,7 @@ static status_t
              * gets reset to 0 to match all namespaces
              * only use this for <get*>, not <notification>
              */
-            if (ses_get_protocol(scb) == NCX_PROTO_NETCONF11) {
+            if (ses_get_protocol(instance, scb) == NCX_PROTO_NETCONF11) {
                 filchild->nsid = 0;
             } else {
                 return ERR_NCX_PROTO11_NOT_ENABLED;
@@ -514,13 +523,13 @@ static status_t
             anycon = TRUE;
             continue;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         /* check corner case not caught by XML parser */
-        if (val_all_whitespace(VAL_STR(filchild))) {
+        if (val_all_whitespace(instance, VAL_STR(filchild))) {
             /* should not happen! */
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         /* This is a valid content select node 
@@ -534,18 +543,21 @@ static status_t
          */
         test = FALSE;
         for (curchild = 
-                 val_first_child_qname(useval, 
+                 val_first_child_qname(instance, 
+                                       useval, 
                                        filchild->nsid,
                                        filchild->name);
              curchild != NULL && !test;
-             curchild = val_next_child_qname(useval,
+             curchild = val_next_child_qname(instance,
+                                             useval,
                                              filchild->nsid,
                                              filchild->name,
                                              curchild)) {
 
             /* check access control for notifications only */
             if (isnotif && scb &&
-                !agt_acm_val_read_allowed(msg,
+                !agt_acm_val_read_allowed(instance,
+                                          msg,
                                           scb->username, 
                                           curchild)) {
                 /* treat an access-failed on a content match
@@ -554,13 +566,15 @@ static status_t
                 return NO_ERR;
             }
 
-            test = content_match_test(scb, 
+            test = content_match_test(instance, 
+                                      scb, 
                                       VAL_STR(filchild), 
                                       curchild);
         }
 
         if (!test) {
-            log_debug2("\nagt_tree_process_val: %s "
+            log_debug2(instance, 
+                       "\nagt_tree_process_val: %s "
                        "sibling set pruned; CM not found for '%s'", 
                        filval->name, filchild->name);
             return NO_ERR;
@@ -584,14 +598,15 @@ static status_t
     /* Go through the filval child nodes again and this
      * time select nodes for real
      */
-    for (filchild = val_get_first_child(filval);
+    for (filchild = val_get_first_child(instance, filval);
          filchild != NULL;
-         filchild = val_get_next_child(filchild)) {
+         filchild = val_get_next_child(instance, filchild)) {
 
         /* first check if this is a get-config operation 
          * and if so, if the test node fails the config test 
          */
-        if (!getop && !agt_check_config(ses_withdef(scb), 
+        if (!getop && !agt_check_config(instance, 
+                                        ses_withdef(instance, scb), 
                                         TRUE,
                                         filchild)) {
             continue;
@@ -600,11 +615,13 @@ static status_t
         /* go through all the actual instances of 'filchild'
          * within the child nodes of 'curval'
          */
-        for (curchild = val_first_child_qname(useval, 
+        for (curchild = val_first_child_qname(instance, 
+                                              useval, 
                                               filchild->nsid,
                                               filchild->name);
              curchild != NULL;
-             curchild = val_next_child_qname(useval,
+             curchild = val_next_child_qname(instance,
+                                             useval,
                                              filchild->nsid,
                                              filchild->name,
                                              curchild)) {
@@ -613,14 +630,15 @@ static status_t
 
             /* check access control if scb is non-NULL */
             if (isnotif && scb && 
-                !agt_acm_val_read_allowed(msg,
+                !agt_acm_val_read_allowed(instance,
+                                          msg,
                                           scb->username, 
                                           curchild)) {
                 continue;
             }
 
             /* check any attr-match tests */
-            if (!attr_test(filchild, curchild)) {
+            if (!attr_test(instance, filchild, curchild)) {
                 /* failed an attr-match test so skip it */
                 continue;
             }
@@ -629,7 +647,8 @@ static status_t
             switch (filchild->btyp) {
             case NCX_BT_STRING:
                 /* This is a content select node */
-                test = content_match_test(scb, 
+                test = content_match_test(instance, 
+                                          scb, 
                                           VAL_STR(filchild), 
                                           curchild);
                 if (!test) {
@@ -639,7 +658,7 @@ static status_t
                 /* this is a select node  matched to the 
                  * current node, so save it
                  */
-                filptr = save_filptr(result, curchild);
+                filptr = save_filptr(instance, result, curchild);
                 if (!filptr) {
                     return ERR_INTERNAL_MEM;
                 }
@@ -653,7 +672,7 @@ static status_t
                 }
 
                 /* save this node for now */
-                filptr = save_filptr(result, curchild);
+                filptr = save_filptr(instance, result, curchild);
                 if (!filptr) {
                     return ERR_INTERNAL_MEM;
                 }
@@ -661,7 +680,8 @@ static status_t
                 /* go through the child nodes of the filter
                  * and compare to the complex target 
                  */
-                res = process_val(msg,
+                res = process_val(instance,
+                                  msg,
                                   scb, 
                                   getop, 
                                   isnotif,
@@ -673,31 +693,31 @@ static status_t
                     return res;
                 }
 
-                if (!mykeepempty && dlq_empty(&filptr->childQ)) {
-                    dlq_remove(filptr);
-                    ncx_free_filptr(filptr);
+                if (!mykeepempty && dlq_empty(instance, &filptr->childQ)) {
+                    dlq_remove(instance, filptr);
+                    ncx_free_filptr(instance, filptr);
                     filptr = NULL;
                 }
                 break;
             default:
-                return SET_ERROR(ERR_INTERNAL_VAL);
+                return SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
 
             if (filptr && 
                 filptr->node->btyp == NCX_BT_LIST &&
-                !dlq_empty(&filptr->childQ)) {
+                !dlq_empty(instance, &filptr->childQ)) {
 
                 /* make sure all the list keys (if any)
                  * are present, since specific nodes
                  * are requested, and the keys could
                  * get filtered out
                  */
-                for (valindex = val_get_first_index(filptr->node);
+                for (valindex = val_get_first_index(instance, filptr->node);
                      valindex != NULL;
-                     valindex = val_get_next_index(valindex)) {
+                     valindex = val_get_next_index(instance, valindex)) {
                     
-                    if (!find_filptr(filptr, valindex->val)) {
-                        if (!save_filptr(filptr, valindex->val)) {
+                    if (!find_filptr(instance, filptr, valindex->val)) {
+                        if (!save_filptr(instance, filptr, valindex->val)) {
                             return ERR_INTERNAL_MEM;
                         }
                     }
@@ -727,7 +747,8 @@ static status_t
 *    none
 *********************************************************************/
 static void
-    output_node (ses_cb_t *scb, 
+    output_node (ncx_instance_t *instance, 
+                 ses_cb_t *scb, 
                  rpc_msg_t *msg, 
                  ncx_filptr_t *parent,
                  int32 indent,
@@ -741,27 +762,29 @@ static void
 
     indentamount = ses_indent_count(scb);
 
-    for (filptr = (ncx_filptr_t *)dlq_firstEntry(&parent->childQ);
+    for (filptr = (ncx_filptr_t *)dlq_firstEntry(instance, &parent->childQ);
          filptr != NULL;
-         filptr = (ncx_filptr_t *)dlq_nextEntry(filptr)) {
+         filptr = (ncx_filptr_t *)dlq_nextEntry(instance, filptr)) {
         
         val = filptr->node;
-        valnsid = obj_get_nsid(val->obj);
+        valnsid = obj_get_nsid(instance, val->obj);
         if (val->parent) {
-            parentnsid = obj_get_nsid(val->parent->obj);
+            parentnsid = obj_get_nsid(instance, val->parent->obj);
         } else {
             parentnsid = 0;
         }
 
-        if (dlq_empty(&filptr->childQ)) {
+        if (dlq_empty(instance, &filptr->childQ)) {
             if (getop) {
-                xml_wr_full_check_val(scb, 
+                xml_wr_full_check_val(instance, 
+                                      scb, 
                                       &msg->mhdr, 
                                       val, 
                                       indent,
                                       agt_check_default);
             } else {
-                xml_wr_full_check_val(scb, 
+                xml_wr_full_check_val(instance, 
+                                      scb, 
                                       &msg->mhdr, 
                                       val, 
                                       indent,
@@ -771,7 +794,8 @@ static void
             /* check if access control is allowing this user
              * to retrieve this value node
              */
-            retval = agt_acm_val_read_allowed(&msg->mhdr,
+            retval = agt_acm_val_read_allowed(instance,
+                                              &msg->mhdr,
                                               scb->username,
                                               val);
             
@@ -787,7 +811,8 @@ static void
              */
              
             if (retval) {
-                xml_wr_begin_elem_ex(scb, 
+                xml_wr_begin_elem_ex(instance, 
+                                     scb, 
                                      &msg->mhdr,
                                      parentnsid,
                                      valnsid,
@@ -801,13 +826,14 @@ static void
                     indent += indentamount;
                 }
 
-                output_node(scb, msg, filptr, indent, getop);            
+                output_node(instance, scb, msg, filptr, indent, getop);            
 
                 if (indent >= 0) {
                     indent -= indentamount;
                 }
 
-                xml_wr_end_elem(scb, 
+                xml_wr_end_elem(instance, 
+                                scb, 
                                 &msg->mhdr, 
                                 valnsid,
                                 val->name, 
@@ -830,28 +856,30 @@ static void
 *    none
 *********************************************************************/
 static void
-    dump_filptr_node (ncx_filptr_t  *filptr,
+    dump_filptr_node (ncx_instance_t *instance,
+                      ncx_filptr_t  *filptr,
                       int32 indent)
 {
     ncx_filptr_t        *fp;
     int32                i;
 
     if (LOGDEBUG2) {
-        log_debug2("\n");
+        log_debug2(instance, "\n");
         for (i=0; i<indent; i++) {
-            log_debug2(" ");
+            log_debug2(instance, " ");
         }
 
-        log_debug2("filptr: %u:%s %s",  
+        log_debug2(instance,  
+                   "filptr: %u:%s %s",  
                    filptr->node->nsid,
                    filptr->node->name,
                    tk_get_btype_sym(filptr->node->btyp));
 
 
-        for (fp = (ncx_filptr_t *)dlq_firstEntry(&filptr->childQ);
+        for (fp = (ncx_filptr_t *)dlq_firstEntry(instance, &filptr->childQ);
              fp != NULL;
-             fp = (ncx_filptr_t *)dlq_nextEntry(fp)) {
-            dump_filptr_node(fp, indent+2);
+             fp = (ncx_filptr_t *)dlq_nextEntry(instance, fp)) {
+            dump_filptr_node(instance, fp, indent+2);
         }
     }
     
@@ -905,7 +933,8 @@ static void
 *    NULL if no match
 *********************************************************************/
 ncx_filptr_t *
-    agt_tree_prune_filter (ses_cb_t *scb,
+    agt_tree_prune_filter (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            rpc_msg_t *msg,
                            const cfg_template_t *cfg,
                            boolean getop)
@@ -917,7 +946,7 @@ ncx_filptr_t *
 
 #ifdef DEBUG
     if (!msg || !cfg || !msg->rpc_filter.op_filter) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -948,14 +977,15 @@ ncx_filptr_t *
         /* This is the normal case - a container node
          * Go through the child nodes.
          */
-        top = ncx_new_filptr();
+        top = ncx_new_filptr(instance);
         if (!top) {
             return NULL;
         }
         top->node = cfg->root;
 
         keepempty = FALSE;
-        res = process_val((msg) ? &msg->mhdr : NULL,
+        res = process_val(instance,
+                          (msg) ? &msg->mhdr : NULL,
                           scb, 
                           getop, 
                           FALSE,
@@ -963,18 +993,18 @@ ncx_filptr_t *
                           cfg->root, 
                           top, 
                           &keepempty);
-        if (res != NO_ERR || dlq_empty(&top->childQ)) {
+        if (res != NO_ERR || dlq_empty(instance, &top->childQ)) {
             /* ignore keepempty because the result will
              * be the same w/NULL return, just faster
              */
-            ncx_free_filptr(top);
+            ncx_free_filptr(instance, top);
         } else {
-            dump_filptr_node(top, 0);
+            dump_filptr_node(instance, top, 0);
             return top;
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return NULL;
@@ -1000,7 +1030,8 @@ ncx_filptr_t *
 *    none
 *********************************************************************/
 void
-    agt_tree_output_filter (ses_cb_t *scb,
+    agt_tree_output_filter (ncx_instance_t *instance,
+                            ses_cb_t *scb,
                             rpc_msg_t *msg,
                             ncx_filptr_t *top,
                             int32 indent,
@@ -1008,12 +1039,12 @@ void
 {
 #ifdef DEBUG
     if (!scb || !msg || !top) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    output_node(scb, msg, top, indent, getop);
+    output_node(instance, scb, msg, top, indent, getop);
     
 } /* agt_tree_output_filter */
 
@@ -1037,7 +1068,8 @@ void
 *    FALSE if the filter did not match; notification not sent
 *********************************************************************/
 boolean
-    agt_tree_test_filter (xml_msg_hdr_t *msghdr,
+    agt_tree_test_filter (ncx_instance_t *instance,
+                          xml_msg_hdr_t *msghdr,
                           ses_cb_t *scb,
                           val_value_t *filter,
                           val_value_t *topval)
@@ -1048,7 +1080,7 @@ boolean
 
 #ifdef DEBUG
     if (!msghdr || !scb || !filter || !topval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -1073,7 +1105,7 @@ boolean
         /* This is the normal case - a container node
          * Go through the child nodes.
          */
-        top = ncx_new_filptr();
+        top = ncx_new_filptr(instance);
         if (!top) {
             /* dropping ERR_INTERNAL_MEM error */
             return FALSE;
@@ -1081,7 +1113,8 @@ boolean
         top->node = topval;
 
         keepempty = FALSE;        
-        res = process_val(msghdr,
+        res = process_val(instance,
+                          msghdr,
                           scb, 
                           TRUE, 
                           TRUE,
@@ -1089,7 +1122,7 @@ boolean
                           topval, 
                           top, 
                           &keepempty);
-        if (res != NO_ERR || dlq_empty(&top->childQ)) {
+        if (res != NO_ERR || dlq_empty(instance, &top->childQ)) {
             /* ignore keepempty because the result will
              * be the same w/NULL return, just faster
              */
@@ -1098,10 +1131,10 @@ boolean
             retval = TRUE;
         }
 
-        ncx_free_filptr(top);
+        ncx_free_filptr(instance, top);
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return retval;

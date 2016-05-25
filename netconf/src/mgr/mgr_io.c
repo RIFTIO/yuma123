@@ -163,32 +163,33 @@ static boolean
  *
  *********************************************************************/
 static void
-    write_sessions (void)
+    write_sessions (ncx_instance_t *instance)
 {
     ses_cb_t      *scb;
     mgr_scb_t     *mscb;
     status_t       res;
 
-    scb = mgr_ses_get_first_outready();
+    scb = mgr_ses_get_first_outready(instance);
     while (scb) {
-        res = ses_msg_send_buffs(scb);
+        res = ses_msg_send_buffs(instance, scb);
         if (res != NO_ERR) {
             if (LOGINFO) {
-                mscb = mgr_ses_get_mscb(scb);
-                log_info("\nmgr_io write failed; "
+                mscb = mgr_ses_get_mscb(instance, scb);
+                log_info(instance, 
+                         "\nmgr_io write failed; "
                          "closing session %u (a:%u)", 
                          scb->sid,
                          mscb->agtsid);
             }
-            mgr_ses_free_session(scb->sid);
+            mgr_ses_free_session(instance, scb->sid);
             scb = NULL;
         }
         /* check if any buffers left over for next loop */
-        if (scb && !dlq_empty(&scb->outQ)) {
-            ses_msg_make_outready(scb);
+        if (scb && !dlq_empty(instance, &scb->outQ)) {
+            ses_msg_make_outready(instance, scb);
         }
 
-        scb = mgr_ses_get_first_outready();
+        scb = mgr_ses_get_first_outready(instance);
     }
 
 }  /* write_sessions */
@@ -201,7 +202,8 @@ static void
  *
  *********************************************************************/
 static boolean
-    read_session (int fd,
+    read_session (ncx_instance_t *instance,
+                  int fd,
                   ses_id_t cursid)
 {
     ses_cb_t      *scb;
@@ -212,7 +214,8 @@ static boolean
     retval = TRUE;
 
     if (LOGDEBUG3) {
-        log_debug3("\nmgr_io: read FD %d for session %u start",
+        log_debug3(instance,
+                   "\nmgr_io: read FD %d for session %u start",
                    fd,
                    cursid);
     }
@@ -221,13 +224,13 @@ static boolean
      * Need to have the xmlreader for this session
      * unless it is input from STDIO
      */
-    scb = def_reg_find_scb(fd);
+    scb = def_reg_find_scb(instance, fd);
     if (scb) {
-        mscb = mgr_ses_get_mscb(scb);
+        mscb = mgr_ses_get_mscb(instance, scb);
         if (!mscb) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         } else {
-            res = ses_accept_input(scb);
+            res = ses_accept_input(instance, scb);
             if (res == NO_ERR) {
                 if (mscb->returncode == LIBSSH2_ERROR_EAGAIN) {
                     /* this is assumed to be the openssh
@@ -243,7 +246,8 @@ static boolean
 
                 if (res != ERR_NCX_SESSION_CLOSED) {
                     if (LOGDEBUG) {
-                        log_debug("\nmgr_io: input failed"
+                        log_debug(instance,
+                                  "\nmgr_io: input failed"
                                  " for session %u (a:%u) tr-err:%d (%s)",
                                   scb->sid, 
                                   mscb->agtsid,
@@ -252,7 +256,7 @@ static boolean
                     }
                 }
 
-                mgr_ses_free_session(scb->sid);
+                mgr_ses_free_session(instance, scb->sid);
                 FD_CLR(fd, &active_fd_set);
                 if (fd >= maxrdnum) {
                     maxrdnum = fd-1;
@@ -365,7 +369,7 @@ void
  *   status
  *********************************************************************/
 status_t
-    mgr_io_run (void)
+    mgr_io_run (ncx_instance_t *instance)
 {
     struct timeval timeout;
     int            i, ret;
@@ -407,7 +411,7 @@ status_t
                 continue;
             }
 
-            write_sessions();
+            write_sessions(instance);
 
             switch (state) {
             case MGR_IO_ST_INIT:
@@ -433,7 +437,7 @@ status_t
                 done = done2 = TRUE;
                 continue;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
                 done = done2 = TRUE;
             }
 
@@ -456,7 +460,8 @@ status_t
 
 #ifdef MGR_IO_DEBUG
             if (LOGDEBUG4) {
-                log_debug4("\nmgr_io: enter select (%u:%u)",
+                log_debug4(instance,
+                           "\nmgr_io: enter select (%u:%u)",
                            timeout.tv_sec,
                            timeout.tv_usec);
             }
@@ -473,7 +478,8 @@ status_t
 
 #ifdef MGR_IO_DEBUG
             if (LOGDEBUG4) {
-                log_debug4("\nmgr_io: exit select (%u:%u)",
+                log_debug4(instance,
+                           "\nmgr_io: exit select (%u:%u)",
                            timeout.tv_sec,
                            timeout.tv_usec);
             }
@@ -502,9 +508,10 @@ status_t
 
         /* check select return status for non-recoverable error */
         if (ret < 0) {
-            log_error("\nmgr_io select failed (%s)", 
+            log_error(instance, 
+                      "\nmgr_io select failed (%s)", 
                       strerror(errno));
-            mgr_request_shutdown();
+            mgr_request_shutdown(instance);
             done = TRUE;
             continue;
         }
@@ -515,7 +522,7 @@ status_t
         for (i = 0; i <= maxrdnum; i++) {
             /* check read input from agent */
             if (FD_ISSET(i, &read_fd_set)) {
-                (void)read_session(i, 0);
+                (void)read_session(instance, i, 0);
             }
         }
 
@@ -523,13 +530,13 @@ status_t
         if (!done) {
             done2 = FALSE;
             while (!done2) {
-                if (!mgr_ses_process_first_ready()) {
+                if (!mgr_ses_process_first_ready(instance)) {
                     done2 = TRUE;
                 } else if (mgr_shutdown_requested()) {
                     done = done2 = TRUE;
                 }
             }
-            write_sessions();
+            write_sessions(instance);
         }
     }  /* end outer loop */
 
@@ -563,7 +570,8 @@ status_t
  *   FALSE if cursid confirmed dropped
  *********************************************************************/
 boolean
-    mgr_io_process_timeout (ses_id_t  cursid,
+    mgr_io_process_timeout (ncx_instance_t *instance,
+                            ses_id_t  cursid,
                             boolean *wantdata,
                             boolean *anystdout)
 {
@@ -573,7 +581,7 @@ boolean
 
 #ifdef DEBUG
     if (wantdata == NULL || anystdout == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return TRUE;
     }
 #endif
@@ -582,7 +590,7 @@ boolean
     *wantdata = FALSE;
     *anystdout = FALSE;
 
-    write_sessions();
+    write_sessions(instance);
 
     /* setup select parameters */
     anyread = FALSE;
@@ -623,7 +631,7 @@ boolean
             
             /* check read input from agent */
             if (FD_ISSET(i, &read_fd_set)) {
-                retval = read_session(i, cursid);
+                retval = read_session(instance, i, cursid);
             }
         }
     }
@@ -632,7 +640,7 @@ boolean
     if (anyread) {
         done = FALSE;
         while (!done) {
-            if (!mgr_ses_process_first_ready()) {
+            if (!mgr_ses_process_first_ready(instance)) {
                 /* did not write to any session */
                 anyread = FALSE;  
                 done = TRUE;
@@ -640,7 +648,7 @@ boolean
                 done = TRUE;
             }
         }
-        write_sessions();
+        write_sessions(instance);
     }
 
     *anystdout = anyread;

@@ -70,7 +70,7 @@ extern "C" {
 *    none
 *********************************************************************/
 extern void 
-    mgr_cap_cleanup (void);
+    mgr_cap_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -86,7 +86,7 @@ extern void
 *    NO_ERR if all goes well
 *********************************************************************/
 extern status_t 
-    mgr_cap_set_caps (void);
+    mgr_cap_set_caps (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -129,7 +129,7 @@ extern val_value_t *
 *    and then discard with val_free_value
 *********************************************************************/
 extern val_value_t * 
-    mgr_cap_get_ses_capsval (ses_cb_t *scb);
+    mgr_cap_get_ses_capsval (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

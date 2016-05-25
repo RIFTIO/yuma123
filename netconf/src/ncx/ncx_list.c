@@ -123,13 +123,13 @@ date         init     comment
 *   pointer to new entry, or NULL if memory error
 *********************************************************************/
 ncx_list_t *
-    ncx_new_list (ncx_btype_t btyp)
+    ncx_new_list (ncx_instance_t *instance, ncx_btype_t btyp)
 {
     ncx_list_t *list;
 
-    list = m__getObj(ncx_list_t);
+    list = m__getObj(instance, ncx_list_t);
     if (list) {
-        ncx_init_list(list, btyp);
+        ncx_init_list(instance, list, btyp);
     }
     return list;
 
@@ -146,19 +146,20 @@ ncx_list_t *
 *    btyp == base type for the list
 *********************************************************************/
 void
-    ncx_init_list (ncx_list_t *list,
+    ncx_init_list (ncx_instance_t *instance,
+                   ncx_list_t *list,
                    ncx_btype_t btyp)
 {
     
 #ifdef DEBUG
     if (!list) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     list->btyp = btyp;
-    dlq_createSQue(&list->memQ);
+    dlq_createSQue(instance, &list->memQ);
 
 } /* ncx_init_list */
 
@@ -172,7 +173,7 @@ void
 *    list == ncx_list_t struct to clean
 *********************************************************************/
 void
-    ncx_clean_list (ncx_list_t *list)
+    ncx_clean_list (ncx_instance_t *instance, ncx_list_t *list)
 {
     ncx_lmem_t  *lmem;
 
@@ -180,10 +181,10 @@ void
         return;
     }
 
-    while (!dlq_empty(&list->memQ)) {
-        lmem = (ncx_lmem_t *)dlq_deque(&list->memQ);
-        ncx_clean_lmem(lmem, list->btyp);
-        m__free(lmem);
+    while (!dlq_empty(instance, &list->memQ)) {
+        lmem = (ncx_lmem_t *)dlq_deque(instance, &list->memQ);
+        ncx_clean_lmem(instance, lmem, list->btyp);
+        m__free(instance, lmem);
     }
 
     list->btyp = NCX_BT_NONE;
@@ -201,17 +202,17 @@ void
 *    list == pointer to ncx_list_t memory
 *********************************************************************/
 void
-    ncx_free_list (ncx_list_t *list)
+    ncx_free_list (ncx_instance_t *instance, ncx_list_t *list)
 {
 #ifdef DEBUG
     if (!list) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    ncx_clean_list(list);
-    m__free(list);
+    ncx_clean_list(instance, list);
+    m__free(instance, list);
 
 } /* ncx_free_list */
 
@@ -227,22 +228,22 @@ void
 *    number of entries counted
 *********************************************************************/
 uint32
-    ncx_list_cnt (const ncx_list_t *list)
+    ncx_list_cnt (ncx_instance_t *instance, const ncx_list_t *list)
 {
     const ncx_lmem_t *lmem;
     uint32      cnt;
 
 #ifdef DEBUG
     if (!list) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
     cnt = 0;
-    for (lmem = (const ncx_lmem_t *)dlq_firstEntry(&list->memQ);
+    for (lmem = (const ncx_lmem_t *)dlq_firstEntry(instance, &list->memQ);
          lmem != NULL;
-         lmem = (const ncx_lmem_t *)dlq_nextEntry(lmem)) {
+         lmem = (const ncx_lmem_t *)dlq_nextEntry(instance, lmem)) {
         cnt++;
     }
     return cnt;
@@ -262,16 +263,16 @@ uint32
 *    FALSE otherwise
 *********************************************************************/
 boolean
-    ncx_list_empty (const ncx_list_t *list)
+    ncx_list_empty (ncx_instance_t *instance, const ncx_list_t *list)
 {
 #ifdef DEBUG
     if (!list) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return TRUE;
     }
 #endif
     
-    return dlq_empty(&list->memQ);
+    return dlq_empty(instance, &list->memQ);
 
 } /* ncx_list_empty */
 
@@ -290,14 +291,15 @@ boolean
 *     TRUE if string is found; FALSE otherwise
 *********************************************************************/
 boolean
-    ncx_string_in_list (const xmlChar *str,
+    ncx_string_in_list (ncx_instance_t *instance,
+                        const xmlChar *str,
                         const ncx_list_t *list)
 {
     const ncx_lmem_t *lmem;
 
 #ifdef DEBUG
     if (!str || !list) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -309,28 +311,28 @@ boolean
     case NCX_BT_BITS:
         break;
     default:
-        SET_ERROR(ERR_NCX_WRONG_TYPE);
+        SET_ERROR(instance, ERR_NCX_WRONG_TYPE);
         return FALSE;
     }
 
     /* search the list for a match */
-    for (lmem = (const ncx_lmem_t *)dlq_firstEntry(&list->memQ);
+    for (lmem = (const ncx_lmem_t *)dlq_firstEntry(instance, &list->memQ);
          lmem != NULL;
-         lmem = (const ncx_lmem_t *)dlq_nextEntry(lmem)) {
+         lmem = (const ncx_lmem_t *)dlq_nextEntry(instance, lmem)) {
 
         switch (list->btyp) {
         case NCX_BT_ENUM:
-            if (!xml_strcmp(str, lmem->val.enu.name)) {
+            if (!xml_strcmp(instance, str, lmem->val.enu.name)) {
                 return TRUE;
             }
             break;
         case NCX_BT_BITS:
-            if (!xml_strcmp(str, lmem->val.bit.name)) {
+            if (!xml_strcmp(instance, str, lmem->val.bit.name)) {
                 return TRUE;
             }
             break;
         default:
-            if (!xml_strcmp(str, lmem->val.str)) {
+            if (!xml_strcmp(instance, str, lmem->val.str)) {
                 return TRUE;
             }
         }
@@ -357,7 +359,8 @@ boolean
 *      1 if list1 is > list2
 *********************************************************************/
 int32
-    ncx_compare_lists (const ncx_list_t *list1,
+    ncx_compare_lists (ncx_instance_t *instance,
+                       const ncx_list_t *list1,
                        const ncx_list_t *list2)
 {
     const ncx_lmem_t  *s1, *s2;
@@ -365,18 +368,18 @@ int32
 
 #ifdef DEBUG
     if (!list1 || !list2) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return -1;
     }
     if (list1->btyp != list2->btyp) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return -1;
     }   
 #endif
 
     /* get start strings */
-    s1 = (const ncx_lmem_t *)dlq_firstEntry(&list1->memQ);
-    s2 = (const ncx_lmem_t *)dlq_firstEntry(&list2->memQ);
+    s1 = (const ncx_lmem_t *)dlq_firstEntry(instance, &list1->memQ);
+    s2 = (const ncx_lmem_t *)dlq_firstEntry(instance, &list2->memQ);
         
     /* have 2 start structs to compare */
     for (;;) {
@@ -389,11 +392,13 @@ int32
         }
 
         if (typ_is_string(list1->btyp)) {
-            retval = ncx_compare_strs(&s1->val.str, 
+            retval = ncx_compare_strs(instance, 
+                                      &s1->val.str, 
                                       &s2->val.str, 
                                       NCX_BT_STRING);
         } else if (typ_is_number(list1->btyp)) {
-            retval = ncx_compare_nums(&s1->val.num, 
+            retval = ncx_compare_nums(instance, 
+                                      &s1->val.num, 
                                       &s2->val.num,
                                       list1->btyp);
         } else {
@@ -403,11 +408,12 @@ int32
                                           &s2->val.bit);
                 break;
             case NCX_BT_ENUM:
-                retval = ncx_compare_enums(&s1->val.enu, 
+                retval = ncx_compare_enums(instance, 
+                                           &s1->val.enu, 
                                            &s2->val.enu);
                 break;
             default:
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
                 return 0;
             }
         }
@@ -420,12 +426,12 @@ int32
         case 1:
             return 1;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return 0;
         }
 
-        s1 = (const ncx_lmem_t *)dlq_nextEntry(s1);
-        s2 = (const ncx_lmem_t *)dlq_nextEntry(s2);
+        s1 = (const ncx_lmem_t *)dlq_nextEntry(instance, s1);
+        s2 = (const ncx_lmem_t *)dlq_nextEntry(instance, s2);
     }
     /*NOTREACHED*/
 
@@ -449,7 +455,8 @@ int32
 *     status
 *********************************************************************/
 status_t
-    ncx_copy_list (const ncx_list_t *list1,
+    ncx_copy_list (ncx_instance_t *instance,
+                   const ncx_list_t *list1,
                    ncx_list_t *list2)
 {
     const ncx_lmem_t *lmem;
@@ -458,19 +465,19 @@ status_t
 
 #ifdef DEBUG
     if (!list1 || !list2) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
     list2->btyp = list1->btyp;
-    dlq_createSQue(&list2->memQ);
+    dlq_createSQue(instance, &list2->memQ);
 
     /* go through all the list members and copy each one */
-    for (lmem = (const ncx_lmem_t *)dlq_firstEntry(&list1->memQ);
+    for (lmem = (const ncx_lmem_t *)dlq_firstEntry(instance, &list1->memQ);
          lmem != NULL;
-         lmem = (const ncx_lmem_t *)dlq_nextEntry(lmem)) {
-        lcopy = ncx_new_lmem();
+         lmem = (const ncx_lmem_t *)dlq_nextEntry(instance, lmem)) {
+        lcopy = ncx_new_lmem(instance);
         if (!lcopy) {
             return ERR_INTERNAL_MEM;
         }
@@ -478,11 +485,11 @@ status_t
         /* copy the string or number from lmem to lcopy */
         switch (list1->btyp) {
         case NCX_BT_STRING:
-            res = ncx_copy_str(&lmem->val.str, &lcopy->val.str, list1->btyp);
+            res = ncx_copy_str(instance, &lmem->val.str, &lcopy->val.str, list1->btyp);
             break;
         case NCX_BT_BITS:
             lcopy->val.bit.pos = lmem->val.bit.pos;
-            lcopy->val.bit.dname = xml_strdup(lmem->val.bit.name);
+            lcopy->val.bit.dname = xml_strdup(instance, lmem->val.bit.name);
             if (!lcopy->val.bit.dname) {
                 res = ERR_INTERNAL_MEM;
             } else {
@@ -491,7 +498,7 @@ status_t
             break;
         case NCX_BT_ENUM:
             lcopy->val.enu.val = lmem->val.enu.val;
-            lcopy->val.enu.dname = xml_strdup(lmem->val.enu.name);
+            lcopy->val.enu.dname = xml_strdup(instance, lmem->val.enu.name);
             if (!lcopy->val.enu.dname) {
                 res = ERR_INTERNAL_MEM;
             } else {
@@ -503,20 +510,21 @@ status_t
             break;
         default:
             if (typ_is_number(list1->btyp)) {
-                res = ncx_copy_num(&lmem->val.num, 
+                res = ncx_copy_num(instance, 
+                                   &lmem->val.num, 
                                    &lcopy->val.num, list1->btyp);
             } else {
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
 
         if (res != NO_ERR) {
-            ncx_free_lmem(lcopy, list1->btyp);
+            ncx_free_lmem(instance, lcopy, list1->btyp);
             return res;
         }
 
         /* save lcopy in list2 */
-        dlq_enque(lcopy, &list2->memQ);
+        dlq_enque(instance, lcopy, &list2->memQ);
     }
     return NO_ERR;
 
@@ -553,7 +561,8 @@ status_t
 *   none
 *********************************************************************/
 void
-    ncx_merge_list (ncx_list_t *src,
+    ncx_merge_list (ncx_instance_t *instance,
+                    ncx_list_t *src,
                     ncx_list_t *dest,
                     ncx_merge_t mergetyp,
                     boolean allow_dups)
@@ -561,51 +570,51 @@ void
     ncx_lmem_t      *lmem, *dest_lmem;
 
     if (!src || !dest) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
     if (src->btyp != dest->btyp) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     /* get rid of dups in the src list if duplicates not allowed */
     if (!allow_dups) {
-        for (dest_lmem = (ncx_lmem_t *)dlq_firstEntry(&dest->memQ);
+        for (dest_lmem = (ncx_lmem_t *)dlq_firstEntry(instance, &dest->memQ);
              dest_lmem != NULL;
-             dest_lmem = (ncx_lmem_t *)dlq_nextEntry(dest_lmem)) {
+             dest_lmem = (ncx_lmem_t *)dlq_nextEntry(instance, dest_lmem)) {
 
-            lmem = ncx_find_lmem(src, dest_lmem);
+            lmem = ncx_find_lmem(instance, src, dest_lmem);
             if (lmem) {
-                dlq_remove(lmem);
-                ncx_free_lmem(lmem, dest->btyp);
+                dlq_remove(instance, lmem);
+                ncx_free_lmem(instance, lmem, dest->btyp);
             }
         }
     }
 
     /* transfer the source members to the dest list */
-    while (!dlq_empty(&src->memQ)) {
+    while (!dlq_empty(instance, &src->memQ)) {
 
         /* pick an entry to merge, reverse of the merge type
          * to preserve the source order in the dest list
          */
         switch (mergetyp) {
         case NCX_MERGE_FIRST:
-            lmem = (ncx_lmem_t *)dlq_lastEntry(&src->memQ);
+            lmem = (ncx_lmem_t *)dlq_lastEntry(instance, &src->memQ);
             break;
         case NCX_MERGE_LAST:
         case NCX_MERGE_SORT:
-            lmem = (ncx_lmem_t *)dlq_firstEntry(&src->memQ);
+            lmem = (ncx_lmem_t *)dlq_firstEntry(instance, &src->memQ);
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return;
         }
         if (lmem) {
-            dlq_remove(lmem);
+            dlq_remove(instance, lmem);
 
             /* merge lmem into the dest list */
-            ncx_insert_lmem(dest, lmem, mergetyp);
+            ncx_insert_lmem(instance, dest, lmem, mergetyp);
         } /* else should not happen since dlq_empty is false */
     }
 
@@ -628,17 +637,18 @@ void
 *     status
 *********************************************************************/
 status_t
-    ncx_set_strlist (const xmlChar *liststr,
+    ncx_set_strlist (ncx_instance_t *instance,
+                  const xmlChar *liststr,
                   ncx_list_t *list)
 {
 #ifdef DEBUG
     if (!liststr || !list) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    ncx_init_list(list, NCX_BT_STRING);
-    return ncx_set_list(NCX_BT_STRING, liststr, list);
+    ncx_init_list(instance, list, NCX_BT_STRING);
+    return ncx_set_list(instance, NCX_BT_STRING, liststr, list);
 
 }  /* ncx_set_strlist */
 
@@ -668,7 +678,8 @@ status_t
 *   status
 *********************************************************************/
 status_t 
-    ncx_set_list (ncx_btype_t btyp,
+    ncx_set_list (ncx_instance_t *instance,
+                  ncx_btype_t btyp,
                   const xmlChar *strval,
                   ncx_list_t  *list)
 {
@@ -680,7 +691,7 @@ status_t
     boolean            checkexists;
 
     if (!strval || !list) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
     if (!*strval) {
         return NO_ERR;
@@ -689,7 +700,7 @@ status_t
     /* probably already set but make sure */
     list->btyp = btyp;
 
-    checkexists = !dlq_empty(&list->memQ);
+    checkexists = !dlq_empty(instance, &list->memQ);
     while (!done) {
         /* skip any leading whitespace */
         while( xml_isspace( *str1 ) ) {
@@ -712,7 +723,7 @@ status_t
             if (*str2) {
                 str2++;
             } else {
-                log_info("\nncx_set_list: missing EOS marker\n  (%s)", str1);
+                log_info(instance, "\nncx_set_list: missing EOS marker\n  (%s)", str1);
             }
         } else {
             /* consume string until a WS, str-start, or EOS seen */
@@ -725,26 +736,26 @@ status_t
         }
 
         /* set up a new list string struct */
-        lmem = ncx_new_lmem();
+        lmem = ncx_new_lmem(instance);
         if (!lmem) {
             return ERR_INTERNAL_MEM;
         }
 
         /* copy the string just parsed for now just separate into strings and 
          * do not validate or parse into enums or numbers */
-        lmem->val.str = xml_strndup(str1, len);
+        lmem->val.str = xml_strndup(instance, str1, len);
         if (!lmem->val.str) {
-            ncx_free_lmem(lmem, NCX_BT_STRING);
+            ncx_free_lmem(instance, lmem, NCX_BT_STRING);
             return ERR_INTERNAL_MEM;
         }
 
         if (checkexists &&
-            ncx_string_in_list(lmem->val.str, list)) {
+            ncx_string_in_list(instance, lmem->val.str, list)) {
             /* The entry is already present, discard it */
-            ncx_free_lmem(lmem, NCX_BT_STRING);
+            ncx_free_lmem(instance, lmem, NCX_BT_STRING);
         } else {            
             /* save the list member in the Q */
-            dlq_enque(lmem, &list->memQ);
+            dlq_enque(instance, lmem, &list->memQ);
         }
 
         /* reset the string pointer and loop */
@@ -777,7 +788,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    ncx_finish_list (typ_def_t *typdef,
+    ncx_finish_list (ncx_instance_t *instance,
+                     typ_def_t *typdef,
                      ncx_list_t *list)
 {
     ncx_lmem_t      *lmem;
@@ -788,11 +800,11 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !list) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    btyp = typ_get_basetype(typdef);
+    btyp = typ_get_basetype(instance, typdef);
     res = NO_ERR;
     retres = NO_ERR;
 
@@ -806,13 +818,14 @@ status_t
     }
 
     /* go through all the list members and check them */
-    for (lmem = (ncx_lmem_t *)dlq_firstEntry(&list->memQ);
+    for (lmem = (ncx_lmem_t *)dlq_firstEntry(instance, &list->memQ);
          lmem != NULL;
-         lmem = (ncx_lmem_t *)dlq_nextEntry(lmem)) {
+         lmem = (ncx_lmem_t *)dlq_nextEntry(instance, lmem)) {
 
         str = lmem->val.str;
         if (btyp == NCX_BT_ENUM) {
-            res = val_enum_ok(typdef, 
+            res = val_enum_ok(instance, 
+                              typdef, 
                               str,
                               &lmem->val.enu.val,
                               &lmem->val.enu.name);
@@ -822,16 +835,16 @@ status_t
              */
             lmem->val.bit.dname = str;
             lmem->val.bit.name = lmem->val.bit.dname;
-            res = val_bit_ok(typdef, str, 
+            res = val_bit_ok(instance, typdef, str, 
                              &lmem->val.bit.pos);
         } else if (typ_is_number(btyp)){
-            res = ncx_decode_num(str, btyp, &lmem->val.num);
+            res = ncx_decode_num(instance, str, btyp, &lmem->val.num);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (btyp != NCX_BT_BITS) {
-            m__free(str);
+            m__free(instance, str);
         }
 
         if (res != NO_ERR) {
@@ -843,12 +856,12 @@ status_t
 
     if (retres == NO_ERR && btyp == NCX_BT_BITS) {
         /* put bits in their canonical order */
-        dlq_createSQue(&tempQ);
-        dlq_block_enque(&list->memQ, &tempQ);
+        dlq_createSQue(instance, &tempQ);
+        dlq_block_enque(instance, &list->memQ, &tempQ);
 
-        while (!dlq_empty(&tempQ)) {
-            lmem = (ncx_lmem_t *)dlq_deque(&tempQ);
-            ncx_insert_lmem(list, lmem, NCX_MERGE_SORT);
+        while (!dlq_empty(instance, &tempQ)) {
+            lmem = (ncx_lmem_t *)dlq_deque(instance, &tempQ);
+            ncx_insert_lmem(instance, list, lmem, NCX_MERGE_SORT);
         }
     }
         
@@ -869,11 +882,11 @@ status_t
 *   NULL if malloc error
 *********************************************************************/
 ncx_lmem_t *
-    ncx_new_lmem (void)
+    ncx_new_lmem (ncx_instance_t *instance)
 {
     ncx_lmem_t  *lmem;
 
-    lmem = m__getObj(ncx_lmem_t);
+    lmem = m__getObj(instance, ncx_lmem_t);
     if (!lmem) {
         return NULL;
     }
@@ -893,33 +906,34 @@ ncx_lmem_t *
 *    btyp == base type of list member (lmem)
 *********************************************************************/
 void
-    ncx_clean_lmem (ncx_lmem_t *lmem,
+    ncx_clean_lmem (ncx_instance_t *instance,
+                    ncx_lmem_t *lmem,
                     ncx_btype_t btyp)
 {
 
 #ifdef DEBUG
     if (!lmem) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (typ_is_string(btyp)) {
-        ncx_clean_str(&lmem->val.str);
+        ncx_clean_str(instance, &lmem->val.str);
     } else if (typ_is_number(btyp)) {
-        ncx_clean_num(btyp, &lmem->val.num);
+        ncx_clean_num(instance, btyp, &lmem->val.num);
     } else {
         switch (btyp) {
         case NCX_BT_ENUM:
-            ncx_clean_enum(&lmem->val.enu);
+            ncx_clean_enum(instance, &lmem->val.enu);
             break;
         case NCX_BT_BITS:
-            ncx_clean_bit(&lmem->val.bit);
+            ncx_clean_bit(instance, &lmem->val.bit);
             break;
         case NCX_BT_BOOLEAN:
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
@@ -937,17 +951,18 @@ void
 *
 *********************************************************************/
 void
-    ncx_free_lmem (ncx_lmem_t *lmem,
+    ncx_free_lmem (ncx_instance_t *instance,
+                   ncx_lmem_t *lmem,
                    ncx_btype_t btyp)
 {
 #ifdef DEBUG
     if (!lmem) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
-    ncx_clean_lmem(lmem, btyp);
-    m__free(lmem);
+    ncx_clean_lmem(instance, lmem, btyp);
+    m__free(instance, lmem);
 
 }  /* ncx_free_lmem */
 
@@ -965,7 +980,8 @@ void
 *  pointer to the first instance of this value, or NULL if none
 *********************************************************************/
 ncx_lmem_t *
-    ncx_find_lmem (ncx_list_t *list,
+    ncx_find_lmem (ncx_instance_t *instance,
+                   ncx_list_t *list,
                    const ncx_lmem_t *memval)
 {
     ncx_lmem_t        *lmem;
@@ -978,7 +994,7 @@ ncx_lmem_t *
 
 #ifdef DEBUG
     if (!list || !memval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -1000,19 +1016,19 @@ ncx_lmem_t *
     } else if (list->btyp == NCX_BT_BOOLEAN) {
         boo = memval->val.boo;
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 
-    for (lmem = (ncx_lmem_t *)dlq_firstEntry(&list->memQ);
+    for (lmem = (ncx_lmem_t *)dlq_firstEntry(instance, &list->memQ);
          lmem != NULL;
-         lmem = (ncx_lmem_t *)dlq_nextEntry(lmem)) {
+         lmem = (ncx_lmem_t *)dlq_nextEntry(instance, lmem)) {
         if (num) {
-            cmpval = ncx_compare_nums(&lmem->val.num, num, list->btyp);
+            cmpval = ncx_compare_nums(instance, &lmem->val.num, num, list->btyp);
         } else if (str) {
-            cmpval = ncx_compare_strs(&lmem->val.str, str, list->btyp);
+            cmpval = ncx_compare_strs(instance, &lmem->val.str, str, list->btyp);
         } else if (enu) {
-            cmpval = ncx_compare_enums(&lmem->val.enu, enu);
+            cmpval = ncx_compare_enums(instance, &lmem->val.enu, enu);
         } else if (bit) {
                 cmpval = ncx_compare_bits(&lmem->val.bit, bit);
         } else {
@@ -1042,7 +1058,8 @@ ncx_lmem_t *
 *   none
 *********************************************************************/
 void
-    ncx_insert_lmem (ncx_list_t *list,
+    ncx_insert_lmem (ncx_instance_t *instance,
+                     ncx_list_t *list,
                      ncx_lmem_t *memval,
                      ncx_merge_t mergetyp)
 {
@@ -1056,22 +1073,22 @@ void
 
 #ifdef DEBUG
     if (!list || !memval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     switch (mergetyp) {
     case NCX_MERGE_FIRST:
-        lmem = (ncx_lmem_t *)dlq_firstEntry(&list->memQ);
+        lmem = (ncx_lmem_t *)dlq_firstEntry(instance, &list->memQ);
         if (lmem) {
-            dlq_insertAhead(memval, lmem);
+            dlq_insertAhead(instance, memval, lmem);
         } else {
-            dlq_enque(memval, &list->memQ);
+            dlq_enque(instance, memval, &list->memQ);
         }
         break;
     case NCX_MERGE_LAST:
-        dlq_enque(memval, &list->memQ);
+        dlq_enque(instance, memval, &list->memQ);
         break;
     case NCX_MERGE_SORT:
         num = NULL;
@@ -1091,19 +1108,19 @@ void
         } else if (list->btyp == NCX_BT_BOOLEAN) {
             boo = memval->val.boo;
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return;
         }
 
-        for (lmem = (ncx_lmem_t *)dlq_firstEntry(&list->memQ);
+        for (lmem = (ncx_lmem_t *)dlq_firstEntry(instance, &list->memQ);
              lmem != NULL;
-             lmem = (ncx_lmem_t *)dlq_nextEntry(lmem)) {
+             lmem = (ncx_lmem_t *)dlq_nextEntry(instance, lmem)) {
             if (num) {
-                cmpval = ncx_compare_nums(&lmem->val.num, num, list->btyp);
+                cmpval = ncx_compare_nums(instance, &lmem->val.num, num, list->btyp);
             } else if (str) {
-                cmpval = ncx_compare_strs(&lmem->val.str, str, list->btyp);
+                cmpval = ncx_compare_strs(instance, &lmem->val.str, str, list->btyp);
             } else if (enu) {
-                cmpval = ncx_compare_enums(&lmem->val.enu, enu);
+                cmpval = ncx_compare_enums(instance, &lmem->val.enu, enu);
             } else if (bit) {
                 cmpval = ncx_compare_bits(&lmem->val.bit, bit);
             } else {
@@ -1115,16 +1132,16 @@ void
             }
 
             if (cmpval >= 0) {
-                dlq_insertAhead(memval, lmem);
+                dlq_insertAhead(instance, memval, lmem);
                 return;
             }
         }
 
         /* make new last entry */
-        dlq_enque(memval, &list->memQ);
+        dlq_enque(instance, memval, &list->memQ);
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }   
 
@@ -1143,15 +1160,15 @@ void
 *  pointer to the first list member or NULL if none
 *********************************************************************/
 ncx_lmem_t *
-    ncx_first_lmem (ncx_list_t *list)
+    ncx_first_lmem (ncx_instance_t *instance, ncx_list_t *list)
 {
 #ifdef DEBUG
     if (!list) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
-    return (ncx_lmem_t *)dlq_firstEntry(&list->memQ);
+    return (ncx_lmem_t *)dlq_firstEntry(instance, &list->memQ);
 
 }  /* ncx_first_lmem */
 

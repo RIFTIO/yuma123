@@ -205,7 +205,8 @@ static uint32 free_node_cnt = 0;
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_semiapp (tk_chain_t *tkc,
+    yang_consume_semiapp (ncx_instance_t *instance,
+                          tk_chain_t *tkc,
                           ncx_module_t *mod,
                           dlq_hdr_t *appinfoQ)
 {
@@ -215,7 +216,7 @@ status_t
 
 #ifdef DEBUG
     if (!tkc) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -223,9 +224,9 @@ status_t
     retres = NO_ERR;
 
     /* get semicolon or left brace */
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_mod_exp_err(tkc, mod, res, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         return res;
     }
         
@@ -237,13 +238,13 @@ status_t
     case TK_TT_NONE:
     default:
         res = ERR_NCX_WRONG_TKTYPE;
-        ncx_mod_exp_err(tkc, mod, res, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         switch (TK_CUR_TYP(tkc)) {
         case TK_TT_TSTRING:
         case TK_TT_MSTRING:
         case TK_TT_RBRACE:
             /* try to recover and keep parsing */
-            TK_BKUP(tkc);
+            TK_BKUP(instance, tkc);
             break;
         default:
             ;
@@ -256,7 +257,7 @@ status_t
      */
     done = FALSE;
     while (!done) {
-        res = ncx_consume_appinfo2(tkc, mod, appinfoQ);
+        res = ncx_consume_appinfo2(instance, tkc, mod, appinfoQ);
         if (res == ERR_NCX_SKIPPED) {
             res = NO_ERR;
             done = TRUE;
@@ -265,7 +266,7 @@ status_t
         }
     }
 
-    res = ncx_consume_token(tkc, mod, TK_TT_RBRACE);
+    res = ncx_consume_token(instance, tkc, mod, TK_TT_RBRACE);
     CHK_EXIT(res, retres);
 
     return retres;
@@ -296,7 +297,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_string (tk_chain_t *tkc,
+    yang_consume_string (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          ncx_module_t *mod,
                          xmlChar **field)
 {
@@ -304,23 +306,23 @@ status_t
     xmlChar    *str;
     status_t    res;
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
     if (TK_CUR_STR(tkc)) {
         if (field) {
             if (TK_CUR_MOD(tkc)) {
-                *field = m__getMem(TK_CUR_MODLEN(tkc)+TK_CUR_LEN(tkc)+2);
+                *field = m__getMem(instance, TK_CUR_MODLEN(tkc)+TK_CUR_LEN(tkc)+2);
                 if (*field) {
                     str = *field;
-                    str += xml_strncpy(str, TK_CUR_MOD(tkc),
+                    str += xml_strncpy(instance, str, TK_CUR_MOD(tkc),
                                        TK_CUR_MODLEN(tkc));
                     *str++ = ':';
                     if (TK_CUR_VAL(tkc)) {
-                        xml_strncpy(str, TK_CUR_VAL(tkc),
+                        xml_strncpy(instance, str, TK_CUR_VAL(tkc),
                                     TK_CUR_LEN(tkc));
                     } else {
                         *str = 0;
@@ -328,21 +330,22 @@ status_t
                 }
             } else {
                 if (TK_CUR_VAL(tkc)) {
-                    *field = xml_strdup(TK_CUR_VAL(tkc));
+                    *field = xml_strdup(instance, TK_CUR_VAL(tkc));
                 } else {
-                    *field = xml_strdup(EMPTY_STRING);
+                    *field = xml_strdup(instance, EMPTY_STRING);
                 }
             }
             if (!*field) {
                 res = ERR_INTERNAL_MEM;
-                ncx_print_errormsg(tkc, mod, res);
+                ncx_print_errormsg(instance, tkc, mod, res);
             }
             if (res == NO_ERR) {
-                res = tk_check_save_origstr(tkc, 
+                res = tk_check_save_origstr(instance, 
+                                            tkc, 
                                             TK_CUR(tkc),
                                             (const void *)field);
                 if (res != NO_ERR) {
-                    ncx_print_errormsg(tkc, mod, res);
+                    ncx_print_errormsg(instance, tkc, mod, res);
                 }                    
             }
         } /* else server does not save descr/ref */
@@ -350,27 +353,27 @@ status_t
         switch (TK_CUR_TYP(tkc)) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             break;
         case TK_TT_LBRACE:
         case TK_TT_RBRACE:
         case TK_TT_SEMICOL:
             res = ERR_NCX_WRONG_TKTYPE;
             expstr = "string";
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             break;
         default:
             if (field) {
                 if (TK_CUR_VAL(tkc)) {
-                    *field = xml_strdup(TK_CUR_VAL(tkc));
+                    *field = xml_strdup(instance, TK_CUR_VAL(tkc));
                 } else {
                     *field = 
-                        xml_strdup((const xmlChar *)
+                        xml_strdup(instance, (const xmlChar *)
                                    tk_get_token_name(TK_CUR_TYP(tkc)));
                 }
                 if (!*field) {
                     res = ERR_INTERNAL_MEM;
-                    ncx_print_errormsg(tkc, mod, res);
+                    ncx_print_errormsg(instance, tkc, mod, res);
                 }
             }
         }
@@ -406,7 +409,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_keyword (tk_chain_t *tkc,
+    yang_consume_keyword (ncx_instance_t *instance,
+                          tk_chain_t *tkc,
                           ncx_module_t *mod,
                           xmlChar **prefix,
                           xmlChar **field)
@@ -415,9 +419,9 @@ status_t
     status_t       res, retres;
 
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -426,14 +430,14 @@ status_t
 
     if (tktyp==TK_TT_QSTRING || tktyp==TK_TT_SQSTRING) {
         res = ERR_NCX_INVALID_VALUE;
-        log_error("\nError: quoted strings not allowed for keywords");
+        log_error(instance, "\nError: quoted strings not allowed for keywords");
     } else if (TK_CUR_ID(tkc)) {
         if (TK_CUR_VAL(tkc)) {
 
             /* right kind of tokens, validate id name string */
             if (ncx_valid_name(TK_CUR_VAL(tkc), TK_CUR_LEN(tkc))) {
                 if (field) {
-                    *field = xml_strdup(TK_CUR_VAL(tkc));
+                    *field = xml_strdup(instance, TK_CUR_VAL(tkc));
                     if (!*field) {
                         res = ERR_INTERNAL_MEM;
                     }
@@ -443,7 +447,7 @@ status_t
             }
             
             if (res != NO_ERR) {
-                ncx_mod_exp_err(tkc, mod, res, "identifier-ref string");
+                ncx_mod_exp_err(instance, tkc, mod, res, "identifier-ref string");
                 retres = res;
                 res = NO_ERR;
             }
@@ -453,7 +457,7 @@ status_t
                 if (ncx_valid_name(TK_CUR_MOD(tkc),
                                    TK_CUR_MODLEN(tkc))) {
                     if (prefix) {
-                        *prefix = xml_strdup(TK_CUR_MOD(tkc));
+                        *prefix = xml_strdup(instance, TK_CUR_MOD(tkc));
                         if (!*prefix) {
                             res = ERR_INTERNAL_MEM;
                         }
@@ -470,7 +474,7 @@ status_t
     }
 
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         retres = res;
     }
     return retres;
@@ -502,26 +506,27 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_nowsp_string (tk_chain_t *tkc,
+    yang_consume_nowsp_string (ncx_instance_t *instance,
+                               tk_chain_t *tkc,
                                ncx_module_t *mod,
                                xmlChar **field)
 {
     xmlChar      *str;
     status_t      res;
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res == NO_ERR) {
         if (TK_CUR_STR(tkc)) {
             if (TK_CUR_MOD(tkc)) {
                 if (field) {
-                    *field = m__getMem(TK_CUR_MODLEN(tkc)+TK_CUR_LEN(tkc)+2);
+                    *field = m__getMem(instance, TK_CUR_MODLEN(tkc)+TK_CUR_LEN(tkc)+2);
                     if (*field) {
                         str = *field;
-                        str += xml_strncpy(str, TK_CUR_MOD(tkc),
+                        str += xml_strncpy(instance, str, TK_CUR_MOD(tkc),
                                            TK_CUR_MODLEN(tkc));
                         *str++ = ':';
                         if (TK_CUR_VAL(tkc)) {
-                            xml_strncpy(str, TK_CUR_VAL(tkc),
+                            xml_strncpy(instance, str, TK_CUR_VAL(tkc),
                                         TK_CUR_LEN(tkc));
                         } else {
                             *str = 0;
@@ -529,9 +534,9 @@ status_t
                     }
                 }
             } else if (TK_CUR_VAL(tkc)) {
-                if (!tk_is_wsp_string(TK_CUR(tkc))) {
+                if (!tk_is_wsp_string(instance, TK_CUR(tkc))) {
                     if (field) {
-                        *field = xml_strdup(TK_CUR_VAL(tkc));
+                        *field = xml_strdup(instance, TK_CUR_VAL(tkc));
                         if (!*field) {
                             res = ERR_INTERNAL_MEM;
                         }
@@ -548,7 +553,7 @@ status_t
     }
 
     if (res != NO_ERR) {
-        ncx_mod_exp_err(tkc, mod, res, "string w/o whitespace");
+        ncx_mod_exp_err(instance, tkc, mod, res, "string w/o whitespace");
     }
     return res;
     
@@ -579,24 +584,26 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_id_string (tk_chain_t *tkc,
+    yang_consume_id_string (ncx_instance_t *instance,
+                            tk_chain_t *tkc,
                             ncx_module_t *mod,
                             xmlChar **field)
 {
     status_t      res;
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res == NO_ERR) {
         if (TK_CUR_ID(tkc) ||
-            (TK_CUR_STR(tkc) && !tk_is_wsp_string(TK_CUR(tkc)))) {
+            (TK_CUR_STR(tkc) && !tk_is_wsp_string(instance, TK_CUR(tkc)))) {
             if (TK_CUR_MOD(tkc)) {
-                log_error("\nError: Prefix '%s' not allowed",
+                log_error(instance,
+                          "\nError: Prefix '%s' not allowed",
                           TK_CUR_MOD(tkc));
                 res = ERR_NCX_INVALID_NAME;
             } else if (TK_CUR_VAL(tkc)) {
                 if (ncx_valid_name(TK_CUR_VAL(tkc), TK_CUR_LEN(tkc))) {
                     if (field) {
-                        *field = xml_strdup(TK_CUR_VAL(tkc));
+                        *field = xml_strdup(instance, TK_CUR_VAL(tkc));
                         if (!*field) {
                             res = ERR_INTERNAL_MEM;
                         }
@@ -613,9 +620,10 @@ status_t
     }
 
     if (res != NO_ERR) {
-        ncx_mod_exp_err(tkc, mod, res, "identifier string");
+        ncx_mod_exp_err(instance, tkc, mod, res, "identifier string");
     } else {
-        ncx_check_warn_idlen(tkc, 
+        ncx_check_warn_idlen(instance, 
+                             tkc, 
                              mod,
                              TK_CUR_VAL(tkc));
     }
@@ -650,7 +658,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_pid_string (tk_chain_t *tkc,
+    yang_consume_pid_string (ncx_instance_t *instance,
+                             tk_chain_t *tkc,
                              ncx_module_t *mod,
                              xmlChar **prefix,
                              xmlChar **field)
@@ -660,9 +669,9 @@ status_t
     status_t       res;
     uint32         plen, nlen;
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -697,29 +706,29 @@ status_t
 
                     /* have valid syntax for prefix:identifier */
                     if (prefix) {
-                        *prefix = xml_strndup(TK_CUR_VAL(tkc), plen);
+                        *prefix = xml_strndup(instance, TK_CUR_VAL(tkc), plen);
                         if (*prefix == NULL) {
                             res = ERR_INTERNAL_MEM;
                         }
                     }
                     if (res == NO_ERR && field) {
-                        *field = xml_strndup(p+1, nlen);
+                        *field = xml_strndup(instance, p+1, nlen);
                         if (*field == NULL) {
                             res = ERR_INTERNAL_MEM;
                             if (prefix) {
-                                m__free(*prefix);
+                                m__free(instance, *prefix);
                                 *prefix = NULL;
                             }
                         }
                     }
                     if (res != NO_ERR) {
-                        ncx_print_errormsg(tkc, mod, res);
+                        ncx_print_errormsg(instance, tkc, mod, res);
                     } else {
                         if (prefix && *prefix) {
-                            ncx_check_warn_idlen(tkc, mod, *prefix);
+                            ncx_check_warn_idlen(instance, tkc, mod, *prefix);
                         }
                         if (field && *field) {
-                            ncx_check_warn_idlen(tkc, mod, *field);
+                            ncx_check_warn_idlen(instance, tkc, mod, *field);
                         }
                     }
                     return res;
@@ -729,16 +738,16 @@ status_t
     }
 
     if (TK_CUR_ID(tkc) ||
-        (TK_CUR_STR(tkc) && !tk_is_wsp_string(TK_CUR(tkc)))) {
+        (TK_CUR_STR(tkc) && !tk_is_wsp_string(instance, TK_CUR(tkc)))) {
         if (TK_CUR_VAL(tkc)) {
             /* right kind of tokens, validate id name string */
             if (ncx_valid_name(TK_CUR_VAL(tkc), TK_CUR_LEN(tkc))) {
                 if (field) {
-                    *field = xml_strdup(TK_CUR_VAL(tkc));
+                    *field = xml_strdup(instance, TK_CUR_VAL(tkc));
                     if (*field == NULL) {
                         res = ERR_INTERNAL_MEM;
                     } else {
-                        ncx_check_warn_idlen(tkc, mod, *field);
+                        ncx_check_warn_idlen(instance, tkc, mod, *field);
                     }
                 }
             } else {
@@ -750,7 +759,7 @@ status_t
                 if (ncx_valid_name(TK_CUR_MOD(tkc),
                                    TK_CUR_MODLEN(tkc))) {
                     if (prefix) {
-                        *prefix = xml_strdup(TK_CUR_MOD(tkc));
+                        *prefix = xml_strdup(instance, TK_CUR_MOD(tkc));
                         if (*prefix == NULL) {
                             res = ERR_INTERNAL_MEM;
                         }
@@ -765,10 +774,10 @@ status_t
 
         if (res == NO_ERR) {
             if (prefix && *prefix) {
-                ncx_check_warn_idlen(tkc, mod, *prefix);
+                ncx_check_warn_idlen(instance, tkc, mod, *prefix);
             }
             if (field && *field) {
-                ncx_check_warn_idlen(tkc, mod, *field);
+                ncx_check_warn_idlen(instance, tkc, mod, *field);
             }
         }
     } else {
@@ -776,13 +785,13 @@ status_t
     }
 
     if (res != NO_ERR) {
-        ncx_mod_exp_err(tkc, mod, res, "identifier-ref string");
+        ncx_mod_exp_err(instance, tkc, mod, res, "identifier-ref string");
         if (prefix && *prefix) {
-            m__free(*prefix);
+            m__free(instance, *prefix);
             *prefix = NULL;
         }
         if (field && *field) {
-            m__free(*field);
+            m__free(instance, *field);
             *field = NULL;
         }
     }
@@ -819,7 +828,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_error_stmts (tk_chain_t  *tkc,
+    yang_consume_error_stmts (ncx_instance_t *instance,
+                              tk_chain_t  *tkc,
                               ncx_module_t *mod,
                               ncx_errinfo_t  *errinfo,
                               dlq_hdr_t *appinfoQ)
@@ -838,16 +848,16 @@ status_t
 
 #ifdef DEBUG
     if (!tkc || !errinfo) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     while (!done) {
 
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         }
 
@@ -858,12 +868,12 @@ status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
 
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, appinfoQ);
             if ( ( NO_ERR != res && res < ERR_LAST_SYS_ERR ) || 
                  res == ERR_NCX_EOF ) {
                 return res;
@@ -876,25 +886,25 @@ status_t
 
         case TK_TT_TSTRING:
             /* Got a token string so check the value */
-            if (!xml_strcmp(val, YANG_K_DESCRIPTION)) {
+            if (!xml_strcmp(instance, val, YANG_K_DESCRIPTION)) {
                 /* Optional 'description' field is present */
-                res = yang_consume_descr( tkc, mod, &err->descr, 
+                res = yang_consume_descr(instance,  tkc, mod, &err->descr, 
                                           &desc, appinfoQ );
-            } else if (!xml_strcmp(val, YANG_K_REFERENCE)) {
+            } else if (!xml_strcmp(instance, val, YANG_K_REFERENCE)) {
                 /* Optional 'description' field is present */
-                res = yang_consume_descr( tkc, mod, &err->ref, 
+                res = yang_consume_descr(instance,  tkc, mod, &err->ref, 
                                           &ref, appinfoQ );
-            } else if (!xml_strcmp(val, YANG_K_ERROR_APP_TAG)) {
+            } else if (!xml_strcmp(instance, val, YANG_K_ERROR_APP_TAG)) {
                 /* Optional 'error-app-tag' field is present */
-                res = yang_consume_strclause( tkc, mod, &err->error_app_tag, 
+                res = yang_consume_strclause(instance,  tkc, mod, &err->error_app_tag, 
                                               &etag, appinfoQ );
-            } else if (!xml_strcmp(val, YANG_K_ERROR_MESSAGE)) {
+            } else if (!xml_strcmp(instance, val, YANG_K_ERROR_MESSAGE)) {
                 /* Optional 'error-app-tag' field is present */
-                res = yang_consume_strclause( tkc, mod, &err->error_message, 
+                res = yang_consume_strclause(instance,  tkc, mod, &err->error_message, 
                                               &emsg, appinfoQ );
             } else {
                 res = ERR_NCX_WRONG_TKVAL;
-                ncx_mod_exp_err(tkc, mod, res, expstr);         
+                ncx_mod_exp_err(instance, tkc, mod, res, expstr);         
             }
             if ( ( NO_ERR != res && res < ERR_LAST_SYS_ERR ) || 
                  res == ERR_NCX_EOF ) {
@@ -904,7 +914,7 @@ status_t
 
         default:
             res = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
             break;
         }
     }
@@ -939,7 +949,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_descr (tk_chain_t  *tkc,
+    yang_consume_descr (ncx_instance_t *instance,
+                        tk_chain_t  *tkc,
                         ncx_module_t *mod,
                         xmlChar **str,
                         boolean *dupflag,
@@ -950,7 +961,7 @@ status_t
 
 #ifdef DEBUG
     if (!tkc) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -961,7 +972,7 @@ status_t
     if (dupflag) {
         if (*dupflag) {
             retres = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             save = FALSE;
         } else {
             *dupflag = TRUE;
@@ -969,18 +980,18 @@ status_t
     }
 
     /* get the string value */
-    if (ncx_save_descr() && str && save) {
-        res = yang_consume_string(tkc, mod, str);
+    if (ncx_save_descr(instance) && str && save) {
+        res = yang_consume_string(instance, tkc, mod, str);
     } else {
-        res = yang_consume_string(tkc, mod, NULL);
+        res = yang_consume_string(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
     /* finish the clause */
     if (save) {
-        res = yang_consume_semiapp(tkc, mod, appinfoQ);
+        res = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     } else {
-        res = yang_consume_semiapp(tkc, mod, NULL);
+        res = yang_consume_semiapp(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
@@ -1019,7 +1030,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_pid (tk_chain_t  *tkc,
+    yang_consume_pid (ncx_instance_t *instance,
+                      tk_chain_t  *tkc,
                       ncx_module_t *mod,
                       xmlChar **prefixstr,
                       xmlChar **str,
@@ -1031,7 +1043,7 @@ status_t
 
 #ifdef DEBUG
     if (!tkc) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1042,7 +1054,7 @@ status_t
     if (dupflag) {
         if (*dupflag) {
             retres = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             save = FALSE;
         } else {
             *dupflag = TRUE;
@@ -1050,14 +1062,14 @@ status_t
     }
 
     /* get the PID string value */
-    res = yang_consume_pid_string(tkc, mod, prefixstr, str);
+    res = yang_consume_pid_string(instance, tkc, mod, prefixstr, str);
     CHK_EXIT(res, retres);
 
     /* finish the clause */
     if (save) {
-        res = yang_consume_semiapp(tkc, mod, appinfoQ);
+        res = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     } else {
-        res = yang_consume_semiapp(tkc, mod, NULL);
+        res = yang_consume_semiapp(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
@@ -1091,7 +1103,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_strclause (tk_chain_t  *tkc,
+    yang_consume_strclause (ncx_instance_t *instance,
+                            tk_chain_t  *tkc,
                             ncx_module_t *mod,
                             xmlChar **str,
                             boolean *dupflag,
@@ -1107,7 +1120,7 @@ status_t
     if (dupflag) {
         if (*dupflag) {
             retres = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             save = FALSE;
         } else {
             *dupflag = TRUE;
@@ -1116,17 +1129,17 @@ status_t
 
     /* get the string value */
     if (str && save) {
-        res = yang_consume_string(tkc, mod, str);
+        res = yang_consume_string(instance, tkc, mod, str);
     } else {
-        res = yang_consume_string(tkc, mod, NULL);
+        res = yang_consume_string(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
     /* finish the clause */
     if (save) {
-        res = yang_consume_semiapp(tkc, mod, appinfoQ);
+        res = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     } else {
-        res = yang_consume_semiapp(tkc, mod, NULL);
+        res = yang_consume_semiapp(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
@@ -1160,7 +1173,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_status (tk_chain_t  *tkc,
+    yang_consume_status (ncx_instance_t *instance,
+                         tk_chain_t  *tkc,
                          ncx_module_t *mod,
                          ncx_status_t *status,
                          boolean *dupflag,
@@ -1179,7 +1193,7 @@ status_t
     if (dupflag) {
         if (*dupflag) {
             res = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             save = FALSE;
         } else {
             *dupflag = TRUE;
@@ -1187,12 +1201,12 @@ status_t
     }
 
     /* get the string value */
-    res = yang_consume_string(tkc, mod, &str);
+    res = yang_consume_string(instance, tkc, mod, &str);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
             if (str) {
-                m__free(str);
+                m__free(instance, str);
             }
             return res;
         }
@@ -1200,24 +1214,24 @@ status_t
 
     if (str) {
         if (status && save) {
-            *status = ncx_get_status_enum(str);
+            *status = ncx_get_status_enum(instance, str);
             stat2 = *status;
         } else {
-            stat2 = ncx_get_status_enum(str);
+            stat2 = ncx_get_status_enum(instance, str);
         }
 
         if (save && stat2 == NCX_STATUS_NONE) {
             retres = ERR_NCX_INVALID_VALUE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         }
-        m__free(str);
+        m__free(instance, str);
     }
 
     /* finish the clause */
     if (save) {
-        res = yang_consume_semiapp(tkc, mod, appinfoQ);
+        res = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     } else {
-        res = yang_consume_semiapp(tkc, mod, NULL);
+        res = yang_consume_semiapp(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
@@ -1251,7 +1265,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_ordered_by (tk_chain_t  *tkc,
+    yang_consume_ordered_by (ncx_instance_t *instance,
+                             tk_chain_t  *tkc,
                              ncx_module_t *mod,
                              boolean *ordsys,
                              boolean *dupflag,
@@ -1272,7 +1287,7 @@ status_t
     if (dupflag) {
         if (*dupflag) {
             res = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             save = FALSE;
         } else {
             *dupflag = TRUE;
@@ -1280,39 +1295,39 @@ status_t
     }
 
     /* get the string value */
-    res = yang_consume_string(tkc, mod, &str);
+    res = yang_consume_string(instance, tkc, mod, &str);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
             if (str) {
-                m__free(str);
+                m__free(instance, str);
             }
             return res;
         }
     }
 
     if (str) {
-        if (!xml_strcmp(str, YANG_K_USER)) {
+        if (!xml_strcmp(instance, str, YANG_K_USER)) {
             ordsys2 = FALSE;
-        } else if (!xml_strcmp(str, YANG_K_SYSTEM)) {
+        } else if (!xml_strcmp(instance, str, YANG_K_SYSTEM)) {
             ordsys2 = TRUE;
         } else {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         }
 
         if (ordsys && save) {
             *ordsys = ordsys2;
         }
 
-        m__free(str);
+        m__free(instance, str);
     }
 
     /* finish the clause */
     if (save) {
-        res = yang_consume_semiapp(tkc, mod, appinfoQ);
+        res = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     } else {
-        res = yang_consume_semiapp(tkc, mod, NULL);
+        res = yang_consume_semiapp(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
@@ -1346,7 +1361,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_max_elements (tk_chain_t  *tkc,
+    yang_consume_max_elements (ncx_instance_t *instance,
+                               tk_chain_t  *tkc,
                                ncx_module_t *mod,
                                uint32 *maxelems,
                                boolean *dupflag,
@@ -1358,22 +1374,23 @@ status_t
     status_t       res;
 
     res = NO_ERR;
-    nexttk = tk_next_typ(tkc);
-    nextval = tk_next_val(tkc);
+    nexttk = tk_next_typ(instance, tkc);
+    nextval = tk_next_val(instance, tkc);
 
     if (nexttk==TK_TT_DNUM) {
-        res = yang_consume_uint32(tkc, mod, maxelems,
+        res = yang_consume_uint32(instance, tkc, mod, maxelems,
                                   dupflag, appinfoQ);
     } else if (TK_TYP_STR(nexttk)) {
         str = NULL;
-        if (!xml_strcmp(nextval, YANG_K_UNBOUNDED)) {
-            res = yang_consume_strclause(tkc, 
+        if (!xml_strcmp(instance, nextval, YANG_K_UNBOUNDED)) {
+            res = yang_consume_strclause(instance, 
+                                         tkc, 
                                          mod, 
                                          &str,
                                          dupflag, 
                                          appinfoQ);
             if (str) {
-                m__free(str);
+                m__free(instance, str);
                 str = NULL;
             }
             if (maxelems) {
@@ -1381,7 +1398,8 @@ status_t
             }
         } else {
             /* may be a quoted number or an error */
-            res = yang_consume_uint32(tkc, 
+            res = yang_consume_uint32(instance, 
+                                      tkc, 
                                       mod, 
                                       maxelems,
                                       dupflag, 
@@ -1419,7 +1437,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t
-    yang_consume_must (tk_chain_t  *tkc,
+    yang_consume_must (ncx_instance_t *instance,
+                       tk_chain_t  *tkc,
                        ncx_module_t *mod,
                        dlq_hdr_t *mustQ,
                        dlq_hdr_t *appinfoQ)
@@ -1433,14 +1452,14 @@ status_t
     
 #ifdef DEBUG
     if (!tkc || !mustQ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    must = xpath_new_pcb(NULL, NULL);
+    must = xpath_new_pcb(instance, NULL, NULL);
     if (!must) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -1458,22 +1477,22 @@ status_t
     ref = FALSE;
 
     /* get the Xpath string for the must expression */
-    res = yang_consume_string(tkc, mod, &must->exprstr);
+    res = yang_consume_string(instance, tkc, mod, &must->exprstr);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
-            xpath_free_pcb(must);
+            xpath_free_pcb(instance, must);
             return retres;
         }
     }
 
     /* parse the must expression for well-formed XPath */
-    res = xpath1_parse_expr(tkc, mod, must, XP_SRC_YANG);
+    res = xpath1_parse_expr(instance, tkc, mod, must, XP_SRC_YANG);
     if (res != NO_ERR) {
         /* errors already reported */
         retres = res;
         if (NEED_EXIT(res)) {
-            xpath_free_pcb(must);
+            xpath_free_pcb(instance, must);
             return retres;
         }
     }
@@ -1482,32 +1501,32 @@ status_t
     expstr = "error-message, error-app-tag, "
         "description, or reference keywords";
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
-        xpath_free_pcb(must);
+        ncx_print_errormsg(instance, tkc, mod, res);
+        xpath_free_pcb(instance, must);
         return res;
     }
 
     switch (TK_CUR_TYP(tkc)) {
     case TK_TT_SEMICOL:
-        dlq_enque(must, mustQ);
+        dlq_enque(instance, must, mustQ);
         return retres;
     case TK_TT_LBRACE:
         break;
     default:
         res = ERR_NCX_WRONG_TKTYPE;
-        ncx_mod_exp_err(tkc, mod, res, expstr);
-        xpath_free_pcb(must);
+        ncx_mod_exp_err(instance, tkc, mod, res, expstr);
+        xpath_free_pcb(instance, must);
         return res;
     }
 
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_print_errormsg(tkc, mod, res);
-            xpath_free_pcb(must);
+            ncx_print_errormsg(instance, tkc, mod, res);
+            xpath_free_pcb(instance, must);
             return res;
         }
 
@@ -1518,58 +1537,62 @@ status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_print_errormsg(tkc, mod, res);
-            xpath_free_pcb(must);
+            ncx_print_errormsg(instance, tkc, mod, res);
+            xpath_free_pcb(instance, must);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, mod, appinfoQ);
+            res = ncx_consume_appinfo(instance, tkc, mod, appinfoQ);
             if (res != NO_ERR) {
                 retres = res;
                 if (NEED_EXIT(res)) {
-                    xpath_free_pcb(must);
+                    xpath_free_pcb(instance, must);
                     return retres;
                 }
             }
             continue;
         case TK_TT_RBRACE:
-            dlq_enque(must, mustQ);
+            dlq_enque(instance, must, mustQ);
             return retres;
         case TK_TT_TSTRING:
             break;  /* YANG clause assumed */
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
-            xpath_free_pcb(must);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
+            xpath_free_pcb(instance, must);
             done = TRUE;
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_ERROR_APP_TAG)) {
+        if (!xml_strcmp(instance, val, YANG_K_ERROR_APP_TAG)) {
             /* Optional 'error-app-tag' field is present */
-            res = yang_consume_strclause(tkc, 
+            res = yang_consume_strclause(instance, 
+                                         tkc, 
                                          mod,
                                          &must->errinfo.error_app_tag,
                                          &etag, 
                                          appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_ERROR_MESSAGE)) {
+        } else if (!xml_strcmp(instance, val, YANG_K_ERROR_MESSAGE)) {
             /* Optional 'error-message' field is present */
-            res = yang_consume_strclause(tkc, 
+            res = yang_consume_strclause(instance, 
+                                         tkc, 
                                          mod,
                                          &must->errinfo.error_message,
                                          &emsg, 
                                          appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_DESCRIPTION)) {
+        } else if (!xml_strcmp(instance, val, YANG_K_DESCRIPTION)) {
             /* Optional 'description' field is present */
-            res = yang_consume_descr(tkc, 
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &must->errinfo.descr,
                                      &desc, 
                                      appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_REFERENCE)) {
+        } else if (!xml_strcmp(instance, val, YANG_K_REFERENCE)) {
             /* Optional 'reference' field is present */
-            res = yang_consume_descr(tkc, 
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &must->errinfo.ref,
                                      &ref, 
@@ -1577,12 +1600,12 @@ status_t
         } else {
             expstr = "must sub-statement";
             res = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         }
         if (res != NO_ERR) {
             retres = res;
             if (NEED_EXIT(res)) {
-                xpath_free_pcb(must);
+                xpath_free_pcb(instance, must);
                 done = TRUE;
             }
         }
@@ -1620,7 +1643,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t
-    yang_consume_when (tk_chain_t  *tkc,
+    yang_consume_when (ncx_instance_t *instance,
+                       tk_chain_t  *tkc,
                        ncx_module_t *mod,
                        obj_template_t *obj,
                        boolean        *whenflag)
@@ -1634,7 +1658,7 @@ status_t
 
 #ifdef DEBUG
     if (!tkc || !mod || !obj) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1643,16 +1667,16 @@ status_t
     if (whenflag) {
         if (*whenflag) {
             retres = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         } else {
             *whenflag = TRUE;
         }
     }
 
-    when = xpath_new_pcb(NULL, NULL);
+    when = xpath_new_pcb(instance, NULL, NULL);
     if (!when) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -1670,7 +1694,7 @@ status_t
     obj->when = when;
 
     /* get the Xpath string for the when expression */
-    res = yang_consume_string(tkc, mod, &when->exprstr);
+    res = yang_consume_string(instance, tkc, mod, &when->exprstr);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
@@ -1679,7 +1703,7 @@ status_t
     }
 
     /* parse the must expression for well-formed XPath */
-    res = xpath1_parse_expr(tkc, mod, when, XP_SRC_YANG);
+    res = xpath1_parse_expr(instance, tkc, mod, when, XP_SRC_YANG);
     if (res != NO_ERR) {
         /* errors already reported */
         retres = res;
@@ -1691,9 +1715,9 @@ status_t
     /* move on to the must sub-clauses, if any */
     expstr = "description or reference keywords";
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
@@ -1704,15 +1728,15 @@ status_t
         break;
     default:
         res = ERR_NCX_WRONG_TKTYPE;
-        ncx_mod_exp_err(tkc, mod, res, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         return res;
     }
 
     while (!done) {
         /* get the next token */
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         }
 
@@ -1723,11 +1747,12 @@ status_t
         switch (tktyp) {
         case TK_TT_NONE:
             res = ERR_NCX_EOF;
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
             return res;
         case TK_TT_MSTRING:
             /* vendor-specific clause found instead */
-            res = ncx_consume_appinfo(tkc, 
+            res = ncx_consume_appinfo(instance, 
+                                      tkc, 
                                       mod, 
                                       &obj->appinfoQ);
             if (res != NO_ERR) {
@@ -1743,29 +1768,31 @@ status_t
             break;  /* YANG clause assumed */
         default:
             retres = ERR_NCX_WRONG_TKTYPE;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
             done = TRUE;
             continue;
         }
 
         /* Got a token string so check the value */
-        if (!xml_strcmp(val, YANG_K_DESCRIPTION)) {
+        if (!xml_strcmp(instance, val, YANG_K_DESCRIPTION)) {
             /* Optional 'description' field is present */
-            res = yang_consume_descr(tkc, 
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &when->errinfo.descr,
                                      &desc, 
                                      &obj->appinfoQ);
-        } else if (!xml_strcmp(val, YANG_K_REFERENCE)) {
+        } else if (!xml_strcmp(instance, val, YANG_K_REFERENCE)) {
             /* Optional 'reference' field is present */
-            res = yang_consume_descr(tkc, 
+            res = yang_consume_descr(instance, 
+                                     tkc, 
                                      mod, 
                                      &when->errinfo.ref,
                                      &ref, 
                                      &obj->appinfoQ);
         } else {
             res = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, res, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, res, expstr);
         }
         if (res != NO_ERR) {
             retres = res;
@@ -1805,7 +1832,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t
-    yang_consume_iffeature (tk_chain_t *tkc,
+    yang_consume_iffeature (ncx_instance_t *instance,
+                            tk_chain_t *tkc,
                             ncx_module_t *mod,
                             dlq_hdr_t *iffeatureQ,
                             dlq_hdr_t *appinfoQ)
@@ -1816,46 +1844,48 @@ status_t
     
 #ifdef DEBUG
     if (!tkc || !mod || !iffeatureQ || !appinfoQ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     prefix = NULL;
     name = NULL;
 
-    res = yang_consume_pid_string(tkc, mod, &prefix, &name);
+    res = yang_consume_pid_string(instance, tkc, mod, &prefix, &name);
     if (res == NO_ERR) {
         /* check if this if if-feature already entered warning */
-        iff = ncx_find_iffeature(iffeatureQ,
+        iff = ncx_find_iffeature(instance,
+                                 iffeatureQ,
                                  prefix, 
                                  name,
                                  mod->prefix);
         if (iff) {
-            if (ncx_warning_enabled(ERR_NCX_DUP_IF_FEATURE)) {
-                log_warn("\nWarning: if-feature '%s%s%s' "
+            if (ncx_warning_enabled(instance, ERR_NCX_DUP_IF_FEATURE)) {
+                log_warn(instance,
+                         "\nWarning: if-feature '%s%s%s' "
                          "already specified on line %u",
                          (prefix) ? prefix : EMPTY_STRING,
                          (prefix) ? ":" :  "", 
                          name,
                          iff->tkerr.linenum);
-                ncx_print_errormsg(tkc, mod, ERR_NCX_DUP_IF_FEATURE);
+                ncx_print_errormsg(instance, tkc, mod, ERR_NCX_DUP_IF_FEATURE);
             } else {
                 ncx_inc_warnings(mod);
             }
             if (prefix) {
-                m__free(prefix);
+                m__free(instance, prefix);
             }
-            m__free(name);
+            m__free(instance, name);
         } else {
             /* not found so add it to the if-feature Q */
-            iff = ncx_new_iffeature();
+            iff = ncx_new_iffeature(instance);
             if (!iff) {
                 res = ERR_INTERNAL_MEM;
-                ncx_print_errormsg(tkc, mod, res);
+                ncx_print_errormsg(instance, tkc, mod, res);
                 if (prefix) {
-                    m__free(prefix);
+                    m__free(instance, prefix);
                 }
-                m__free(name);
+                m__free(instance, name);
             } else {
                 /* transfer malloced fields */
                 iff->prefix = prefix;
@@ -1864,13 +1894,13 @@ status_t
                               mod,
                               TK_CUR_LNUM(tkc),
                               TK_CUR_LPOS(tkc));
-                dlq_enque(iff, iffeatureQ);
+                dlq_enque(instance, iff, iffeatureQ);
             }
         }
     }
 
     /* get the closing semi-colon even if previous error */
-    res2 = yang_consume_semiapp(tkc, mod, appinfoQ);
+    res2 = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     if (res == NO_ERR) {
         res = res2;
     }
@@ -1905,7 +1935,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_boolean (tk_chain_t  *tkc,
+    yang_consume_boolean (ncx_instance_t *instance,
+                          tk_chain_t  *tkc,
                           ncx_module_t *mod,
                           boolean *boolval,
                           boolean *dupflag,
@@ -1924,7 +1955,7 @@ status_t
     if (dupflag) {
         if (*dupflag) {
             retres = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             save = FALSE;
         } else {
             *dupflag = TRUE;
@@ -1932,38 +1963,38 @@ status_t
     }
 
     /* get the string value */
-    res = yang_consume_string(tkc, mod, &str);
+    res = yang_consume_string(instance, tkc, mod, &str);
     if (res != NO_ERR) {
         retres = res;
         if (NEED_EXIT(res)) {
             if (str) {
-                m__free(str);
+                m__free(instance, str);
             }
             return res;
         }
     }
 
     if (str) {
-        if (!xml_strcmp(str, NCX_EL_TRUE)) {
+        if (!xml_strcmp(instance, str, NCX_EL_TRUE)) {
             if (save) {
                 *boolval = TRUE;
             }
-        } else if (!xml_strcmp(str, NCX_EL_FALSE)) {
+        } else if (!xml_strcmp(instance, str, NCX_EL_FALSE)) {
             if (save) {
                 *boolval = FALSE;
             }
         } else {
             retres = ERR_NCX_WRONG_TKVAL;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         }
-        m__free(str);
+        m__free(instance, str);
     }
 
     /* finish the clause */
     if (save) {
-        res = yang_consume_semiapp(tkc, mod, appinfoQ);
+        res = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     } else {
-        res = yang_consume_semiapp(tkc, mod, NULL);
+        res = yang_consume_semiapp(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
@@ -1997,7 +2028,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_int32 (tk_chain_t  *tkc,
+    yang_consume_int32 (ncx_instance_t *instance,
+                        tk_chain_t  *tkc,
                         ncx_module_t *mod,
                         int32 *num,
                         boolean *dupflag,
@@ -2015,38 +2047,38 @@ status_t
     if (dupflag) {
         if (*dupflag) {
             retres = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             save = FALSE;
         } else {
             *dupflag = TRUE;
         }
     }
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
     if (TK_CUR_NUM(tkc) || TK_CUR_STR(tkc)) {
-        res = ncx_convert_tkcnum(tkc, NCX_BT_INT32, &numstruct);
+        res = ncx_convert_tkcnum(instance, tkc, NCX_BT_INT32, &numstruct);
         if (res == NO_ERR) {
             if (num && save) {
                 *num = numstruct.i;
             }
         } else {
             retres = res;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         }
     } else {
         retres = ERR_NCX_WRONG_TKTYPE;
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
     }
 
     if (save) {
-        res = yang_consume_semiapp(tkc, mod, appinfoQ);
+        res = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     } else {
-        res = yang_consume_semiapp(tkc, mod, NULL);
+        res = yang_consume_semiapp(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
@@ -2080,7 +2112,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_consume_uint32 (tk_chain_t  *tkc,
+    yang_consume_uint32 (ncx_instance_t *instance,
+                         tk_chain_t  *tkc,
                          ncx_module_t *mod,
                          uint32 *num,
                          boolean *dupflag,
@@ -2098,38 +2131,38 @@ status_t
     if (dupflag) {
         if (*dupflag) {
             retres = ERR_NCX_ENTRY_EXISTS;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
             save = FALSE;
         } else {
             *dupflag = TRUE;
         }
     }
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, mod, res);
+        ncx_print_errormsg(instance, tkc, mod, res);
         return res;
     }
 
     if (TK_CUR_NUM(tkc) || TK_CUR_STR(tkc)) {
-        res = ncx_convert_tkcnum(tkc, NCX_BT_UINT32, &numstruct);
+        res = ncx_convert_tkcnum(instance, tkc, NCX_BT_UINT32, &numstruct);
         if (res == NO_ERR) {
             if (num && save) {
                 *num = numstruct.u;
             }
         } else {
             retres = res;
-            ncx_mod_exp_err(tkc, mod, retres, expstr);
+            ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
         }
     } else {
         retres = ERR_NCX_WRONG_TKTYPE;
-        ncx_mod_exp_err(tkc, mod, retres, expstr);
+        ncx_mod_exp_err(instance, tkc, mod, retres, expstr);
     }   
 
     if (save) {
-        res = yang_consume_semiapp(tkc, mod, appinfoQ);
+        res = yang_consume_semiapp(instance, tkc, mod, appinfoQ);
     } else {
-        res = yang_consume_semiapp(tkc, mod, NULL);
+        res = yang_consume_semiapp(instance, tkc, mod, NULL);
     }
     CHK_EXIT(res, retres);
 
@@ -2162,7 +2195,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_find_imp_typedef (yang_pcb_t *pcb,
+    yang_find_imp_typedef (ncx_instance_t *instance,
+                           yang_pcb_t *pcb,
                            tk_chain_t  *tkc,
                            ncx_module_t *mod,
                            const xmlChar *prefix,
@@ -2176,25 +2210,27 @@ status_t
 
 #ifdef DEBUG
     if (!pcb || !tkc || !mod || !prefix || !name || !typ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     *typ = NULL;
 
-    imp = ncx_find_pre_import(mod, prefix);
+    imp = ncx_find_pre_import(instance, mod, prefix);
     if (!imp) {
         res = ERR_NCX_PREFIX_NOT_FOUND;
-        log_error("\nError: import for prefix '%s' not found",
+        log_error(instance,
+                  "\nError: import for prefix '%s' not found",
                   prefix);
     } else {
         /* found import OK, look up imported type definition */
         dtyp = NCX_NT_TYP;
         *typ = (typ_template_t *)
-            ncx_locate_modqual_import(pcb, imp, name, &dtyp);
+            ncx_locate_modqual_import(instance, pcb, imp, name, &dtyp);
         if (!*typ) {
             res = ERR_NCX_DEF_NOT_FOUND;
-            log_error("\nError: typedef definition for '%s:%s' not found"
+            log_error(instance, 
+                      "\nError: typedef definition for '%s:%s' not found"
                       " in module %s", 
                       prefix, 
                       name, 
@@ -2206,7 +2242,7 @@ status_t
     }
 
     tkc->curerr = tkerr;
-    ncx_print_errormsg(tkc, mod, res);
+    ncx_print_errormsg(instance, tkc, mod, res);
 
     return res;
 
@@ -2237,7 +2273,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_find_imp_grouping (yang_pcb_t *pcb,
+    yang_find_imp_grouping (ncx_instance_t *instance,
+                            yang_pcb_t *pcb,
                             tk_chain_t  *tkc,
                             ncx_module_t *mod,
                             const xmlChar *prefix,
@@ -2251,26 +2288,28 @@ status_t
 
 #ifdef DEBUG
     if (!pcb || !tkc || !mod || !prefix || !name || !grp) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
     *grp = NULL;
 
-    imp = ncx_find_pre_import(mod, prefix);
+    imp = ncx_find_pre_import(instance, mod, prefix);
     if (!imp) {
         res = ERR_NCX_PREFIX_NOT_FOUND;
-        log_error("\nError: import for prefix '%s' not found",
+        log_error(instance,
+                  "\nError: import for prefix '%s' not found",
                   prefix);
     } else {
         /* found import OK, look up imported type definition */
         dtyp = NCX_NT_GRP;
         *grp = (grp_template_t *)
-            ncx_locate_modqual_import(pcb, imp, name, &dtyp);
+            ncx_locate_modqual_import(instance, pcb, imp, name, &dtyp);
         if (!*grp) {
             res = ERR_NCX_DEF_NOT_FOUND;
-            log_error("\nError: grouping definition for '%s:%s' not found"
+            log_error(instance, 
+                      "\nError: grouping definition for '%s:%s' not found"
                       " in module %s", 
                       prefix, 
                       name, 
@@ -2281,7 +2320,7 @@ status_t
     }
 
     tkc->curerr = tkerr;
-    ncx_print_errormsg(tkc, mod, res);
+    ncx_print_errormsg(instance, tkc, mod, res);
 
     return res;
 
@@ -2312,7 +2351,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_find_imp_extension (yang_pcb_t *pcb,
+    yang_find_imp_extension (ncx_instance_t *instance,
+                             yang_pcb_t *pcb,
                              tk_chain_t  *tkc,
                              ncx_module_t *mod,
                              const xmlChar *prefix,
@@ -2325,34 +2365,37 @@ status_t
 
 #ifdef DEBUG
     if (!pcb || !tkc || !mod || !prefix || !name || !ext) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
     *ext = NULL;
 
-    imp = ncx_find_pre_import(mod, prefix);
+    imp = ncx_find_pre_import(instance, mod, prefix);
     if (imp == NULL) {
         res = ERR_NCX_PREFIX_NOT_FOUND;
-        log_error("\nError: import for prefix '%s' not found", prefix);
+        log_error(instance, "\nError: import for prefix '%s' not found", prefix);
     } else if (imp->mod == NULL) {
-        res = ncxmod_load_module(imp->module, 
+        res = ncxmod_load_module(instance, 
+                                 imp->module, 
                                  imp->revision,
                                  pcb->savedevQ,
                                  &imp->mod);
         if (res != NO_ERR) {
-            log_error("\nError: failure importing module '%s'",
+            log_error(instance,
+                      "\nError: failure importing module '%s'",
                       imp->module);
         }
     }
         
     /* found import OK, look up imported extension definition */
     if (imp != NULL && imp->mod != NULL) {
-        *ext = ext_find_extension(imp->mod, name);
+        *ext = ext_find_extension(instance, imp->mod, name);
         if (*ext == NULL) {
             res = ERR_NCX_DEF_NOT_FOUND;
-            log_error("\nError: extension definition for '%s:%s' not found"
+            log_error(instance, 
+                      "\nError: extension definition for '%s:%s' not found"
                       " in module %s", 
                       prefix, 
                       name, 
@@ -2363,7 +2406,7 @@ status_t
     }
 
     tkc->curerr = tkerr;
-    ncx_print_errormsg(tkc, mod, res);
+    ncx_print_errormsg(instance, tkc, mod, res);
 
     return res;
 
@@ -2394,7 +2437,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_find_imp_feature (yang_pcb_t *pcb,
+    yang_find_imp_feature (ncx_instance_t *instance,
+                           yang_pcb_t *pcb,
                            tk_chain_t  *tkc,
                            ncx_module_t *mod,
                            const xmlChar *prefix,
@@ -2407,24 +2451,26 @@ status_t
 
 #ifdef DEBUG
     if (!pcb || !tkc || !mod || !prefix || !name || !feature) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
     *feature = NULL;
 
-    imp = ncx_find_pre_import(mod, prefix);
+    imp = ncx_find_pre_import(instance, mod, prefix);
     if (imp == NULL) {
         res = ERR_NCX_PREFIX_NOT_FOUND;
-        log_error("\nError: import for prefix '%s' not found", prefix);
+        log_error(instance, "\nError: import for prefix '%s' not found", prefix);
     } else if (imp->mod == NULL) {
-        res = ncxmod_load_module(imp->module,
+        res = ncxmod_load_module(instance,
+                                 imp->module,
                                  imp->revision,
                                  pcb->savedevQ,
                                  &imp->mod);
         if (imp->mod == NULL) {
-            log_error("\nError: failure importing module '%s'",
+            log_error(instance,
+                      "\nError: failure importing module '%s'",
                       imp->module);
             res = ERR_NCX_DEF_NOT_FOUND;
         }
@@ -2432,10 +2478,11 @@ status_t
 
     /* found import OK, look up imported extension definition */
     if (imp != NULL && imp->mod != NULL) {
-        *feature = ncx_find_feature(imp->mod, name);
+        *feature = ncx_find_feature(instance, imp->mod, name);
         if (*feature == NULL) {
             res = ERR_NCX_DEF_NOT_FOUND;
-            log_error("\nError: feature definition for '%s:%s' not found"
+            log_error(instance, 
+                      "\nError: feature definition for '%s:%s' not found"
                       " in module %s", 
                       prefix, 
                       name, 
@@ -2446,7 +2493,7 @@ status_t
     }
 
     tkc->curerr = tkerr;
-    ncx_print_errormsg(tkc, mod, res);
+    ncx_print_errormsg(instance, tkc, mod, res);
 
     return res;
 
@@ -2477,7 +2524,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    yang_find_imp_identity (yang_pcb_t *pcb,
+    yang_find_imp_identity (ncx_instance_t *instance,
+                            yang_pcb_t *pcb,
                             tk_chain_t  *tkc,
                             ncx_module_t *mod,
                             const xmlChar *prefix,
@@ -2490,24 +2538,26 @@ status_t
 
 #ifdef DEBUG
     if (!pcb || !tkc || !mod || !prefix || !name || !identity) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
     *identity = NULL;
 
-    imp = ncx_find_pre_import(mod, prefix);
+    imp = ncx_find_pre_import(instance, mod, prefix);
     if (imp == NULL) {
         res = ERR_NCX_PREFIX_NOT_FOUND;
-        log_error("\nError: import for prefix '%s' not found", prefix);
+        log_error(instance, "\nError: import for prefix '%s' not found", prefix);
     } else if (imp->mod == NULL) {
-        res = ncxmod_load_module(imp->module,
+        res = ncxmod_load_module(instance,
+                                 imp->module,
                                  imp->revision,
                                  pcb->savedevQ,
                                  &imp->mod);
         if (imp->mod == NULL) {
-            log_error("\nError: failure importing module '%s'",
+            log_error(instance,
+                      "\nError: failure importing module '%s'",
                       imp->module);
             res = ERR_NCX_DEF_NOT_FOUND;
         }
@@ -2515,10 +2565,11 @@ status_t
 
     if (imp != NULL && imp->mod != NULL) {
         /* found import OK, look up imported extension definition */
-        *identity = ncx_find_identity(imp->mod, name, FALSE);
+        *identity = ncx_find_identity(instance, imp->mod, name, FALSE);
         if (*identity == NULL) {
             res = ERR_NCX_DEF_NOT_FOUND;
-            log_error("\nError: identity definition for '%s:%s' not found"
+            log_error(instance, 
+                      "\nError: identity definition for '%s:%s' not found"
                       " in module %s", 
                       prefix, 
                       name, 
@@ -2529,7 +2580,7 @@ status_t
     }
 
     tkc->curerr = tkerr;
-    ncx_print_errormsg(tkc, mod, res);
+    ncx_print_errormsg(instance, tkc, mod, res);
 
     return res;
 
@@ -2554,7 +2605,8 @@ status_t
 *
 *********************************************************************/
 void
-    yang_check_obj_used (tk_chain_t *tkc,
+    yang_check_obj_used (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          ncx_module_t *mod,
                          dlq_hdr_t *typeQ,
                          dlq_hdr_t *grpQ)
@@ -2564,34 +2616,36 @@ void
 
 #ifdef DEBUG
     if (!tkc || !mod || !typeQ || !grpQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    for (testtyp = (typ_template_t *)dlq_firstEntry(typeQ);
+    for (testtyp = (typ_template_t *)dlq_firstEntry(instance, typeQ);
          testtyp != NULL;
-         testtyp = (typ_template_t *)dlq_nextEntry(testtyp)) {
+         testtyp = (typ_template_t *)dlq_nextEntry(instance, testtyp)) {
         if (!testtyp->used) {
-            if (ncx_warning_enabled(ERR_NCX_TYPDEF_NOT_USED)) {
-                log_warn("\nWarning: Local typedef '%s' not used",
+            if (ncx_warning_enabled(instance, ERR_NCX_TYPDEF_NOT_USED)) {
+                log_warn(instance,
+                         "\nWarning: Local typedef '%s' not used",
                          testtyp->name);
                 tkc->curerr = &testtyp->tkerr;
-                ncx_print_errormsg(tkc, mod, ERR_NCX_TYPDEF_NOT_USED);
+                ncx_print_errormsg(instance, tkc, mod, ERR_NCX_TYPDEF_NOT_USED);
             } else {
                 ncx_inc_warnings(mod);
             }
         }
     }
-    for (testgrp = (grp_template_t *)dlq_firstEntry(grpQ);
+    for (testgrp = (grp_template_t *)dlq_firstEntry(instance, grpQ);
          testgrp != NULL;
-         testgrp = (grp_template_t *)dlq_nextEntry(testgrp)) {
+         testgrp = (grp_template_t *)dlq_nextEntry(instance, testgrp)) {
         if (!testgrp->used) {
-            if (ncx_warning_enabled(ERR_NCX_GRPDEF_NOT_USED)) {
-                log_warn("\nWarning: Local grouping '%s' not used",
+            if (ncx_warning_enabled(instance, ERR_NCX_GRPDEF_NOT_USED)) {
+                log_warn(instance,
+                         "\nWarning: Local grouping '%s' not used",
                          testgrp->name);
                 tkc->curerr = &testgrp->tkerr;
-                ncx_print_errormsg(tkc, mod, ERR_NCX_GRPDEF_NOT_USED);
+                ncx_print_errormsg(instance, tkc, mod, ERR_NCX_GRPDEF_NOT_USED);
             } else {
                 ncx_inc_warnings(mod);
             }
@@ -2617,7 +2671,8 @@ void
 *
 *********************************************************************/
 void
-    yang_check_imports_used (tk_chain_t *tkc,
+    yang_check_imports_used (ncx_instance_t *instance,
+                             tk_chain_t *tkc,
                              ncx_module_t *mod)
 {
     ncx_import_t  *testimp;
@@ -2626,23 +2681,24 @@ void
 
 #ifdef DEBUG
     if (!tkc || !mod) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     impmod = NULL;
 
-    for (testimp = (ncx_import_t *)dlq_firstEntry(&mod->importQ);
+    for (testimp = (ncx_import_t *)dlq_firstEntry(instance, &mod->importQ);
          testimp != NULL;
-         testimp = (ncx_import_t *)dlq_nextEntry(testimp)) {
+         testimp = (ncx_import_t *)dlq_nextEntry(instance, testimp)) {
 
         if (!testimp->used) {
-            if (ncx_warning_enabled(ERR_NCX_IMPORT_NOT_USED)) {
-                log_warn("\nWarning: Module '%s' not used", 
+            if (ncx_warning_enabled(instance, ERR_NCX_IMPORT_NOT_USED)) {
+                log_warn(instance, 
+                         "\nWarning: Module '%s' not used", 
                          testimp->module);
                 tkc->curerr = &testimp->tkerr;
-                ncx_print_errormsg(tkc, mod, ERR_NCX_IMPORT_NOT_USED);
+                ncx_print_errormsg(instance, tkc, mod, ERR_NCX_IMPORT_NOT_USED);
             } else {
                 ncx_inc_warnings(mod);
             }
@@ -2651,7 +2707,8 @@ void
 
         /* find the imported module */
         if (testimp->mod == NULL) {
-            impmod = ncx_find_module(testimp->module,
+            impmod = ncx_find_module(instance,
+                                     testimp->module,
                                      testimp->revision);
 
             /* save the import back-ptr since it is not already set */
@@ -2666,10 +2723,12 @@ void
             impmod->version && 
             mod->version) {
 
-            ret = yang_compare_revision_dates(impmod->version,
+            ret = yang_compare_revision_dates(instance,
+                                              impmod->version,
                                               mod->version);
             if (ret > 0 && LOGDEBUG2) {
-                log_debug2("\nNote: imported module '%s' (%s)"
+                log_debug2(instance,
+                           "\nNote: imported module '%s' (%s)"
                            " is newer than '%s' (%s)",
                            impmod->name, 
                            (impmod->version) 
@@ -2692,11 +2751,11 @@ void
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_node_t *
-    yang_new_node (void)
+    yang_new_node (ncx_instance_t *instance)
 {
     yang_node_t *node;
 
-    node = m__getObj(yang_node_t);
+    node = m__getObj(instance, yang_node_t);
     if (!node) {
         return NULL;
     }
@@ -2704,7 +2763,7 @@ yang_node_t *
 #ifdef YANG_DEBUG
     new_node_cnt++;
     if (LOGDEBUG4) {
-        log_debug4("\nyang_new_node: %p (%u)", node, new_node_cnt);
+        log_debug4(instance, "\nyang_new_node: %p (%u)", node, new_node_cnt);
     }
 #endif
 
@@ -2724,11 +2783,11 @@ yang_node_t *
 *
 *********************************************************************/
 void
-    yang_free_node (yang_node_t *node)
+    yang_free_node (ncx_instance_t *instance, yang_node_t *node)
 {
 #ifdef DEBUG
     if (!node) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2736,23 +2795,23 @@ void
 #ifdef YANG_DEBUG
     free_node_cnt++;
     if (LOGDEBUG4) {
-        log_debug4("\nyang_free_node: %p (%u)", node, free_node_cnt);
+        log_debug4(instance, "\nyang_free_node: %p (%u)", node, free_node_cnt);
         if (node->submod && node->submod->name) {
-            log_debug4(" %s", node->submod->name);
+            log_debug4(instance, " %s", node->submod->name);
         }
     }
 #endif
 
     if (node->submod) {
-        ncx_free_module(node->submod);
+        ncx_free_module(instance, node->submod);
     }
     if (node->failed) {
-        m__free(node->failed);
+        m__free(instance, node->failed);
     }
     if (node->failedrev) {
-        m__free(node->failedrev);
+        m__free(instance, node->failedrev);
     }
-    m__free(node);
+    m__free(instance, node);
 
 }  /* yang_free_node */
 
@@ -2767,20 +2826,20 @@ void
 *
 *********************************************************************/
 void
-    yang_clean_nodeQ (dlq_hdr_t *que)
+    yang_clean_nodeQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     yang_node_t *node;
 
 #ifdef DEBUG
     if (!que) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    while (!dlq_empty(que)) {
-        node = (yang_node_t *)dlq_deque(que);
-        yang_free_node(node);
+    while (!dlq_empty(instance, que)) {
+        node = (yang_node_t *)dlq_deque(instance, que);
+        yang_free_node(instance, node);
     }
 
 }  /* yang_clean_nodeQ */
@@ -2800,7 +2859,8 @@ void
 *    pointer to found node, NULL if not found
 *********************************************************************/
 yang_node_t *
-    yang_find_node (const dlq_hdr_t *que,
+    yang_find_node (ncx_instance_t *instance,
+                    const dlq_hdr_t *que,
                     const xmlChar *name,
                     const xmlChar *revision)
 {
@@ -2808,17 +2868,18 @@ yang_node_t *
 
 #ifdef DEBUG
     if (!que || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (node = (yang_node_t *)dlq_firstEntry(que);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, que);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
-        if (!xml_strcmp(node->name, name)) {
-            if (!yang_compare_revision_dates(node->revision,
+        if (!xml_strcmp(instance, node->name, name)) {
+            if (!yang_compare_revision_dates(instance,
+                                             node->revision,
                                              revision)) {
                 return node;
             }
@@ -2842,7 +2903,8 @@ yang_node_t *
 *    pointer to found node, NULL if not found
 *********************************************************************/
 void
-    yang_dump_nodeQ (dlq_hdr_t *que,
+    yang_dump_nodeQ (ncx_instance_t *instance,
+                     dlq_hdr_t *que,
                      const char *name)
 {
     yang_node_t *node;
@@ -2850,7 +2912,7 @@ void
 
 #ifdef DEBUG
     if (!que) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2862,28 +2924,29 @@ void
     anyout = FALSE;
     if (name) {
         anyout = TRUE;
-        log_debug3("\n%s Q:", name);
+        log_debug3(instance, "\n%s Q:", name);
     }
 
-    for (node = (yang_node_t *)dlq_firstEntry(que);
+    for (node = (yang_node_t *)dlq_firstEntry(instance, que);
          node != NULL;
-         node = (yang_node_t *)dlq_nextEntry(node)) {
+         node = (yang_node_t *)dlq_nextEntry(instance, node)) {
 
         anyout = TRUE;
-        log_debug3("\nNode %s ", node->name);
+        log_debug3(instance, "\nNode %s ", node->name);
 
         if (node->res != NO_ERR) {
-            log_debug3("res: %s ", get_error_string(node->res));
+            log_debug3(instance, "res: %s ", get_error_string(node->res));
         }
 
         if (node->mod) {
-            log_debug3("%smod:%s",
+            log_debug3(instance,
+                      "%smod:%s",
                       node->mod->ismod ? "" : "sub", node->mod->name);
         }
     }
 
     if (anyout) {
-        log_debug3("\n");
+        log_debug3(instance, "\n");
     }
 
 }  /* yang_dump_nodeQ */
@@ -2898,24 +2961,24 @@ void
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_pcb_t *
-    yang_new_pcb (void)
+    yang_new_pcb (ncx_instance_t *instance)
 {
     yang_pcb_t *pcb;
 
-    pcb = m__getObj(yang_pcb_t);
+    pcb = m__getObj(instance, yang_pcb_t);
     if (!pcb) {
         return NULL;
     }
 
     memset(pcb, 0x0, sizeof(yang_pcb_t));
-    dlq_createSQue(&pcb->impchainQ);
-    dlq_createSQue(&pcb->allimpQ);
-    dlq_createSQue(&pcb->failedQ);
+    dlq_createSQue(instance, &pcb->impchainQ);
+    dlq_createSQue(instance, &pcb->allimpQ);
+    dlq_createSQue(instance, &pcb->failedQ);
     /* needed for init load and imports for yangdump
      * do not do this for the agent, which will set 'save descr' 
      * mode to FALSE to indicate do not care about module display
      */
-    pcb->stmtmode = ncx_save_descr(); 
+    pcb->stmtmode = ncx_save_descr(instance); 
 
     return pcb;
 
@@ -2932,11 +2995,11 @@ yang_pcb_t *
 *
 *********************************************************************/
 void
-    yang_free_pcb (yang_pcb_t *pcb)
+    yang_free_pcb (ncx_instance_t *instance, yang_pcb_t *pcb)
 {
 #ifdef DEBUG
     if (!pcb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -2946,23 +3009,23 @@ void
             if (!pcb->topadded) {
                 if (pcb->searchmode || pcb->keepmode) {
                     /* need to get rid of the module, it is not wanted */
-                    ncx_free_module(pcb->top);
+                    ncx_free_module(instance, pcb->top);
                 }
             }
         } else {
-            ncx_free_module(pcb->top);
+            ncx_free_module(instance, pcb->top);
         }
     }
 
-    yang_clean_import_ptrQ(&pcb->allimpQ);
+    yang_clean_import_ptrQ(instance, &pcb->allimpQ);
 
     if (pcb->tkc) {
-        tk_free_chain(pcb->tkc);
+        tk_free_chain(instance, pcb->tkc);
     }
 
-    yang_clean_nodeQ(&pcb->impchainQ);
-    yang_clean_nodeQ(&pcb->failedQ);
-    m__free(pcb);
+    yang_clean_nodeQ(instance, &pcb->impchainQ);
+    yang_clean_nodeQ(instance, &pcb->failedQ);
+    m__free(instance, pcb);
 
 }  /* yang_free_pcb */
 
@@ -2979,18 +3042,18 @@ void
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_stmt_t *
-    yang_new_typ_stmt (typ_template_t *typ)
+    yang_new_typ_stmt (ncx_instance_t *instance, typ_template_t *typ)
 {
     yang_stmt_t *stmt;
 
 #ifdef DEBUG
     if (!typ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    stmt = m__getObj(yang_stmt_t);
+    stmt = m__getObj(instance, yang_stmt_t);
     if (!stmt) {
         return NULL;
     }
@@ -3014,18 +3077,18 @@ yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_stmt_t *
-    yang_new_grp_stmt (grp_template_t *grp)
+    yang_new_grp_stmt (ncx_instance_t *instance, grp_template_t *grp)
 {
     yang_stmt_t *stmt;
 
 #ifdef DEBUG
     if (!grp) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    stmt = m__getObj(yang_stmt_t);
+    stmt = m__getObj(instance, yang_stmt_t);
     if (!stmt) {
         return NULL;
     }
@@ -3049,18 +3112,18 @@ yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_stmt_t *
-    yang_new_ext_stmt (ext_template_t *ext)
+    yang_new_ext_stmt (ncx_instance_t *instance, ext_template_t *ext)
 {
     yang_stmt_t *stmt;
 
 #ifdef DEBUG
     if (!ext) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    stmt = m__getObj(yang_stmt_t);
+    stmt = m__getObj(instance, yang_stmt_t);
     if (!stmt) {
         return NULL;
     }
@@ -3084,18 +3147,18 @@ yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_stmt_t *
-    yang_new_obj_stmt (obj_template_t *obj)
+    yang_new_obj_stmt (ncx_instance_t *instance, obj_template_t *obj)
 {
     yang_stmt_t *stmt;
 
 #ifdef DEBUG
     if (!obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    stmt = m__getObj(yang_stmt_t);
+    stmt = m__getObj(instance, yang_stmt_t);
     if (!stmt) {
         return NULL;
     }
@@ -3119,18 +3182,18 @@ yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_stmt_t *
-    yang_new_id_stmt (ncx_identity_t *identity)
+    yang_new_id_stmt (ncx_instance_t *instance, ncx_identity_t *identity)
 {
     yang_stmt_t *stmt;
 
 #ifdef DEBUG
     if (!identity) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    stmt = m__getObj(yang_stmt_t);
+    stmt = m__getObj(instance, yang_stmt_t);
     if (!stmt) {
         return NULL;
     }
@@ -3154,18 +3217,18 @@ yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_stmt_t *
-    yang_new_feature_stmt (ncx_feature_t *feature)
+    yang_new_feature_stmt (ncx_instance_t *instance, ncx_feature_t *feature)
 {
     yang_stmt_t *stmt;
 
 #ifdef DEBUG
     if (!feature) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    stmt = m__getObj(yang_stmt_t);
+    stmt = m__getObj(instance, yang_stmt_t);
     if (!stmt) {
         return NULL;
     }
@@ -3189,18 +3252,18 @@ yang_stmt_t *
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_stmt_t *
-    yang_new_deviation_stmt (obj_deviation_t *deviation)
+    yang_new_deviation_stmt (ncx_instance_t *instance, obj_deviation_t *deviation)
 {
     yang_stmt_t *stmt;
 
 #ifdef DEBUG
     if (!deviation) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    stmt = m__getObj(yang_stmt_t);
+    stmt = m__getObj(instance, yang_stmt_t);
     if (!stmt) {
         return NULL;
     }
@@ -3222,16 +3285,16 @@ yang_stmt_t *
 *
 *********************************************************************/
 void
-    yang_free_stmt (yang_stmt_t *stmt)
+    yang_free_stmt (ncx_instance_t *instance, yang_stmt_t *stmt)
 {
 #ifdef DEBUG
     if (!stmt) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    m__free(stmt);
+    m__free(instance, stmt);
 
 }  /* yang_free_stmt */
 
@@ -3246,19 +3309,19 @@ void
 *
 *********************************************************************/
 void
-    yang_clean_stmtQ (dlq_hdr_t *que)
+    yang_clean_stmtQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     yang_stmt_t *stmt;
 
 #ifdef DEBUG
     if (!que) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
-    while (!dlq_empty(que)) {
-        stmt = (yang_stmt_t *)dlq_deque(que);
-        yang_free_stmt(stmt);
+    while (!dlq_empty(instance, que)) {
+        stmt = (yang_stmt_t *)dlq_deque(instance, que);
+        yang_free_stmt(instance, stmt);
     }
 
 }  /* yang_clean_stmtQ */
@@ -3285,7 +3348,8 @@ void
 *   status
 *********************************************************************/
 status_t
-    yang_validate_date_string (tk_chain_t *tkc,
+    yang_validate_date_string (ncx_instance_t *instance,
+                              tk_chain_t *tkc,
                               ncx_module_t *mod,
                               ncx_error_t *tkerr,
                               const xmlChar *datestr)
@@ -3302,20 +3366,20 @@ status_t
 
 #ifdef DEBUG
     if (!tkc || !mod || !datestr) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     retres = NO_ERR;
-    len = xml_strlen(datestr);
-    tstamp_date(curdate);
+    len = xml_strlen(instance, datestr);
+    tstamp_date(instance, curdate);
 
     /* validate the length */
     if (len != DATE_STR_LEN) {
         retres = ERR_NCX_INVALID_VALUE;
-        log_error("\nError: Invalid date string length (%u)", len);
+        log_error(instance, "\nError: Invalid date string length (%u)", len);
         tkc->curerr = tkerr;
-        ncx_print_errormsg(tkc, mod, retres);
+        ncx_print_errormsg(instance, tkc, mod, retres);
     }
 
     /* validate the year field */
@@ -3324,17 +3388,18 @@ status_t
             numbuff[i] = datestr[i];
         }
         numbuff[4] = 0;
-        res = ncx_decode_num(numbuff, NCX_BT_UINT32, &num);
+        res = ncx_decode_num(instance, numbuff, NCX_BT_UINT32, &num);
         if (res != NO_ERR) {
             retres = ERR_NCX_INVALID_VALUE;
-            log_error("\nError: Invalid year string (%s)", numbuff);
-            ncx_print_errormsg(tkc, mod, retres);
+            log_error(instance, "\nError: Invalid year string (%s)", numbuff);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         } else if (num.u < 1970) {
-            if (ncx_warning_enabled(ERR_NCX_DATE_PAST)) {
-                log_warn("\nWarning: Invalid revision year (%s)", 
+            if (ncx_warning_enabled(instance, ERR_NCX_DATE_PAST)) {
+                log_warn(instance, 
+                         "\nWarning: Invalid revision year (%s)", 
                          numbuff);
                 tkc->curerr = tkerr;
-                ncx_print_errormsg(tkc, mod, ERR_NCX_DATE_PAST);
+                ncx_print_errormsg(instance, tkc, mod, ERR_NCX_DATE_PAST);
             } else {
                 ncx_inc_warnings(mod);
             }
@@ -3346,10 +3411,11 @@ status_t
     if (retres == NO_ERR) {
         if (datestr[4] != '-') {
             retres = ERR_NCX_INVALID_VALUE;
-            log_error("\nError: Invalid date string separator (%c)",
+            log_error(instance,
+                      "\nError: Invalid date string separator (%c)",
                       datestr[4]);
             tkc->curerr = tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         } 
     }
 
@@ -3358,19 +3424,20 @@ status_t
         numbuff[0] = datestr[5];
         numbuff[1] = datestr[6];
         numbuff[2] = 0;
-        res = ncx_convert_num(numbuff, 
+        res = ncx_convert_num(instance, 
+                              numbuff, 
                               NCX_NF_DEC, 
                               NCX_BT_UINT32, 
                               &num);
         if (res != NO_ERR) {
             retres = ERR_NCX_INVALID_VALUE;
-            log_error("\nError: Invalid month string (%s)", numbuff);
-            ncx_print_errormsg(tkc, mod, retres);
+            log_error(instance, "\nError: Invalid month string (%s)", numbuff);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         } else if (num.u < 1 || num.u > 12) {
             retres = ERR_NCX_INVALID_VALUE;
-            log_error("\nError: Invalid month string (%s)", numbuff);
+            log_error(instance, "\nError: Invalid month string (%s)", numbuff);
             tkc->curerr = tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         } 
     }
 
@@ -3378,10 +3445,11 @@ status_t
     if (retres == NO_ERR) {
         if (datestr[7] != '-') {
             retres = ERR_NCX_INVALID_VALUE;
-            log_error("\nError: Invalid date string separator (%c)",
+            log_error(instance,
+                      "\nError: Invalid date string separator (%c)",
                       datestr[7]);
             tkc->curerr = tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         } 
     }
 
@@ -3390,32 +3458,34 @@ status_t
         numbuff[0] = datestr[8];
         numbuff[1] = datestr[9];
         numbuff[2] = 0;
-        res = ncx_convert_num(numbuff, 
+        res = ncx_convert_num(instance, 
+                              numbuff, 
                               NCX_NF_DEC, 
                               NCX_BT_UINT32, 
                               &num);
         if (res != NO_ERR) {
             retres = ERR_NCX_INVALID_VALUE;
-            log_error("\nError: Invalid day string (%s)", numbuff);
+            log_error(instance, "\nError: Invalid day string (%s)", numbuff);
             tkc->curerr = tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         } else if (num.u < 1 || num.u > 31) {
             retres = ERR_NCX_INVALID_VALUE;
-            log_error("\nError: Invalid day string (%s)", numbuff);
+            log_error(instance, "\nError: Invalid day string (%s)", numbuff);
             tkc->curerr = tkerr;
-            ncx_print_errormsg(tkc, mod, retres);
+            ncx_print_errormsg(instance, tkc, mod, retres);
         }
     }
 
     /* check the date against the future */
     if (retres == NO_ERR) {
-        ret = xml_strcmp(curdate, datestr);
+        ret = xml_strcmp(instance, curdate, datestr);
         if (ret < 0) {
-            if (ncx_warning_enabled(ERR_NCX_DATE_FUTURE)) {
-                log_warn("\nWarning: Revision date in the future (%s)",
+            if (ncx_warning_enabled(instance, ERR_NCX_DATE_FUTURE)) {
+                log_warn(instance,
+                         "\nWarning: Revision date in the future (%s)",
                          datestr);
                 tkc->curerr = tkerr;
-                ncx_print_errormsg(tkc, mod, ERR_NCX_DATE_FUTURE);
+                ncx_print_errormsg(instance, tkc, mod, ERR_NCX_DATE_FUTURE);
             } else {
                 ncx_inc_warnings(mod);
             }
@@ -3439,7 +3509,8 @@ status_t
 *    mod == module in progress
 *********************************************************************/
 void
-    yang_skip_statement (tk_chain_t *tkc,
+    yang_skip_statement (ncx_instance_t *instance,
+                         tk_chain_t *tkc,
                          ncx_module_t *mod)
 {
     uint32    bracecnt;
@@ -3447,7 +3518,7 @@ void
 
 #ifdef DEBUG
     if (!tkc || !tkc->cur) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -3482,9 +3553,9 @@ void
             ;
         }
 
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
-            ncx_print_errormsg(tkc, mod, res);
+            ncx_print_errormsg(instance, tkc, mod, res);
         }
     }
     
@@ -3503,7 +3574,7 @@ void
 *   TRUE if a top-level YANG keyword, FALSE otherwise
 *********************************************************************/
 boolean
-    yang_top_keyword (const xmlChar *keyword)
+    yang_top_keyword (ncx_instance_t *instance, const xmlChar *keyword)
 {
     const xmlChar *topkw;
     uint32         i;
@@ -3511,7 +3582,7 @@ boolean
 
 #ifdef DEBUG
     if (!keyword) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -3521,7 +3592,7 @@ boolean
         if (!topkw) {
             return FALSE;
         }
-        ret = xml_strcmp(topkw, keyword);
+        ret = xml_strcmp(instance, topkw, keyword);
         if (ret == 0) {
             return TRUE;
         } else if (ret > 0) {
@@ -3547,38 +3618,39 @@ boolean
 *   pointer to new and initialized struct, NULL if memory error
 *********************************************************************/
 yang_import_ptr_t *
-    yang_new_import_ptr (const xmlChar *modname,
+    yang_new_import_ptr (ncx_instance_t *instance,
+                         const xmlChar *modname,
                          const xmlChar *modprefix,
                          const xmlChar *revision)
 {
     yang_import_ptr_t *impptr;
 
-    impptr = m__getObj(yang_import_ptr_t);
+    impptr = m__getObj(instance, yang_import_ptr_t);
     if (!impptr) {
         return NULL;
     }
     memset(impptr, 0x0, sizeof(yang_import_ptr_t));
 
     if (modname) {
-        impptr->modname = xml_strdup(modname);
+        impptr->modname = xml_strdup(instance, modname);
         if (!impptr->modname) {
-            yang_free_import_ptr(impptr);
+            yang_free_import_ptr(instance, impptr);
             return NULL;
         }
     }
 
     if (modprefix) {
-        impptr->modprefix = xml_strdup(modprefix);
+        impptr->modprefix = xml_strdup(instance, modprefix);
         if (!impptr->modprefix) {
-            yang_free_import_ptr(impptr);
+            yang_free_import_ptr(instance, impptr);
             return NULL;
         }
     }
 
     if (revision) {
-        impptr->revision = xml_strdup(revision);
+        impptr->revision = xml_strdup(instance, revision);
         if (!impptr->revision) {
-            yang_free_import_ptr(impptr);
+            yang_free_import_ptr(instance, impptr);
             return NULL;
         }
     }
@@ -3598,26 +3670,26 @@ yang_import_ptr_t *
 *
 *********************************************************************/
 void
-    yang_free_import_ptr (yang_import_ptr_t *impptr)
+    yang_free_import_ptr (ncx_instance_t *instance, yang_import_ptr_t *impptr)
 {
 #ifdef DEBUG
     if (!impptr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (impptr->modname) {
-        m__free(impptr->modname);
+        m__free(instance, impptr->modname);
     }
     if (impptr->modprefix) {
-        m__free(impptr->modprefix);
+        m__free(instance, impptr->modprefix);
     }
     if (impptr->revision) {
-        m__free(impptr->revision);
+        m__free(instance, impptr->revision);
     }
 
-    m__free(impptr);
+    m__free(instance, impptr);
 
 }  /* yang_free_import_ptr */
 
@@ -3632,20 +3704,20 @@ void
 *
 *********************************************************************/
 void
-    yang_clean_import_ptrQ (dlq_hdr_t *que)
+    yang_clean_import_ptrQ (ncx_instance_t *instance, dlq_hdr_t *que)
 {
     yang_import_ptr_t *impptr;
 
 #ifdef DEBUG
     if (!que) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    while (!dlq_empty(que)) {
-        impptr = (yang_import_ptr_t *)dlq_deque(que);
-        yang_free_import_ptr(impptr);
+    while (!dlq_empty(instance, que)) {
+        impptr = (yang_import_ptr_t *)dlq_deque(instance, que);
+        yang_free_import_ptr(instance, impptr);
     }
 
 }  /* yang_clean_import_ptrQ */
@@ -3664,23 +3736,24 @@ void
 *    pointer to found node, NULL if not found
 *********************************************************************/
 yang_import_ptr_t *
-    yang_find_import_ptr (dlq_hdr_t *que,
+    yang_find_import_ptr (ncx_instance_t *instance,
+                          dlq_hdr_t *que,
                           const xmlChar *name)
 {
     yang_import_ptr_t *impptr;
 
 #ifdef DEBUG
     if (!que || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (impptr = (yang_import_ptr_t *)dlq_firstEntry(que);
+    for (impptr = (yang_import_ptr_t *)dlq_firstEntry(instance, que);
          impptr != NULL;
-         impptr = (yang_import_ptr_t *)dlq_nextEntry(impptr)) {
+         impptr = (yang_import_ptr_t *)dlq_nextEntry(instance, impptr)) {
 
-        if (!xml_strcmp(impptr->modname, name)) {
+        if (!xml_strcmp(instance, impptr->modname, name)) {
             return impptr;
         }
     }
@@ -3704,7 +3777,8 @@ yang_import_ptr_t *
 *    +1 if revision1 > revision 2   
 *********************************************************************/
 int32
-    yang_compare_revision_dates (const xmlChar *revstring1,
+    yang_compare_revision_dates (ncx_instance_t *instance,
+                                 const xmlChar *revstring1,
                                  const xmlChar *revstring2)
 {
 
@@ -3714,7 +3788,7 @@ int32
     if (!revstring1 || !revstring2) {
         return 0;
     } else {
-        return xml_strcmp(revstring1, revstring2);
+        return xml_strcmp(instance, revstring1, revstring2);
     }
 
 }  /* yang_compare_revision_dates */
@@ -3736,7 +3810,8 @@ int32
 *    NULL if any error
 *********************************************************************/
 xmlChar *
-    yang_make_filename (const xmlChar *modname,
+    yang_make_filename (ncx_instance_t *instance,
+                        const xmlChar *modname,
                         const xmlChar *revision,
                         boolean isyang)
 {
@@ -3745,36 +3820,36 @@ xmlChar *
 
 #ifdef DEBUG
     if (!modname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    mlen = xml_strlen(modname);
-    rlen = (revision) ? xml_strlen(revision) : 0;
+    mlen = xml_strlen(instance, modname);
+    rlen = (revision) ? xml_strlen(instance, revision) : 0;
     if (rlen) {
         rlen++;   /* file sep char */
     }
-    slen = (isyang) ? xml_strlen(YANG_SUFFIX) :
-        xml_strlen(YIN_SUFFIX);
+    slen = (isyang) ? xml_strlen(instance, YANG_SUFFIX) :
+        xml_strlen(instance, YIN_SUFFIX);
 
-    buff = m__getMem(mlen + rlen + slen + 2);
+    buff = m__getMem(instance, mlen + rlen + slen + 2);
     if (!buff) {
         return NULL;
     }
 
     p = buff;
 
-    p += xml_strcpy(p, modname);
+    p += xml_strcpy(instance, p, modname);
     if (revision && *revision) {
         *p++ = YANG_FILE_SEPCHAR;
-        p += xml_strcpy(p, revision);
+        p += xml_strcpy(instance, p, revision);
     }
     *p++ = '.';
     if (isyang) {
-        xml_strcpy(p, YANG_SUFFIX);
+        xml_strcpy(instance, p, YANG_SUFFIX);
     } else {
-        xml_strcpy(p, YIN_SUFFIX);
+        xml_strcpy(instance, p, YIN_SUFFIX);
     }
 
     return buff;
@@ -3800,7 +3875,8 @@ xmlChar *
 *    NULL if any error
 *********************************************************************/
 status_t
-    yang_copy_filename (const xmlChar *modname,
+    yang_copy_filename (ncx_instance_t *instance,
+                        const xmlChar *modname,
                         const xmlChar *revision,
                         xmlChar *buffer,
                         uint32 bufflen,
@@ -3811,30 +3887,30 @@ status_t
 
 #ifdef DEBUG
     if (!modname) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    mlen = xml_strlen(modname);
-    rlen = (revision) ? xml_strlen(revision) : 0;
+    mlen = xml_strlen(instance, modname);
+    rlen = (revision) ? xml_strlen(instance, revision) : 0;
     if (rlen) {
         rlen++;   /* file sep char */
     }
-    slen = (isyang) ? xml_strlen(YANG_SUFFIX) :
-        xml_strlen(YIN_SUFFIX);
+    slen = (isyang) ? xml_strlen(instance, YANG_SUFFIX) :
+        xml_strlen(instance, YIN_SUFFIX);
 
     if ((mlen + rlen + slen + 2) < bufflen) {
         p = buffer;
-        p += xml_strcpy(p, modname);
+        p += xml_strcpy(instance, p, modname);
         if (revision && *revision) {
             *p++ = YANG_FILE_SEPCHAR;
-            p += xml_strcpy(p, revision);
+            p += xml_strcpy(instance, p, revision);
         }
         *p++ = '.';
         if (isyang) {
-            xml_strcpy(p, YANG_SUFFIX);
+            xml_strcpy(instance, p, YANG_SUFFIX);
         } else {
-            xml_strcpy(p, YIN_SUFFIX);
+            xml_strcpy(instance, p, YIN_SUFFIX);
         }
         return NO_ERR;
     } else {
@@ -3862,7 +3938,8 @@ status_t
 *      different form of the module parameter was used
 *********************************************************************/
 boolean
-    yang_split_filename (const xmlChar *filename,
+    yang_split_filename (ncx_instance_t *instance,
+                         const xmlChar *filename,
                          uint32 *modnamelen)
 {
     const xmlChar *str, *sepchar;
@@ -3870,7 +3947,7 @@ boolean
 
 #ifdef DEBUG
     if (filename == NULL || modnamelen == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3901,16 +3978,16 @@ boolean
 
     /* check if a file extension is present */
     len = (uint32)(str - filename);
-    yangslen = xml_strlen(YANG_SUFFIX);
-    yinslen = xml_strlen(YIN_SUFFIX);
+    yangslen = xml_strlen(instance, YANG_SUFFIX);
+    yinslen = xml_strlen(instance, YIN_SUFFIX);
     if (len > yangslen + 1) {
         if ((*(str - yangslen - 1) == '.') &&
-            (!xml_strcmp(str - yangslen, YANG_SUFFIX))) {
+            (!xml_strcmp(instance, str - yangslen, YANG_SUFFIX))) {
             return FALSE;
         }
     } else if (len > yinslen + 1) {
         if ((*(str - yinslen - 1) == '.') &&
-            (!xml_strcmp(str - yinslen, YIN_SUFFIX))) {
+            (!xml_strcmp(instance, str - yinslen, YIN_SUFFIX))) {
             return FALSE;
         }
     }
@@ -3934,18 +4011,18 @@ boolean
 *    FALSE if not
 *********************************************************************/
 boolean
-    yang_fileext_is_yang (const xmlChar *filename)
+    yang_fileext_is_yang (ncx_instance_t *instance, const xmlChar *filename)
 {
     uint32   len;
 
 #ifdef DEBUG
     if (filename == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    len = xml_strlen(filename);
+    len = xml_strlen(instance, filename);
     if (len < 6) {
         return FALSE;
     }
@@ -3954,7 +4031,7 @@ boolean
         return FALSE;
     }
 
-    return !xml_strcmp(&filename[len - 4], YANG_SUFFIX);
+    return !xml_strcmp(instance, &filename[len - 4], YANG_SUFFIX);
 
 }  /* yang_fileext_is_yang */
 
@@ -3972,18 +4049,18 @@ boolean
 *    FALSE if not
 *********************************************************************/
 boolean
-    yang_fileext_is_yin (const xmlChar *filename)
+    yang_fileext_is_yin (ncx_instance_t *instance, const xmlChar *filename)
 {
     uint32   len;
 
 #ifdef DEBUG
     if (filename == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    len = xml_strlen(filename);
+    len = xml_strlen(instance, filename);
     if (len < 5) {
         return FALSE;
     }
@@ -3992,7 +4069,7 @@ boolean
         return FALSE;
     }
 
-    return !xml_strcmp(&filename[len - 3], YIN_SUFFIX);
+    return !xml_strcmp(instance, &filename[len - 3], YIN_SUFFIX);
 
 }  /* yang_fileext_is_yin */
 
@@ -4010,18 +4087,18 @@ boolean
 *    FALSE if not
 *********************************************************************/
 boolean
-    yang_fileext_is_xml (const xmlChar *filename)
+    yang_fileext_is_xml (ncx_instance_t *instance, const xmlChar *filename)
 {
     uint32   len;
 
 #ifdef DEBUG
     if (filename == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    len = xml_strlen(filename);
+    len = xml_strlen(instance, filename);
     if (len < 5) {
         return FALSE;
     }
@@ -4030,7 +4107,7 @@ boolean
         return FALSE;
     }
 
-    return !xml_strcmp(&filename[len - 3], (const xmlChar *)"xml");
+    return !xml_strcmp(instance, &filename[len - 3], (const xmlChar *)"xml");
 
 }  /* yang_fileext_is_xml */
 
@@ -4041,11 +4118,13 @@ boolean
 * Check the node malloc and free counts
 *********************************************************************/
 void
-    yang_final_memcheck (void)
+    yang_final_memcheck (ncx_instance_t *instance)
 {
+  (void)instance;
 #ifdef YANG_DEBUG
     if (new_node_cnt != free_node_cnt) {
-        log_error("\nError: YANG node count: new(%u) free(%u)",
+        log_error(instance,
+                  "\nError: YANG node count: new(%u) free(%u)",
                   new_node_cnt,
                   free_node_cnt);
     }

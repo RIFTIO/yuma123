@@ -92,10 +92,10 @@ typedef struct finderparms_t_ {
 } finderparms_t;
 
 /* pick a log output function for dump_value */
-typedef void (*dumpfn_t) (const char *fstr, ...);
+typedef void (*dumpfn_t) (ncx_instance_t* instance, const char *fstr, ...);
 
 /* pick a log indent function for dump_value */
-typedef void (*indentfn_t) (int32 indentcnt);
+typedef void (*indentfn_t) (ncx_instance_t* instance, int32 indentcnt);
 
 #ifdef VAL_EDITVARS_DEBUG
 static uint32 editvars_malloc = 0;
@@ -114,18 +114,19 @@ static uint32 editvars_free = 0;
 *
 *********************************************************************/
 static void
-    stdout_num (ncx_btype_t btyp,
+    stdout_num (ncx_instance_t *instance,
+                ncx_btype_t btyp,
                 const ncx_num_t *num)
 {
     xmlChar    numbuff[VAL_MAX_NUMLEN];
     uint32     len;
     status_t   res;
 
-    res = ncx_sprintf_num(numbuff, num, btyp, &len);
+    res = ncx_sprintf_num(instance, numbuff, num, btyp, &len);
     if (res != NO_ERR) {
-        log_stdout("invalid num '%s'", get_error_string(res));
+        log_stdout(instance, "invalid num '%s'", get_error_string(res));
     } else {
-        log_stdout("%s", numbuff);
+        log_stdout(instance, "%s", numbuff);
     }
 
 } /* stdout_num */
@@ -141,20 +142,20 @@ static void
 *
 *********************************************************************/
 static void
-    dump_extern (const xmlChar *fname)
+    dump_extern (ncx_instance_t *instance, const xmlChar *fname)
 {
     FILE               *fil;
     boolean             done;
     int                 ch;
 
     if (!fname) {
-        log_error("\nval: No extern fname");
+        log_error(instance, "\nval: No extern fname");
         return;
     }
 
     fil = fopen((const char *)fname, "r");
     if (!fil) {
-        log_error("\nError: Open extern failed (%s)", fname);
+        log_error(instance, "\nError: Open extern failed (%s)", fname);
         return;
     } 
 
@@ -165,7 +166,7 @@ static void
             fclose(fil);
             done = TRUE;
         } else {
-            log_write("%c", ch);
+            log_write(instance, "%c", ch);
         }
     }
 
@@ -182,20 +183,20 @@ static void
 *
 *********************************************************************/
 static void
-    dump_alt_extern (const xmlChar *fname)
+    dump_alt_extern (ncx_instance_t *instance, const xmlChar *fname)
 {
     FILE               *fil;
     boolean             done;
     int                 ch;
 
     if (!fname) {
-        log_error("\nval: No extern fname");
+        log_error(instance, "\nval: No extern fname");
         return;
     }
 
     fil = fopen((const char *)fname, "r");
     if (!fil) {
-        log_error("\nval: Open extern failed (%s)", fname);
+        log_error(instance, "\nval: Open extern failed (%s)", fname);
         return;
     } 
 
@@ -206,7 +207,7 @@ static void
             fclose(fil);
             done = TRUE;
         } else {
-            log_alt_write("%c", ch);
+            log_alt_write(instance, "%c", ch);
         }
     }
 
@@ -223,20 +224,20 @@ static void
 *
 *********************************************************************/
 static void
-    stdout_extern (const xmlChar *fname)
+    stdout_extern (ncx_instance_t *instance, const xmlChar *fname)
 {
     FILE               *fil;
     boolean             done;
     int                 ch;
 
     if (!fname) {
-        log_stdout("\nval: No extern fname");
+        log_stdout(instance, "\nval: No extern fname");
         return;
     }
 
     fil = fopen((const char *)fname, "r");
     if (!fil) {
-        log_stdout("\nval: Open extern failed (%s)", fname);
+        log_stdout(instance, "\nval: Open extern failed (%s)", fname);
         return;
     } 
 
@@ -247,7 +248,7 @@ static void
             fclose(fil);
             done = TRUE;
         } else {
-            log_stdout("%c", ch);
+            log_stdout(instance, "%c", ch);
         }
     }
 
@@ -264,18 +265,18 @@ static void
 *
 *********************************************************************/
 static void
-    dump_intern (const xmlChar *intbuff)
+    dump_intern (ncx_instance_t *instance, const xmlChar *intbuff)
 {
     const xmlChar      *ch;
 
     if (!intbuff) {
-        log_error("\nval: No internal buffer");
+        log_error(instance, "\nval: No internal buffer");
         return;
     }
 
     ch = intbuff;
     while (*ch) {
-        log_write("%c", *ch++);
+        log_write(instance, "%c", *ch++);
     }
 
 } /* dump_intern */
@@ -291,18 +292,18 @@ static void
 *
 *********************************************************************/
 static void
-    dump_alt_intern (const xmlChar *intbuff)
+    dump_alt_intern (ncx_instance_t *instance, const xmlChar *intbuff)
 {
     const xmlChar      *ch;
 
     if (!intbuff) {
-        log_error("\nval: No internal buffer");
+        log_error(instance, "\nval: No internal buffer");
         return;
     }
 
     ch = intbuff;
     while (*ch) {
-        log_alt_write("%c", *ch++);
+        log_alt_write(instance, "%c", *ch++);
     }
 
 } /* dump_alt_intern */
@@ -318,18 +319,18 @@ static void
 *
 *********************************************************************/
 static void
-    stdout_intern (const xmlChar *intbuff)
+    stdout_intern (ncx_instance_t *instance, const xmlChar *intbuff)
 {
     const xmlChar      *ch;
 
     if (!intbuff) {
-        log_stdout("\nval: No internal buffer");
+        log_stdout(instance, "\nval: No internal buffer");
         return;
     }
 
     ch = intbuff;
     while (*ch) {
-        log_stdout("%c", *ch++);
+        log_stdout(instance, "%c", *ch++);
     }
 
 } /* stdout_intern */
@@ -348,7 +349,8 @@ static void
 *    TRUE is string matches pattern; FALSE otherwise
 *********************************************************************/
 static boolean
-    pattern_match (const xmlRegexpPtr pattern,
+    pattern_match (ncx_instance_t *instance,
+                   const xmlRegexpPtr pattern,
                    const xmlChar *strval)
 {
     int ret;
@@ -360,10 +362,10 @@ static boolean
         return FALSE;
     } else if (ret < 0) {
         /* pattern match execution error, but compiled ok */
-        SET_ERROR(ERR_NCX_INVALID_PATTERN);
+        SET_ERROR(instance, ERR_NCX_INVALID_PATTERN);
         return FALSE;
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
     /*NOTREACHED*/
@@ -387,18 +389,19 @@ static boolean
 *    status, NO_ERR if string value is in the set
 *********************************************************************/
 static status_t
-    check_svalQ_enum (const xmlChar *name,
+    check_svalQ_enum (ncx_instance_t *instance,
+                      const xmlChar *name,
                       dlq_hdr_t *checkQ,
                       typ_enum_t  **reten)
 {
     typ_enum_t  *en;
 
     /* check this typdef for restrictions */
-    for (en = (typ_enum_t *)dlq_firstEntry(checkQ);
+    for (en = (typ_enum_t *)dlq_firstEntry(instance, checkQ);
          en != NULL;
-         en = (typ_enum_t *)dlq_nextEntry(en)) {
+         en = (typ_enum_t *)dlq_nextEntry(instance, en)) {
 
-        if (!xml_strcmp(name, en->name)) {
+        if (!xml_strcmp(instance, name, en->name)) {
             *reten = en;
             return NO_ERR;
         }
@@ -421,29 +424,31 @@ static status_t
 *    val->editvars is cleaned, freed, and set to NULL
 *********************************************************************/
 static void
-    free_editvars (val_value_t *val)
+    free_editvars (ncx_instance_t *instance, val_value_t *val)
 {
     if (val->editvars) {
 #ifdef VAL_EDITVARS_DEBUG
-        log_debug3("\n\nfree_editvars: %s: %d = %p\n",
+        log_debug3(instance,
+                   "\n\nfree_editvars: %s: %d = %p\n",
                    (val->name) ? val->name : NCX_EL_NONE,
                    ++editvars_free,
                    val->editvars);
 #endif
 
         if (val->editvars->insertstr) {
-            m__free(val->editvars->insertstr);
+            m__free(instance, val->editvars->insertstr);
         }
 
         if (val->editvars->insertxpcb) {
-            xpath_free_pcb(val->editvars->insertxpcb);
+            xpath_free_pcb(instance, val->editvars->insertxpcb);
         }
 
-        m__free(val->editvars);
+        m__free(instance, val->editvars);
         val->editvars = NULL;
     } else {
 #ifdef VAL_EDITVARS_DEBUG
-        log_debug3("\nval_free_editvars skipped (%u, %s)",
+        log_debug3(instance,
+                   "\nval_free_editvars skipped (%u, %s)",
                    editvars_free, 
                    val->name);
 #endif
@@ -466,7 +471,8 @@ static void
 *            FALSE if value only
 *********************************************************************/
 static void 
-    clean_value (val_value_t *val,
+    clean_value (ncx_instance_t *instance,
+                 val_value_t *val,
                  boolean full)
 {
     val_value_t   *cur;
@@ -475,14 +481,14 @@ static void
 
     if (full && val->virtualval) {
         /* check if any cached entry of self needs to be cleared */
-        val_free_value(val->virtualval);
+        val_free_value(instance, val->virtualval);
         val->virtualval = NULL;
     }
 
     btyp = val->btyp;
 
     if (full && val->editvars) {
-        free_editvars(val);
+        free_editvars(instance, val);
     }
 
     /* clean the val->v union, depending on base type */
@@ -497,48 +503,48 @@ static void
     case NCX_BT_UINT64:
     case NCX_BT_DECIMAL64:
     case NCX_BT_FLOAT64:
-        ncx_clean_num(btyp, &val->v.num);
+        ncx_clean_num(instance, btyp, &val->v.num);
         break;
     case NCX_BT_ENUM:
-        ncx_clean_enum(&val->v.enu);
+        ncx_clean_enum(instance, &val->v.enu);
         break;
     case NCX_BT_BINARY:
-        ncx_clean_binary(&val->v.binary);
+        ncx_clean_binary(instance, &val->v.binary);
         break;
     case NCX_BT_STRING:
     case NCX_BT_INSTANCE_ID:
     case NCX_BT_LEAFREF:
-        ncx_clean_str(&val->v.str);
+        ncx_clean_str(instance, &val->v.str);
         break;
     case NCX_BT_IDREF:
         if (val->v.idref.name) {
-            m__free(val->v.idref.name);
+            m__free(instance, val->v.idref.name);
             val->v.idref.name = NULL;
         }
         break;
     case NCX_BT_SLIST:
     case NCX_BT_BITS:
-        ncx_clean_list(&val->v.list);
+        ncx_clean_list(instance, &val->v.list);
         break;
     case NCX_BT_LIST:
     case NCX_BT_ANY:
     case NCX_BT_CONTAINER:
     case NCX_BT_CHOICE:
     case NCX_BT_CASE:
-        while (!dlq_empty(&val->v.childQ)) {
-            cur = (val_value_t *)dlq_deque(&val->v.childQ);
-            val_free_value(cur);
+        while (!dlq_empty(instance, &val->v.childQ)) {
+            cur = (val_value_t *)dlq_deque(instance, &val->v.childQ);
+            val_free_value(instance, cur);
         }
         break;
     case NCX_BT_EXTERN:
         if (val->v.fname) { 
-            m__free(val->v.fname);
+            m__free(instance, val->v.fname);
             val->v.fname = NULL;
         }
         break;
     case NCX_BT_INTERN:
         if (val->v.intbuff) { 
-            m__free(val->v.intbuff);
+            m__free(instance, val->v.intbuff);
             val->v.intbuff = NULL;
         }
         break;
@@ -548,28 +554,28 @@ static void
     case NCX_BT_UNION:
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (full) {
         if (val->dname) {
-            m__free(val->dname);
+            m__free(instance, val->dname);
             val->dname = NULL;
         }
         val->nsid = 0;
-        while (!dlq_empty(&val->metaQ)) {
-            cur = (val_value_t *)dlq_deque(&val->metaQ);
-            val_free_value(cur);
+        while (!dlq_empty(instance, &val->metaQ)) {
+            cur = (val_value_t *)dlq_deque(instance, &val->metaQ);
+            val_free_value(instance, cur);
         }
     }
 
-    while (!dlq_empty(&val->indexQ)) {
-        in = (val_index_t *)dlq_deque(&val->indexQ);
-        m__free(in);
+    while (!dlq_empty(instance, &val->indexQ)) {
+        in = (val_index_t *)dlq_deque(instance, &val->indexQ);
+        m__free(instance, in);
     }
 
     if (val->xpathpcb) {
-        xpath_free_pcb(val->xpathpcb);
+        xpath_free_pcb(instance, val->xpathpcb);
         val->xpathpcb = NULL;
     }
 
@@ -592,7 +598,8 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    merge_simple (ncx_btype_t btyp,
+    merge_simple (ncx_instance_t *instance,
+                  ncx_btype_t btyp,
                   const val_value_t *src,
                   val_value_t *dest)
 {
@@ -626,19 +633,19 @@ static status_t
         dest->v.num.ul = src->v.num.ul;
         break;
     case NCX_BT_DECIMAL64:
-        ncx_clean_num(btyp, &dest->v.num);
+        ncx_clean_num(instance, btyp, &dest->v.num);
         dest->v.num.dec.val = src->v.num.dec.val;
         dest->v.num.dec.digits = src->v.num.dec.digits;
         dest->v.num.dec.zeroes = src->v.num.dec.zeroes;
         break;
     case NCX_BT_FLOAT64:
-        ncx_clean_num(btyp, &dest->v.num);
+        ncx_clean_num(instance, btyp, &dest->v.num);
         dest->v.num.d = src->v.num.d;
         break;
     case NCX_BT_BINARY:
-        val_copy = m__getMem( src->v.binary.ustrlen );
+        val_copy = m__getMem(instance,  src->v.binary.ustrlen );
         if (val_copy) {
-            ncx_clean_binary(&dest->v.binary);
+            ncx_clean_binary(instance, &dest->v.binary);
             dest->v.binary.ubufflen = src->v.binary.ubufflen;
             dest->v.binary.ustrlen = src->v.binary.ustrlen;
             dest->v.binary.ustr = val_copy;
@@ -651,21 +658,21 @@ static status_t
     case NCX_BT_STRING:
     case NCX_BT_INSTANCE_ID:
     case NCX_BT_LEAFREF:   /*** !!! not sure LEAFREF will ever get here */
-        val_copy = xml_strdup( src->v.str );
+        val_copy = xml_strdup(instance,  src->v.str );
         if (val_copy) {
-            ncx_clean_str(&dest->v.str);
+            ncx_clean_str(instance, &dest->v.str);
             dest->v.str = val_copy;
         } else {
             res = ERR_INTERNAL_MEM;
         }
         break;
     case NCX_BT_IDREF:
-        val_copy = xml_strdup( src->v.idref.name );
+        val_copy = xml_strdup(instance,  src->v.idref.name );
         if (val_copy) {
             dest->v.idref.nsid = src->v.idref.nsid; 
             dest->v.idref.identity = src->v.idref.identity;
             if (dest->v.idref.name) {
-                m__free(dest->v.idref.name);
+                m__free(instance, dest->v.idref.name);
             }
             dest->v.idref.name = val_copy;
         } else {
@@ -673,7 +680,7 @@ static status_t
         }
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     return res;
 
@@ -701,7 +708,8 @@ static status_t
 *   1 if val1 > val2 index
 *********************************************************************/
 static int32
-    index_match (const val_value_t *val1,
+    index_match (ncx_instance_t *instance,
+                 const val_value_t *val1,
                  const val_value_t *val2)
 {
     const val_index_t *c1, *c2;
@@ -710,19 +718,19 @@ static int32
 
     /* only lists have index chains */
     if (val1->obj->objtype != OBJ_TYP_LIST) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return -2;
     }
 
     /* object templates must exactly match */
     if (val1->obj != val2->obj) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return -2;
     }
 
     /* get the first pair of index nodes to check */
-    c1 = (val_index_t *)dlq_firstEntry(&val1->indexQ);
-    c2 = (val_index_t *)dlq_firstEntry(&val2->indexQ);
+    c1 = (val_index_t *)dlq_firstEntry(instance, &val1->indexQ);
+    c2 = (val_index_t *)dlq_firstEntry(instance, &val2->indexQ);
 
     /* match index values, 1 for 1, left to right */
     for (;;) {
@@ -736,7 +744,7 @@ static int32
             return 1;
         }
 
-        if (xml_strcmp(c1->val->name, c2->val->name)) {
+        if (xml_strcmp(instance, c1->val->name, c2->val->name)) {
             /* could be an invalid key not checked yet
              * not calling SET_ERROR()
              */
@@ -747,21 +755,21 @@ static int32
 
         /* same name in the same namespace */
         if (c1->val->btyp == c2->val->btyp) {
-            cmp = val_compare(c1->val, c2->val);
+            cmp = val_compare(instance, c1->val, c2->val);
         } else if (typ_is_string(c1->val->btyp)) {
             /* this might be anyxml parse */
-            cmp = val_compare_to_string(c2->val, VAL_STR(c1->val), &res);
+            cmp = val_compare_to_string(instance, c2->val, VAL_STR(c1->val), &res);
             cmp *= -1;
         } else if (typ_is_string(c2->val->btyp)) {
             /* this might be anyxml parse */
-            cmp = val_compare_to_string(c1->val, VAL_STR(c2->val), &res);
+            cmp = val_compare_to_string(instance, c1->val, VAL_STR(c2->val), &res);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             return -2;
         }
 
         if (res != NO_ERR) {
-            SET_ERROR(res);     
+            SET_ERROR(instance, res);     
             return -2;
         }
 
@@ -770,8 +778,8 @@ static int32
         }
 
         /* node matched, get next node */
-        c1 = (val_index_t *)dlq_nextEntry(c1);
-        c2 = (val_index_t *)dlq_nextEntry(c2);
+        c1 = (val_index_t *)dlq_nextEntry(instance, c1);
+        c2 = (val_index_t *)dlq_nextEntry(instance, c2);
     }
     /*NOTREACHED*/
 
@@ -791,7 +799,8 @@ static int32
 *   btyp == builtin type to use
 *********************************************************************/
 static void
-    init_from_template (val_value_t *val,
+    init_from_template (ncx_instance_t *instance,
+                        val_value_t *val,
                         obj_template_t *obj,
                         ncx_btype_t  btyp)
 {
@@ -801,13 +810,13 @@ static void
     val->obj = obj;
     val->typdef = obj_get_typdef(obj);
     val->btyp = btyp;
-    val->nsid = obj_get_nsid(obj);
+    val->nsid = obj_get_nsid(instance, obj);
 
     /* the agent new_child_val function may have already
      * set the name field in agt_val_parse.c
      */
     if (!val->name) {
-        val->name = obj_get_name(obj);
+        val->name = obj_get_name(instance, obj);
     }
 
     /* set the case object field if this is a node from a
@@ -815,24 +824,24 @@ static void
      * the choice that is not actually taking up a node
      * in the value tree
      */
-    val->dataclass = obj_get_config_flag(obj) ?
+    val->dataclass = obj_get_config_flag(instance, obj) ?
         NCX_DC_CONFIG : NCX_DC_STATE;
     if (obj->parent && obj->parent->objtype==OBJ_TYP_CASE) {
         val->casobj = obj->parent;
     }
-    if (!typ_is_simple(val->btyp)) {
-        val_init_complex(val, btyp);
+    if (!typ_is_simple(instance, val->btyp)) {
+        val_init_complex(instance, val, btyp);
     } else if (val->btyp == NCX_BT_SLIST) {
-        listtyp = typ_get_listtyp(val->typdef);
+        listtyp = typ_get_listtyp(instance, val->typdef);
         if (!listtyp) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             listbtyp = NCX_BT_STRING;
         } else {
-            listbtyp = typ_get_basetype(&listtyp->typdef);
+            listbtyp = typ_get_basetype(instance, &listtyp->typdef);
         }
-        ncx_init_list(&val->v.list, listbtyp);
+        ncx_init_list(instance, &val->v.list, listbtyp);
     } else if (val->btyp == NCX_BT_BITS) {
-        ncx_init_list(&val->v.list, NCX_BT_BITS);
+        ncx_init_list(instance, &val->v.list, NCX_BT_BITS);
     } else if (val->btyp == NCX_BT_EMPTY) {
         val->v.boo = TRUE;
     }
@@ -855,7 +864,8 @@ static void
 *    status, NO_ERR if string value is in the set
 *********************************************************************/
 static status_t
-    check_rangeQ (ncx_btype_t  btyp,
+    check_rangeQ (ncx_instance_t *instance,
+                  ncx_btype_t  btyp,
                   const ncx_num_t *num,
                   dlq_hdr_t *checkQ)
 {
@@ -863,21 +873,21 @@ static status_t
     int32            cmp;
     boolean          lbok, ubok;
 
-    for (rv = (typ_rangedef_t *)dlq_firstEntry(checkQ);
+    for (rv = (typ_rangedef_t *)dlq_firstEntry(instance, checkQ);
          rv != NULL;
-         rv = (typ_rangedef_t *)dlq_nextEntry(rv)) {
+         rv = (typ_rangedef_t *)dlq_nextEntry(instance, rv)) {
 
         lbok = FALSE;
         ubok = FALSE;
 
         /* make sure the range numbers are really this type */
         if (rv->btyp != btyp) {
-            return SET_ERROR(ERR_NCX_WRONG_NUMTYP);
+            return SET_ERROR(instance, ERR_NCX_WRONG_NUMTYP);
         }
 
         /* check lower bound first, only if there is one */
         if (!(rv->flags & TYP_FL_LBINF)) {
-            cmp = ncx_compare_nums(num, &rv->lb, btyp);
+            cmp = ncx_compare_nums(instance, num, &rv->lb, btyp);
             if (cmp >= 0) {
                 lbok = TRUE;
             }
@@ -888,7 +898,7 @@ static status_t
 
         /* check upper bound last, only if there is one */
         if (!(rv->flags & TYP_FL_UBINF)) {
-            cmp = ncx_compare_nums(num, &rv->ub, btyp);
+            cmp = ncx_compare_nums(instance, num, &rv->ub, btyp);
             if (cmp <= 0) {
                 ubok = TRUE;
             }
@@ -982,7 +992,8 @@ static boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 static boolean
-    process_one_valwalker (val_walker_fn_t walkerfn,
+    process_one_valwalker (ncx_instance_t *instance,
+                           val_walker_fn_t walkerfn,
                            void *cookie1,
                            void *cookie2,
                            val_value_t *val,
@@ -995,45 +1006,46 @@ static boolean
     boolean         fnresult;
 
     *fncalled = FALSE;
-    if (configonly && !obj_is_config(val->obj)) {
+    if (configonly && !obj_is_config(instance, val->obj)) {
         return TRUE;
     }
 
     fnresult = TRUE;
     if (textmode) {
-        if (obj_is_leafy(val->obj)) {
+        if (obj_is_leafy(instance, val->obj)) {
             if (walkerfn) {
-                fnresult = (*walkerfn)(val, cookie1, cookie2);
+                fnresult = (*walkerfn)(instance, val, cookie1, cookie2);
             }
             *fncalled = TRUE;
         }
     } else if (modname && name) {
-        if (!xml_strcmp(modname, 
-                        val_get_mod_name(val)) &&
-            !xml_strcmp(name, val->name)) {
+        if (!xml_strcmp(instance, 
+                        modname, 
+                        val_get_mod_name(instance, val)) &&
+            !xml_strcmp(instance, name, val->name)) {
 
             if (walkerfn) {
-                fnresult = (*walkerfn)(val, cookie1, cookie2);
+                fnresult = (*walkerfn)(instance, val, cookie1, cookie2);
             }
             *fncalled = TRUE;
         }
     } else if (modname) {
-        if (!xml_strcmp(modname, val_get_mod_name(val))) {
+        if (!xml_strcmp(instance, modname, val_get_mod_name(instance, val))) {
             if (walkerfn) {
-                fnresult = (*walkerfn)(val, cookie1, cookie2);
+                fnresult = (*walkerfn)(instance, val, cookie1, cookie2);
             }
             *fncalled = TRUE;
         }
     } else if (name) {
-        if (!xml_strcmp(name, val->name)) {
+        if (!xml_strcmp(instance, name, val->name)) {
             if (walkerfn) {
-                fnresult = (*walkerfn)(val, cookie1, cookie2);
+                fnresult = (*walkerfn)(instance, val, cookie1, cookie2);
             }
             *fncalled = TRUE;
         }
     } else {
         if (walkerfn) {
-            fnresult = (*walkerfn)(val, cookie1, cookie2);
+            fnresult = (*walkerfn)(instance, val, cookie1, cookie2);
         }
         *fncalled = TRUE;
     }
@@ -1056,7 +1068,8 @@ static boolean
 *    *realval is setup for return if NO_ERR
 *********************************************************************/
 static void
-    setup_virtual_retval (const val_value_t  *virval,
+    setup_virtual_retval (ncx_instance_t *instance,
+                          const val_value_t  *virval,
                           val_value_t *realval)
 {
     typ_template_t  *listtyp;
@@ -1071,13 +1084,13 @@ static void
     realval->dataclass = virval->dataclass;
     realval->parent = virval->parent;
 
-    if (!typ_is_simple(virval->btyp)) {
-        val_init_complex(realval, virval->btyp);
+    if (!typ_is_simple(instance, virval->btyp)) {
+        val_init_complex(instance, realval, virval->btyp);
     } else if (virval->btyp == NCX_BT_SLIST ||
                virval->btyp == NCX_BT_BITS) {
-        listtyp = typ_get_listtyp(realval->typdef);
-        btyp = typ_get_basetype(&listtyp->typdef);
-        ncx_init_list(&realval->v.list, btyp);
+        listtyp = typ_get_listtyp(instance, realval->typdef);
+        btyp = typ_get_basetype(instance, &listtyp->typdef);
+        ncx_init_list(instance, &realval->v.list, btyp);
     }
 
 }  /* setup_virtual_retval */
@@ -1098,7 +1111,8 @@ static void
 *   status
 *********************************************************************/
 static status_t
-    copy_editvars (const val_value_t *val,
+    copy_editvars (ncx_instance_t *instance,
+                   const val_value_t *val,
                    val_value_t *copy)
 {
     status_t   res;
@@ -1108,14 +1122,14 @@ static status_t
     /* set the copy->editvars */
     if (val->editvars) {
         if (!copy->editvars) {
-            res = val_new_editvars(copy);
+            res = val_new_editvars(instance, copy);
             if (res != NO_ERR || !copy->editvars ) {
                 if ( NO_ERR == res ) {
                     res = ERR_INTERNAL_PTR;
                 }
 
                 if ( copy->editvars ) {
-                    free_editvars( copy );
+                    free_editvars(instance,  copy );
                 }
                 return res;
             }
@@ -1128,7 +1142,7 @@ static status_t
 
         if (val->editvars->insertstr) {
             copy->editvars->insertstr = 
-                xml_strdup(val->editvars->insertstr);
+                xml_strdup(instance, val->editvars->insertstr);
             if (!copy->editvars->insertstr) {
                 res = ERR_INTERNAL_MEM;
             }
@@ -1136,7 +1150,7 @@ static status_t
 
         if (val->editvars->insertxpcb) {
             copy->editvars->insertxpcb = 
-                xpath_clone_pcb(val->editvars->insertxpcb);
+                xpath_clone_pcb(instance, val->editvars->insertxpcb);
             if (!copy->editvars->insertxpcb) {
                 res = ERR_INTERNAL_MEM;
             }
@@ -1182,7 +1196,8 @@ static status_t
 *
 *********************************************************************/
 static val_value_t *
-    cache_virtual_value (ses_cb_t *scb,
+    cache_virtual_value (ncx_instance_t *instance,
+                         ses_cb_t *scb,
                          val_value_t *val,
                          status_t *res)
 {
@@ -1217,15 +1232,16 @@ static val_value_t *
         }
 
         if (LOGDEBUG4) {
-            log_debug4("\nval: virtual val timer %e", timediff);
+            log_debug4(instance, "\nval: virtual val timer %e", timediff);
         }
 
         if (disable_cache || timediff > timerval) {
             if (LOGDEBUG4) {
-                log_debug4("\nval: refresh virtual val %s",
+                log_debug4(instance,
+                           "\nval: refresh virtual val %s",
                            val->name);
             }
-            val_free_value(val->virtualval);
+            val_free_value(instance, val->virtualval);
             val->virtualval = NULL;
         } else {
             return val->virtualval;
@@ -1233,17 +1249,17 @@ static val_value_t *
     }
 
     /* first get or stale and need a refresh */
-    retval = val_new_value();
+    retval = val_new_value(instance);
     if (!retval) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    setup_virtual_retval(val, retval);
+    setup_virtual_retval(instance, val, retval);
     (void)time(&val->cachetime);
 
-    *res = (*getcb)(NULL, GETCB_GET_VALUE, val, retval);
+    *res = (*getcb)(instance, NULL, GETCB_GET_VALUE, val, retval);
     if (*res != NO_ERR) {
-        val_free_value(retval);
+        val_free_value(instance, retval);
         retval = NULL;
     } else {
         val->virtualval = retval;
@@ -1275,7 +1291,8 @@ static val_value_t *
 *   clone of val, or NULL if a malloc failure or entire node filtered
 *********************************************************************/
 static val_value_t *
-    clone_test (const val_value_t *val,
+    clone_test (ncx_instance_t *instance,
+                const val_value_t *val,
                 val_test_fn_t  testfn,
                 boolean with_editvars,
                 status_t *res)
@@ -1287,13 +1304,13 @@ static val_value_t *
 
 #ifdef DEBUG
     if (!val || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     if (testfn) {
-        testres = (*testfn)(val);
+        testres = (*testfn)(instance, val);
         if (!testres) {
             *res = ERR_NCX_SKIPPED;
             return NULL;
@@ -1305,7 +1322,7 @@ static val_value_t *
         return NULL;
     }
 
-    copy = val_new_value();
+    copy = val_new_value(instance);
     if (!copy) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
@@ -1316,10 +1333,10 @@ static val_value_t *
     copy->typdef = val->typdef;
 
     if (val->dname) {
-        copy->dname = xml_strdup(val->dname);
+        copy->dname = xml_strdup(instance, val->dname);
         if (!copy->dname) {
             *res = ERR_INTERNAL_MEM;
-            val_free_value(copy);
+            val_free_value(instance, copy);
             return NULL;
         }
         copy->name = copy->dname;
@@ -1344,27 +1361,27 @@ static val_value_t *
     }
 
     /* copy meta-data */
-    for (ch = (const val_value_t *)dlq_firstEntry(&val->metaQ);
+    for (ch = (const val_value_t *)dlq_firstEntry(instance, &val->metaQ);
          ch != NULL;
-         ch = (const val_value_t *)dlq_nextEntry(ch)) {
-        copych = clone_test(ch, testfn, with_editvars, res);
+         ch = (const val_value_t *)dlq_nextEntry(instance, ch)) {
+        copych = clone_test(instance, ch, testfn, with_editvars, res);
         if (!copych) {
             if (*res == ERR_NCX_SKIPPED) {
                 *res = NO_ERR;
             } else {
-                val_free_value(copy);
+                val_free_value(instance, copy);
                 return NULL;
             }
         } else {
-            dlq_enque(copych, &copy->metaQ);
+            dlq_enque(instance, copych, &copy->metaQ);
         }
     }
 
     /* set the copy->editvars */
     if (with_editvars) {
-        *res = copy_editvars(val, copy);
+        *res = copy_editvars(instance, val, copy);
         if (*res != NO_ERR) {
-            val_free_value(copy);
+            val_free_value(instance, copy);
             return NULL;
         }
     }
@@ -1374,10 +1391,10 @@ static val_value_t *
 
     /* clone the XPath control block if there is one */
     if (val->xpathpcb) {
-        copy->xpathpcb = xpath_clone_pcb(val->xpathpcb);
+        copy->xpathpcb = xpath_clone_pcb(instance, val->xpathpcb);
         if (copy->xpathpcb == NULL) {
             *res = ERR_INTERNAL_MEM;
-            val_free_value(copy);
+            val_free_value(instance, copy);
             return NULL;
         }
     }
@@ -1398,7 +1415,7 @@ static val_value_t *
              * that will get deleted, so this pointer will
              * point at garbage
              */
-            copy->v.enu.dname = xml_strdup(val->v.enu.dname);
+            copy->v.enu.dname = xml_strdup(instance, val->v.enu.dname);
             copy->v.enu.name = copy->v.enu.dname;
             if (copy->v.enu.dname == NULL) {
                 *res = ERR_INTERNAL_MEM;
@@ -1422,12 +1439,12 @@ static val_value_t *
     case NCX_BT_UINT64:
     case NCX_BT_DECIMAL64:
     case NCX_BT_FLOAT64:
-        *res = ncx_copy_num(&val->v.num, &copy->v.num, val->btyp);
+        *res = ncx_copy_num(instance, &val->v.num, &copy->v.num, val->btyp);
         break;
     case NCX_BT_BINARY:
         ncx_init_binary(&copy->v.binary);
         if (val->v.binary.ustr) {
-            copy->v.binary.ustr = m__getMem(val->v.binary.ustrlen);
+            copy->v.binary.ustr = m__getMem(instance, val->v.binary.ustrlen);
             if (!copy->v.binary.ustr) {
                 *res = ERR_INTERNAL_MEM;
             } else {
@@ -1442,10 +1459,10 @@ static val_value_t *
     case NCX_BT_STRING: 
     case NCX_BT_INSTANCE_ID:
     case NCX_BT_LEAFREF:
-        *res = ncx_copy_str(&val->v.str, &copy->v.str, val->btyp);
+        *res = ncx_copy_str(instance, &val->v.str, &copy->v.str, val->btyp);
         break;
     case NCX_BT_IDREF:
-        copy->v.idref.name = xml_strdup(val->v.idref.name);
+        copy->v.idref.name = xml_strdup(instance, val->v.idref.name);
         if (!copy->v.idref.name) {
             *res = ERR_INTERNAL_MEM;
         } else {
@@ -1456,36 +1473,37 @@ static val_value_t *
         break;
     case NCX_BT_BITS:
     case NCX_BT_SLIST:
-        *res = ncx_copy_list(&val->v.list, &copy->v.list);
+        *res = ncx_copy_list(instance, &val->v.list, &copy->v.list);
         break;
     case NCX_BT_ANY:
     case NCX_BT_LIST:
     case NCX_BT_CONTAINER:
     case NCX_BT_CHOICE:
     case NCX_BT_CASE:
-        val_init_complex(copy, val->btyp);
-        for (ch = (const val_value_t *)dlq_firstEntry(&val->v.childQ);
+        val_init_complex(instance, copy, val->btyp);
+        for (ch = (const val_value_t *)dlq_firstEntry(instance, &val->v.childQ);
              ch != NULL && *res==NO_ERR;
-             ch = (const val_value_t *)dlq_nextEntry(ch)) {
+             ch = (const val_value_t *)dlq_nextEntry(instance, ch)) {
             if (ch->res == NO_ERR) {
-                copych = clone_test(ch, testfn, with_editvars, res);
+                copych = clone_test(instance, ch, testfn, with_editvars, res);
                 if (!copych) {
                     if (*res == ERR_NCX_SKIPPED) {
                         *res = NO_ERR;
                     }
                 } else {
                     copych->parent = copy;
-                    dlq_enque(copych, &copy->v.childQ);
+                    dlq_enque(instance, copych, &copy->v.childQ);
                 }
             } else {
-                log_warn("\nWarning: Skipping invalid value node '%s' (%s)",
+                log_warn(instance,
+                         "\nWarning: Skipping invalid value node '%s' (%s)",
                          ch->name, get_error_string(ch->res));
             }
         }
         break;
     case NCX_BT_EXTERN:
         if (val->v.fname) {
-            copy->v.fname = xml_strdup(val->v.fname);
+            copy->v.fname = xml_strdup(instance, val->v.fname);
             if (!copy->v.fname) {
                 *res = ERR_INTERNAL_MEM;
             }
@@ -1493,23 +1511,23 @@ static val_value_t *
         break;
     case NCX_BT_INTERN:
         if (val->v.intbuff) {
-            copy->v.intbuff = xml_strdup(val->v.intbuff);
+            copy->v.intbuff = xml_strdup(instance, val->v.intbuff);
             if (!copy->v.intbuff) {
                 *res = ERR_INTERNAL_MEM;
             }
         }
         break;
     default:
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* reconstruct index records if needed */
-    if (*res==NO_ERR && !dlq_empty(&val->indexQ)) {
-        *res = val_gen_index_chain(val->obj, copy);
+    if (*res==NO_ERR && !dlq_empty(instance, &val->indexQ)) {
+        *res = val_gen_index_chain(instance, val->obj, copy);
     }
 
     if (*res != NO_ERR) {
-        val_free_value(copy);
+        val_free_value(instance, copy);
         copy = NULL;
     }
 
@@ -1530,16 +1548,16 @@ static val_value_t *
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 val_value_t * 
-    val_new_value (void)
+    val_new_value (ncx_instance_t *instance)
 {
-    val_value_t *val = m__getObj(val_value_t);
+    val_value_t *val = m__getObj(instance, val_value_t);
     if (!val) {
         return NULL;
     }
 
     (void)memset(val, 0x0, sizeof(val_value_t));
-    dlq_createSQue(&val->metaQ);
-    dlq_createSQue(&val->indexQ);
+    dlq_createSQue(instance, &val->metaQ);
+    dlq_createSQue(instance, &val->indexQ);
 
     return val;
 
@@ -1559,18 +1577,19 @@ val_value_t *
 *   val == pointer to the malloced struct to initialize
 *********************************************************************/
 void
-    val_init_complex (val_value_t *val, 
+    val_init_complex (ncx_instance_t *instance, 
+                      val_value_t *val, 
                       ncx_btype_t btyp)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     val->btyp = btyp;
-    dlq_createSQue(&val->v.childQ);
+    dlq_createSQue(instance, &val->v.childQ);
 
 }  /* val_init_complex */
 
@@ -1588,18 +1607,19 @@ void
 *   obj == object template to use
 *********************************************************************/
 void
-    val_init_virtual (val_value_t *val,
+    val_init_virtual (ncx_instance_t *instance,
+                      val_value_t *val,
                       void  *cbfn,
                       obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!val || !cbfn || !obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    val_init_from_template(val, obj);
+    val_init_from_template(instance, val, obj);
     val->getcb = cbfn;
 
 }  /* val_init_virtual */
@@ -1617,17 +1637,18 @@ void
 *   obj == object template to use
 *********************************************************************/
 void
-    val_init_from_template (val_value_t *val,
+    val_init_from_template (ncx_instance_t *instance,
+                            val_value_t *val,
                             obj_template_t *obj)
 {
 #ifdef DEBUG
     if (!val || !obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    init_from_template(val, obj, obj_get_basetype(obj));
+    init_from_template(instance, val, obj, obj_get_basetype(instance, obj));
 
 }  /* val_init_from_template */
 
@@ -1643,7 +1664,7 @@ void
 * INPUTS:
 *    val == val_value_t to delete
 *********************************************************************/
-void val_free_value (val_value_t *val)
+void val_free_value (ncx_instance_t *instance, val_value_t *val)
 {
     if (!val) {
         return;
@@ -1651,13 +1672,14 @@ void val_free_value (val_value_t *val)
 
 #ifdef VAL_FREE_DEBUG
     if (LOGDEBUG4) {
-        log_debug4("\nval_free_value '%s' %p", 
+        log_debug4(instance, 
+                   "\nval_free_value '%s' %p", 
                    val->dname ? val->dname : NCX_EL_NONE, val);
     }
 #endif
 
-    clean_value(val, TRUE);
-    m__free(val);
+    clean_value(instance, val, TRUE);
+    m__free(instance, val);
 }  /* val_free_value */
 
 
@@ -1672,30 +1694,31 @@ void val_free_value (val_value_t *val)
 *    namelen == length of name string
 *********************************************************************/
 void 
-    val_set_name (val_value_t *val,
+    val_set_name (ncx_instance_t *instance,
+                  val_value_t *val,
                   const xmlChar *name,
                   uint32 namelen)
 {
 #ifdef DEBUG
     if (!val || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;  
     }
 #endif
 
     /* check no change to name */
-    if (val->name && (xml_strlen(val->name) == namelen) &&
-        !xml_strncmp(val->name, name, namelen)) {
+    if (val->name && (xml_strlen(instance, val->name) == namelen) &&
+        !xml_strncmp(instance, val->name, name, namelen)) {
         return;
     }
 
     /* replace the name field */
     if (val->dname) {
-        m__free(val->dname);
+        m__free(instance, val->dname);
     }
-    val->dname = xml_strndup(name, namelen);
+    val->dname = xml_strndup(instance, name, namelen);
     if (!val->dname) {
-        SET_ERROR(ERR_INTERNAL_MEM);
+        SET_ERROR(instance, ERR_INTERNAL_MEM);
     } 
     val->name = val->dname;
 
@@ -1718,29 +1741,29 @@ void
 *   status
 *********************************************************************/
 status_t
-    val_force_dname (val_value_t *val)
+    val_force_dname (ncx_instance_t *instance, val_value_t *val)
 {
     val_value_t  *chval;
     status_t      res = NO_ERR;
 
 #ifdef DEBUG
     if (val == NULL || val->name == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (val->dname == NULL) {
-        val->dname = xml_strdup(val->name);
+        val->dname = xml_strdup(instance, val->name);
         if (val->dname == NULL) {
             return ERR_INTERNAL_MEM;
         }
         val->name = val->dname;
     }
 
-    for (chval = val_get_first_child(val);
+    for (chval = val_get_first_child(instance, val);
          chval != NULL;
-         chval = val_get_next_child(chval)) {
-        res = val_force_dname(chval);
+         chval = val_get_next_child(instance, chval)) {
+        res = val_force_dname(instance, chval);
         if (res != NO_ERR) {
             return res;
         }
@@ -1762,14 +1785,15 @@ status_t
 *    namelen == length of name string
 *********************************************************************/
 void 
-    val_set_qname (val_value_t *val,
+    val_set_qname (ncx_instance_t *instance,
+                   val_value_t *val,
                    xmlns_id_t   nsid,
                    const xmlChar *name,
                    uint32 namelen)
 {
 #ifdef DEBUG
     if (!val || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;  
     }
 #endif
@@ -1777,18 +1801,18 @@ void
     val->nsid = nsid;
 
     /* check no change to name */
-    if (val->name && (xml_strlen(val->name) == namelen) &&
-        !xml_strncmp(val->name, name, namelen)) {
+    if (val->name && (xml_strlen(instance, val->name) == namelen) &&
+        !xml_strncmp(instance, val->name, name, namelen)) {
         return;
     }
 
     /* replace the name field */
     if (val->dname) {
-        m__free(val->dname);
+        m__free(instance, val->dname);
     }
-    val->dname = xml_strndup(name, namelen);
+    val->dname = xml_strndup(instance, name, namelen);
     if (!val->dname) {
-        SET_ERROR(ERR_INTERNAL_MEM);
+        SET_ERROR(instance, ERR_INTERNAL_MEM);
     } 
     val->name = val->dname;
 
@@ -1810,11 +1834,12 @@ void
 *    status
 *********************************************************************/
 status_t
-    val_string_ok (typ_def_t *typdef,
+    val_string_ok (ncx_instance_t *instance,
+                   typ_def_t *typdef,
                    ncx_btype_t btyp,
                    const xmlChar *strval)
 {
-    return val_string_ok_ex(typdef, btyp, strval, NULL, TRUE);
+    return val_string_ok_ex(instance, typdef, btyp, strval, NULL, TRUE);
 
 } /* val_string_ok */
 
@@ -1841,12 +1866,13 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_string_ok_errinfo (typ_def_t *typdef,
+    val_string_ok_errinfo (ncx_instance_t *instance,
+                           typ_def_t *typdef,
                            ncx_btype_t btyp,
                            const xmlChar *strval,
                            ncx_errinfo_t **errinfo)
 {
-    return val_string_ok_ex(typdef, btyp, strval, errinfo, TRUE);
+    return val_string_ok_ex(instance, typdef, btyp, strval, errinfo, TRUE);
 }
 
 
@@ -1873,7 +1899,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_string_ok_ex (typ_def_t *typdef,
+    val_string_ok_ex (ncx_instance_t *instance,
+                      typ_def_t *typdef,
                       ncx_btype_t btyp,
                       const xmlChar *strval,
                       ncx_errinfo_t **errinfo,
@@ -1887,7 +1914,7 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !strval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -1902,57 +1929,59 @@ status_t
     switch (btyp) {
     case NCX_BT_BINARY:
         /* just get the length of the decoded binary string */
-        len.u = b64_get_decoded_str_len( strval, xml_strlen(strval) );
-        res = val_range_ok_errinfo( typdef, NCX_BT_UINT32, &len, errinfo);
+        len.u = b64_get_decoded_str_len( strval, xml_strlen(instance, strval) );
+        res = val_range_ok_errinfo(instance,  typdef, NCX_BT_UINT32, &len, errinfo);
         break;
     case NCX_BT_STRING:
-        if (!(typ_is_xpath_string(typdef) ||
-              typ_is_schema_instance_string(typdef))) {
+        if (!(typ_is_xpath_string(instance, typdef) ||
+              typ_is_schema_instance_string(instance, typdef))) {
 
-            len.u = xml_strlen(strval);
-            res = val_range_ok_errinfo(typdef, NCX_BT_UINT32, &len, errinfo);
+            len.u = xml_strlen(instance, strval);
+            res = val_range_ok_errinfo(instance, typdef, NCX_BT_UINT32, &len, errinfo);
             if (res == NO_ERR) {
-                res = val_pattern_ok_errinfo(typdef, strval, errinfo);
+                res = val_pattern_ok_errinfo(instance, typdef, strval, errinfo);
             }
             break;
         }
         /* else fall through and treat XPath string */
     case NCX_BT_INSTANCE_ID:
         /* instance-identifier is handled with xpath.c xpath1.c */
-        if (typ_is_schema_instance_string(typdef)) {
+        if (typ_is_schema_instance_string(instance, typdef)) {
             xpath_source = XP_SRC_SCHEMA_INSTANCEID;
         }
 
-        xpathpcb = xpath_new_pcb(strval, NULL);
+        xpathpcb = xpath_new_pcb(instance, strval, NULL);
         if (xpathpcb == NULL) {
             res = ERR_INTERNAL_MEM;
         } else if (btyp == NCX_BT_INSTANCE_ID ||
-                   typ_is_schema_instance_string(typdef)) {
+                   typ_is_schema_instance_string(instance, typdef)) {
             /* do a first pass parsing to resolve all
              * the prefixes and check well-formed XPath
              */
-            res = xpath_yang_parse_path_ex(NULL, NULL, xpath_source,
+            res = xpath_yang_parse_path_ex(instance, NULL, NULL, xpath_source,
                                            xpathpcb, logerrors);
             if (res == NO_ERR) {
                 leafobj = NULL;
-                res = xpath_yang_validate_path_ex(NULL, 
-                                                  ncx_get_gen_root(), 
+                res = xpath_yang_validate_path_ex(instance, 
+                                                  NULL, 
+                                                  ncx_get_gen_root(instance), 
                                                   xpathpcb, 
                                                   (xpath_source == 
                                                    XP_SRC_INSTANCEID) 
                                                   ? FALSE : TRUE,
                                                   &leafobj, logerrors);
             }
-            xpath_free_pcb(xpathpcb);
+            xpath_free_pcb(instance, xpathpcb);
         } else {
             xpathpcb->logerrors = logerrors;
-            res = xpath1_parse_expr(NULL, NULL, xpathpcb, XP_SRC_YANG);
+            res = xpath1_parse_expr(instance, NULL, NULL, xpathpcb, XP_SRC_YANG);
             if (res == NO_ERR) {
-                objroot = ncx_get_gen_root();
-                res = xpath1_validate_expr(objroot->tkerr.mod, 
+                objroot = ncx_get_gen_root(instance);
+                res = xpath1_validate_expr(instance, 
+                                           objroot->tkerr.mod, 
                                            objroot, xpathpcb);
             }
-            xpath_free_pcb(xpathpcb);
+            xpath_free_pcb(instance, xpathpcb);
         }
         break;
     case NCX_BT_LEAFREF:
@@ -1994,18 +2023,19 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_list_ok (typ_def_t *typdef,
+    val_list_ok (ncx_instance_t *instance,
+                 typ_def_t *typdef,
                  ncx_btype_t  btyp,
                  ncx_list_t *list)
 {
 
 #ifdef DEBUG
     if (!typdef || !list) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return val_list_ok_errinfo(typdef, btyp, list, NULL);
+    return val_list_ok_errinfo(instance, typdef, btyp, list, NULL);
 
 } /* val_list_ok */
 
@@ -2034,7 +2064,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_list_ok_errinfo (typ_def_t *typdef,
+    val_list_ok_errinfo (ncx_instance_t *instance,
+                         typ_def_t *typdef,
                          ncx_btype_t  btyp,
                          ncx_list_t *list,
                          ncx_errinfo_t **errinfo)
@@ -2046,7 +2077,7 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !list) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2058,22 +2089,22 @@ status_t
 
     /* listtyp is for the list members, not the list itself */
     if (btyp == NCX_BT_SLIST) {
-        listtyp = typ_get_listtyp(typdef);
+        listtyp = typ_get_listtyp(instance, typdef);
         listdef = &listtyp->typdef;
     }
 
     /* go through all the list members and check them */
-    for (lmem = (ncx_lmem_t *)dlq_firstEntry(&list->memQ);
+    for (lmem = (ncx_lmem_t *)dlq_firstEntry(instance, &list->memQ);
          lmem != NULL;
-         lmem = (ncx_lmem_t *)dlq_nextEntry(lmem)) {
+         lmem = (ncx_lmem_t *)dlq_nextEntry(instance, lmem)) {
 
         /* stop on first error -- if 1 list member is invalid
          * then the entire list is invalid
          */
         if (btyp == NCX_BT_SLIST) {
-            res = val_simval_ok_errinfo(listdef, lmem->val.str, errinfo);
+            res = val_simval_ok_errinfo(instance, listdef, lmem->val.str, errinfo);
         } else {
-            res = val_bit_ok(typdef, lmem->val.str, NULL);
+            res = val_bit_ok(instance, typdef, lmem->val.str, NULL);
         }
         if (res != NO_ERR) {
             return res;
@@ -2105,7 +2136,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_enum_ok (typ_def_t *typdef,
+    val_enum_ok (ncx_instance_t *instance,
+                 typ_def_t *typdef,
                  const xmlChar *enumval,
                  int32 *retval,
                  const xmlChar **retstr)
@@ -2118,12 +2150,12 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !enumval ||!retval ||!retstr) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* make sure the data type is correct */
-    btyp = typ_get_basetype(typdef);
+    btyp = typ_get_basetype(instance, typdef);
     if (btyp != NCX_BT_ENUM) {
         return ERR_NCX_WRONG_DATATYP;
     }
@@ -2152,7 +2184,7 @@ status_t
     /* check typdefs until the final one in the chain is reached */
     for (;;) {
         if (checkQ) {
-            res = check_svalQ_enum(enumval, checkQ, &en);
+            res = check_svalQ_enum(instance, enumval, checkQ, &en);
             if (res == NO_ERR) {
                 /* return both the name and number of the found enum */
                 *retval = en->val;
@@ -2167,9 +2199,9 @@ status_t
         }
 
         /* setup the typdef and checkQ for the next loop */
-        typdef = typ_get_next_typdef(&typdef->def.named.typ->typdef);
+        typdef = typ_get_next_typdef(instance, &typdef->def.named.typ->typdef);
         if (!typdef) {
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         switch (typdef->tclass) {
         case NCX_CL_SIMPLE:
@@ -2184,7 +2216,7 @@ status_t
             }
             break;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
     /*NOTREACHED*/
@@ -2210,7 +2242,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_bit_ok (typ_def_t *typdef,
+    val_bit_ok (ncx_instance_t *instance,
+                typ_def_t *typdef,
                 const xmlChar *bitname,
                 uint32 *position)
 {
@@ -2221,7 +2254,7 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !bitname) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2249,7 +2282,7 @@ status_t
     /* check typdefs until the final one in the chain is reached */
     for (;;) {
         if (checkQ) {
-            res = check_svalQ_enum(bitname, checkQ, &en);
+            res = check_svalQ_enum(instance, bitname, checkQ, &en);
             if (res == NO_ERR) {
                 if (position) {
                     *position = en->pos;
@@ -2264,9 +2297,9 @@ status_t
         }
 
         /* setup the typdef and checkQ for the next loop */
-        typdef = typ_get_next_typdef(&typdef->def.named.typ->typdef);
+        typdef = typ_get_next_typdef(instance, &typdef->def.named.typ->typdef);
         if (!typdef) {
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         switch (typdef->tclass) {
         case NCX_CL_SIMPLE:
@@ -2281,7 +2314,7 @@ status_t
             }
             break;
         default:
-            return SET_ERROR(ERR_INTERNAL_VAL);
+            return SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
     /*NOTREACHED*/
@@ -2315,7 +2348,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_idref_ok (typ_def_t *typdef,
+    val_idref_ok (ncx_instance_t *instance,
+                  typ_def_t *typdef,
                   const xmlChar *qname,
                   xmlns_id_t nsid,
                   const xmlChar **name,
@@ -2329,18 +2363,18 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !qname) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
-    if (typ_get_basetype(typdef) != NCX_BT_IDREF) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+    if (typ_get_basetype(instance, typdef) != NCX_BT_IDREF) {
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
     found = FALSE;
 
-    idref = typ_get_cidref(typdef);
+    idref = typ_get_cidref(instance, typdef);
     if (!idref) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     
     /* find the local-name in the prefix:local-name combo */
@@ -2356,11 +2390,11 @@ status_t
 
     if (nsid) {
         /* str should point to the local name now */
-        modname = xmlns_get_module(nsid);
+        modname = xmlns_get_module(instance, nsid);
         if (!modname) {
             return ERR_NCX_INVALID_VALUE;
         }
-        mod = ncx_find_module(modname, NULL);
+        mod = ncx_find_module(instance, modname, NULL);
         if (!mod) {
             return ERR_NCX_INVALID_VALUE;
         }
@@ -2368,16 +2402,16 @@ status_t
         /* the namespace produced a module which should have
          * the identity-stmt with this name
          */
-        identity = ncx_find_identity(mod, str, FALSE);
+        identity = ncx_find_identity(instance, mod, str, FALSE);
     } else {
         /* no default namespace, so be liberal and
          * try to find any matching value
          */
         identity = NULL;
-        for (mod = ncx_get_first_module();
+        for (mod = ncx_get_first_module(instance);
              mod != NULL && identity == NULL;
-             mod = ncx_get_next_module(mod)) {
-            identity = ncx_find_identity(mod, str, FALSE); 
+             mod = ncx_get_next_module(instance, mod)) {
+            identity = ncx_find_identity(instance, mod, str, FALSE); 
         }
     }
 
@@ -2390,9 +2424,10 @@ status_t
      * as the base specified in the typdef
      */
     while (identity && !found) {
-        if (!xml_strcmp(ncx_get_modname(identity->tkerr.mod), 
+        if (!xml_strcmp(instance, 
+                        ncx_get_modname(identity->tkerr.mod), 
                         idref->modname) &&
-            !xml_strcmp(identity->name, idref->basename)) {
+            !xml_strcmp(instance, identity->name, idref->basename)) {
             found = TRUE;
         } else {
             identity = identity->base;
@@ -2439,7 +2474,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_parse_idref (ncx_module_t *mod,
+    val_parse_idref (ncx_instance_t *instance,
+                     ncx_module_t *mod,
                      const xmlChar *qname,
                      xmlns_id_t  *nsid,
                      const xmlChar **name,
@@ -2456,7 +2492,7 @@ status_t
 
 #ifdef DEBUG
     if (!qname) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
     
@@ -2483,22 +2519,23 @@ status_t
         /* prefix found */
         prefixnsid = 0;
         prefixlen = (uint32)(str++ - qname);
-        prefixbuff = m__getMem(prefixlen+1);
+        prefixbuff = m__getMem(instance, prefixlen+1);
         if (!prefixbuff) {
             return ERR_INTERNAL_MEM;
         } else {
-            xml_strncpy(prefixbuff, qname, prefixlen);
+            xml_strncpy(instance, prefixbuff, qname, prefixlen);
         }
 
         if (mod) {
-            if (xml_strcmp(mod->prefix, prefixbuff)) {
-                import = ncx_find_pre_import(mod, prefixbuff);
+            if (xml_strcmp(instance, mod->prefix, prefixbuff)) {
+                import = ncx_find_pre_import(instance, mod, prefixbuff);
                 if (import) {
-                    impmod = ncx_find_module(import->module,
+                    impmod = ncx_find_module(instance,
+                                             import->module,
                                              import->revision);
                     if (impmod) {
                         prefixnsid = impmod->nsid;
-                        identity = ncx_find_identity(impmod, str, FALSE);
+                        identity = ncx_find_identity(instance, impmod, str, FALSE);
                     } else {
                         res = ERR_NCX_MOD_NOT_FOUND;
                     }
@@ -2507,18 +2544,18 @@ status_t
                 }
             } else {
                 prefixnsid = mod->nsid;
-                identity = ncx_find_identity(mod, str, FALSE);
+                identity = ncx_find_identity(instance, mod, str, FALSE);
             }
         } else {
             /* look up the default prefix for a module */
-            prefixnsid = xmlns_find_ns_by_prefix(prefixbuff);
+            prefixnsid = xmlns_find_ns_by_prefix(instance, prefixbuff);
             if (prefixnsid) {
-                modname = xmlns_get_module(prefixnsid);
+                modname = xmlns_get_module(instance, prefixnsid);
                 if (modname) {
-                    impmod = ncx_find_module(modname, NULL);
+                    impmod = ncx_find_module(instance, modname, NULL);
                     if (impmod) {
                         prefixnsid = impmod->nsid;
-                        identity = ncx_find_identity(impmod, str, FALSE);
+                        identity = ncx_find_identity(instance, impmod, str, FALSE);
                     } else {
                         res = ERR_NCX_MOD_NOT_FOUND;
                     }
@@ -2529,7 +2566,7 @@ status_t
                 res = ERR_NCX_PREFIX_NOT_FOUND;
             }
         }
-        m__free(prefixbuff);
+        m__free(instance, prefixbuff);
         if (name) {
             *name = str;
         }
@@ -2540,24 +2577,24 @@ status_t
         }
         if (mod) {
             prefixnsid = mod->nsid;
-            identity = ncx_find_identity(mod, qname, FALSE);
+            identity = ncx_find_identity(instance, mod, qname, FALSE);
         } else {
             identity = NULL;
             /* check all session modules first */
-            for (mod = ncx_get_first_session_module();
+            for (mod = ncx_get_first_session_module(instance);
                  mod != NULL && identity == NULL;
-                 mod = ncx_get_next_session_module(mod)) {
-                identity = ncx_find_identity(mod, qname, FALSE);
+                 mod = ncx_get_next_session_module(instance, mod)) {
+                identity = ncx_find_identity(instance, mod, qname, FALSE);
                 if (identity) {
                     prefixnsid = mod->nsid;                 
                 }
             }
 
             /* check all normal modules last */
-            for (mod = ncx_get_first_module();
+            for (mod = ncx_get_first_module(instance);
                  mod != NULL && identity == NULL;
-                 mod = ncx_get_next_module(mod)) {
-                identity = ncx_find_identity(mod, qname, FALSE);
+                 mod = ncx_get_next_module(instance, mod)) {
+                identity = ncx_find_identity(instance, mod, qname, FALSE);
                 if (identity) {
                     prefixnsid = mod->nsid;                 
                 }
@@ -2595,17 +2632,18 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_range_ok (typ_def_t *typdef,
+    val_range_ok (ncx_instance_t *instance,
+                  typ_def_t *typdef,
                   ncx_btype_t  btyp,
                   const ncx_num_t *num)
 {
 #ifdef DEBUG
     if (!typdef || !num) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return val_range_ok_errinfo(typdef, btyp, num, NULL);
+    return val_range_ok_errinfo(instance, typdef, btyp, num, NULL);
 
 } /* val_range_ok */
 
@@ -2630,7 +2668,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_range_ok_errinfo (typ_def_t *typdef,
+    val_range_ok_errinfo (ncx_instance_t *instance,
+                          typ_def_t *typdef,
                           ncx_btype_t  btyp,
                           const ncx_num_t *num,
                           ncx_errinfo_t **errinfo)
@@ -2642,7 +2681,7 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !num) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2651,7 +2690,7 @@ status_t
     }
 
     /* find the real typdef to check */
-    testdef = typ_get_qual_typdef(typdef, NCX_SQUAL_RANGE);
+    testdef = typ_get_qual_typdef(instance, typdef, NCX_SQUAL_RANGE);
     if (!testdef) {
         /* assume this means no range specified and
          * not an internal PTR or VAL error
@@ -2662,10 +2701,10 @@ status_t
     /* there can only be one active range, which is
      * the most derived typdef that declares a range
      */
-    range_errinfo = typ_get_range_errinfo(testdef);
-    checkQ = typ_get_rangeQ_con(testdef);
+    range_errinfo = typ_get_range_errinfo(instance, testdef);
+    checkQ = typ_get_rangeQ_con(instance, testdef);
 
-    res = check_rangeQ(btyp, num, checkQ);
+    res = check_rangeQ(instance, btyp, num, checkQ);
     if (res != NO_ERR && errinfo && range_errinfo &&
         ncx_errinfo_set(range_errinfo)) {
         *errinfo = range_errinfo;
@@ -2688,16 +2727,17 @@ status_t
 *    NO_ERR if pattern OK or no patterns found to check; error otherwise
 *********************************************************************/
 status_t
-    val_pattern_ok (typ_def_t *typdef,
+    val_pattern_ok (ncx_instance_t *instance,
+                    typ_def_t *typdef,
                     const xmlChar *strval)
 {
 #ifdef DEBUG
     if (!typdef) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return val_pattern_ok_errinfo(typdef, strval, NULL);
+    return val_pattern_ok_errinfo(instance, typdef, strval, NULL);
 
 }  /* val_pattern_ok */
 
@@ -2721,7 +2761,8 @@ status_t
 *    that failed has any errinfo defined in it
 *********************************************************************/
 status_t
-    val_pattern_ok_errinfo (typ_def_t *typdef,
+    val_pattern_ok_errinfo (ncx_instance_t *instance,
+                            typ_def_t *typdef,
                             const xmlChar *strval,
                             ncx_errinfo_t **errinfo)
 {
@@ -2729,7 +2770,7 @@ status_t
 
 #ifdef DEBUG
     if (!typdef) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2737,7 +2778,7 @@ status_t
         strval = EMPTY_STRING;
     }
 
-    if (typ_get_basetype(typdef) != NCX_BT_STRING) {
+    if (typ_get_basetype(instance, typdef) != NCX_BT_STRING) {
         return ERR_NCX_WRONG_DATATYP;
     }
 
@@ -2746,11 +2787,11 @@ status_t
     }
 
     while (typdef) {
-        for (pat = typ_get_first_pattern(typdef);
+        for (pat = typ_get_first_pattern(instance, typdef);
              pat != NULL;
-             pat = typ_get_next_pattern(pat)) {
+             pat = typ_get_next_pattern(instance, pat)) {
 
-            if (!pattern_match(pat->pattern, strval)) {
+            if (!pattern_match(instance, pat->pattern, strval)) {
                 if (errinfo && 
                     ncx_errinfo_set(&pat->pat_errinfo)) {
                     *errinfo = &pat->pat_errinfo;
@@ -2759,7 +2800,7 @@ status_t
             } /* else matched -- keep trying more patterns */
         }
 
-        typdef = typ_get_parent_typdef(typdef);
+        typdef = typ_get_parent_typdef(instance, typdef);
     }
 
     return NO_ERR;
@@ -2782,16 +2823,17 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_simval_ok (typ_def_t *typdef,
+    val_simval_ok (ncx_instance_t *instance,
+                   typ_def_t *typdef,
                    const xmlChar *simval)
 {
 #ifdef DEBUG
     if (!typdef) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return val_simval_ok_max(typdef, simval, NULL, NULL, TRUE);
+    return val_simval_ok_max(instance, typdef, simval, NULL, NULL, TRUE);
 
 } /* val_simval_ok */
 
@@ -2816,11 +2858,12 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_simval_ok_errinfo (typ_def_t *typdef,
+    val_simval_ok_errinfo (ncx_instance_t *instance,
+                           typ_def_t *typdef,
                            const xmlChar *simval,
                            ncx_errinfo_t **errinfo)
 {
-    return val_simval_ok_max(typdef, simval, errinfo, NULL, TRUE);
+    return val_simval_ok_max(instance, typdef, simval, errinfo, NULL, TRUE);
 
 } /* val_simval_ok_errinfo */
 
@@ -2846,12 +2889,13 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_simval_ok_ex (typ_def_t *typdef,
+    val_simval_ok_ex (ncx_instance_t *instance,
+                      typ_def_t *typdef,
                       const xmlChar *simval,
                       ncx_errinfo_t **errinfo,
                       ncx_module_t *mod)
 {
-    return val_simval_ok_max(typdef, simval, errinfo, mod, TRUE);
+    return val_simval_ok_max(instance, typdef, simval, errinfo, mod, TRUE);
 
 }  /* val_simval_ok_ex */
 
@@ -2879,7 +2923,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_simval_ok_max (typ_def_t *typdef,
+    val_simval_ok_max (ncx_instance_t *instance,
+                       typ_def_t *typdef,
                        const xmlChar *simval,
                        ncx_errinfo_t **errinfo,
                        ncx_module_t *mod,
@@ -2900,7 +2945,7 @@ status_t
 
 #ifdef DEBUG
     if (!typdef) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2915,7 +2960,7 @@ status_t
         forced = FALSE;
     }
 
-    btyp = typ_get_basetype(typdef);
+    btyp = typ_get_basetype(instance, typdef);
 
     switch (btyp) {
     case NCX_BT_NONE:
@@ -2925,7 +2970,7 @@ status_t
         res = ERR_NCX_INVALID_VALUE;
         break;
     case NCX_BT_ENUM:
-        res = val_enum_ok(typdef, simval, &retval, &retstr);
+        res = val_enum_ok(instance, typdef, simval, &retval, &retstr);
         break;
     case NCX_BT_EMPTY:
         if (forced || !*simval) {
@@ -2935,7 +2980,7 @@ status_t
         }
         break;
     case NCX_BT_BOOLEAN:
-        if (ncx_is_true(simval) || ncx_is_false(simval)) {
+        if (ncx_is_true(instance, simval) || ncx_is_false(instance, simval)) {
             res = NO_ERR;
         } else {
             res = ERR_NCX_INVALID_VALUE;
@@ -2955,36 +3000,36 @@ status_t
     case NCX_BT_INT32:
     case NCX_BT_INT64:
     case NCX_BT_FLOAT64:
-        res = ncx_decode_num(simval, btyp, &num);
+        res = ncx_decode_num(instance, simval, btyp, &num);
         if (res == NO_ERR) {
-            res = val_range_ok_errinfo(typdef, btyp, &num, errinfo);
+            res = val_range_ok_errinfo(instance, typdef, btyp, &num, errinfo);
         }
-        ncx_clean_num(btyp, &num);
+        ncx_clean_num(instance, btyp, &num);
         break;
     case NCX_BT_DECIMAL64:
-        res = ncx_decode_dec64(simval, typ_get_fraction_digits(typdef), &num);
+        res = ncx_decode_dec64(instance, simval, typ_get_fraction_digits(instance, typdef), &num);
         if (res == NO_ERR) {
-            res = val_range_ok(typdef, btyp, &num);
+            res = val_range_ok(instance, typdef, btyp, &num);
         }
-        ncx_clean_num(btyp, &num);
+        ncx_clean_num(instance, btyp, &num);
         break;
     case NCX_BT_STRING:
     case NCX_BT_BINARY:
-        res = val_string_ok_ex(typdef, btyp, simval, errinfo, logerrors);
+        res = val_string_ok_ex(instance, typdef, btyp, simval, errinfo, logerrors);
         break;
     case NCX_BT_INSTANCE_ID:
-        res = val_string_ok_ex(typdef, btyp, simval, errinfo, logerrors);
+        res = val_string_ok_ex(instance, typdef, btyp, simval, errinfo, logerrors);
         break;
     case NCX_BT_UNION:
-        unval = val_new_value();
+        unval = val_new_value(instance);
         if (!unval) {
             res = ERR_INTERNAL_MEM;
         } else {
             unval->btyp = NCX_BT_UNION;
             unval->typdef = typdef;
-            res = val_union_ok_ex(typdef, simval, unval, errinfo, mod);
+            res = val_union_ok_ex(instance, typdef, simval, unval, errinfo, mod);
             unval->btyp = NCX_BT_NONE;            
-            val_free_value(unval);
+            val_free_value(instance, unval);
         }
         break;
     case NCX_BT_LEAFREF:
@@ -2992,46 +3037,46 @@ status_t
          * manager-side set function, so just check
          * if the pointed-at typedef validates correctly
          */
-        realtypdef = typ_get_xref_typdef(typdef);
+        realtypdef = typ_get_xref_typdef(instance, typdef);
         if (realtypdef) {
-            res = val_simval_ok_max(realtypdef, simval, errinfo, mod,
+            res = val_simval_ok_max(instance, realtypdef, simval, errinfo, mod,
                                     logerrors);
         } else {
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case NCX_BT_IDREF:
         identity = NULL;
-        res = val_parse_idref(mod, simval, &nsid, &name, &identity);
+        res = val_parse_idref(instance, mod, simval, &nsid, &name, &identity);
         if (res == NO_ERR) {
             if (identity == NULL) {
-                res = val_idref_ok(typdef, simval, nsid, &name, &identity);
+                res = val_idref_ok(instance, typdef, simval, nsid, &name, &identity);
             }
         }
         break;
     case NCX_BT_BITS:
-        ncx_init_list(&list, NCX_BT_BITS);
-        res = ncx_set_list(NCX_BT_BITS, simval, &list);
+        ncx_init_list(instance, &list, NCX_BT_BITS);
+        res = ncx_set_list(instance, NCX_BT_BITS, simval, &list);
         if (res == NO_ERR) {
-            res = ncx_finish_list(typdef, &list);
+            res = ncx_finish_list(instance, typdef, &list);
             if (res == NO_ERR) {
-                res = val_list_ok_errinfo(typdef, btyp, &list, errinfo);
+                res = val_list_ok_errinfo(instance, typdef, btyp, &list, errinfo);
             }
         }
-        ncx_clean_list(&list);
+        ncx_clean_list(instance, &list);
         break;
     case NCX_BT_SLIST:
-        listtyp = typ_get_listtyp(typdef);
-        listbtyp = typ_get_basetype(&listtyp->typdef);
-        ncx_init_list(&list, listbtyp);
-        res = ncx_set_list(listbtyp, simval, &list);
+        listtyp = typ_get_listtyp(instance, typdef);
+        listbtyp = typ_get_basetype(instance, &listtyp->typdef);
+        ncx_init_list(instance, &list, listbtyp);
+        res = ncx_set_list(instance, listbtyp, simval, &list);
         if (res == NO_ERR) {
-            res = ncx_finish_list(&listtyp->typdef, &list);
+            res = ncx_finish_list(instance, &listtyp->typdef, &list);
             if (res == NO_ERR) {
-                res = val_list_ok_errinfo(typdef, btyp, &list, errinfo);
+                res = val_list_ok_errinfo(instance, typdef, btyp, &list, errinfo);
             }
         }
-        ncx_clean_list(&list);
+        ncx_clean_list(instance, &list);
         break;
     case NCX_BT_CONTAINER:
     case NCX_BT_CHOICE:
@@ -3041,7 +3086,7 @@ status_t
         res = ERR_NCX_INVALID_VALUE;
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -3069,17 +3114,18 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_union_ok (typ_def_t *typdef,
+    val_union_ok (ncx_instance_t *instance,
+                  typ_def_t *typdef,
                   const xmlChar *strval,
                   val_value_t *retval)
 {
 #ifdef DEBUG
     if (!typdef || !retval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    return val_union_ok_ex(typdef, strval, retval, NULL, NULL);
+    return val_union_ok_ex(instance, typdef, strval, retval, NULL, NULL);
 
 } /* val_union_ok */
 
@@ -3106,12 +3152,13 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_union_ok_errinfo (typ_def_t *typdef,
+    val_union_ok_errinfo (ncx_instance_t *instance,
+                          typ_def_t *typdef,
                           const xmlChar *strval,
                           val_value_t *retval,
                           ncx_errinfo_t **errinfo)
 {
-    return val_union_ok_ex(typdef, strval, retval, errinfo, NULL);
+    return val_union_ok_ex(instance, typdef, strval, retval, errinfo, NULL);
 
 } /* val_union_ok_errinfo */
 
@@ -3139,7 +3186,8 @@ status_t
 *    status
 *********************************************************************/
 status_t
-    val_union_ok_ex (typ_def_t *typdef,
+    val_union_ok_ex (ncx_instance_t *instance,
+                     typ_def_t *typdef,
                      const xmlChar *strval,
                      val_value_t *retval,
                      ncx_errinfo_t **errinfo,
@@ -3153,7 +3201,7 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !retval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -3164,11 +3212,11 @@ status_t
     }
 
     /* get the first union member type */
-    un = typ_first_unionnode(typdef);
+    un = typ_first_unionnode(instance, typdef);
 
 #ifdef DEBUG
     if (!un || (!un->typ && !un->typdef)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 #endif
 
@@ -3185,16 +3233,16 @@ status_t
         } else if (un->typdef) {
             undef = un->typdef;
         } else {
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             done = TRUE;
             continue;
         }
 
-        testbtyp = typ_get_basetype(undef);
+        testbtyp = typ_get_basetype(instance, undef);
         if (testbtyp == NCX_BT_UNION) {
-            res = val_union_ok_ex(undef, strval, retval, errinfo, mod);
+            res = val_union_ok_ex(instance, undef, strval, retval, errinfo, mod);
         } else {
-            res = val_simval_ok_max(undef, strval, errinfo, mod, FALSE);
+            res = val_simval_ok_max(instance, undef, strval, errinfo, mod, FALSE);
         }
         if (res == NO_ERR) {
             /* the un->typ field may be NULL for YANG unions in progress
@@ -3203,11 +3251,11 @@ status_t
              * registered, the un->typ field should be set
              */
             if (testbtyp != NCX_BT_UNION) {
-                retval->btyp = typ_get_basetype(undef);
+                retval->btyp = typ_get_basetype(instance, undef);
             }
             done = TRUE;
         } else if (res != ERR_INTERNAL_MEM) {
-            un = (typ_unionnode_t *)dlq_nextEntry(un);
+            un = (typ_unionnode_t *)dlq_nextEntry(instance, un);
             if (!un) {
                 res = ERR_NCX_WRONG_NODETYP;
                 done = TRUE;
@@ -3234,11 +3282,11 @@ status_t
 *   pointer to the metaQ for this value
 *********************************************************************/
 dlq_hdr_t *
-    val_get_metaQ (val_value_t  *val)
+    val_get_metaQ (ncx_instance_t *instance, val_value_t  *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -3269,16 +3317,16 @@ dlq_hdr_t *
 *   or NULL if none
 *********************************************************************/
 val_value_t *
-    val_get_first_meta (dlq_hdr_t *queue)
+    val_get_first_meta (ncx_instance_t *instance, dlq_hdr_t *queue)
 {
 #ifdef DEBUG
     if (!queue) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (val_value_t *)dlq_firstEntry(queue);
+    return (val_value_t *)dlq_firstEntry(instance, queue);
 
 }  /* val_get_first_meta */
 
@@ -3296,16 +3344,16 @@ val_value_t *
 *   or NULL if none
 *********************************************************************/
 val_value_t *
-    val_get_first_meta_val (val_value_t *val)
+    val_get_first_meta_val (ncx_instance_t *instance, val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (val_value_t *)dlq_firstEntry(&val->metaQ);
+    return (val_value_t *)dlq_firstEntry(instance, &val->metaQ);
 
 }  /* val_get_first_meta_val */
 
@@ -3323,16 +3371,16 @@ val_value_t *
 *   or NULL if none
 *********************************************************************/
 val_value_t *
-    val_get_next_meta (val_value_t *curnode)
+    val_get_next_meta (ncx_instance_t *instance, val_value_t *curnode)
 {
 #ifdef DEBUG
     if (!curnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (val_value_t *)dlq_nextEntry(curnode);
+    return (val_value_t *)dlq_nextEntry(instance, curnode);
 
 }  /* val_get_next_meta */
 
@@ -3350,12 +3398,12 @@ val_value_t *
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_meta_empty (val_value_t *val)
+    val_meta_empty (ncx_instance_t *instance, val_value_t *val)
 {
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return TRUE;
     }
 #endif
@@ -3366,7 +3414,7 @@ boolean
          */
         return TRUE;
     } else {
-        return dlq_empty(&val->metaQ);
+        return dlq_empty(instance, &val->metaQ);
     }
 
 }  /* val_meta_empty */
@@ -3386,7 +3434,8 @@ boolean
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_find_meta (val_value_t  *val,
+    val_find_meta (ncx_instance_t *instance,
+                   val_value_t  *val,
                    xmlns_id_t    nsid,
                    const xmlChar *name)
 {
@@ -3394,19 +3443,19 @@ val_value_t *
 
 #ifdef DEBUG
     if (!val || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
         
-    for (metaval = (val_value_t *)dlq_firstEntry(&val->metaQ);
+    for (metaval = (val_value_t *)dlq_firstEntry(instance, &val->metaQ);
          metaval != NULL;
-         metaval = (val_value_t *)dlq_nextEntry(metaval)) {
+         metaval = (val_value_t *)dlq_nextEntry(instance, metaval)) {
 
         /* check the node if the name matches and
          * check for position instance match 
          */
-        if (!xml_strcmp(metaval->name, name)) {
+        if (!xml_strcmp(instance, metaval->name, name)) {
             if (xmlns_ids_equal(nsid, metaval->nsid)) {
                 return metaval;
             }
@@ -3433,7 +3482,8 @@ val_value_t *
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_meta_match (val_value_t *val,
+    val_meta_match (ncx_instance_t *instance,
+                    val_value_t *val,
                     val_value_t *metaval)
 {
     val_value_t *m1;
@@ -3442,12 +3492,12 @@ boolean
 
 #ifdef DEBUG
     if (!val || !metaval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    queue = val_get_metaQ(val);
+    queue = val_get_metaQ(instance, val);
     if (!queue) {
         return FALSE;
     }
@@ -3458,18 +3508,18 @@ boolean
     /* check all the metavars in the val->metaQ until
      * the specified entry is found or list ends
      */
-    for (m1 = val_get_first_meta(queue);
+    for (m1 = val_get_first_meta(instance, queue);
          m1 != NULL && !done;
-         m1 = val_get_next_meta(m1)) {
+         m1 = val_get_next_meta(instance, m1)) {
 
         /* check the node if the name matches and
          * then if the namespace matches
          */
-        if (!xml_strcmp(metaval->name, m1->name)) {
+        if (!xml_strcmp(instance, metaval->name, m1->name)) {
             if (!xmlns_ids_equal(metaval->nsid, m1->nsid)) {
                 continue;
             }
-            ret = (val_compare(metaval, m1)) ? FALSE : TRUE;
+            ret = (val_compare(instance, metaval, m1)) ? FALSE : TRUE;
             done = TRUE;
         }
     }
@@ -3493,7 +3543,8 @@ boolean
 *   number of instances found in val->metaQ
 *********************************************************************/
 uint32
-    val_metadata_inst_count (val_value_t  *val,
+    val_metadata_inst_count (ncx_instance_t *instance,
+                             val_value_t  *val,
                              xmlns_id_t nsid,
                              const xmlChar *name)
 {
@@ -3502,17 +3553,17 @@ uint32
 
 #ifdef DEBUG
     if (!val || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
     cnt = 0;
 
-    for (metaval = (val_value_t *)dlq_firstEntry(&val->metaQ);
+    for (metaval = (val_value_t *)dlq_firstEntry(instance, &val->metaQ);
          metaval != NULL;
-         metaval = (val_value_t *)dlq_nextEntry(metaval)) {
-        if (xml_strcmp(metaval->name, name)) {
+         metaval = (val_value_t *)dlq_nextEntry(instance, metaval)) {
+        if (xml_strcmp(instance, metaval->name, name)) {
             continue;
         }
         if (nsid && metaval->nsid) {
@@ -3541,21 +3592,23 @@ uint32
 *
 *********************************************************************/
 void
-    val_dump_value (val_value_t *val,
+    val_dump_value (ncx_instance_t *instance,
+                    val_value_t *val,
                     int32 startindent)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    val_dump_value_max(val, 
+    val_dump_value_max(instance, 
+                       val, 
                        startindent, 
                        NCX_DEF_INDENT,
                        DUMP_VAL_LOG, 
-                       ncx_get_display_mode(),
+                       ncx_get_display_mode(instance),
                        FALSE,
                        FALSE);
 
@@ -3575,22 +3628,25 @@ void
 *    display_mode == display mode to use
 *********************************************************************/
 void
-    val_dump_value_ex (val_value_t *val,
+    val_dump_value_ex (ncx_instance_t *instance,
+                       val_value_t *val,
                        int32 startindent,
                        ncx_display_mode_t display_mode)
 {
+  (void)display_mode;
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    val_dump_value_max(val, 
+    val_dump_value_max(instance, 
+                       val, 
                        startindent, 
                        NCX_DEF_INDENT,
                        DUMP_VAL_LOG,
-                       display_mode,
+                       instance->display_mode,
                        FALSE,
                        FALSE);
 
@@ -3610,21 +3666,23 @@ void
 *
 *********************************************************************/
 void
-    val_dump_alt_value (val_value_t *val,
+    val_dump_alt_value (ncx_instance_t *instance,
+                        val_value_t *val,
                         int32 startindent)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    val_dump_value_max(val, 
+    val_dump_value_max(instance, 
+                       val, 
                        startindent, 
                        NCX_DEF_INDENT,
                        DUMP_VAL_ALT_LOG,
-                       ncx_get_display_mode(),
+                       ncx_get_display_mode(instance),
                        FALSE,
                        FALSE);
 
@@ -3643,21 +3701,23 @@ void
 *
 *********************************************************************/
 void
-    val_stdout_value (val_value_t *val,
+    val_stdout_value (ncx_instance_t *instance,
+                      val_value_t *val,
                       int32 startindent)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    val_dump_value_max(val, 
+    val_dump_value_max(instance, 
+                       val, 
                        startindent, 
                        NCX_DEF_INDENT,
                        DUMP_VAL_STDOUT,
-                       ncx_get_display_mode(),
+                       ncx_get_display_mode(instance),
                        FALSE,
                        FALSE);
 
@@ -3676,22 +3736,25 @@ void
 *    display_mode == display mode to use
 *********************************************************************/
 void
-    val_stdout_value_ex (val_value_t *val,
+    val_stdout_value_ex (ncx_instance_t *instance,
+                         val_value_t *val,
                          int32 startindent,
                          ncx_display_mode_t display_mode)
 {
+  (void)display_mode;
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    val_dump_value_max(val, 
+    val_dump_value_max(instance, 
+                       val, 
                        startindent, 
                        NCX_DEF_INDENT,
                        DUMP_VAL_STDOUT,
-                       display_mode,
+                       instance->display_mode,
                        FALSE,
                        FALSE);
 
@@ -3717,7 +3780,8 @@ void
 *                  FALSE if all nodes should be displayed
 *********************************************************************/
 void
-    val_dump_value_max (val_value_t *val,
+    val_dump_value_max (ncx_instance_t *instance,
+                        val_value_t *val,
                         int32 startindent,
                         int32 indent_amount,
                         val_dumpvalue_mode_t dumpmode,
@@ -3741,52 +3805,57 @@ void
     boolean             quotes;
     int32               bump_amount;
 
+    (void)display_mode;
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     bump_amount = max(0, indent_amount);
 
-    if (configonly && !obj_is_config(val->obj)) {
+    if (configonly && !obj_is_config(instance, val->obj)) {
         return;
     }
 
-    if (display_mode == NCX_DISPLAY_MODE_XML ||
-        display_mode == NCX_DISPLAY_MODE_XML_NONS) {
+    if (instance->display_mode == NCX_DISPLAY_MODE_XML ||
+        instance->display_mode == NCX_DISPLAY_MODE_XML_NONS) {
 
-        outputfile = log_get_logfile();
+        outputfile = log_get_logfile(instance);
         if (!outputfile) {
             outputfile = stdout;
         }
-        res = xml_wr_check_open_file(outputfile,
+        res = xml_wr_check_open_file(instance,
+                                     outputfile,
                                      val,
                                      NULL,
                                      FALSE,
                                      FALSE,
-                                     (display_mode == NCX_DISPLAY_MODE_XML),
+                                     (instance->display_mode == NCX_DISPLAY_MODE_XML),
                                      startindent,
                                      indent_amount,
                                      NULL);
         if (res != NO_ERR) {
-            log_error("\nError: dump value '%s' to XML file failed (%s)",
+            log_error(instance,
+                      "\nError: dump value '%s' to XML file failed (%s)",
                       val->name, get_error_string(res));
         }
         return;
-    } else if (display_mode == NCX_DISPLAY_MODE_JSON) {
-        outputfile = log_get_logfile();
+    } else if (instance->display_mode == NCX_DISPLAY_MODE_JSON) {
+        outputfile = log_get_logfile(instance);
         if (!outputfile) {
             outputfile = stdout;
         }
-        res = json_wr_check_open_file(outputfile,
+        res = json_wr_check_open_file(instance,
+                                      outputfile,
                                       val,
                                       startindent,
                                       indent_amount,
                                       NULL);
         if (res != NO_ERR) {
-            log_error("\nError: dump value '%s' to JSON file failed (%s)",
+            log_error(instance,
+                      "\nError: dump value '%s' to JSON file failed (%s)",
                       val->name, get_error_string(res));
         }
         return;
@@ -3811,50 +3880,56 @@ void
         indentfn = log_alt_indent;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     /* indent and print the val name */
-    (*indentfn)(startindent);
-    if (display_mode == NCX_DISPLAY_MODE_PLAIN) {
+    (*indentfn)(instance, startindent);
+    if (instance->display_mode == NCX_DISPLAY_MODE_PLAIN) {
         if (val->btyp == NCX_BT_EXTERN) {
-            (*dumpfn)("%s (extern=%s) ", 
+            (*dumpfn)(instance,
+                      "%s (extern=%s) ", 
                       (val->name) ? (const char *)val->name : "--",
                       (val->v.fname) ? (const char *)val->v.fname : "--");
         } else if (val->btyp == NCX_BT_INTERN) {
-            (*dumpfn)("%s (intern) ",
+            (*dumpfn)(instance,
+                      "%s (intern) ",
                       (val->name) ? (const char *)val->name : "--");
         } else if (dumpmode == DUMP_VAL_ALT_LOG &&
-                   !xml_strcmp(val->name, NCX_EL_DATA)) {
+                   !xml_strcmp(instance, val->name, NCX_EL_DATA)) {
             ;  /* skip the name */
         } else {
-            (*dumpfn)("%s ", (val->name) ? (const char *)val->name : "--");
+            (*dumpfn)(instance,
+                      "%s ", (val->name) ? (const char *)val->name : "--");
         }
     } else {
-        if (display_mode == NCX_DISPLAY_MODE_PREFIX) {
-            prefix = xmlns_get_ns_prefix(val_get_nsid(val));
+        if (instance->display_mode == NCX_DISPLAY_MODE_PREFIX) {
+            prefix = xmlns_get_ns_prefix(instance, val_get_nsid(instance, val));
         } else {
             /* assume the mode is NCX_DISPLAY_MODE_MODULE */
-            prefix = val_get_mod_name(val);
+            prefix = val_get_mod_name(instance, val);
         }
         if (!prefix) {
             prefix = (const xmlChar *)"invalid";
         }
         if (val->btyp == NCX_BT_EXTERN) {
-            (*dumpfn)("%s:%s (extern=%s) ", 
+            (*dumpfn)(instance,
+                      "%s:%s (extern=%s) ", 
                       prefix,
                       (val->name) ? (const char *)val->name : "--",
                       (val->v.fname) ? (const char *)val->v.fname : "--");
         } else if (val->btyp == NCX_BT_INTERN) {
-            (*dumpfn)("%s:%s (intern) ",
+            (*dumpfn)(instance,
+                      "%s:%s (intern) ",
                       prefix,
                       (val->name) ? (const char *)val->name : "--");
         } else if (dumpmode == DUMP_VAL_ALT_LOG &&
-                   !xml_strcmp(val->name, NCX_EL_DATA)) {
+                   !xml_strcmp(instance, val->name, NCX_EL_DATA)) {
             ;  /* skip the name */
         } else {
-            (*dumpfn)("%s:%s ", 
+            (*dumpfn)(instance,
+                      "%s:%s ", 
                       prefix,
                       (val->name) ? (const char *)val->name : "--");
         }
@@ -3863,28 +3938,30 @@ void
     btyp = val->btyp;
 
     /* check if an index clause needs to be printed next */
-    if (!dlq_empty(&val->indexQ)) {
-        res = val_get_index_string(NULL, 
+    if (!dlq_empty(instance, &val->indexQ)) {
+        res = val_get_index_string(instance, 
+                                   NULL, 
                                    NCX_IFMT_CLI, 
                                    val, 
                                    NULL, 
                                    &len);
         if (res == NO_ERR) {
-            buff = m__getMem(len+1);
+            buff = m__getMem(instance, len+1);
             if (buff) {
-                res = val_get_index_string(NULL, 
+                res = val_get_index_string(instance, 
+                                           NULL, 
                                            NCX_IFMT_CLI, 
                                            val, 
                                            buff, 
                                            &len);
                 if (res == NO_ERR) {
-                    (dumpfn)("%s ", buff);
+                    (dumpfn)(instance, "%s ", buff);
                 } else {
-                    SET_ERROR(res);
+                    SET_ERROR(instance, res);
                 }
-                m__free(buff);
+                m__free(instance, buff);
             } else {
-                (*errorfn)("\nval: malloc failed for %u bytes", len+1);
+                (*errorfn)(instance, "\nval: malloc failed for %u bytes", len+1);
             }
         }
     }
@@ -3892,30 +3969,30 @@ void
     /* dump the value, depending on the base type */
     switch (btyp) {
     case NCX_BT_NONE:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         break;
     case NCX_BT_ANY:
-        (*dumpfn)("(any)");
+        (*dumpfn)(instance, "(any)");
         break;
     case NCX_BT_ENUM:
         if (val->v.enu.name) {
-            if (val_need_quotes(val->v.enu.name)) {
-                (*dumpfn)("\'%s\'", (const char *)val->v.enu.name);
+            if (val_need_quotes(instance, val->v.enu.name)) {
+                (*dumpfn)(instance, "\'%s\'", (const char *)val->v.enu.name);
             } else {
-                (*dumpfn)("%s", (const char *)val->v.enu.name);
+                (*dumpfn)(instance, "%s", (const char *)val->v.enu.name);
             }
         }
         break;
     case NCX_BT_EMPTY:
         if (!val->v.boo) {
-            (*dumpfn)("(not set)");   /* should not happen */
+            (*dumpfn)(instance, "(not set)");   /* should not happen */
         }
         break;
     case NCX_BT_BOOLEAN:
         if (val->v.boo) {
-            (*dumpfn)("true");
+            (*dumpfn)(instance, "true");
         } else {
-            (*dumpfn)("false");
+            (*dumpfn)(instance, "false");
         }
         break;
     case NCX_BT_INT8:
@@ -3930,20 +4007,21 @@ void
     case NCX_BT_FLOAT64:
         switch (dumpmode) {
         case DUMP_VAL_STDOUT:
-            stdout_num(btyp, &val->v.num);
+            stdout_num(instance, btyp, &val->v.num);
             break;
         case DUMP_VAL_LOG:
-            ncx_printf_num(&val->v.num, btyp);
+            ncx_printf_num(instance, &val->v.num, btyp);
             break;
         case DUMP_VAL_ALT_LOG:
-            ncx_alt_printf_num(&val->v.num, btyp);
+            ncx_alt_printf_num(instance, &val->v.num, btyp);
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     case NCX_BT_BINARY:
-        (*dumpfn)("binary string, length '%u'",
+        (*dumpfn)(instance,
+                  "binary string, length '%u'",
                   val->v.binary.ustrlen);
         break;
     case NCX_BT_STRING:
@@ -3951,186 +4029,190 @@ void
     case NCX_BT_LEAFREF:
         /* leafref is not dumped in canonical form */
         if (VAL_STR(val)) {
-            quotes = val_need_quotes(VAL_STR(val));
+            quotes = val_need_quotes(instance, VAL_STR(val));
 
             if (dumpmode == DUMP_VAL_ALT_LOG &&
-                !xml_strcmp(val->name, NCX_EL_DATA)) {
+                !xml_strcmp(instance, val->name, NCX_EL_DATA)) {
                 quotes = FALSE;
             }
 
             if (quotes) {
-                (*dumpfn)("%c", VAL_QUOTE_CH);
+                (*dumpfn)(instance, "%c", VAL_QUOTE_CH);
             }
-            if (val->obj && obj_is_password(val->obj)) {
-                (*dumpfn)("%s", VAL_PASSWORD_STRING);
+            if (val->obj && obj_is_password(instance, val->obj)) {
+                (*dumpfn)(instance, "%s", VAL_PASSWORD_STRING);
             } else {
-                (*dumpfn)("%s", (const char *)VAL_STR(val));
+                (*dumpfn)(instance, "%s", (const char *)VAL_STR(val));
             }
             if (quotes) {
-                (*dumpfn)("%c", VAL_QUOTE_CH);
+                (*dumpfn)(instance, "%c", VAL_QUOTE_CH);
             }
         }
         break;
     case NCX_BT_IDREF:
         idref = VAL_IDREF(val);
         if (idref->nsid && idref->name) {
-            (*dumpfn)("%s:%s",
-                      xmlns_get_ns_prefix(idref->nsid),
+            (*dumpfn)(instance,
+                      "%s:%s",
+                      xmlns_get_ns_prefix(instance, idref->nsid),
                       idref->name);
         } else if (idref->name) {
-            (*dumpfn)("%s", idref->name);
+            (*dumpfn)(instance, "%s", idref->name);
         }
         break;
     case NCX_BT_SLIST:
     case NCX_BT_BITS:
-        if (dlq_empty(&val->v.list.memQ)) {
-            (*dumpfn)("{ }");
+        if (dlq_empty(instance, &val->v.list.memQ)) {
+            (*dumpfn)(instance, "{ }");
         } else {
             lbtyp = val->v.list.btyp;
-            (*dumpfn)("{");
+            (*dumpfn)(instance, "{");
             for (listmem = (ncx_lmem_t *)
-                     dlq_firstEntry(&val->v.list.memQ);
+                     dlq_firstEntry(instance, &val->v.list.memQ);
                  listmem != NULL;
-                 listmem = (ncx_lmem_t *)dlq_nextEntry(listmem)) {
+                 listmem = (ncx_lmem_t *)dlq_nextEntry(instance, listmem)) {
 
                 if (startindent >= 0) {
-                    (*indentfn)(startindent+bump_amount);
+                    (*indentfn)(instance, startindent+bump_amount);
                 }
 
                 if (typ_is_string(lbtyp)) {
                     if (listmem->val.str) {
-                        quotes = val_need_quotes(listmem->val.str);
+                        quotes = val_need_quotes(instance, listmem->val.str);
                         if (quotes) {
-                            (*dumpfn)("%c", VAL_QUOTE_CH);
+                            (*dumpfn)(instance, "%c", VAL_QUOTE_CH);
                         }
-                        (*dumpfn)("%s ", (const char *)listmem->val.str);
+                        (*dumpfn)(instance, "%s ", (const char *)listmem->val.str);
                         if (quotes) {
-                            (*dumpfn)("%c", VAL_QUOTE_CH);
+                            (*dumpfn)(instance, "%c", VAL_QUOTE_CH);
                         }
                     }
                 } else if (typ_is_number(lbtyp)) {
                     switch (dumpmode) {
                     case DUMP_VAL_STDOUT:
-                        stdout_num(lbtyp, &listmem->val.num);
+                        stdout_num(instance, lbtyp, &listmem->val.num);
                         break;
                     case DUMP_VAL_LOG:
-                        ncx_printf_num(&listmem->val.num, lbtyp);
+                        ncx_printf_num(instance, &listmem->val.num, lbtyp);
                         break;
                     case DUMP_VAL_ALT_LOG:
-                        ncx_alt_printf_num(&listmem->val.num, lbtyp);
+                        ncx_alt_printf_num(instance, &listmem->val.num, lbtyp);
                         break;
                     default:
-                        SET_ERROR(ERR_INTERNAL_VAL);
+                        SET_ERROR(instance, ERR_INTERNAL_VAL);
                     }
-                    (*dumpfn)(" ");
+                    (*dumpfn)(instance, " ");
                 } else {
                     switch (lbtyp) {
                     case NCX_BT_ENUM:
                         if (listmem->val.enu.name) {
-                            (*dumpfn)("%s ",
+                            (*dumpfn)(instance,
+                                      "%s ",
                                       (const char *)listmem->val.enu.name);
                         }
                         break;
                     case NCX_BT_BITS:
-                        (*dumpfn)("%s ", (const char *)listmem->val.str);
+                        (*dumpfn)(instance, "%s ", (const char *)listmem->val.str);
                         break;
                     case NCX_BT_BOOLEAN:
-                        (*dumpfn)("%s ",
+                        (*dumpfn)(instance, "%s ",
                                   (listmem->val.boo) ? 
                                   NCX_EL_TRUE : NCX_EL_FALSE);
                         break;
                     default:
-                        SET_ERROR(ERR_INTERNAL_VAL);
+                        SET_ERROR(instance, ERR_INTERNAL_VAL);
                     }
                 }
             }
-            (*indentfn)(startindent);
-            (*dumpfn)("}");
+            (*indentfn)(instance, startindent);
+            (*dumpfn)(instance, "}");
         }
         break;
     case NCX_BT_LIST:
     case NCX_BT_CONTAINER:
     case NCX_BT_CHOICE:   // should not happen
     case NCX_BT_CASE:    // should not happen
-        (*dumpfn)("{");
-        for (chval = (val_value_t *)dlq_firstEntry(&val->v.childQ);
+        (*dumpfn)(instance, "{");
+        for (chval = (val_value_t *)dlq_firstEntry(instance, &val->v.childQ);
              chval != NULL;
-             chval = (val_value_t *)dlq_nextEntry(chval)) {
-            val_dump_value_max(chval, 
+             chval = (val_value_t *)dlq_nextEntry(instance, chval)) {
+            val_dump_value_max(instance, 
+                               chval, 
                                startindent+bump_amount,
                                indent_amount,
                                dumpmode,
-                               display_mode,
+                               instance->display_mode,
                                with_meta,
                                configonly);
         }
-        (*indentfn)(startindent);
-        (*dumpfn)("}");
+        (*indentfn)(instance, startindent);
+        (*dumpfn)(instance, "}");
         break;
     case NCX_BT_EXTERN:
-        (*dumpfn)("{");
-        (*indentfn)(startindent);
+        (*dumpfn)(instance, "{");
+        (*indentfn)(instance, startindent);
 
         switch (dumpmode) {
         case DUMP_VAL_STDOUT:
-            stdout_extern(val->v.fname);
+            stdout_extern(instance, val->v.fname);
             break;
         case DUMP_VAL_LOG:
-            dump_extern(val->v.fname);
+            dump_extern(instance, val->v.fname);
             break;
         case DUMP_VAL_ALT_LOG:
-            dump_alt_extern(val->v.fname);
+            dump_alt_extern(instance, val->v.fname);
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         
-        (*indentfn)(startindent);
-        (*dumpfn)("}");
+        (*indentfn)(instance, startindent);
+        (*dumpfn)(instance, "}");
         break;
     case NCX_BT_INTERN:
-        (*dumpfn)("{");
-        (*indentfn)(startindent);
+        (*dumpfn)(instance, "{");
+        (*indentfn)(instance, startindent);
 
         switch (dumpmode) {
         case DUMP_VAL_STDOUT:
-            stdout_intern(val->v.intbuff);
+            stdout_intern(instance, val->v.intbuff);
             break;
         case DUMP_VAL_LOG:
-            dump_intern(val->v.intbuff);
+            dump_intern(instance, val->v.intbuff);
             break;
         case DUMP_VAL_ALT_LOG:
-            dump_alt_intern(val->v.intbuff);
+            dump_alt_intern(instance, val->v.intbuff);
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
-        (*indentfn)(startindent);
-        (*dumpfn)("}");
+        (*indentfn)(instance, startindent);
+        (*dumpfn)(instance, "}");
         break;
     default:
-        (*errorfn)("\nval: illegal btype (%d)", btyp);
+        (*errorfn)(instance, "\nval: illegal btype (%d)", btyp);
     }    
 
     /* dump the metadata queue if non-empty */
     if (with_meta) {
-        metaQ = val_get_metaQ(val);
-        if (metaQ && !dlq_empty(metaQ)) {
+        metaQ = val_get_metaQ(instance, val);
+        if (metaQ && !dlq_empty(instance, metaQ)) {
             if (startindent >= 0) {
-                (*indentfn)(startindent+bump_amount);
+                (*indentfn)(instance, startindent+bump_amount);
             }
 
-            (*dumpfn)("%s.metaQ ", val->name);
-            for (metaval = val_get_first_meta(metaQ);
+            (*dumpfn)(instance, "%s.metaQ ", val->name);
+            for (metaval = val_get_first_meta(instance, metaQ);
                  metaval != NULL;
-                 metaval = val_get_next_meta(metaval)) {
+                 metaval = val_get_next_meta(instance, metaval)) {
 
-                val_dump_value_max(metaval, 
+                val_dump_value_max(instance, 
+                                   metaval, 
                                    startindent+(2*bump_amount),
                                    indent_amount,
                                    dumpmode,
-                                   display_mode,
+                                   instance->display_mode,
                                    with_meta,
                                    configonly);
             }
@@ -4159,26 +4241,29 @@ void
 *  status
 *********************************************************************/
 status_t 
-    val_set_string (val_value_t  *val,
+    val_set_string (ncx_instance_t *instance,
+                    val_value_t  *val,
                     const xmlChar *valname,
                     const xmlChar *valstr)
 {
 #ifdef DEBUG
     if (!val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (valname) {
-        return val_set_simval_str(val, 
-                                  typ_get_basetype_typdef(NCX_BT_STRING),
+        return val_set_simval_str(instance, 
+                                  val, 
+                                  typ_get_basetype_typdef(instance, NCX_BT_STRING),
                                   0, 
                                   valname, 
-                                  xml_strlen(valname), 
+                                  xml_strlen(instance, valname), 
                                   valstr);
     } else {
-        return val_set_simval_str(val, 
-                                  typ_get_basetype_typdef(NCX_BT_STRING),
+        return val_set_simval_str(instance, 
+                                  val, 
+                                  typ_get_basetype_typdef(instance, NCX_BT_STRING),
                                   0, 
                                   NULL, 
                                   0, 
@@ -4211,7 +4296,8 @@ status_t
 *    status
 *********************************************************************/
 status_t 
-    val_set_string2 (val_value_t  *val,
+    val_set_string2 (ncx_instance_t *instance,
+                     val_value_t  *val,
                      const xmlChar *valname,
                      typ_def_t *typdef,
                      const xmlChar *valstr,
@@ -4222,15 +4308,15 @@ status_t
 
 #ifdef DEBUG
     if (!val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (typdef) {
         val->typdef = typdef;
-        val->btyp = typ_get_basetype(typdef);
+        val->btyp = typ_get_basetype(instance, typdef);
     } else {
-        val->typdef = typ_get_basetype_typdef(NCX_BT_STRING);
+        val->typdef = typ_get_basetype_typdef(instance, NCX_BT_STRING);
         val->btyp = NCX_BT_STRING;
     }
     //val->nsid = 0;
@@ -4240,10 +4326,10 @@ status_t
     case NCX_BT_INSTANCE_ID:
         if (valname && !val->name) {
             if (val->dname) {
-                SET_ERROR(ERR_INTERNAL_VAL);
-                m__free(val->dname);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
+                m__free(instance, val->dname);
             }
-            val->dname = xml_strdup(valname);
+            val->dname = xml_strdup(instance, valname);
             if (!val->dname) {
                 return ERR_INTERNAL_MEM;
             }
@@ -4251,9 +4337,9 @@ status_t
         }
 
         if (valstr) {
-            VAL_STR(val) = xml_strndup(valstr, valstrlen);
+            VAL_STR(val) = xml_strndup(instance, valstr, valstrlen);
         } else {
-            VAL_STR(val) = xml_strdup(EMPTY_STRING);
+            VAL_STR(val) = xml_strdup(instance, EMPTY_STRING);
         }
 
         if (!VAL_STR(val)) {
@@ -4265,13 +4351,13 @@ status_t
     case NCX_BT_LEAFREF:
     default:
         if (valstr) {
-            temp = xml_strndup(valstr, valstrlen);
+            temp = xml_strndup(instance, valstr, valstrlen);
         } else {
-            temp = xml_strdup(EMPTY_STRING);
+            temp = xml_strdup(instance, EMPTY_STRING);
         }
         if (temp) {
-            res = val_set_simval(val, typdef, val->nsid, NULL, temp);
-            m__free(temp);
+            res = val_set_simval(instance, val, typdef, val->nsid, NULL, temp);
+            m__free(instance, temp);
         } else {
             res = ERR_INTERNAL_MEM;
         }
@@ -4297,17 +4383,18 @@ status_t
 *  status
 *********************************************************************/
 status_t 
-    val_reset_empty (val_value_t  *val)
+    val_reset_empty (ncx_instance_t *instance, val_value_t  *val)
 {
 #ifdef DEBUG
     if (!val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
     
-    return val_set_simval(val,
-                          typ_get_basetype_typdef(NCX_BT_EMPTY),
-                          val_get_nsid(val),
+    return val_set_simval(instance,
+                          val,
+                          typ_get_basetype_typdef(instance, NCX_BT_EMPTY),
+                          val_get_nsid(instance, val),
                           val->name,
                           NULL);
 
@@ -4333,7 +4420,8 @@ status_t
 *  status
 *********************************************************************/
 status_t 
-    val_set_simval (val_value_t  *val,
+    val_set_simval (ncx_instance_t *instance,
+                    val_value_t  *val,
                     typ_def_t    *typdef,
                     xmlns_id_t    nsid,
                     const xmlChar *valname,
@@ -4341,19 +4429,21 @@ status_t
 {
 #ifdef DEBUG
     if (!val || !typdef) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (valname) {
-        return val_set_simval_str(val, 
+        return val_set_simval_str(instance, 
+                                  val, 
                                   typdef, 
                                   nsid, 
                                   valname, 
-                                  xml_strlen(valname), 
+                                  xml_strlen(instance, valname), 
                                   valstr);
     } else {
-        return val_set_simval_str(val, 
+        return val_set_simval_str(instance, 
+                                  val, 
                                   typdef, 
                                   nsid, 
                                   NULL, 
@@ -4411,7 +4501,8 @@ status_t
 *  status
 *********************************************************************/
 status_t 
-    val_set_simval_str (val_value_t  *val,
+    val_set_simval_str (ncx_instance_t *instance,
+                        val_value_t  *val,
                         typ_def_t *typdef,
                         xmlns_id_t    nsid,
                         const xmlChar *valname,
@@ -4430,21 +4521,21 @@ status_t
 
 #ifdef DEBUG
     if (!val || !typdef) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (val->btyp != NCX_BT_NONE) {
-        startsimple = typ_is_simple(val->btyp);
+        startsimple = typ_is_simple(instance, val->btyp);
     } else {
         startsimple = TRUE;
     }
 
     /* clean the old value even if it was ANY */
-    clean_value(val, FALSE);
+    clean_value(instance, val, FALSE);
 
     res = NO_ERR;
-    val->btyp = typ_get_basetype(typdef);
+    val->btyp = typ_get_basetype(instance, typdef);
 
     if (!startsimple) {
         /* clear out the childQ so it does not appear
@@ -4454,10 +4545,10 @@ status_t
     }
 
     if (!(val->btyp == NCX_BT_INSTANCE_ID ||
-          typ_is_schema_instance_string(typdef) ||
-          typ_is_xpath_string(typdef))) {
+          typ_is_schema_instance_string(instance, typdef) ||
+          typ_is_xpath_string(instance, typdef))) {
           
-        res = val_simval_ok(typdef, valstr);
+        res = val_simval_ok(instance, typdef, valstr);
         if (res != NO_ERR) {
             return res;
         }
@@ -4465,7 +4556,7 @@ status_t
 
     /* only set name if it is not already set */
     if (!val->name && valname) {
-        val->dname = xml_strndup(valname, valnamelen);
+        val->dname = xml_strndup(instance, valname, valnamelen);
         if (!val->dname) {
             return ERR_INTERNAL_MEM;
         }
@@ -4474,7 +4565,7 @@ status_t
 
     /* set the object to the generic string if not set */
     if (!val->obj) {
-        val->obj = ncx_get_gen_string();
+        val->obj = ncx_get_gen_string(instance);
     }
 
     /* set these fields even if already set by 
@@ -4496,7 +4587,8 @@ status_t
     case NCX_BT_UINT64:
     case NCX_BT_FLOAT64:
         if (valstr && *valstr) {
-            res = ncx_convert_num(valstr, 
+            res = ncx_convert_num(instance, 
+                                  valstr, 
                                   NCX_NF_NONE, 
                                   val->btyp, 
                                   &val->v.num);
@@ -4506,9 +4598,10 @@ status_t
         break;
     case NCX_BT_DECIMAL64:
         if (valstr && *valstr) {
-            res = ncx_convert_dec64(valstr, 
+            res = ncx_convert_dec64(instance, 
+                                    valstr, 
                                     NCX_NF_NONE, 
-                                    typ_get_fraction_digits(val->typdef), 
+                                    typ_get_fraction_digits(instance, val->typdef), 
                                     &val->v.num);
         } else {
             res = ERR_NCX_EMPTY_VAL;
@@ -4517,7 +4610,7 @@ status_t
     case NCX_BT_BINARY:
         ulen = 0;
         if (valstr && *valstr) {
-            ulen = xml_strlen(valstr);
+            ulen = xml_strlen(instance, valstr);
         }
         if (!ulen) {
             break;
@@ -4526,7 +4619,7 @@ status_t
         /* allocate a binary string as big as the input
          * text string, even though it will be about 25% too big
          */
-        val->v.binary.ustr = m__getMem(ulen+1);
+        val->v.binary.ustr = m__getMem(instance, ulen+1);
         if (!val->v.binary.ustr) {
             res = ERR_INTERNAL_MEM;
         } else {
@@ -4548,11 +4641,11 @@ status_t
         break;
     case NCX_BT_ANY:
         val->btyp = NCX_BT_STRING;
-        val->typdef = typ_get_basetype_typdef(NCX_BT_STRING);
+        val->typdef = typ_get_basetype_typdef(instance, NCX_BT_STRING);
         if (valstr) {
-            VAL_STR(val) = xml_strdup(valstr);
+            VAL_STR(val) = xml_strdup(instance, valstr);
         } else {
-            VAL_STR(val) = xml_strdup(EMPTY_STRING);
+            VAL_STR(val) = xml_strdup(instance, EMPTY_STRING);
         }
         if (!VAL_STR(val)) {
             res = ERR_INTERNAL_MEM;
@@ -4560,44 +4653,46 @@ status_t
         break;
     case NCX_BT_LEAFREF:
         if (valstr) {
-            VAL_STR(val) = xml_strdup(valstr);
+            VAL_STR(val) = xml_strdup(instance, valstr);
         } else {
-            VAL_STR(val) = xml_strdup(EMPTY_STRING);
+            VAL_STR(val) = xml_strdup(instance, EMPTY_STRING);
         }
         if (!VAL_STR(val)) {
             res = ERR_INTERNAL_MEM;
         }
         break;
     case NCX_BT_STRING:
-        if (val->obj && obj_is_schema_instance_string(val->obj)) {
+        if (val->obj && obj_is_schema_instance_string(instance, val->obj)) {
             xpath_source = XP_SRC_SCHEMA_INSTANCEID;
         } else {
             if (valstr) {
-                VAL_STR(val) = xml_strdup(valstr);
+                VAL_STR(val) = xml_strdup(instance, valstr);
             } else {
-                VAL_STR(val) = xml_strdup(EMPTY_STRING);
+                VAL_STR(val) = xml_strdup(instance, EMPTY_STRING);
             }
             if (!VAL_STR(val)) {
                 res = ERR_INTERNAL_MEM;
-            } else if (typ_is_xpath_string(val->typdef) ||
-                       (val->obj && obj_is_xpath_string(val->obj))) {
+            } else if (typ_is_xpath_string(instance, val->typdef) ||
+                       (val->obj && obj_is_xpath_string(instance, val->obj))) {
 
-                xpathpcb = xpath_new_pcb(VAL_STR(val), NULL);
+                xpathpcb = xpath_new_pcb(instance, VAL_STR(val), NULL);
                 if (!xpathpcb) {
                     res = ERR_INTERNAL_MEM;
                 } else {
-                    res = xpath1_parse_expr(NULL, 
+                    res = xpath1_parse_expr(instance, 
+                                            NULL, 
                                             NULL,
                                             xpathpcb,
                                             XP_SRC_YANG);
                     if (res == NO_ERR) {
-                        objroot = ncx_get_gen_root();
-                        res = xpath1_validate_expr(objroot->tkerr.mod, 
+                        objroot = ncx_get_gen_root(instance);
+                        res = xpath1_validate_expr(instance, 
+                                                   objroot->tkerr.mod, 
                                                    objroot, 
                                                    xpathpcb);
                     }
                     if (val->xpathpcb) {
-                        xpath_free_pcb(val->xpathpcb);
+                        xpath_free_pcb(instance, val->xpathpcb);
                     }
                     val->xpathpcb = xpathpcb;
                 }
@@ -4607,25 +4702,27 @@ status_t
         /* fall through if this is an ncx:schema-instance string */
     case NCX_BT_INSTANCE_ID:
         if (valstr) {
-            VAL_STR(val) = xml_strdup(valstr);
+            VAL_STR(val) = xml_strdup(instance, valstr);
         } else {
-            VAL_STR(val) = xml_strdup(EMPTY_STRING);
+            VAL_STR(val) = xml_strdup(instance, EMPTY_STRING);
         }
         if (!VAL_STR(val)) {
             res = ERR_INTERNAL_MEM;
         } else {
-            xpathpcb = xpath_new_pcb(VAL_STR(val), NULL);
+            xpathpcb = xpath_new_pcb(instance, VAL_STR(val), NULL);
             if (!xpathpcb) {
                 res = ERR_INTERNAL_MEM;
             } else {
-                res = xpath_yang_parse_path(NULL, 
+                res = xpath_yang_parse_path(instance, 
+                                            NULL, 
                                             NULL,
                                             xpath_source,
                                             xpathpcb);
                 if (res == NO_ERR) {
                     leafobj = NULL;
-                    res = xpath_yang_validate_path(NULL, 
-                                                   ncx_get_gen_root(), 
+                    res = xpath_yang_validate_path(instance, 
+                                                   NULL, 
+                                                   ncx_get_gen_root(instance), 
                                                    xpathpcb, 
                                                    (xpath_source 
                                                     == XP_SRC_INSTANCEID) 
@@ -4633,20 +4730,22 @@ status_t
                                                    &leafobj);
                 }
                 if (val->xpathpcb) {
-                    xpath_free_pcb(val->xpathpcb);
+                    xpath_free_pcb(instance, val->xpathpcb);
                 }
                 val->xpathpcb = xpathpcb;
             }
         }
         break;
     case NCX_BT_IDREF:
-        res = val_parse_idref(NULL, 
+        res = val_parse_idref(instance, 
+                              NULL, 
                               valstr, 
                               &qname_nsid, 
                               &localname, 
                               &identity);
         if (res == NO_ERR) {
-            res = val_idref_ok(typdef, 
+            res = val_idref_ok(instance, 
+                               typdef, 
                                valstr, 
                                qname_nsid, 
                                &localname, 
@@ -4654,7 +4753,7 @@ status_t
             if (res == NO_ERR) {
                 val->v.idref.nsid = qname_nsid;
                 val->v.idref.identity = identity;
-                val->v.idref.name = xml_strdup(localname);
+                val->v.idref.name = xml_strdup(instance, localname);
                 if (!val->v.idref.name) {
                     res = ERR_INTERNAL_MEM;
                 }
@@ -4662,17 +4761,17 @@ status_t
         }
         break;
     case NCX_BT_ENUM:
-        res = ncx_set_enum(valstr, &val->v.enu);
+        res = ncx_set_enum(instance, valstr, &val->v.enu);
         break;
     case NCX_BT_EMPTY:
     case NCX_BT_BOOLEAN:
         /* if supplied, match the flag name against the supplied value */
         if (valstr) {
-            if (!xml_strcmp(NCX_EL_TRUE, valstr)) {
+            if (!xml_strcmp(instance, NCX_EL_TRUE, valstr)) {
                 val->v.boo = TRUE;
-            } else if (!xml_strcmp(NCX_EL_FALSE, valstr)) {
+            } else if (!xml_strcmp(instance, NCX_EL_FALSE, valstr)) {
                 val->v.boo = FALSE;
-            } else if (!xml_strncmp(valstr, valname, valnamelen)) {
+            } else if (!xml_strncmp(instance, valstr, valname, valnamelen)) {
                 val->v.boo = TRUE;
             } else {
                 res = ERR_NCX_INVALID_VALUE;
@@ -4684,20 +4783,20 @@ status_t
         break;
     case NCX_BT_SLIST:
     case NCX_BT_BITS:
-        res = ncx_set_strlist(valstr, &val->v.list);
+        res = ncx_set_strlist(instance, valstr, &val->v.list);
         break;
     case NCX_BT_UNION:
         /* set as generic string -- parser as other end will
          * match against actual union types
          */
         val->btyp = NCX_BT_STRING;
-        VAL_STR(val) = xml_strdup(valstr);
+        VAL_STR(val) = xml_strdup(instance, valstr);
         if (!VAL_STR(val)) {
             res = ERR_INTERNAL_MEM;
         }
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         val->btyp = NCX_BT_NONE;
     }
 
@@ -4727,7 +4826,8 @@ status_t
 *    NULL if some error
 *********************************************************************/
 val_value_t *
-    val_make_simval (typ_def_t    *typdef,
+    val_make_simval (ncx_instance_t *instance,
+                     typ_def_t    *typdef,
                      xmlns_id_t    nsid,
                      const xmlChar *valname,
                      const xmlChar *valstr,
@@ -4736,25 +4836,27 @@ val_value_t *
     val_value_t  *val;
 
     if (!typdef || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
     if (valname) {
-        *res = val_set_simval_str(val, 
+        *res = val_set_simval_str(instance, 
+                                  val, 
                                   typdef, 
                                   nsid, 
                                   valname, 
-                                  xml_strlen(valname), 
+                                  xml_strlen(instance, valname), 
                                   valstr);
     } else {
-        *res = val_set_simval_str(val, 
+        *res = val_set_simval_str(instance, 
+                                  val, 
                                   typdef, 
                                   nsid, 
                                   NULL, 
@@ -4781,20 +4883,21 @@ val_value_t *
 *   malloced val struct filled in; NULL if malloc or strdup failed
 *********************************************************************/
 val_value_t *
-    val_make_string (xmlns_id_t nsid,
+    val_make_string (ncx_instance_t *instance,
+                     xmlns_id_t nsid,
                      const xmlChar *valname,
                      const xmlChar *valstr)
 {
     val_value_t *val;
     status_t     res;
 
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         return NULL;
     }
-    res = val_set_string(val, valname, valstr);
+    res = val_set_string(instance, val, valname, valstr);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         val = NULL;
     } else {
         val->nsid = nsid;
@@ -4824,28 +4927,29 @@ val_value_t *
 *    status
 *********************************************************************/
 status_t
-    val_merge (const val_value_t *src,
+    val_merge (ncx_instance_t *instance,
+               const val_value_t *src,
                val_value_t *dest)
 {
 #ifdef DEBUG
     if (!src || !dest) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
-    if (!typ_is_simple(src->btyp) || 
-        !typ_is_simple(dest->btyp)) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+    if (!typ_is_simple(instance, src->btyp) || 
+        !typ_is_simple(instance, dest->btyp)) {
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }   
 #endif
 
     status_t res = NO_ERR;
     ncx_btype_t btyp = dest->btyp;
-    ncx_iqual_t iqual = typ_get_iqualval_def(dest->typdef);
+    ncx_iqual_t iqual = typ_get_iqualval_def(instance, dest->typdef);
 
     /* the mergetype is only set to NCX_MERGE_SORT for type bits
      * it is NCX_MERGE_NONE for all other data types
      * the value NCX_MERGE_FIRST is never used
      */
-    ncx_merge_t mergetyp = typ_get_mergetype(dest->typdef);
+    ncx_merge_t mergetyp = typ_get_mergetype(instance, dest->typdef);
     if (mergetyp == NCX_MERGE_NONE) {
         mergetyp = NCX_MERGE_LAST;
     }
@@ -4858,7 +4962,7 @@ status_t
         /* duplicates not allowed in leaf lists 
          * leave the current value in place
          */
-        res = SET_ERROR(ERR_NCX_DUP_ENTRY);
+        res = SET_ERROR(instance, ERR_NCX_DUP_ENTRY);
         break;
     case NCX_IQUAL_ONE:
     case NCX_IQUAL_OPT:
@@ -4881,28 +4985,28 @@ status_t
         case NCX_BT_BINARY:
         case NCX_BT_INSTANCE_ID:
         case NCX_BT_LEAFREF:
-            res = merge_simple(btyp, src, dest);
+            res = merge_simple(instance, btyp, src, dest);
             break;
         case NCX_BT_UNION:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             break;
         case NCX_BT_SLIST:
         case NCX_BT_BITS:
             if (btyp == NCX_BT_SLIST) {
-                dupsok = val_duplicates_allowed(dest);
+                dupsok = val_duplicates_allowed(instance, dest);
             }
-            list_copy = ncx_new_list(dest->btyp);
+            list_copy = ncx_new_list(instance, dest->btyp);
             if (list_copy) {
-                res = ncx_copy_list(&src->v.list, list_copy);
+                res = ncx_copy_list(instance, &src->v.list, list_copy);
                 if (res != NO_ERR) {
-                    ncx_free_list(list_copy);
+                    ncx_free_list(instance, list_copy);
                 }
             } else {
                 res = ERR_INTERNAL_MEM;
             }
             if (res == NO_ERR) {
-                ncx_merge_list(list_copy, &dest->v.list, mergetyp, dupsok);
-                ncx_free_list(list_copy);
+                ncx_merge_list(instance, list_copy, &dest->v.list, mergetyp, dupsok);
+                ncx_free_list(instance, list_copy);
             }
             break;
         case NCX_BT_ANY:
@@ -4910,10 +5014,10 @@ status_t
         case NCX_BT_LIST:
         case NCX_BT_CHOICE:
         case NCX_BT_CASE:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             break;
         default:
-            res = SET_ERROR(ERR_INTERNAL_VAL);
+            res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         /* copy the editvars struct to the leaf */
@@ -4923,13 +5027,13 @@ status_t
         //}
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* set or clear the set-by-default flag;
      * normalize VAL_FL_WITHDEF by converting to VAL_FL_DEFSET here */
     if (res == NO_ERR) {
-        if (val_set_by_default(src)) {
+        if (val_set_by_default(instance, src)) {
             dest->flags |= VAL_FL_DEFSET;
         } else {
             dest->flags &= ~VAL_FL_DEFSET;
@@ -4954,18 +5058,18 @@ status_t
 *   clone of val, or NULL if a malloc failure
 *********************************************************************/
 val_value_t *
-    val_clone (const val_value_t *val)
+    val_clone (ncx_instance_t *instance, const val_value_t *val)
 {
     status_t res;
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return clone_test(val, NULL, TRUE, &res);
+    return clone_test(instance, val, NULL, TRUE, &res);
 
 }  /* val_clone */
 
@@ -4983,18 +5087,18 @@ val_value_t *
 *   clone of val, or NULL if a malloc failure
 *********************************************************************/
 val_value_t *
-    val_clone2 (const val_value_t *val)
+    val_clone2 (ncx_instance_t *instance, const val_value_t *val)
 {
     status_t res;
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return clone_test(val, NULL, FALSE, &res);
+    return clone_test(instance, val, NULL, FALSE, &res);
 
 }  /* val_clone2 */
 
@@ -5021,17 +5125,18 @@ val_value_t *
 *   clone of val, or NULL if a malloc failure
 *********************************************************************/
 val_value_t *
-    val_clone_config_data (const val_value_t *val,
+    val_clone_config_data (ncx_instance_t *instance,
+                           const val_value_t *val,
                            status_t *res)
 {
 #ifdef DEBUG
     if (!val || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return clone_test(val, val_is_config_data, FALSE, res);
+    return clone_test(instance, val, val_is_config_data, FALSE, res);
 
 }  /* val_clone_config_data */
 
@@ -5053,7 +5158,8 @@ val_value_t *
 *   status
 *********************************************************************/
 status_t
-    val_replace (val_value_t *val,
+    val_replace (ncx_instance_t *instance,
+                 val_value_t *val,
                  val_value_t *copy)
 {
     xmlChar    *buffer;
@@ -5062,31 +5168,31 @@ status_t
 
 #ifdef DEBUG
     if (!val || !copy) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
 
     if (val->btyp == NCX_BT_EXTERN) {
-        clean_value(copy, TRUE);
-        val_init_from_template(copy, val->obj);
+        clean_value(instance, copy, TRUE);
+        val_init_from_template(instance, copy, val->obj);
         copy->btyp = NCX_BT_EXTERN;
         copy->v.fname = val->v.fname;
         val->v.fname = NULL;
-        res = copy_editvars(val, copy);
+        res = copy_editvars(instance, val, copy);
         return res;
-    } else if (!typ_is_simple(val->btyp)) {
-        clean_value(copy, TRUE);
-        val_init_from_template(copy, val->obj);
-        val_move_children(val, copy);
-        val_set_name(copy, val->name, xml_strlen(val->name));
+    } else if (!typ_is_simple(instance, val->btyp)) {
+        clean_value(instance, copy, TRUE);
+        val_init_from_template(instance, copy, val->obj);
+        val_move_children(instance, val, copy);
+        val_set_name(instance, copy, val->name, xml_strlen(instance, val->name));
         copy->nsid = val->nsid;
         if (copy->btyp == NCX_BT_LIST) {
-            res = val_gen_index_chain(copy->obj, copy);
+            res = val_gen_index_chain(instance, copy->obj, copy);
         }
         if (res == NO_ERR) {
-            res = copy_editvars(val, copy);
+            res = copy_editvars(instance, val, copy);
         }
         return res;
     }
@@ -5095,21 +5201,22 @@ status_t
 
     if (typ_is_string(val->btyp) && typ_is_string(copy->btyp)) {
         if (copy->v.str) {
-            ncx_clean_str(&copy->v.str);
+            ncx_clean_str(instance, &copy->v.str);
         }
         copy->v.str = val->v.str;
         val->v.str = NULL;
         copy->btyp = val->btyp;
     } else {
-        res = val_sprintf_simval_nc(NULL, val, &len);
+        res = val_sprintf_simval_nc(instance, NULL, val, &len);
         if (res == NO_ERR) {
-            buffer = m__getMem(len+1);
+            buffer = m__getMem(instance, len+1);
             if (!buffer) {
                 return ERR_INTERNAL_MEM;
             }
-            res = val_sprintf_simval_nc(buffer, val, &len);
+            res = val_sprintf_simval_nc(instance, buffer, val, &len);
             if (res == NO_ERR) {
-                res = val_set_simval(copy,
+                res = val_set_simval(instance,
+                                     copy,
                                      val->typdef,
                                      val->nsid,
                                      val->name,
@@ -5117,12 +5224,12 @@ status_t
             }
         }
         if (buffer) {
-            m__free(buffer);
+            m__free(instance, buffer);
         }
     }
 
     if (res == NO_ERR) {
-        res = copy_editvars(val, copy);
+        res = copy_editvars(instance, val, copy);
     }
 
     copy->flags &= ~VAL_FL_DEFSET;
@@ -5149,7 +5256,8 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    val_replace_str (const xmlChar *str,
+    val_replace_str (ncx_instance_t *instance,
+                     const xmlChar *str,
                      uint32 stringlen,
                      val_value_t *copy)
 {
@@ -5159,27 +5267,28 @@ status_t
 
 #ifdef DEBUG
     if (copy == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    strval = val_make_string(copy->nsid, 
+    strval = val_make_string(instance, 
+                             copy->nsid, 
                              copy->name, 
                              (const xmlChar *)"dummy");
     if (strval == NULL) {
         return ERR_INTERNAL_MEM;
     }
     
-    dumstr = xml_strndup(str, stringlen);
+    dumstr = xml_strndup(instance, str, stringlen);
     if (dumstr == NULL) {
-        val_free_value(strval);
+        val_free_value(instance, strval);
         return ERR_INTERNAL_MEM;
     }
-    m__free(strval->v.str);
+    m__free(instance, strval->v.str);
     strval->v.str = dumstr;
 
-    res = val_replace(strval, copy);
-    val_free_value(strval);
+    res = val_replace(instance, strval, copy);
+    val_free_value(instance, strval);
     return res;
 
 }  /* val_replace_str */
@@ -5198,16 +5307,17 @@ status_t
 *
 *********************************************************************/
 void
-    val_add_meta (val_value_t *meta,
+    val_add_meta (ncx_instance_t *instance,
+                  val_value_t *meta,
                    val_value_t *parent)
 {
 #ifdef DEBUG
     if (meta == NULL || parent == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
-    dlq_enque(meta, &parent->metaQ);
+    dlq_enque(instance, meta, &parent->metaQ);
 
 }   /* val_add_meta */
 
@@ -5227,18 +5337,19 @@ void
 *
 *********************************************************************/
 void
-    val_add_child (val_value_t *child,
+    val_add_child (ncx_instance_t *instance,
+                   val_value_t *child,
                    val_value_t *parent)
 {
 #ifdef DEBUG
     if (child == NULL || parent == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     child->parent = parent;
-    dlq_enque(child, &parent->v.childQ);
+    dlq_enque(instance, child, &parent->v.childQ);
 
 }   /* val_add_child */
 
@@ -5255,7 +5366,8 @@ void
 *
 *********************************************************************/
 void
-    val_add_child_sorted (val_value_t *child,
+    val_add_child_sorted (ncx_instance_t *instance,
+                          val_value_t *child,
                           val_value_t *parent)
 {
     assert( child && "child is NULL!" );
@@ -5265,16 +5377,16 @@ void
     dlq_hdr_t *childQ = &parent->v.childQ;
 
     /* check new first entry */
-    if (dlq_empty(childQ)) {
-        dlq_enque(child, childQ);
+    if (dlq_empty(instance, childQ)) {
+        dlq_enque(instance, child, childQ);
         return;
     }
 
     val_value_t *curval = NULL;
     obj_template_t *newobj = child->obj;
-    xmlns_id_t parentid = val_get_nsid(parent);
-    xmlns_id_t childid = val_get_nsid(child);
-    boolean sysorder = obj_is_system_ordered(newobj);
+    xmlns_id_t parentid = val_get_nsid(instance, parent);
+    xmlns_id_t childid = val_get_nsid(instance, child);
+    boolean sysorder = obj_is_system_ordered(instance, newobj);
     int ret = 0;
 
     /* The current set of sibling nodes needs to
@@ -5286,9 +5398,9 @@ void
          * since submodules blur the top-level object
          * order within a module namespace
          */
-        for (curval = val_get_first_child(parent);
+        for (curval = val_get_first_child(instance, parent);
              curval != NULL;
-             curval = val_get_next_child(curval)) {
+             curval = val_get_next_child(instance, curval)) {
 
             /* check same type of sibling cornercase
              * should only happen if the child is
@@ -5296,41 +5408,42 @@ void
              */
             if (newobj == curval->obj) {
                 /* make a new sorted or last one of these entries */
-                boolean syssorted = ncx_get_system_sorted();
+                boolean syssorted = ncx_get_system_sorted(instance);
                 boolean done = FALSE;
 
                 while (!done) {
                     if (sysorder && syssorted) {
                         if (newobj->objtype == OBJ_TYP_LIST) {
-                            ret = val_index_compare(child, curval);
+                            ret = val_index_compare(instance, child, curval);
                         } else {
-                            ret = val_compare(child, curval);
+                            ret = val_compare(instance, child, curval);
                         }
                         if (ret < 0) {
-                            dlq_insertAhead(child, curval);
+                            dlq_insertAhead(instance, child, curval);
                             return;
                         }
                     }
-                    val_value_t *nextchild = val_get_next_child(curval);
+                    val_value_t *nextchild = val_get_next_child(instance, curval);
                     if (nextchild == NULL || nextchild->obj != child->obj) {
                         done = TRUE;
                     } else {
                         curval = nextchild;
                     }
                 }
-                dlq_insertAfter(child, curval);
+                dlq_insertAfter(instance, child, curval);
                 return;
             }
 
-            ret = xml_strcmp(child->name, curval->name);
+            ret = xml_strcmp(instance, child->name, curval->name);
             if (ret < 0) {
-                dlq_insertAhead(child, curval);
+                dlq_insertAhead(instance, child, curval);
                 return;
             } else if (ret == 0) {
-                ret = xml_strcmp(val_get_mod_name(child),
-                                 val_get_mod_name(curval));
+                ret = xml_strcmp(instance,
+                                 val_get_mod_name(instance, child),
+                                 val_get_mod_name(instance, curval));
                 if (ret < 0) {
-                    dlq_insertAhead(child, curval);
+                    dlq_insertAhead(instance, child, curval);
                     return;
                     /* same name, insert in module alphabetical order */
                 }
@@ -5338,30 +5451,30 @@ void
         }
 
         /* make new last entry */
-        dlq_enque(child, childQ);
+        dlq_enque(instance, child, childQ);
     } else if (parent->obj->objtype == OBJ_TYP_ANYXML) {
         /* there is no schema order to check, so see if this
          * child already exists
          */
-        curval = val_find_child(parent, val_get_mod_name(child), child->name);
+        curval = val_find_child(instance, parent, val_get_mod_name(instance, child), child->name);
         if (curval != NULL) {
             /* make new last instance of this child node */
             val_value_t *saveval = NULL;
             while (curval != NULL) {
                 saveval = curval;
-                curval = val_find_next_child(parent, val_get_mod_name(child),
+                curval = val_find_next_child(instance, parent, val_get_mod_name(instance, child),
                                              child->name, curval);
             }
-            dlq_insertAfter(child, saveval);
+            dlq_insertAfter(instance, child, saveval);
         } else {
             /* make new last child; first one of these */
-            dlq_enque(child, childQ);
+            dlq_enque(instance, child, childQ);
         }
     } else {
         /* normal container or list */
-        for (curval = val_get_first_child(parent);
+        for (curval = val_get_first_child(instance, parent);
              curval != NULL;
-             curval = val_get_next_child(curval)) {
+             curval = val_get_next_child(instance, curval)) {
 
             /* check same type of sibling cornercase
              * should only happen if the child is
@@ -5369,23 +5482,23 @@ void
              */
             if (newobj == curval->obj) {
                 /* make a new last one of these entries */
-                boolean syssorted = ncx_get_system_sorted();
+                boolean syssorted = ncx_get_system_sorted(instance);
                 boolean done = FALSE;
 
                 while (!done) {
                     if (sysorder && syssorted) {
                         if (newobj->objtype == OBJ_TYP_LIST) {
-                            ret = val_index_compare(child, curval);
+                            ret = val_index_compare(instance, child, curval);
                         } else {
-                            ret = val_compare(child, curval);
+                            ret = val_compare(instance, child, curval);
                         }
                         if (ret < 0) {
-                            dlq_insertAhead(child, curval);
+                            dlq_insertAhead(instance, child, curval);
                             return;
                         }
                     }
 
-                    val_value_t *nextchild = val_get_next_child(curval);
+                    val_value_t *nextchild = val_get_next_child(instance, curval);
                     if (nextchild == NULL || nextchild->obj != child->obj) {
                         done = TRUE;
                     } else {
@@ -5394,7 +5507,7 @@ void
                 }
 
                 /* make a new last instance of this node type */
-                dlq_insertAfter(child, curval);
+                dlq_insertAfter(instance, child, curval);
                 return;
             }
 
@@ -5403,8 +5516,8 @@ void
              * any native node will insert ahead of such 
              * an augment node
              */
-            if (val_get_nsid(curval) != parentid && childid == parentid) {
-                dlq_insertAhead(child, curval);
+            if (val_get_nsid(instance, curval) != parentid && childid == parentid) {
+                dlq_insertAhead(instance, child, curval);
                 return;
             }
 
@@ -5416,20 +5529,20 @@ void
              * the object siblings are not numbered, so
              * a linear search is used here
              */
-            obj_template_t *testobj = obj_next_child_deep(child->obj);
-            for (; testobj != NULL; testobj = obj_next_child_deep(testobj)) {
+            obj_template_t *testobj = obj_next_child_deep(instance, child->obj);
+            for (; testobj != NULL; testobj = obj_next_child_deep(instance, testobj)) {
                 if (testobj == curval->obj) {
                     /* insert child ahead of this node
                      * which occurs after it in schema order
                      */
-                    dlq_insertAhead(child, curval);
+                    dlq_insertAhead(instance, child, curval);
                     return;
                 }
             }
         }
 
         /* make a new last entry */
-        dlq_enque(child, childQ);
+        dlq_enque(instance, child, childQ);
     }
 
 }   /* val_add_child_sorted */
@@ -5448,22 +5561,23 @@ void
 *
 *********************************************************************/
 void
-    val_insert_child (val_value_t *child,
+    val_insert_child (ncx_instance_t *instance,
+                      val_value_t *child,
                       val_value_t *current,
                       val_value_t *parent)
 {
 #ifdef DEBUG
     if (child == NULL || parent == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     child->parent = parent;
     if (current) {
-        dlq_insertAfter(child, current);
+        dlq_insertAfter(instance, child, current);
     } else {
-        val_add_child_sorted(child, parent);
+        val_add_child_sorted(instance, child, parent);
     }
 
 }   /* val_insert_child */
@@ -5479,16 +5593,16 @@ void
 *
 *********************************************************************/
 void
-    val_remove_child (val_value_t *child)
+    val_remove_child (ncx_instance_t *instance, val_value_t *child)
 {
 #ifdef DEBUG
     if (!child) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    dlq_remove(child);
+    dlq_remove(instance, child);
     child->parent = NULL;
 
 }   /* val_remove_child */
@@ -5505,12 +5619,13 @@ void
 *
 *********************************************************************/
 void
-    val_swap_child (val_value_t *newchild,
+    val_swap_child (ncx_instance_t *instance,
+                    val_value_t *newchild,
                     val_value_t *curchild)
 {
 #ifdef DEBUG
     if (!newchild || !curchild) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -5518,7 +5633,7 @@ void
     newchild->parent = curchild->parent;
     newchild->getcb = curchild->getcb;
 
-    dlq_swap(newchild, curchild);
+    dlq_swap(instance, newchild, curchild);
 
     curchild->parent = NULL;
 
@@ -5538,14 +5653,15 @@ void
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_first_child_match (val_value_t  *parent,
+    val_first_child_match (ncx_instance_t *instance,
+                           val_value_t  *parent,
                            val_value_t *child)
 {
     val_value_t *val;
 
 #ifdef DEBUG
     if (!parent || !child) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5554,9 +5670,9 @@ val_value_t *
         return NULL;
     }
 
-    for (val = (val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
@@ -5564,17 +5680,17 @@ val_value_t *
 
         /* check the node if the QName matches */
         if (val->nsid == child->nsid &&
-            !xml_strcmp(val->name, child->name)) {
+            !xml_strcmp(instance, val->name, child->name)) {
 
             if (val->btyp == NCX_BT_LIST) {
                 /* match the instance identifiers, if any */
-                if (val_index_match(child, val)) {
+                if (val_index_match(instance, child, val)) {
                     return val;
                 }
             } else if (val->obj->objtype == OBJ_TYP_LEAF_LIST) {
                 if (val->btyp == child->btyp) {
                     /* find the leaf-list with the same value */
-                    if (!val_compare(val, child)) {
+                    if (!val_compare(instance, val, child)) {
                         return val;
                     }
                 } else {
@@ -5610,7 +5726,8 @@ val_value_t *
 *   pointer to the next child match if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_next_child_match (val_value_t *parent,
+    val_next_child_match (ncx_instance_t *instance,
+                          val_value_t *parent,
                           val_value_t *child,
                           val_value_t *curmatch)
 {
@@ -5618,7 +5735,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!parent || !child || !curmatch) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5627,9 +5744,9 @@ val_value_t *
         return NULL;
     }
 
-    for (val = (val_value_t *)dlq_nextEntry(curmatch);
+    for (val = (val_value_t *)dlq_nextEntry(instance, curmatch);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
@@ -5637,17 +5754,17 @@ val_value_t *
 
         /* check the node if the QName matches */
         if (val->nsid == child->nsid &&
-            !xml_strcmp(val->name, child->name)) {
+            !xml_strcmp(instance, val->name, child->name)) {
 
             if (val->btyp == NCX_BT_LIST) {
                 /* match the instance identifiers, if any */
-                if (val_index_match(child, val)) {
+                if (val_index_match(instance, child, val)) {
                     return val;
                 }
             } else if (val->obj->objtype == OBJ_TYP_LEAF_LIST) {
                 if (val->btyp == child->btyp) {
                     /* find the leaf-list with the same value */
-                    if (!val_compare(val, child)) {
+                    if (!val_compare(instance, val, child)) {
                         return val;
                     }
                 } else {
@@ -5681,11 +5798,11 @@ val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_get_first_child (const val_value_t  *parent)
+    val_get_first_child (ncx_instance_t *instance, const val_value_t  *parent)
 {
 #ifdef DEBUG
     if (!parent) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5694,8 +5811,8 @@ val_value_t *
         return NULL;
     }
 
-    val_value_t *val = (val_value_t *)dlq_firstEntry(&parent->v.childQ);
-    for (; val != NULL; val = (val_value_t *)dlq_nextEntry(val)) {
+    val_value_t *val = (val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
+    for (; val != NULL; val = (val_value_t *)dlq_nextEntry(instance, val)) {
         if (VAL_IS_DELETED(val)) {
             continue;
         }
@@ -5719,17 +5836,17 @@ val_value_t *
 *   pointer to the next child if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_get_next_child (const val_value_t  *curchild)
+    val_get_next_child (ncx_instance_t *instance, const val_value_t  *curchild)
 {
 #ifdef DEBUG
     if (!curchild) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    val_value_t *val = (val_value_t *)dlq_nextEntry(curchild);
-    for (; val != NULL; val = (val_value_t *)dlq_nextEntry(val)) {
+    val_value_t *val = (val_value_t *)dlq_nextEntry(instance, curchild);
+    for (; val != NULL; val = (val_value_t *)dlq_nextEntry(instance, val)) {
         if (VAL_IS_DELETED(val)) {
             continue;
         }
@@ -5760,7 +5877,8 @@ val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_find_child (const val_value_t  *parent,
+    val_find_child (ncx_instance_t *instance,
+                    const val_value_t  *parent,
                     const xmlChar *modname,
                     const xmlChar *childname)
 {
@@ -5768,7 +5886,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!parent || !childname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5777,18 +5895,19 @@ val_value_t *
         return NULL;
     }
 
-    for (val = (val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
         if (VAL_IS_DELETED(val)) {
             continue;
         }
         if (modname && 
-            xml_strcmp(modname, 
-                       val_get_mod_name(val))) {
+            xml_strcmp(instance, 
+                       modname, 
+                       val_get_mod_name(instance, val))) {
             continue;
         }
-        if (!xml_strcmp(val->name, childname)) {
+        if (!xml_strcmp(instance, val->name, childname)) {
             return val;
         }
     }
@@ -5817,7 +5936,8 @@ val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_find_child_que (const dlq_hdr_t *childQ,
+    val_find_child_que (ncx_instance_t *instance,
+                        const dlq_hdr_t *childQ,
                         const xmlChar *modname,
                         const xmlChar *childname)
 {
@@ -5825,23 +5945,24 @@ val_value_t *
 
 #ifdef DEBUG
     if (!childQ || !childname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (val = (val_value_t *)dlq_firstEntry(childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
         if (VAL_IS_DELETED(val)) {
             continue;
         }
         if (modname && 
-            xml_strcmp(modname, 
-                       val_get_mod_name(val))) {
+            xml_strcmp(instance, 
+                       modname, 
+                       val_get_mod_name(instance, val))) {
             continue;
         }
-        if (!xml_strcmp(val->name, childname)) {
+        if (!xml_strcmp(instance, val->name, childname)) {
             return val;
         }
     }
@@ -5869,7 +5990,8 @@ val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_match_child (const val_value_t  *parent,
+    val_match_child (ncx_instance_t *instance,
+                     const val_value_t  *parent,
                      const xmlChar *modname,
                      const xmlChar *childname)
 {
@@ -5877,7 +5999,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!parent || !childname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5886,18 +6008,18 @@ val_value_t *
         return NULL;
     }
 
-    for (val = (val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
         if (VAL_IS_DELETED(val)) {
             continue;
         }
         if (modname && 
-            xml_strcmp(modname, val_get_mod_name(val))) {
+            xml_strcmp(instance, modname, val_get_mod_name(instance, val))) {
             continue;
         }
-        if (!xml_strncmp(val->name, childname,
-                         xml_strlen(childname))) {
+        if (!xml_strncmp(instance, val->name, childname,
+                         xml_strlen(instance, childname))) {
             return val;
         }
     }
@@ -5926,7 +6048,8 @@ val_value_t *
 *   pointer to the child if found or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_find_next_child (const val_value_t  *parent,
+    val_find_next_child (ncx_instance_t *instance,
+                         const val_value_t  *parent,
                          const xmlChar *modname,
                          const xmlChar *childname,
                          const val_value_t *curchild)
@@ -5935,7 +6058,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!parent || !childname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5944,18 +6067,19 @@ val_value_t *
         return NULL;
     }
 
-    for (val = (val_value_t *)dlq_nextEntry(curchild);
+    for (val = (val_value_t *)dlq_nextEntry(instance, curchild);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
         if (VAL_IS_DELETED(val)) {
             continue;
         }
         if (modname && 
-            xml_strcmp(modname, 
-                       val_get_mod_name(val))) {
+            xml_strcmp(instance, 
+                       modname, 
+                       val_get_mod_name(instance, val))) {
             continue;
         }
-        if (!xml_strcmp(val->name, childname)) {
+        if (!xml_strcmp(instance, val->name, childname)) {
             return val;
         }
     }
@@ -5978,14 +6102,15 @@ val_value_t *
 *   pointer to the FIRST match if found, or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_first_child_name (val_value_t  *parent,
+    val_first_child_name (ncx_instance_t *instance,
+                          val_value_t  *parent,
                           const xmlChar *name)
 {
     val_value_t *val;
 
 #ifdef DEBUG
     if (!parent || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -5994,16 +6119,16 @@ val_value_t *
         return NULL;
     }
         
-    for (val = (val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
         }
 
         /* check the node if the name matches */
-        if (!xml_strcmp(val->name, name)) {
+        if (!xml_strcmp(instance, val->name, name)) {
             return val;
         }
     }
@@ -6027,7 +6152,8 @@ val_value_t *
 *   pointer to the first match if found, or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_first_child_qname (val_value_t *parent,
+    val_first_child_qname (ncx_instance_t *instance,
+                           val_value_t *parent,
                            xmlns_id_t   nsid,
                            const xmlChar *name)
 {
@@ -6035,7 +6161,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!parent || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -6044,9 +6170,9 @@ val_value_t *
         return NULL;
     }
         
-    for (val = (val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
@@ -6057,7 +6183,7 @@ val_value_t *
         }
 
         /* check the node if the name matches */
-        if (!xml_strcmp(val->name, name)) {
+        if (!xml_strcmp(instance, val->name, name)) {
             return val;
         }
     }
@@ -6082,7 +6208,8 @@ val_value_t *
 *   pointer to the next match if found, or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_next_child_qname (val_value_t *parent,
+    val_next_child_qname (ncx_instance_t *instance,
+                          val_value_t *parent,
                           xmlns_id_t   nsid,
                           const xmlChar *name,
                           val_value_t *curchild)
@@ -6091,7 +6218,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!parent || !name || !curchild) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -6100,9 +6227,9 @@ val_value_t *
         return NULL;
     }
         
-    for (val = (val_value_t *)dlq_nextEntry(curchild);
+    for (val = (val_value_t *)dlq_nextEntry(instance, curchild);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
@@ -6113,7 +6240,7 @@ val_value_t *
         }
 
         /* check the node if the name matches */
-        if (!xml_strcmp(val->name, name)) {
+        if (!xml_strcmp(instance, val->name, name)) {
             return val;
         }
     }
@@ -6142,7 +6269,8 @@ val_value_t *
 *   pointer to the FIRST match if found, or NULL if not found
 *********************************************************************/
 val_value_t *
-    val_first_child_string (val_value_t  *parent,
+    val_first_child_string (ncx_instance_t *instance,
+                            val_value_t  *parent,
                             const xmlChar *name,
                             const xmlChar *strval)
 {
@@ -6150,7 +6278,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!parent || !name || !strval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -6159,18 +6287,18 @@ val_value_t *
         return NULL;
     }
         
-    for (val = (val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
         }
 
         /* check the node if the name matches */
-        if (!xml_strcmp(val->name, name)) {
+        if (!xml_strcmp(instance, val->name, name)) {
             if (typ_is_string(val->btyp)) {
-                if (!xml_strcmp(val->v.str, strval)) {
+                if (!xml_strcmp(instance, val->v.str, strval)) {
                     return val;
                 }
             } else {
@@ -6198,14 +6326,14 @@ val_value_t *
 *   the number of child nodes found
 *********************************************************************/
 uint32
-    val_child_cnt (val_value_t  *parent)
+    val_child_cnt (ncx_instance_t *instance, val_value_t  *parent)
 {
     val_value_t *val;
     uint32       cnt;
 
 #ifdef DEBUG
     if (!parent) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -6215,9 +6343,9 @@ uint32
     }
         
     cnt = 0;
-    for (val = (val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
@@ -6245,7 +6373,8 @@ uint32
 *   the instance count
 *********************************************************************/
 uint32
-    val_child_inst_cnt (const val_value_t  *parent,
+    val_child_inst_cnt (ncx_instance_t *instance,
+                        const val_value_t  *parent,
                         const xmlChar *modname,
                         const xmlChar *name)
 {
@@ -6254,7 +6383,7 @@ uint32
 
 #ifdef DEBUG
     if (!parent || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -6264,21 +6393,21 @@ uint32
     }
         
     cnt = 0;
-    for (val = (const val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (const val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (const val_value_t *)dlq_nextEntry(val)) {
+         val = (const val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
         }
 
         if (modname &&
-            xml_strcmp(modname, val_get_mod_name(val))) {
+            xml_strcmp(instance, modname, val_get_mod_name(instance, val))) {
             continue;
         }
 
         /* check the node if the name matches */
-        if (!xml_strcmp(val->name, name)) {
+        if (!xml_strcmp(instance, val->name, name)) {
             cnt++;
         } 
     }
@@ -6323,7 +6452,8 @@ uint32
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    val_find_all_children (val_walker_fn_t walkerfn,
+    val_find_all_children (ncx_instance_t *instance,
+                           val_walker_fn_t walkerfn,
                            void *cookie1,
                            void *cookie2,
                            val_value_t *startnode,
@@ -6338,7 +6468,7 @@ boolean
 
 #ifdef DEBUG
     if (!startnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -6347,9 +6477,9 @@ boolean
         return FALSE;
     }
 
-    if (val_is_virtual(startnode)) {
+    if (val_is_virtual(instance, startnode)) {
         res = NO_ERR;
-        useval = cache_virtual_value(NULL, startnode, &res);
+        useval = cache_virtual_value(instance, NULL, startnode, &res);
         if (useval == NULL) {
             return FALSE;
         }
@@ -6357,15 +6487,16 @@ boolean
         useval = startnode;
     }
 
-    for (val = (val_value_t *)dlq_firstEntry(&useval->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &useval->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
         }
 
-        fnresult = process_one_valwalker(walkerfn,
+        fnresult = process_one_valwalker(instance,
+                                         walkerfn,
                                          cookie1,
                                          cookie2,
                                          val, 
@@ -6418,7 +6549,8 @@ boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    val_find_all_ancestors (val_walker_fn_t  walkerfn,
+    val_find_all_ancestors (ncx_instance_t *instance,
+                            val_walker_fn_t  walkerfn,
                             void *cookie1,
                             void *cookie2,
                             val_value_t *startnode,
@@ -6433,7 +6565,7 @@ boolean
 
 #ifdef DEBUG
     if (!startnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -6445,7 +6577,8 @@ boolean
     }
 
     while (val) {
-        fnresult = process_one_valwalker(walkerfn,
+        fnresult = process_one_valwalker(instance,
+                                         walkerfn,
                                          cookie1,
                                          cookie2,
                                          val, 
@@ -6504,7 +6637,8 @@ boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    val_find_all_descendants (val_walker_fn_t walkerfn,
+    val_find_all_descendants (ncx_instance_t *instance,
+                              val_walker_fn_t walkerfn,
                               void *cookie1,
                               void *cookie2,
                               val_value_t *startnode,
@@ -6521,14 +6655,14 @@ boolean
 
 #ifdef DEBUG
     if (!startnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    if (val_is_virtual(startnode)) {
+    if (val_is_virtual(instance, startnode)) {
         res = NO_ERR;
-        useval = cache_virtual_value(NULL, startnode, &res);
+        useval = cache_virtual_value(instance, NULL, startnode, &res);
         if (useval == NULL) {
             return res;
         }
@@ -6537,7 +6671,8 @@ boolean
     }
 
     if (orself) {
-        fnresult = process_one_valwalker(walkerfn,
+        fnresult = process_one_valwalker(instance,
+                                         walkerfn,
                                          cookie1,
                                          cookie2,
                                          useval,
@@ -6555,16 +6690,17 @@ boolean
         return TRUE;
     }
 
-    for (val = (val_value_t *)dlq_firstEntry(&useval->v.childQ);
+    for (val = (val_value_t *)dlq_firstEntry(instance, &useval->v.childQ);
          val != NULL;
-         val = (val_value_t *)dlq_nextEntry(val)) {
+         val = (val_value_t *)dlq_nextEntry(instance, val)) {
 
         if (VAL_IS_DELETED(val)) {
             continue;
         }
 
         fncalled = FALSE;
-        fnresult = process_one_valwalker(walkerfn,
+        fnresult = process_one_valwalker(instance,
+                                         walkerfn,
                                          cookie1,
                                          cookie2,
                                          val, 
@@ -6577,7 +6713,8 @@ boolean
             return FALSE;
         }
         if (!fncalled || forceall) {
-            fnresult = val_find_all_descendants(walkerfn,
+            fnresult = val_find_all_descendants(instance,
+                                                walkerfn,
                                                 cookie1,
                                                 cookie2,
                                                 val,
@@ -6644,7 +6781,8 @@ boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    val_find_all_pfaxis (val_walker_fn_t  walkerfn,
+    val_find_all_pfaxis (ncx_instance_t *instance,
+                         val_walker_fn_t walkerfn,
                          void *cookie1,
                          void *cookie2,
                          val_value_t  *startnode,
@@ -6661,7 +6799,7 @@ boolean
 
 #ifdef DEBUG
     if (!startnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -6673,15 +6811,15 @@ boolean
     switch (axis) {
     case XP_AX_PRECEDING:
         forward = FALSE;
-        val = (val_value_t *)dlq_prevEntry(startnode);
+        val = (val_value_t *)dlq_prevEntry(instance, startnode);
         break;
     case XP_AX_FOLLOWING:
         forward = TRUE;
-        val = (val_value_t *)dlq_nextEntry(startnode);
+        val = (val_value_t *)dlq_nextEntry(instance, startnode);
         break;
     case XP_AX_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 
@@ -6692,19 +6830,19 @@ boolean
     while (val) {
 
         if (VAL_IS_DELETED(val) ||
-            (configonly && !obj_is_config(val->obj))) {
+            (configonly && !obj_is_config(instance, val->obj))) {
             /* skip this entry */
             if (forward) {
-                val = (val_value_t *)dlq_nextEntry(val);
+                val = (val_value_t *)dlq_nextEntry(instance, val);
             } else {
-                val = (val_value_t *)dlq_prevEntry(val);
+                val = (val_value_t *)dlq_prevEntry(instance, val);
             }
             continue;
         }
 
-        if (val_is_virtual(val)) {
+        if (val_is_virtual(instance, val)) {
             res = NO_ERR;
-            useval = cache_virtual_value(NULL, val, &res);
+            useval = cache_virtual_value(instance, NULL, val, &res);
             if (useval == NULL) {
                 return res;
             }
@@ -6712,7 +6850,8 @@ boolean
             useval = val;
         }
 
-        fnresult = process_one_valwalker(walkerfn,
+        fnresult = process_one_valwalker(instance,
+                                         walkerfn,
                                          cookie1,
                                          cookie2,
                                          useval, 
@@ -6732,12 +6871,13 @@ boolean
              * one of them matches, because all
              * matches are needed with the '//' operator
              */
-            for (child = val_get_first_child(useval);
+            for (child = val_get_first_child(instance, useval);
                  child != NULL;
-                 child = val_get_next_child(child)) {
+                 child = val_get_next_child(instance, child)) {
 
                 fnresult = 
-                    val_find_all_pfaxis(walkerfn, 
+                    val_find_all_pfaxis(instance, 
+                                        walkerfn, 
                                         cookie1, 
                                         cookie2,
                                         child, 
@@ -6754,9 +6894,9 @@ boolean
         }
 
         if (forward) {
-            val = (val_value_t *)dlq_nextEntry(val);
+            val = (val_value_t *)dlq_nextEntry(instance, val);
         } else {
-            val = (val_value_t *)dlq_prevEntry(val);
+            val = (val_value_t *)dlq_prevEntry(instance, val);
         }
     }
     return TRUE;
@@ -6810,7 +6950,8 @@ boolean
 *   FALSE if walker fn requested early termination
 *********************************************************************/
 boolean
-    val_find_all_pfsibling_axis (val_walker_fn_t  walkerfn,
+    val_find_all_pfsibling_axis (ncx_instance_t *instance,
+                                 val_walker_fn_t  walkerfn,
                                  void *cookie1,
                                  void *cookie2,
                                  val_value_t  *startnode,
@@ -6827,7 +6968,7 @@ boolean
 
 #ifdef DEBUG
     if (!startnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -6840,33 +6981,33 @@ boolean
         /* execute the callback for all preceding nodes
          * that match the filter criteria 
          */
-        val = (val_value_t *)dlq_prevEntry(startnode);
+        val = (val_value_t *)dlq_prevEntry(instance, startnode);
         forward = FALSE;
         break;
     case XP_AX_FOLLOWING_SIBLING:
-        val = (val_value_t *)dlq_nextEntry(startnode);
+        val = (val_value_t *)dlq_nextEntry(instance, startnode);
         forward = TRUE;
         break;
     case XP_AX_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 
     while (val) {
         if (VAL_IS_DELETED(val) ||
-            (configonly && !obj_is_config(val->obj))) {
+            (configonly && !obj_is_config(instance, val->obj))) {
             if (forward) {
-                val = (val_value_t *)dlq_nextEntry(val);
+                val = (val_value_t *)dlq_nextEntry(instance, val);
             } else {
-                val = (val_value_t *)dlq_prevEntry(val);
+                val = (val_value_t *)dlq_prevEntry(instance, val);
             }
             continue;
         }
 
-        if (val_is_virtual(val)) {
+        if (val_is_virtual(instance, val)) {
             res = NO_ERR;
-            useval = cache_virtual_value(NULL, val, &res);
+            useval = cache_virtual_value(instance, NULL, val, &res);
             if (useval == NULL) {
                 return FALSE;
             }
@@ -6875,7 +7016,8 @@ boolean
         }
 
 
-        fnresult = process_one_valwalker(walkerfn,
+        fnresult = process_one_valwalker(instance,
+                                         walkerfn,
                                          cookie1,
                                          cookie2,
                                          useval, 
@@ -6895,12 +7037,13 @@ boolean
              * one of them matches, because all
              * matches are needed with the '//' operator
              */
-            for (child = val_get_first_child(useval);
+            for (child = val_get_first_child(instance, useval);
                  child != NULL;
-                 child = val_get_next_child(child)) {
+                 child = val_get_next_child(instance, child)) {
 
                 fnresult = 
-                    val_find_all_pfsibling_axis(walkerfn, 
+                    val_find_all_pfsibling_axis(instance, 
+                                                walkerfn, 
                                                 cookie1, 
                                                 cookie2,
                                                 child, 
@@ -6917,9 +7060,9 @@ boolean
         }
 
         if (forward) {
-            val = (val_value_t *)dlq_nextEntry(val);
+            val = (val_value_t *)dlq_nextEntry(instance, val);
         } else {
-            val = (val_value_t *)dlq_prevEntry(val);
+            val = (val_value_t *)dlq_prevEntry(instance, val);
         }
     }
     return TRUE;
@@ -6970,7 +7113,8 @@ boolean
 *   pointer to found value or NULL if none
 *********************************************************************/
 val_value_t *
-    val_get_axisnode (val_value_t *startnode,
+    val_get_axisnode (ncx_instance_t *instance,
+                      val_value_t *startnode,
                       const xmlChar *modname,
                       const xmlChar *name,
                       boolean configonly,
@@ -6984,11 +7128,11 @@ val_value_t *
 
 #ifdef DEBUG
     if (!startnode) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (position <= 0) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
@@ -7006,7 +7150,8 @@ val_value_t *
         orself = TRUE;
         /* fall through */
     case XP_AX_ANCESTOR:
-        fnresult = val_find_all_ancestors(position_walker,
+        fnresult = val_find_all_ancestors(instance,
+                                          (val_walker_fn_t)position_walker,
                                           &finderparms,
                                           NULL,
                                           startnode,
@@ -7024,7 +7169,8 @@ val_value_t *
         /* TBD: attributes not supported */
         return NULL;
     case XP_AX_CHILD:
-        fnresult = val_find_all_children(position_walker,
+        fnresult = val_find_all_children(instance,
+                                         (val_walker_fn_t)position_walker,
                                          &finderparms,
                                          NULL,
                                          startnode,
@@ -7041,7 +7187,8 @@ val_value_t *
         orself = TRUE;
         /* fall through */
     case XP_AX_DESCENDANT:
-        fnresult = val_find_all_descendants(position_walker,
+        fnresult = val_find_all_descendants(instance,
+                                            (val_walker_fn_t)position_walker,
                                             &finderparms,
                                             NULL,
                                             startnode,
@@ -7058,7 +7205,8 @@ val_value_t *
         }
     case XP_AX_PRECEDING:
     case XP_AX_FOLLOWING:
-        fnresult = val_find_all_pfaxis(position_walker,
+        fnresult = val_find_all_pfaxis(instance,
+                                       (val_walker_fn_t)position_walker,
                                        &finderparms,
                                        NULL,
                                        startnode,
@@ -7075,7 +7223,8 @@ val_value_t *
         }
     case XP_AX_PRECEDING_SIBLING:
     case XP_AX_FOLLOWING_SIBLING:
-        fnresult = val_find_all_pfsibling_axis(position_walker,
+        fnresult = val_find_all_pfsibling_axis(instance,
+                                               (val_walker_fn_t)position_walker,
                                                &finderparms,
                                                NULL,
                                                startnode,
@@ -7099,7 +7248,8 @@ val_value_t *
         /* there can only be one node in this axis,
          * so if the startnode isn't it, then return NULL
          */
-        fnresult = process_one_valwalker(position_walker,
+        fnresult = process_one_valwalker(instance,
+                                         (val_walker_fn_t)position_walker,
                                          &finderparms,
                                          NULL,
                                          startnode->parent,
@@ -7115,7 +7265,7 @@ val_value_t *
         }
     case XP_AX_NONE:
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
     /*NOTREACHED*/
@@ -7136,7 +7286,8 @@ val_value_t *
 *   the instance ID num (1 .. N), or 0 if some error
 *********************************************************************/
 uint32
-    val_get_child_inst_id (const val_value_t  *parent,
+    val_get_child_inst_id (ncx_instance_t *instance,
+                           const val_value_t  *parent,
                            const val_value_t *child)
 {
     const val_value_t *val;
@@ -7144,32 +7295,33 @@ uint32
 
 #ifdef DEBUG
     if (!parent || !child) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
     if (!typ_has_children(parent->btyp)) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 0;
     }
 #endif
 
     cnt = 0;
-    for (val = (const val_value_t *)dlq_firstEntry(&parent->v.childQ);
+    for (val = (const val_value_t *)dlq_firstEntry(instance, &parent->v.childQ);
          val != NULL;
-         val = (const val_value_t *)dlq_nextEntry(val)) {
+         val = (const val_value_t *)dlq_nextEntry(instance, val)) {
 
         /* do not skip over deleted nodes in case the reason
          * this function is called is to print the instance ID
          * of the node being deleted
          */
 
-        if (xml_strcmp(val_get_mod_name(child),
-                       val_get_mod_name(val))) {
+        if (xml_strcmp(instance,
+                       val_get_mod_name(instance, child),
+                       val_get_mod_name(instance, val))) {
             continue;
         }
 
         /* check the node if the name matches */
-        if (!xml_strcmp(val->name, child->name)) {
+        if (!xml_strcmp(instance, val->name, child->name)) {
             cnt++;
             if (val == child) {
                 return cnt;
@@ -7177,7 +7329,7 @@ uint32
         }
     }
 
-    SET_ERROR(ERR_INTERNAL_VAL);
+    SET_ERROR(instance, ERR_INTERNAL_VAL);
     return 0;
 
 }  /* val_get_child_inst_id */
@@ -7195,13 +7347,13 @@ uint32
 *  number of list entries; also zero for error
 *********************************************************************/
 uint32
-    val_liststr_count (const val_value_t  *val)
+    val_liststr_count (ncx_instance_t *instance, const val_value_t  *val)
 {
     uint32             cnt;
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -7210,10 +7362,10 @@ uint32
     switch (val->btyp) {
     case NCX_BT_SLIST:
     case NCX_BT_BITS:
-        cnt = ncx_list_cnt(&val->v.list);
+        cnt = ncx_list_cnt(instance, &val->v.list);
         break;
     default:
-        SET_ERROR(ERR_NCX_WRONG_TYPE);
+        SET_ERROR(instance, ERR_NCX_WRONG_TYPE);
     }
 
     return cnt;
@@ -7239,13 +7391,14 @@ uint32
 *   TRUE if the index chains match
 *********************************************************************/
 boolean
-    val_index_match (const val_value_t *val1,
+    val_index_match (ncx_instance_t *instance,
+                     const val_value_t *val1,
                      const val_value_t *val2)
 {
     assert(val1 && "val1 is NULL!" );
     assert(val2 && "val2 is NULL!" );
 
-    int32 ret = index_match(val1, val2);
+    int32 ret = index_match(instance, val1, val2);
     return (ret) ? FALSE : TRUE;
 
 }  /* val_index_match */
@@ -7267,13 +7420,14 @@ boolean
 *   -1 , - or 1 for compare value
 *********************************************************************/
 int
-    val_index_compare (const val_value_t *val1,
+    val_index_compare (ncx_instance_t *instance,
+                       const val_value_t *val1,
                        const val_value_t *val2)
 {
     assert(val1 && "val1 is NULL!" );
     assert(val2 && "val2 is NULL!" );
 
-    int32 ret = index_match(val1, val2);
+    int32 ret = index_match(instance, val1, val2);
     return ret;
 
 }  /* val_index_compare */
@@ -7311,7 +7465,8 @@ int
 *      1: val1 is greater than val2
 *********************************************************************/
 int32
-    val_compare_max (const val_value_t *val1,
+    val_compare_max (ncx_instance_t *instance,
+                     const val_value_t *val1,
                      const val_value_t *val2,
                      boolean configonly,
                      boolean childonly,
@@ -7347,7 +7502,7 @@ int32
 
         /* if the set-by-default property is different than
          * do not treat the values as equal   */
-        if (val_set_by_default(val1) != val_set_by_default(val2)) {
+        if (val_set_by_default(instance, val1) != val_set_by_default(instance, val2)) {
             return 1;
         }
     }
@@ -7384,7 +7539,7 @@ int32
     case NCX_BT_UINT64:
     case NCX_BT_DECIMAL64:
     case NCX_BT_FLOAT64:
-        ret = ncx_compare_nums(&val1->v.num, &val2->v.num, btyp);
+        ret = ncx_compare_nums(instance, &val1->v.num, &val2->v.num, btyp);
         break;
     case NCX_BT_BINARY:
         if (!val1->v.binary.ustr) {
@@ -7406,11 +7561,11 @@ int32
     case NCX_BT_STRING:
     case NCX_BT_INSTANCE_ID:
     case NCX_BT_LEAFREF:
-        ret = ncx_compare_strs(&val1->v.str, &val2->v.str, btyp);
+        ret = ncx_compare_strs(instance, &val1->v.str, &val2->v.str, btyp);
         break;
     case NCX_BT_SLIST:
     case NCX_BT_BITS:
-        ret = ncx_compare_lists(&val1->v.list, &val2->v.list);
+        ret = ncx_compare_lists(instance, &val1->v.list, &val2->v.list);
         break;
     case NCX_BT_IDREF:
         /* note that this sort order based on NSID number may not
@@ -7423,7 +7578,7 @@ int32
             } else if (val2->v.idref.name == NULL) {
                 ret = -1;
             } else {
-                ret = xml_strcmp(val1->v.idref.name, val2->v.idref.name);
+                ret = xml_strcmp(instance, val1->v.idref.name, val2->v.idref.name);
             }
         } else if (val1->v.idref.nsid < val2->v.idref.nsid) {
             ret = -1;
@@ -7432,7 +7587,7 @@ int32
         }
         break;
     case NCX_BT_LIST:
-        ret = index_match(val1, val2);
+        ret = index_match(instance, val1, val2);
         if (ret) {
             break;
         } /* else drop though and check values */
@@ -7440,19 +7595,19 @@ int32
     case NCX_BT_CONTAINER:
     case NCX_BT_CHOICE:
     case NCX_BT_CASE:
-        ch1 = (val_value_t *)dlq_firstEntry(&val1->v.childQ);
-        ch2 = (val_value_t *)dlq_firstEntry(&val2->v.childQ);
+        ch1 = (val_value_t *)dlq_firstEntry(instance, &val1->v.childQ);
+        ch2 = (val_value_t *)dlq_firstEntry(instance, &val2->v.childQ);
         for (;;) {
             if ((ch1 && VAL_IS_DELETED(ch1)) || 
                 (ch2 && VAL_IS_DELETED(ch2)) || 
                 configonly) {
                 while (ch1 && (VAL_IS_DELETED(ch1) ||
-                               !obj_get_config_flag(ch1->obj))) {
-                    ch1 = (val_value_t *)dlq_nextEntry(ch1);
+                               !obj_get_config_flag(instance, ch1->obj))) {
+                    ch1 = (val_value_t *)dlq_nextEntry(instance, ch1);
                 }
                 while (ch2 && (VAL_IS_DELETED(ch2) ||
-                               !obj_get_config_flag(ch2->obj))) {
-                    ch2 = (val_value_t *)dlq_nextEntry(ch2);
+                               !obj_get_config_flag(instance, ch2->obj))) {
+                    ch2 = (val_value_t *)dlq_nextEntry(instance, ch2);
                 }
             }
 
@@ -7466,8 +7621,8 @@ int32
             }
 
             /* check if the namespaces are the same */
-            nsid1 = val_get_nsid(ch1);
-            nsid2 = val_get_nsid(ch1);
+            nsid1 = val_get_nsid(instance, ch1);
+            nsid2 = val_get_nsid(instance, ch1);
 
             if (nsid1 < nsid2) {
                 return -1;
@@ -7476,34 +7631,34 @@ int32
             }
 
             /* check if both child nodes have the same name */
-            ret = xml_strcmp(ch1->name, ch2->name);
+            ret = xml_strcmp(instance, ch1->name, ch2->name);
             if (ret) {
                 return ret;
             }
 
-            if (!childonly || typ_is_simple(ch1->btyp)) {
+            if (!childonly || typ_is_simple(instance, ch1->btyp)) {
                 /* check if they have same value */
-                ret = val_compare_max(ch1, ch2, configonly, childonly, editing);
+                ret = val_compare_max(instance, ch1, ch2, configonly, childonly, editing);
                 if (ret) {
                     return ret;
                 }
             } // else childonly and complex node; treat as same
 
             /* get the next pair of child nodes to check */
-            ch1 = (val_value_t *)dlq_nextEntry(ch1);
-            ch2 = (val_value_t *)dlq_nextEntry(ch2);
+            ch1 = (val_value_t *)dlq_nextEntry(instance, ch1);
+            ch2 = (val_value_t *)dlq_nextEntry(instance, ch2);
         }
         /*NOTREACHED*/
     case NCX_BT_EXTERN:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         ret = -1;
         break;
     case NCX_BT_INTERN:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         ret = -1;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         ret = -1;
     }
     return ret;
@@ -7538,11 +7693,12 @@ int32
 *      1: val1 is greater than val2
 *********************************************************************/
 int32
-    val_compare_ex (const val_value_t *val1,
+    val_compare_ex (ncx_instance_t *instance,
+                    const val_value_t *val1,
                     const val_value_t *val2,
                     boolean configonly)
 {
-    return val_compare_max(val1, val2, configonly, FALSE, TRUE);
+    return val_compare_max(instance, val1, val2, configonly, FALSE, TRUE);
 }
 
 
@@ -7570,10 +7726,11 @@ int32
 *      1: val1 is greater than val2
 *********************************************************************/
 int32
-    val_compare (const val_value_t *val1,
+    val_compare (ncx_instance_t *instance,
+                 const val_value_t *val1,
                  const val_value_t *val2)
 {
-    return val_compare_max(val1, val2, FALSE, FALSE, TRUE);
+    return val_compare_max(instance, val1, val2, FALSE, FALSE, TRUE);
 }  /* val_compare */
 
 
@@ -7602,7 +7759,8 @@ int32
 *      1: val1 is greater than val2
 *********************************************************************/
 int32
-    val_compare_to_string (const val_value_t *val1,
+    val_compare_to_string (ncx_instance_t *instance,
+                           const val_value_t *val1,
                            const xmlChar *strval2,
                            status_t *res)
 {
@@ -7617,33 +7775,33 @@ int32
     uint32       len = 0;
     int32        retval = 0;
 
-    status_t myres = val_sprintf_simval_nc(NULL, val1, &len);
+    status_t myres = val_sprintf_simval_nc(instance, NULL, val1, &len);
     if (myres != NO_ERR) {
         *res = myres;
         return -2;
     }
     if (len < MYBUFFSIZE) {
-        myres = val_sprintf_simval_nc(buff, val1, &len);
+        myres = val_sprintf_simval_nc(instance, buff, val1, &len);
     } else {
-        mbuff =m__getMem(len+1);
+        mbuff =m__getMem(instance, len+1);
         if (!mbuff) {
             *res = ERR_INTERNAL_MEM;
             return -2;
         }
-        myres = val_sprintf_simval_nc(mbuff, val1, &len);
+        myres = val_sprintf_simval_nc(instance, mbuff, val1, &len);
     }
 
     if (myres != NO_ERR) {
         *res = myres;
         retval = -2;
     } else if (mbuff) {
-        retval = xml_strcmp(mbuff, strval2);
+        retval = xml_strcmp(instance, mbuff, strval2);
     } else {
-        retval = xml_strcmp(buff, strval2);
+        retval = xml_strcmp(instance, buff, strval2);
     }
 
     if ( mbuff ) {
-        m__free(mbuff);
+        m__free(instance, mbuff);
     }
 
     *res = NO_ERR;
@@ -7673,7 +7831,8 @@ int32
 *      1: val1 is greater than val2
 *********************************************************************/
 int32
-    val_compare_for_replace (const val_value_t *val1,
+    val_compare_for_replace (ncx_instance_t *instance,
+                             const val_value_t *val1,
                              const val_value_t *val2)
 {
     assert( val1 && "val1 is NULL!");
@@ -7685,7 +7844,7 @@ int32
 
     switch (val1->btyp) {
     case NCX_BT_LIST:
-        ret = index_match(val1, val2);
+        ret = index_match(instance, val1, val2);
         if (ret) {
             break;
         } /* else drop though and check values */
@@ -7693,16 +7852,16 @@ int32
     case NCX_BT_CONTAINER:
     case NCX_BT_CHOICE:
     case NCX_BT_CASE:
-        ch1 = (val_value_t *)dlq_firstEntry(&val1->v.childQ);
-        ch2 = (val_value_t *)dlq_firstEntry(&val2->v.childQ);
+        ch1 = (val_value_t *)dlq_firstEntry(instance, &val1->v.childQ);
+        ch2 = (val_value_t *)dlq_firstEntry(instance, &val2->v.childQ);
         for (;;) {
             while (ch1 && (VAL_IS_DELETED(ch1) ||
-                           !obj_get_config_flag(ch1->obj))) {
-                ch1 = (val_value_t *)dlq_nextEntry(ch1);
+                           !obj_get_config_flag(instance, ch1->obj))) {
+                ch1 = (val_value_t *)dlq_nextEntry(instance, ch1);
             }
             while (ch2 && (VAL_IS_DELETED(ch2) ||
-                           !obj_get_config_flag(ch2->obj))) {
-                ch2 = (val_value_t *)dlq_nextEntry(ch2);
+                           !obj_get_config_flag(instance, ch2->obj))) {
+                ch2 = (val_value_t *)dlq_nextEntry(instance, ch2);
             }
 
             /* check if both child nodes exist */
@@ -7715,8 +7874,8 @@ int32
             }
 
             /* check if the namespaces are the same */
-            nsid1 = val_get_nsid(ch1);
-            nsid2 = val_get_nsid(ch1);
+            nsid1 = val_get_nsid(instance, ch1);
+            nsid2 = val_get_nsid(instance, ch1);
 
             if (nsid1 < nsid2) {
                 return -1;
@@ -7725,7 +7884,7 @@ int32
             }
 
             /* check if both child nodes have the same name */
-            ret = xml_strcmp(ch1->name, ch2->name);
+            ret = xml_strcmp(instance, ch1->name, ch2->name);
             if (ret) {
                 return ret;
             }
@@ -7737,18 +7896,18 @@ int32
              * so skipping a complex node can result
              * in the merge of child nodes, instead of replace
              */
-            ret = val_compare_ex(ch1, ch2, TRUE);
+            ret = val_compare_ex(instance, ch1, ch2, TRUE);
             if (ret) {
                 return ret;
             }
 
             /* get the next pair of child nodes to check */
-            ch1 = (val_value_t *)dlq_nextEntry(ch1);
-            ch2 = (val_value_t *)dlq_nextEntry(ch2);
+            ch1 = (val_value_t *)dlq_nextEntry(instance, ch1);
+            ch2 = (val_value_t *)dlq_nextEntry(instance, ch2);
         }
         break;
     default:
-        ret = val_compare_ex(val1, val2, TRUE);
+        ret = val_compare_ex(instance, val1, val2, TRUE);
     }
 
     return ret;
@@ -7782,7 +7941,8 @@ int32
 *   status
 *********************************************************************/
 status_t
-    val_sprintf_simval_nc (xmlChar *buff,
+    val_sprintf_simval_nc (ncx_instance_t *instance,
+                           xmlChar *buff,
                            const val_value_t *val,
                            uint32 *len)
 {
@@ -7797,7 +7957,7 @@ status_t
 
 #ifdef DEBUG
     if (!val || !len) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -7811,12 +7971,12 @@ status_t
             if (buff) {
                 icnt = sprintf((char *)buff, "<%s/>", val->name);
                 if (icnt < 0) {
-                    return SET_ERROR(ERR_INTERNAL_VAL);
+                    return SET_ERROR(instance, ERR_INTERNAL_VAL);
                 } else {
                     *len = (uint32)icnt;
                 }
             } else {
-                *len = xml_strlen(val->name) + 3;
+                *len = xml_strlen(instance, val->name) + 3;
             }
         } else {
             if (buff) {
@@ -7843,7 +8003,7 @@ status_t
             if (val->v.enu.name) {
                 icnt = sprintf((char *)buff, "%s", val->v.enu.name);
                 if (icnt < 0 ) {
-                    return SET_ERROR(ERR_INTERNAL_VAL);
+                    return SET_ERROR(instance, ERR_INTERNAL_VAL);
                 } else {
                     *len = (uint32)icnt;
                 }
@@ -7851,7 +8011,7 @@ status_t
                 *len = 0;
             }
         } else if (val->v.enu.name) {
-            *len = xml_strlen(val->v.enu.name);
+            *len = xml_strlen(instance, val->v.enu.name);
         } else {
             *len = 0;
         }
@@ -7865,42 +8025,42 @@ status_t
     case NCX_BT_UINT32:
     case NCX_BT_UINT64:
     case NCX_BT_FLOAT64:
-        res = ncx_sprintf_num(buff, &val->v.num, btyp, len);
+        res = ncx_sprintf_num(instance, buff, &val->v.num, btyp, len);
         if (res != NO_ERR) {
-            return SET_ERROR(res);
+            return SET_ERROR(instance, res);
         }
         break;
     case NCX_BT_DECIMAL64:
         if (val->v.num.dec.val == 0) {
             if (buff) {
-                *len = xml_strcpy(buff, (const xmlChar *)"0.0");
+                *len = xml_strcpy(instance, buff, (const xmlChar *)"0.0");
             } else {
-                *len = xml_strlen((const xmlChar *)"0.0");
+                *len = xml_strlen(instance, (const xmlChar *)"0.0");
             }
         } else {
             /* need to generate the value string */
-            res = ncx_sprintf_num(buff, &val->v.num, btyp, len);
+            res = ncx_sprintf_num(instance, buff, &val->v.num, btyp, len);
             if (res != NO_ERR) {
-                return SET_ERROR(res);
+                return SET_ERROR(instance, res);
             }
         }
         break;
     case NCX_BT_STRING: 
     case NCX_BT_INSTANCE_ID:
     case NCX_BT_LEAFREF:
-        if (val->obj && obj_is_password(val->obj)) {
+        if (val->obj && obj_is_password(instance, val->obj)) {
             s = VAL_PASSWORD_STRING;
         } else {
             s = VAL_STR(val);
         }
         if (buff) {
             if (s) {
-                *len = xml_strcpy(buff, s);
+                *len = xml_strcpy(instance, buff, s);
             } else {
                 *len = 0;
             }
         } else {
-            *len = (s) ? xml_strlen(s) : 0;
+            *len = (s) ? xml_strlen(instance, s) : 0;
         }
         break;
     case NCX_BT_BINARY:
@@ -7926,11 +8086,11 @@ status_t
         break;
     case NCX_BT_BITS:
         *len = 0;
-        for (lmem = (const ncx_lmem_t *)dlq_firstEntry(&val->v.list.memQ);
+        for (lmem = (const ncx_lmem_t *)dlq_firstEntry(instance, &val->v.list.memQ);
              lmem != NULL;
              lmem = nextlmem) {
 
-            nextlmem = (const ncx_lmem_t *)dlq_nextEntry(lmem);
+            nextlmem = (const ncx_lmem_t *)dlq_nextEntry(instance, lmem);
 
             s = lmem->val.str;
             if (buff) {
@@ -7939,7 +8099,7 @@ status_t
                                "%s", 
                                (s) ? (const char *)s : "");
                 if (icnt < 0) {
-                    return SET_ERROR(ERR_INTERNAL_VAL);
+                    return SET_ERROR(instance, ERR_INTERNAL_VAL);
                 } else {
                     buff += icnt;
                     *len += (uint32)icnt;
@@ -7949,7 +8109,7 @@ status_t
                     *len += 1;
                 }
             } else {
-                *len += ((s) ? xml_strlen(s) : 0);
+                *len += ((s) ? xml_strlen(instance, s) : 0);
                 if (nextlmem) {
                     *len += 1;
                 }
@@ -7958,19 +8118,20 @@ status_t
         break;
     case NCX_BT_SLIST:
         *len = 0;
-        for (lmem = (const ncx_lmem_t *)dlq_firstEntry(&val->v.list.memQ);
+        for (lmem = (const ncx_lmem_t *)dlq_firstEntry(instance, &val->v.list.memQ);
              lmem != NULL;
-             lmem = (const ncx_lmem_t *)dlq_nextEntry(lmem)) {
+             lmem = (const ncx_lmem_t *)dlq_nextEntry(instance, lmem)) {
 
             if (typ_is_string(val->v.list.btyp)) {
                 s = lmem->val.str;
             } else if (typ_is_number(val->v.list.btyp)) {
-                res = ncx_sprintf_num((xmlChar *)numbuff, 
+                res = ncx_sprintf_num(instance, 
+                                      (xmlChar *)numbuff, 
                                       &lmem->val.num, 
                                       val->v.list.btyp, 
                                       len);
                 if (res != NO_ERR) {
-                    return SET_ERROR(res);
+                    return SET_ERROR(instance, res);
                 }
                 s = (const xmlChar *)numbuff;
             } else {
@@ -7986,7 +8147,7 @@ status_t
                     }
                     break;
                 default:
-                    SET_ERROR(ERR_INTERNAL_VAL);
+                    SET_ERROR(instance, ERR_INTERNAL_VAL);
                     s = NULL;
                 }
             }
@@ -7995,13 +8156,13 @@ status_t
                 icnt = sprintf((char *)buff, "%s ", 
                                (s) ? (const char *)s : "");
                 if (icnt < 0) {
-                    return SET_ERROR(ERR_INTERNAL_VAL);
+                    return SET_ERROR(instance, ERR_INTERNAL_VAL);
                 } else {
                     buff += icnt;
                     *len += (uint32)icnt;
                 }
             } else {
-                *len += (1 + ((s) ? xml_strlen(s) : 0));
+                *len += (1 + ((s) ? xml_strlen(instance, s) : 0));
             }
         }
         break;
@@ -8011,29 +8172,29 @@ status_t
          */
         prefix = NULL;
         if (val->v.idref.nsid) {
-            prefix = xmlns_get_ns_prefix(val->v.idref.nsid);
+            prefix = xmlns_get_ns_prefix(instance, val->v.idref.nsid);
         }
 
         mylen = 0;
         if (buff) {
             str = buff;
             if (prefix) {
-                mylen = xml_strcpy(str, prefix);
+                mylen = xml_strcpy(instance, str, prefix);
                 str += mylen;
                 mylen++;
                 *str++ = ':';
             }
             if(val->v.idref.name) {
-                mylen += xml_strcpy(str, val->v.idref.name);
+                mylen += xml_strcpy(instance, str, val->v.idref.name);
             } else {
-                mylen += xml_strcpy(str, NCX_EL_NONE);
+                mylen += xml_strcpy(instance, str, NCX_EL_NONE);
             }
         } else {
-            mylen = (prefix) ? xml_strlen(prefix)+1 : 0;
+            mylen = (prefix) ? xml_strlen(instance, prefix)+1 : 0;
             if(val->v.idref.name) {
-                mylen += xml_strlen(val->v.idref.name);
+                mylen += xml_strlen(instance, val->v.idref.name);
             } else {
-                mylen += xml_strlen(NCX_EL_NONE);
+                mylen += xml_strlen(instance, NCX_EL_NONE);
             }
         }
         *len = mylen;
@@ -8043,9 +8204,9 @@ status_t
     case NCX_BT_CONTAINER:
     case NCX_BT_CHOICE:
     case NCX_BT_CASE:
-        return SET_ERROR(ERR_NCX_OPERATION_NOT_SUPPORTED);
+        return SET_ERROR(instance, ERR_NCX_OPERATION_NOT_SUPPORTED);
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
     return NO_ERR;
 
@@ -8067,24 +8228,24 @@ status_t
 *   NULL if some error
 *********************************************************************/
 xmlChar *
-    val_make_sprintf_string (const val_value_t *val)
+    val_make_sprintf_string (ncx_instance_t *instance, const val_value_t *val)
 {
     xmlChar   *buff;
     uint32     len;
     status_t   res;
     
     len = 0;
-    res = val_sprintf_simval_nc(NULL, val, &len);
+    res = val_sprintf_simval_nc(instance, NULL, val, &len);
     if (res != NO_ERR) {
         return NULL;
     }
-    buff = m__getMem(len+1);
+    buff = m__getMem(instance, len+1);
     if (buff == NULL) {
         return NULL;
     }
-    res = val_sprintf_simval_nc(buff, val, &len);
+    res = val_sprintf_simval_nc(instance, buff, val, &len);
     if (res != NO_ERR) {
-        m__free(buff);
+        m__free(instance, buff);
         return NULL;
     }
 
@@ -8113,7 +8274,8 @@ xmlChar *
 *   status
 *********************************************************************/
 status_t 
-    val_resolve_scoped_name (val_value_t *val,
+    val_resolve_scoped_name (ncx_instance_t *instance,
+                             val_value_t *val,
                              const xmlChar *name,
                              val_value_t **chval)
 {
@@ -8125,25 +8287,25 @@ status_t
 
 #ifdef DEBUG
     if (!val || !name || !chval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    buff = m__getMem(BUFFLEN+1);
+    buff = m__getMem(instance, BUFFLEN+1);
     if (!buff) {
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
 
     /* get the top-level definition name and look for it
      * in the child queue.  This is going to work because
      * the token was already parsed as a scoped token string
      */
-    next = ncx_get_name_segment(name, buff, BUFFLEN);
+    next = ncx_get_name_segment(instance, name, buff, BUFFLEN);
 
     /* the first segment is the start value */
-    if (!next || xml_strcmp(buff, val->name)) {
-        m__free(buff);
-        return SET_ERROR(ERR_NCX_NOT_FOUND);
+    if (!next || xml_strcmp(instance, buff, val->name)) {
+        m__free(instance, buff);
+        return SET_ERROR(instance, ERR_NCX_NOT_FOUND);
     }
 
     /* Each time get_name_segment is called, the next pointer
@@ -8159,17 +8321,17 @@ status_t
 
         nextch = NULL;
         if (typ_has_children(ch->btyp)) {
-            next = ncx_get_name_segment(++next, buff, BUFFLEN);     
-            nextch = val_first_child_name(ch, buff);
+            next = ncx_get_name_segment(instance, ++next, buff, BUFFLEN);     
+            nextch = val_first_child_name(instance, ch, buff);
         }
         if (!nextch) {
-            m__free(buff);
-            return SET_ERROR(ERR_NCX_DEFSEG_NOT_FOUND);
+            m__free(instance, buff);
+            return SET_ERROR(instance, ERR_NCX_DEFSEG_NOT_FOUND);
         }
         ch = nextch;
     }
 
-    m__free(buff);
+    m__free(instance, buff);
     *chval = ch;
     return NO_ERR;
 
@@ -8188,16 +8350,16 @@ status_t
 *   iqual value
 *********************************************************************/
 ncx_iqual_t 
-    val_get_iqualval (const val_value_t *val)
+    val_get_iqualval (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NCX_IQUAL_NONE;
     }
 #endif
 
-    return obj_get_iqualval(val->obj);
+    return obj_get_iqualval(instance, val->obj);
 
 } /* val_get_iqualval */
 
@@ -8224,11 +8386,11 @@ ncx_iqual_t
 *     FALSE if the value is not classified as configuration
 *********************************************************************/
 boolean
-    val_duplicates_allowed (val_value_t *val)
+    val_duplicates_allowed (ncx_instance_t *instance, val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -8240,7 +8402,8 @@ boolean
 
     /* check for no-duplicates in the type appinfo */
     if (val->typdef) {
-        if (typ_find_appinfo(val->typdef, 
+        if (typ_find_appinfo(instance, 
+                             val->typdef, 
                              NCX_PREFIX, 
                              NCX_EL_NODUPLICATES)) {
             val->flags |= VAL_FL_DUPDONE;
@@ -8271,29 +8434,29 @@ boolean
 *     FALSE if the value does not have any content
 *********************************************************************/
 boolean
-    val_has_content (const val_value_t *val)
+    val_has_content (ncx_instance_t *instance, const val_value_t *val)
 {
     ncx_btype_t  btyp;
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    if (!val_is_real(val)) {
+    if (!val_is_real(instance, val)) {
         return TRUE;
     }
 
     btyp = val->btyp;
 
     if (typ_has_children(btyp)) {
-        return !dlq_empty(&val->v.childQ);
+        return !dlq_empty(instance, &val->v.childQ);
     } else if (btyp == NCX_BT_EMPTY) {
         return FALSE;
     } else if ((btyp == NCX_BT_SLIST || btyp==NCX_BT_BITS)
-               && ncx_list_empty(&val->v.list)) {
+               && ncx_list_empty(instance, &val->v.list)) {
         return FALSE;
     } else if (typ_is_string(btyp)) {
         return (VAL_STR(val) && *(VAL_STR(val))) ? TRUE : FALSE;
@@ -8317,16 +8480,16 @@ boolean
 *     FALSE if the value does not have an index
 *********************************************************************/
 boolean
-    val_has_index (const val_value_t *val)
+    val_has_index (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    return (dlq_empty(&val->indexQ)) ? FALSE : TRUE;
+    return (dlq_empty(instance, &val->indexQ)) ? FALSE : TRUE;
 
 }  /* val_has_index */
 
@@ -8343,16 +8506,16 @@ boolean
 *    pointer to first val_index_t node,  NULL if none
 *********************************************************************/
 val_index_t *
-    val_get_first_index (const val_value_t *val)
+    val_get_first_index (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (val_index_t *)dlq_firstEntry(&val->indexQ);
+    return (val_index_t *)dlq_firstEntry(instance, &val->indexQ);
 
 }  /* val_get_first_index */
 
@@ -8369,16 +8532,16 @@ val_index_t *
 *    pointer to next val_index_t node,  NULL if none
 *********************************************************************/
 val_index_t *
-    val_get_next_index (const val_index_t *valindex)
+    val_get_next_index (ncx_instance_t *instance, const val_index_t *valindex)
 {
 #ifdef DEBUG
     if (!valindex) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (val_index_t *)dlq_nextEntry(valindex);
+    return (val_index_t *)dlq_nextEntry(instance, valindex);
 
 }  /* val_get_next_index */
 
@@ -8400,7 +8563,8 @@ val_index_t *
 *   status of the operation
 *********************************************************************/
 status_t
-    val_parse_meta (typ_def_t *typdef,
+    val_parse_meta (ncx_instance_t *instance,
+                    typ_def_t *typdef,
                     xml_attr_t *attr,
                     val_value_t *retval)
 {
@@ -8411,19 +8575,19 @@ status_t
 
 #ifdef DEBUG
     if (!typdef || !attr || !retval) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     res = NO_ERR;
-    btyp = typ_get_basetype(typdef);
+    btyp = typ_get_basetype(instance, typdef);
     attrval = attr->attr_val;
 
     /* setup the return value */
     retval->flags |= VAL_FL_META;  /* obj field is NULL in meta */
     retval->btyp = btyp;
     retval->typdef = typdef;
-    retval->dname = xml_strdup(attr->attr_name);
+    retval->dname = xml_strdup(instance, attr->attr_name);
     if (!retval->dname) {
         return ERR_INTERNAL_MEM;
     }
@@ -8435,16 +8599,18 @@ status_t
     /* handle the attr string according to its base type */
     switch (btyp) {
     case NCX_BT_BOOLEAN:
-        if (attrval && !xml_strcmp(attrval, NCX_EL_TRUE)) {
+        if (attrval && !xml_strcmp(instance, attrval, NCX_EL_TRUE)) {
             retval->v.boo = TRUE;
         } else if (attrval && 
-                   !xml_strcmp(attrval,
+                   !xml_strcmp(instance,
+                               attrval,
                                (const xmlChar *)"1")) {
             retval->v.boo = TRUE;
-        } else if (attrval && !xml_strcmp(attrval, NCX_EL_FALSE)) {
+        } else if (attrval && !xml_strcmp(instance, attrval, NCX_EL_FALSE)) {
             retval->v.boo = FALSE;
         } else if (attrval && 
-                   !xml_strcmp(attrval,
+                   !xml_strcmp(instance,
+                               attrval,
                                (const xmlChar *)"0")) {
             retval->v.boo = FALSE;
         } else {
@@ -8452,7 +8618,7 @@ status_t
         }
         break;
     case NCX_BT_ENUM:
-        res = val_enum_ok(typdef, attrval, &enuval, &enustr);
+        res = val_enum_ok(instance, typdef, attrval, &enuval, &enustr);
         if (res == NO_ERR) {
             retval->v.enu.name = enustr;
             retval->v.enu.val = enuval;
@@ -8467,32 +8633,33 @@ status_t
     case NCX_BT_UINT32:
     case NCX_BT_UINT64:
     case NCX_BT_FLOAT64:
-        res = ncx_decode_num(attrval, btyp, &retval->v.num);
+        res = ncx_decode_num(instance, attrval, btyp, &retval->v.num);
         if (res == NO_ERR) {
-            res = val_range_ok(typdef, btyp, &retval->v.num);
+            res = val_range_ok(instance, typdef, btyp, &retval->v.num);
         }
         break;
     case NCX_BT_DECIMAL64:
-        res = ncx_decode_dec64(attrval, 
-                               typ_get_fraction_digits(typdef),
+        res = ncx_decode_dec64(instance, 
+                               attrval, 
+                               typ_get_fraction_digits(instance, typdef),
                                &retval->v.num);
         if (res == NO_ERR) {
-            res = val_range_ok(typdef, btyp, &retval->v.num);
+            res = val_range_ok(instance, typdef, btyp, &retval->v.num);
         }
         break;
     case NCX_BT_STRING:
     case NCX_BT_BINARY:
     case NCX_BT_INSTANCE_ID:
-        res = val_string_ok(typdef, btyp, attrval);
+        res = val_string_ok(instance, typdef, btyp, attrval);
         if (res == NO_ERR) {
-            retval->v.str = xml_strdup(attrval);
+            retval->v.str = xml_strdup(instance, attrval);
             if (!retval->v.str) {
                 res = ERR_INTERNAL_MEM;
             }
         }
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     return res;
@@ -8510,12 +8677,13 @@ status_t
 *     fname == filespec string to set as the value
 *********************************************************************/
 void
-    val_set_extern (val_value_t  *val,
+    val_set_extern (ncx_instance_t *instance,
+                    val_value_t  *val,
                     xmlChar *fname)
 {
 #ifdef DEBUG
     if (!val || !fname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -8536,12 +8704,13 @@ void
 *     intbuff == internal buffer to set as the value
 *********************************************************************/
 void
-    val_set_intern (val_value_t  *val,
+    val_set_intern (ncx_instance_t *instance,
+                    val_value_t  *val,
                     xmlChar *intbuff)
 {
 #ifdef DEBUG
     if (!val || !intbuff) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -8574,7 +8743,8 @@ void
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_fit_oneline (const val_value_t *val,
+    val_fit_oneline (ncx_instance_t *instance,
+                     const val_value_t *val,
                      uint32 linesize)
 {
     ncx_btype_t       btyp;
@@ -8584,7 +8754,7 @@ boolean
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return TRUE;
     }
 #endif
@@ -8599,7 +8769,7 @@ boolean
     switch (btyp) {
     case NCX_BT_ENUM:
         valsize = (VAL_ENUM_NAME(val)) ?
-            xml_strlen(VAL_ENUM_NAME(val)) : 0;
+            xml_strlen(instance, VAL_ENUM_NAME(val)) : 0;
         break;
     case NCX_BT_BOOLEAN:
         valsize = (VAL_BOOL(val)) ? 4 : 5;
@@ -8643,7 +8813,7 @@ boolean
     case NCX_BT_STRING:
     case NCX_BT_LEAFREF:
         if (VAL_STR(val)) {
-            valsize = xml_strlen(VAL_STR(val));
+            valsize = xml_strlen(instance, VAL_STR(val));
 
             /* check if multiple new-lines are entered */
             str = VAL_STR(val);
@@ -8667,13 +8837,13 @@ boolean
     case NCX_BT_LIST:
     case NCX_BT_CHOICE:
     case NCX_BT_CASE:
-        return dlq_empty(&val->v.childQ);
+        return dlq_empty(instance, &val->v.childQ);
     case NCX_BT_EXTERN:
     case NCX_BT_INTERN:
         /* just put these on a new line; rare usage at this time */
         return FALSE;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return TRUE;
     }
 
@@ -8681,13 +8851,13 @@ boolean
         return FALSE;
     }
 
-    valnamesize = xml_strlen(val->name);
+    valnamesize = xml_strlen(instance, val->name);
 
-    nsid = val_get_nsid(val);
+    nsid = val_get_nsid(instance, val);
     if (val->nsid) {
         /* account for 'foo:' */
         valnamesize += 
-            (xml_strlen(xmlns_get_ns_prefix(nsid)) + 1);
+            (xml_strlen(instance, xmlns_get_ns_prefix(instance, nsid)) + 1);
     }
 
     /* <foo:valname>val</foo:valname> */
@@ -8712,12 +8882,12 @@ boolean
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_create_allowed (const val_value_t *val)
+    val_create_allowed (ncx_instance_t *instance, const val_value_t *val)
 {
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -8741,12 +8911,12 @@ boolean
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_delete_allowed (const val_value_t *val)
+    val_delete_allowed (ncx_instance_t *instance, const val_value_t *val)
 {
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -8769,19 +8939,19 @@ boolean
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_is_config_data (const val_value_t *val)
+    val_is_config_data (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (val == NULL || val->obj == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
     if (obj_is_root(val->obj)) {
         return TRUE;
-    } else if (obj_is_data_db(val->obj) && 
-        obj_get_config_flag(val->obj)) {
+    } else if (obj_is_data_db(instance, val->obj) && 
+        obj_get_config_flag(instance, val->obj)) {
         return TRUE;
     } else {
         return FALSE;
@@ -8805,11 +8975,11 @@ boolean
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_is_virtual (const val_value_t *val)
+    val_is_virtual (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -8855,7 +9025,8 @@ boolean
 *   val is freed
 *********************************************************************/
 val_value_t *
-    val_get_virtual_value (void *session,
+    val_get_virtual_value (ncx_instance_t *instance,
+                           void *session,
                            val_value_t *val,
                            status_t *res)
 {
@@ -8864,17 +9035,17 @@ val_value_t *
 
 #ifdef DEBUG
     if (!val || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
     if (!val->getcb) {
-        *res = SET_ERROR(ERR_INTERNAL_VAL);
+        *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
     scb = (ses_cb_t *)session;
-    retval = cache_virtual_value(scb, val, res);
+    retval = cache_virtual_value(instance, scb, val, res);
     return retval;
 
 }  /* val_get_virtual_value */
@@ -8900,7 +9071,7 @@ val_value_t *
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_is_default (val_value_t *val)
+    val_is_default (ncx_instance_t *instance, val_value_t *val)
 {
     const xmlChar *def;
     xmlChar       *binbuff;
@@ -8914,7 +9085,7 @@ boolean
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -8946,7 +9117,7 @@ boolean
 
 
     /* check if the data type has a default */
-    def = obj_get_default(val->obj);
+    def = obj_get_default(instance, val->obj);
     if (def == NULL) {
         val->flags |= VAL_FL_DEFVALSET;
         val->flags &= ~VAL_FL_DEFVAL;
@@ -8969,12 +9140,12 @@ boolean
     switch (btyp) {
     case NCX_BT_EMPTY:
     case NCX_BT_BOOLEAN:
-        if (ncx_is_true(def)) {
+        if (ncx_is_true(instance, def)) {
             /* default is true */
             if (val->v.boo) {
                 ret = TRUE;
             }
-        } else if (ncx_is_false(def)) {
+        } else if (ncx_is_false(instance, def)) {
             /* default is false */
             if (!val->v.boo) {
                 ret = TRUE;
@@ -8983,11 +9154,11 @@ boolean
         break;
     case NCX_BT_ENUM:
         ncx_init_enum(&enu);
-        res = ncx_set_enum(def, &enu);
-        if (res == NO_ERR && !ncx_compare_enums(&enu, &val->v.enu)) {
+        res = ncx_set_enum(instance, def, &enu);
+        if (res == NO_ERR && !ncx_compare_enums(instance, &enu, &val->v.enu)) {
             ret = TRUE;
         }
-        ncx_clean_enum(&enu);
+        ncx_clean_enum(instance, &enu);
         break;
     case NCX_BT_INT8:
     case NCX_BT_INT16:
@@ -8998,32 +9169,33 @@ boolean
     case NCX_BT_UINT32:
     case NCX_BT_UINT64:
     case NCX_BT_FLOAT64:
-        ncx_init_num(&num);
-        res = ncx_decode_num(def, btyp, &num);
+        ncx_init_num(instance, &num);
+        res = ncx_decode_num(instance, def, btyp, &num);
         if (res == NO_ERR && 
-            !ncx_compare_nums(&num, &val->v.num, btyp)) {
+            !ncx_compare_nums(instance, &num, &val->v.num, btyp)) {
             ret = TRUE;
         }
-        ncx_clean_num(btyp, &num);
+        ncx_clean_num(instance, btyp, &num);
         break;
     case NCX_BT_DECIMAL64:
-        ncx_init_num(&num);
-        res = ncx_decode_dec64(def,
-                               typ_get_fraction_digits(val->typdef),
+        ncx_init_num(instance, &num);
+        res = ncx_decode_dec64(instance,
+                               def,
+                               typ_get_fraction_digits(instance, val->typdef),
                                &num);
         if (res == NO_ERR && 
-            !ncx_compare_nums(&num, &val->v.num, btyp)) {
+            !ncx_compare_nums(instance, &num, &val->v.num, btyp)) {
             ret = TRUE;
         }
-        ncx_clean_num(btyp, &num);
+        ncx_clean_num(instance, btyp, &num);
         break;
     case NCX_BT_BINARY:
-        deflen = xml_strlen(def);
+        deflen = xml_strlen(instance, def);
         len = b64_get_decoded_str_len( def, deflen );
         if ( len ) {
-           binbuff = m__getMem(len);
+           binbuff = m__getMem(instance, len);
             if (!binbuff) {
-                SET_ERROR(ERR_INTERNAL_MEM);
+                SET_ERROR(instance, ERR_INTERNAL_MEM);
                 return FALSE;
             } 
             res = b64_decode(def, deflen, binbuff, len, &len);
@@ -9031,13 +9203,13 @@ boolean
                 ret = memcmp(binbuff, val->v.binary.ustr, len) 
                     ? FALSE : TRUE;
             }
-            m__free(binbuff);
+            m__free(instance, binbuff);
         }
         break;
     case NCX_BT_STRING:
     case NCX_BT_INSTANCE_ID:
     case NCX_BT_LEAFREF:
-        if (!xml_strcmp(def, val->v.str)) {
+        if (!xml_strcmp(instance, def, val->v.str)) {
             ret = TRUE;
         }
         break;
@@ -9046,11 +9218,11 @@ boolean
     case NCX_BT_IDREF:
         // treating possible malloc failure as if the value is
         // not set to its YANG default value
-        testval = val_make_simval(val->typdef, val->nsid, val->name, def, &res);
+        testval = val_make_simval(instance, val->typdef, val->nsid, val->name, def, &res);
         if (testval && res == NO_ERR) {
-            ret = val_compare(val, testval);
+            ret = val_compare(instance, val, testval);
         }
-        val_free_value(testval);
+        val_free_value(instance, testval);
         break;
     case NCX_BT_LIST:
     case NCX_BT_ANY:
@@ -9062,7 +9234,7 @@ boolean
         /* not supported for default value */
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     val->flags |= VAL_FL_DEFVALSET;
@@ -9092,11 +9264,11 @@ boolean
 *   FALSE otherwise
 *********************************************************************/
 boolean
-    val_is_real (const val_value_t *val)
+    val_is_real (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -9119,13 +9291,13 @@ boolean
 *   namespace ID of parent, or 0 if not found or not a value parent
 *********************************************************************/
 xmlns_id_t
-    val_get_parent_nsid (const val_value_t *val)
+    val_get_parent_nsid (ncx_instance_t *instance, const val_value_t *val)
 {
     const val_value_t  *v;
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -9158,7 +9330,8 @@ xmlns_id_t
 *   number of instances found
 *********************************************************************/
 uint32
-    val_instance_count (val_value_t  *val,
+    val_instance_count (ncx_instance_t *instance,
+                        val_value_t  *val,
                         const xmlChar *modname,
                         const xmlChar *objname)
 {
@@ -9167,24 +9340,25 @@ uint32
 
 #ifdef DEBUG
     if (!val || !objname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
 
     cnt = 0;
 
-    for (chval = val_get_first_child(val);
+    for (chval = val_get_first_child(instance, val);
          chval != NULL;
-         chval = val_get_next_child(chval)) {
+         chval = val_get_next_child(instance, chval)) {
 
         if (modname && 
-            xml_strcmp(modname,
-                       val_get_mod_name(chval))) {
+            xml_strcmp(instance,
+                       modname,
+                       val_get_mod_name(instance, chval))) {
             continue;
         }
 
-        if (!xml_strcmp(objname, chval->name)) {
+        if (!xml_strcmp(instance, objname, chval->name)) {
             cnt++;
         }
     }
@@ -9212,7 +9386,8 @@ uint32
 *
 *********************************************************************/
 void
-    val_set_extra_instance_errors (val_value_t  *val,
+    val_set_extra_instance_errors (ncx_instance_t *instance,
+                                   val_value_t  *val,
                                    const xmlChar *modname,
                                    const xmlChar *objname,
                                    uint32 maxelems)
@@ -9222,28 +9397,29 @@ void
 
 #ifdef DEBUG
     if (!val || !objname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
     if (maxelems == 0) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 #endif
 
     cnt = 0;
 
-    for (chval = val_get_first_child(val);
+    for (chval = val_get_first_child(instance, val);
          chval != NULL;
-         chval = val_get_next_child(chval)) {
+         chval = val_get_next_child(instance, chval)) {
 
         if (modname && 
-            xml_strcmp(modname,
-                       val_get_mod_name(chval))) {
+            xml_strcmp(instance,
+                       modname,
+                       val_get_mod_name(instance, chval))) {
             continue;
         }
 
-        if (!xml_strcmp(objname, chval->name)) {
+        if (!xml_strcmp(instance, objname, chval->name)) {
             if (++cnt > maxelems) {
                 chval->res = ERR_NCX_EXTRA_VAL_INST;
             }
@@ -9267,11 +9443,11 @@ void
 *    FALSE if not needed
 *********************************************************************/
 boolean
-    val_need_quotes (const xmlChar *str)
+    val_need_quotes (ncx_instance_t *instance, const xmlChar *str)
 {
 #ifdef DEBUG
     if (!str) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -9301,11 +9477,11 @@ boolean
 *    FALSE if non-whitespace char found
 *********************************************************************/
 boolean
-    val_all_whitespace (const xmlChar *str)
+    val_all_whitespace (ncx_instance_t *instance, const xmlChar *str)
 {
 #ifdef DEBUG
     if (!str) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -9336,18 +9512,19 @@ boolean
 *     TRUE if attr is a match; FALSE otherwise
 *********************************************************************/
 boolean
-    val_match_metaval (const xml_attr_t *attr,
+    val_match_metaval (ncx_instance_t *instance,
+                       const xml_attr_t *attr,
                        xmlns_id_t  nsid,
                        const xmlChar *name)
 {
 #ifdef DEBUG
     if (!attr || !name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
 
-    if (xml_strcmp(attr->attr_name, name)) {
+    if (xml_strcmp(instance, attr->attr_name, name)) {
         return FALSE;
     }
     if (attr->attr_ns) {
@@ -9371,11 +9548,11 @@ boolean
 *     TRUE if value is dirty, false otherwise
 *********************************************************************/
 boolean
-    val_get_dirty_flag (const val_value_t *val)
+    val_get_dirty_flag (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 #endif
@@ -9397,11 +9574,11 @@ boolean
 *     TRUE if value is subtree dirty, false otherwise
 *********************************************************************/
 boolean
-    val_get_subtree_dirty_flag (const val_value_t *val)
+    val_get_subtree_dirty_flag (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 #endif
@@ -9423,7 +9600,8 @@ boolean
 *     TRUE if value is dirty, false otherwise
 *********************************************************************/
 void
-    val_set_dirty_flag (val_value_t *val)
+    val_set_dirty_flag (ncx_instance_t *instance, 
+                        val_value_t *val)
 {
     if (!val) {
         return;
@@ -9452,7 +9630,8 @@ void
 *     TRUE if value is dirty, false otherwise
 *********************************************************************/
 void
-    val_clear_dirty_flag (val_value_t *val)
+    val_clear_dirty_flag (ncx_instance_t *instance,
+                          val_value_t *val)
 {
     if (!val) {
         return;
@@ -9481,11 +9660,11 @@ void
 *     TRUE if value is dirty or any subtree may be dirty, false otherwise
 *********************************************************************/
 boolean
-    val_dirty_subtree (const val_value_t *val)
+    val_dirty_subtree (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return FALSE;
     }
 #endif
@@ -9512,26 +9691,26 @@ boolean
  *     val->curparent: cleared to NULL
  *********************************************************************/
 void
-    val_clean_tree (val_value_t *val)
+    val_clean_tree (ncx_instance_t *instance, val_value_t *val)
 {
     val_value_t           *chval;
 
 #ifdef DEBUG
     if (!val || !val->obj) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    if (obj_is_data_db(val->obj)) {
-        for (chval = val_get_first_child(val);
+    if (obj_is_data_db(instance, val->obj)) {
+        for (chval = val_get_first_child(instance, val);
              chval != NULL;
-             chval = val_get_next_child(chval)) {
-            val_clean_tree(chval);
+             chval = val_get_next_child(instance, chval)) {
+            val_clean_tree(instance, chval);
         }
         val->flags &= ~ (VAL_FL_DIRTY | VAL_FL_SUBTREE_DIRTY);
         val->editop = OP_EDITOP_NONE;
-        free_editvars(val);
+        free_editvars(instance, val);
     }
 
 }  /* val_clean_tree */
@@ -9549,13 +9728,13 @@ void
 *     nest level from the root
 *********************************************************************/
 uint32
-    val_get_nest_level (val_value_t *val)
+    val_get_nest_level (ncx_instance_t *instance, val_value_t *val)
 {
     uint32 level;
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 0;
     }
 #endif
@@ -9584,26 +9763,26 @@ uint32
 *    pointer to val if val is a leaf
 *********************************************************************/
 val_value_t *
-    val_get_first_leaf (val_value_t *val)
+    val_get_first_leaf (ncx_instance_t *instance, val_value_t *val)
 {
     val_value_t  *child, *found;
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
-    if (obj_is_leafy(val->obj)) {
+    if (obj_is_leafy(instance, val->obj)) {
         return val;
     } else if (typ_has_children(val->btyp)) {
         for (child = (val_value_t *)
-                 dlq_firstEntry(&val->v.childQ);
+                 dlq_firstEntry(instance, &val->v.childQ);
              child != NULL;
-             child = (val_value_t *)dlq_nextEntry(val)) {
+             child = (val_value_t *)dlq_nextEntry(instance, val)) {
 
-            found = val_get_first_leaf(child);
+            found = val_get_first_leaf(instance, child);
             if (found) {
                 return found;
             }
@@ -9628,19 +9807,19 @@ val_value_t *
 *     NULL if not found
 *********************************************************************/
 const xmlChar *
-    val_get_mod_name (const val_value_t *val)
+    val_get_mod_name (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
     if (val->nsid) {
-        return xmlns_get_module(val->nsid);
+        return xmlns_get_module(instance, val->nsid);
     } else if (val->obj) {
-        return obj_get_mod_name(val->obj);
+        return obj_get_mod_name(instance, val->obj);
     } else {
         return NULL;
     }
@@ -9660,17 +9839,17 @@ const xmlChar *
 *     NULL if not found
 *********************************************************************/
 const xmlChar *
-    val_get_mod_prefix (const val_value_t *val)
+    val_get_mod_prefix (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NULL;
     }
 #endif
 
     if (val->nsid) {
-        return xmlns_get_ns_prefix(val->nsid);
+        return xmlns_get_ns_prefix(instance, val->nsid);
     } else if (val->obj) {
         return obj_get_mod_prefix(val->obj);
     } else {
@@ -9692,11 +9871,11 @@ const xmlChar *
 *     NULL if not found
 *********************************************************************/
 xmlns_id_t
-    val_get_nsid (const val_value_t *val)
+    val_get_nsid (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 0;
     }
 #endif
@@ -9704,7 +9883,7 @@ xmlns_id_t
     if (val->nsid) {
         return val->nsid;
     } else if (val->obj) {
-        return obj_get_nsid(val->obj);
+        return obj_get_nsid(instance, val->obj);
     } else {
         return 0;
     }
@@ -9723,24 +9902,25 @@ xmlns_id_t
 *
 *********************************************************************/
 void
-    val_change_nsid (val_value_t *val,
+    val_change_nsid (ncx_instance_t *instance,
+                     val_value_t *val,
                      xmlns_id_t nsid)
 {
     val_value_t  *child;
 
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 #endif
 
     val->nsid = nsid;
 
-    for (child = val_get_first_child(val);
+    for (child = val_get_first_child(instance, val);
          child != NULL;
-         child = val_get_next_child(child)) {
-        val_change_nsid(child, nsid);
+         child = val_get_next_child(instance, child)) {
+        val_change_nsid(instance, child, nsid);
     }
 
 }  /* val_change_nsid */
@@ -9766,7 +9946,8 @@ void
 *   malloced list val_value_t struct with converted value
 *********************************************************************/
 val_value_t *
-    val_make_from_insertxpcb (val_value_t *sourceval,
+    val_make_from_insertxpcb (ncx_instance_t *instance,
+                              val_value_t *sourceval,
                               status_t *res)
 {
     val_value_t     *listval, *keyval;
@@ -9777,7 +9958,7 @@ val_value_t *
 
 #ifdef DEBUG
     if (!sourceval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9787,18 +9968,18 @@ val_value_t *
         *res = NO_ERR;
     }
 
-    listval = val_new_value();
+    listval = val_new_value(instance);
     if (!listval) {
         if (res) {
             *res = ERR_INTERNAL_MEM;
         }
         return NULL;
     }
-    val_init_from_template(listval, sourceval->obj);
+    val_init_from_template(instance, listval, sourceval->obj);
 
-    myres = val_new_editvars(sourceval);
+    myres = val_new_editvars(instance, sourceval);
     if (myres != NO_ERR) {
-        val_free_value(listval);
+        val_free_value(instance, listval);
         if (res) {
             *res = myres;
         }
@@ -9808,13 +9989,13 @@ val_value_t *
     xpcb = sourceval->editvars->insertxpcb;
     if (!xpcb || !xpcb->tkc || xpcb->validateres != NO_ERR) {
         if (res) {
-            *res = SET_ERROR(ERR_INTERNAL_VAL);
+            *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
-        val_free_value(listval);
+        val_free_value(instance, listval);
         return NULL;
     }
 
-    tk_reset_chain(xpcb->tkc);
+    tk_reset_chain(instance, xpcb->tkc);
 
     done = FALSE;
     while (!done && myres == NO_ERR) {
@@ -9822,55 +10003,56 @@ val_value_t *
         keystring = NULL;
         keyval = NULL;
 
-        myres = xpath_parse_token(xpcb, TK_TT_LBRACK);
+        myres = xpath_parse_token(instance, xpcb, TK_TT_LBRACK);
         if (myres != NO_ERR) {
             continue;
         }
 
-        myres = TK_ADV(xpcb->tkc);
+        myres = TK_ADV(instance, xpcb->tkc);
         if (myres != NO_ERR) {
             continue;
         }
         keyname = TK_CUR_VAL(xpcb->tkc);
 
-        myres = xpath_parse_token(xpcb, TK_TT_EQUAL);
+        myres = xpath_parse_token(instance, xpcb, TK_TT_EQUAL);
         if (myres != NO_ERR) {
             continue;
         }
         
-        myres = TK_ADV(xpcb->tkc);
+        myres = TK_ADV(instance, xpcb->tkc);
         if (myres != NO_ERR) {
             continue;
         }
         keystring = TK_CUR_VAL(xpcb->tkc);
 
-        myres = xpath_parse_token(xpcb, TK_TT_RBRACK);
+        myres = xpath_parse_token(instance, xpcb, TK_TT_RBRACK);
         if (myres != NO_ERR) {
             continue;
         }
         
         if (!keyname || !keystring) {
-            myres = SET_ERROR(ERR_INTERNAL_VAL);
+            myres = SET_ERROR(instance, ERR_INTERNAL_VAL);
             continue;
         }
 
-        keyval = val_make_string(val_get_nsid(sourceval),
+        keyval = val_make_string(instance,
+                                 val_get_nsid(instance, sourceval),
                                  keyname, 
                                  keystring);
         if (!keyval) {
             myres = ERR_INTERNAL_MEM;
             continue;
         } else {
-            val_add_child(keyval, listval);
+            val_add_child(instance, keyval, listval);
         }
 
-        if (tk_next_typ(xpcb->tkc) != TK_TT_LBRACK) {
+        if (tk_next_typ(instance, xpcb->tkc) != TK_TT_LBRACK) {
             done = TRUE;
         }
     }
 
     if (myres == NO_ERR) {
-        myres = val_gen_index_chain(listval->obj, listval);
+        myres = val_gen_index_chain(instance, listval->obj, listval);
     }
 
     if (res) {
@@ -9878,7 +10060,7 @@ val_value_t *
     }
                                     
     if (myres != NO_ERR) {
-        val_free_value(listval);
+        val_free_value(instance, listval);
         listval = NULL;
     }
         
@@ -9896,11 +10078,11 @@ val_value_t *
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 val_unique_t * 
-    val_new_unique (void)
+    val_new_unique (ncx_instance_t *instance)
 {
     val_unique_t  *valuni;
 
-    valuni = m__getObj(val_unique_t);
+    valuni = m__getObj(instance, val_unique_t);
     if (!valuni) {
         return NULL;
     }
@@ -9920,15 +10102,15 @@ val_unique_t *
 *    valuni == val_unique struct to free
 *********************************************************************/
 void
-    val_free_unique (val_unique_t *valuni)
+    val_free_unique (ncx_instance_t *instance, val_unique_t *valuni)
 {
     if (!valuni) {
         return;
     }
     if (valuni->pcb) {
-        xpath_free_pcb(valuni->pcb);
+        xpath_free_pcb(instance, valuni->pcb);
     }
-    m__free(valuni);
+    m__free(instance, valuni);
 
 }  /* val_free_unique */
 
@@ -9945,11 +10127,11 @@ void
 *   pointer to the typdef or NULL if none
 *********************************************************************/
 const typ_def_t *
-    val_get_typdef (const val_value_t *val)
+    val_get_typdef (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -9972,11 +10154,11 @@ const typ_def_t *
 *   FALSE if set explicitly by some user or the startup config
 *********************************************************************/
 boolean
-    val_set_by_default (const val_value_t *val)
+    val_set_by_default (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -10000,11 +10182,11 @@ boolean
 *   FALSE if wd:default attribute was not set to true
 *********************************************************************/
 boolean
-    val_has_withdef_default (const val_value_t *val)
+    val_has_withdef_default (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (val == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -10024,11 +10206,11 @@ boolean
 *
 *********************************************************************/
 void
-    val_set_withdef_default (val_value_t *val)
+    val_set_withdef_default (ncx_instance_t *instance, val_value_t *val)
 {
 #ifdef DEBUG
     if (val == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -10051,11 +10233,11 @@ void
 *   FALSE if val is not a meta-val
 *********************************************************************/
 boolean
-    val_is_metaval (const val_value_t *val)
+    val_is_metaval (ncx_instance_t *instance, const val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -10077,32 +10259,33 @@ boolean
 *
 *********************************************************************/
 void
-    val_move_children (val_value_t *srcval,
+    val_move_children (ncx_instance_t *instance,
+                       val_value_t *srcval,
                        val_value_t *destval)
 {
     val_value_t   *childval;
 
 #ifdef DEBUG
     if (!srcval || !destval) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
-    if (typ_is_simple(srcval->btyp) || typ_is_simple(destval->btyp)) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+    if (typ_is_simple(instance, srcval->btyp) || typ_is_simple(instance, destval->btyp)) {
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     /* set new parent */
     for (childval = (val_value_t *)
-             dlq_firstEntry(&srcval->v.childQ);
+             dlq_firstEntry(instance, &srcval->v.childQ);
          childval != NULL;
-         childval = (val_value_t *)dlq_nextEntry(childval)) {
+         childval = (val_value_t *)dlq_nextEntry(instance, childval)) {
         childval->parent = destval;
     }
 
     /* move all the entries at once */
-    dlq_block_enque(&srcval->v.childQ, &destval->v.childQ);
+    dlq_block_enque(instance, &srcval->v.childQ, &destval->v.childQ);
 
 }  /* val_move_children */
 
@@ -10128,7 +10311,7 @@ void
 *   status
 *********************************************************************/
 status_t
-    val_cvt_generic (val_value_t *val)
+    val_cvt_generic (ncx_instance_t *instance, val_value_t *val)
 {
     val_value_t   *childval;
     val_index_t   *in;
@@ -10139,7 +10322,7 @@ status_t
 
 #ifdef DEBUG
     if (val == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -10152,54 +10335,54 @@ status_t
     haschildren = typ_has_children(val->btyp);
 
     if (typ_is_string(val->btyp)) {
-        val->obj = ncx_get_gen_string();
+        val->obj = ncx_get_gen_string(instance);
         if (val->xpathpcb) {
-            xpath_free_pcb(val->xpathpcb);
+            xpath_free_pcb(instance, val->xpathpcb);
             val->xpathpcb = NULL;
         }
     } else if (val->btyp == NCX_BT_ANY) {
         /* !!! this should not happen if agt/mgr_val_parse used
          * !!! parse_any will set the val->btyp to container
          */
-        val->obj = ncx_get_gen_anyxml();
+        val->obj = ncx_get_gen_anyxml(instance);
     } else {
         switch (val->btyp) {
         case NCX_BT_BINARY:
-            val->obj = ncx_get_gen_binary();
+            val->obj = ncx_get_gen_binary(instance);
             break;
         case NCX_BT_EMPTY:
-            val->obj = ncx_get_gen_empty();
+            val->obj = ncx_get_gen_empty(instance);
             break;
         case NCX_BT_CONTAINER:
-            val->obj = ncx_get_gen_container();
+            val->obj = ncx_get_gen_container(instance);
             break;
         case NCX_BT_LIST:
-            while (!dlq_empty(&val->indexQ)) {
-                in = (val_index_t *)dlq_deque(&val->indexQ);
-                m__free(in);
+            while (!dlq_empty(instance, &val->indexQ)) {
+                in = (val_index_t *)dlq_deque(instance, &val->indexQ);
+                m__free(instance, in);
             }
-            val->obj = ncx_get_gen_container();
+            val->obj = ncx_get_gen_container(instance);
             break;
         default:
             len = 0;
-            res = val_sprintf_simval_nc(NULL, val, &len);
+            res = val_sprintf_simval_nc(instance, NULL, val, &len);
             if (res != NO_ERR) {
                 return res;
             }
 
-            buffer = m__getMem(len+1);
+            buffer = m__getMem(instance, len+1);
             if (!buffer) {
                 return ERR_INTERNAL_MEM;
             }
 
-            res = val_sprintf_simval_nc(buffer, val, &len);
+            res = val_sprintf_simval_nc(instance, buffer, val, &len);
             if (res == NO_ERR) {
-                clean_value(val, FALSE);
+                clean_value(instance, val, FALSE);
                 val->v.str = buffer;
                 val->btyp = NCX_BT_STRING;
-                val->obj = ncx_get_gen_string();
+                val->obj = ncx_get_gen_string(instance);
             } else {
-                m__free(buffer);
+                m__free(instance, buffer);
                 return res;
             }
         }
@@ -10208,11 +10391,11 @@ status_t
     /* dive down into all the child nodest */
     if (haschildren) {
         for (childval = (val_value_t *)
-                 dlq_firstEntry(&val->v.childQ);
+                 dlq_firstEntry(instance, &val->v.childQ);
              childval != NULL;
-             childval = (val_value_t *)dlq_nextEntry(childval)) {
+             childval = (val_value_t *)dlq_nextEntry(instance, childval)) {
 
-            res = val_cvt_generic(childval);
+            res = val_cvt_generic(instance, childval);
         }
     }
 
@@ -10235,17 +10418,18 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    val_set_pcookie (val_value_t *val,
+    val_set_pcookie (ncx_instance_t *instance,
+                     val_value_t *val,
                      void *pcookie)
 {
 #ifdef DEBUG
     if (val == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (val->editvars == NULL) {
-        status_t res = val_new_editvars(val);
+        status_t res = val_new_editvars(instance, val);
         if (res != NO_ERR) {
             return res;
         }
@@ -10271,17 +10455,18 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    val_set_icookie (val_value_t *val,
+    val_set_icookie (ncx_instance_t *instance,
+                     val_value_t *val,
                      int icookie)
 {
 #ifdef DEBUG
     if (val == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (val->editvars == NULL) {
-        status_t res = val_new_editvars(val);
+        status_t res = val_new_editvars(instance, val);
         if (res != NO_ERR) {
             return res;
         }
@@ -10306,11 +10491,11 @@ status_t
 *    pointer cookie value or NULL if none
 *********************************************************************/
 void *
-    val_get_pcookie (val_value_t *val)
+    val_get_pcookie (ncx_instance_t *instance, val_value_t *val)
 {
 #ifdef DEBUG
     if (val == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -10337,11 +10522,11 @@ void *
 *    integer cookie value or 0 if none
 *********************************************************************/
 int
-    val_get_icookie (val_value_t *val)
+    val_get_icookie (ncx_instance_t *instance, val_value_t *val)
 {
 #ifdef DEBUG
     if (val == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -10367,22 +10552,22 @@ int
 *    status
 *********************************************************************/
 status_t
-    val_delete_default_leaf (val_value_t *val)
+    val_delete_default_leaf (ncx_instance_t *instance, val_value_t *val)
 {
     if ( !val || !val->obj ) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 
-    const xmlChar *defval = obj_get_default(val->obj);
+    const xmlChar *defval = obj_get_default(instance, val->obj);
 
     if ( !defval ) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    clean_value(val, FALSE);
+    clean_value(instance, val, FALSE);
 
-    status_t res = val_set_simval_str(val, val->typdef, val->nsid, val->name,
-                                      xml_strlen(val->name), defval);
+    status_t res = val_set_simval_str(instance, val, val->typdef, val->nsid, val->name,
+                                      xml_strlen(instance, val->name), defval);
 
     val->flags |= VAL_FL_DEFSET;
 
@@ -10401,21 +10586,21 @@ status_t
 *
 *********************************************************************/
 void
-    val_force_empty (val_value_t *val)
+    val_force_empty (ncx_instance_t *instance, val_value_t *val)
 {
 #ifdef DEBUG
     if (val == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    if (!typ_is_simple(val->btyp)) {
-        SET_ERROR(ERR_NCX_WRONG_TYPE);
+    if (!typ_is_simple(instance, val->btyp)) {
+        SET_ERROR(instance, ERR_NCX_WRONG_TYPE);
         return;
     }
 
-    clean_value(val, FALSE);
+    clean_value(instance, val, FALSE);
     val->btyp = NCX_BT_EMPTY;
     val->v.boo = TRUE;
 
@@ -10434,13 +10619,14 @@ void
 *    movemeta == TRUE if metaQ should be transferred
 *********************************************************************/
 void
-    val_move_fields_for_xml (val_value_t *srcval,
+    val_move_fields_for_xml (ncx_instance_t *instance,
+                             val_value_t *srcval,
                              val_value_t *destval,
                              boolean movemeta)
 {
 #ifdef DEBUG
     if (srcval == NULL || destval == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -10448,7 +10634,7 @@ void
     destval->parent = srcval->parent;
     destval->dataclass = srcval->dataclass;
     if (movemeta) {
-        dlq_block_enque(&srcval->metaQ, &destval->metaQ);
+        dlq_block_enque(instance, &srcval->metaQ, &destval->metaQ);
     }
 
 } /* val_move_fields_for_xml */
@@ -10464,11 +10650,11 @@ void
 *
 *********************************************************************/
 val_index_t *
-    val_get_first_key (val_value_t *val)
+    val_get_first_key (ncx_instance_t *instance, val_value_t *val)
 {
 #ifdef DEBUG
     if (!val) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -10476,7 +10662,7 @@ val_index_t *
         return NULL;
     }
 
-    return (val_index_t *)dlq_firstEntry(&val->indexQ);
+    return (val_index_t *)dlq_firstEntry(instance, &val->indexQ);
 
 } /* val_get_first_key */
 
@@ -10491,16 +10677,16 @@ val_index_t *
 *
 *********************************************************************/
 val_index_t *
-    val_get_next_key (val_index_t *curkey)
+    val_get_next_key (ncx_instance_t *instance, val_index_t *curkey)
 {
 #ifdef DEBUG
     if (!curkey) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (val_index_t *)dlq_nextEntry(curkey);
+    return (val_index_t *)dlq_nextEntry(instance, curkey);
 
 } /* val_get_next_key */
 
@@ -10516,19 +10702,19 @@ val_index_t *
 *
 *********************************************************************/
 void
-    val_remove_key (val_value_t *keyval)
+    val_remove_key (ncx_instance_t *instance, val_value_t *keyval)
 {
     assert(keyval && "keyval is NULL!" );
 
     val_value_t *parent = keyval->parent;
-    val_index_t *valin = (val_index_t *)dlq_firstEntry(&parent->indexQ);
+    val_index_t *valin = (val_index_t *)dlq_firstEntry(instance, &parent->indexQ);
     val_index_t *nextvalin = NULL;
     for (; valin != NULL; valin = nextvalin) {
-        nextvalin = (val_index_t *)dlq_nextEntry(valin);
+        nextvalin = (val_index_t *)dlq_nextEntry(instance, valin);
 
         if (valin->val == keyval) {
-            dlq_remove(valin);
-            m__free(valin);
+            dlq_remove(instance, valin);
+            m__free(instance, valin);
             return;
         }
     }
@@ -10545,18 +10731,18 @@ void
 *   pointer to the malloced and initialized struct or NULL if an error
 *********************************************************************/
 val_value_t * 
-    val_new_deleted_value (void)
+    val_new_deleted_value (ncx_instance_t *instance)
 {
     val_value_t  *val;
 
-    val = m__getObj(val_value_t);
+    val = m__getObj(instance, val_value_t);
     if (!val) {
         return NULL;
     }
 
     (void)memset(val, 0x0, sizeof(val_value_t));
-    dlq_createSQue(&val->metaQ);
-    dlq_createSQue(&val->indexQ);
+    dlq_createSQue(instance, &val->metaQ);
+    dlq_createSQue(instance, &val->indexQ);
     val->flags |= VAL_FL_DELETED;
     return val;
 
@@ -10578,15 +10764,15 @@ val_value_t *
 *   status
 *********************************************************************/
 status_t
-    val_new_editvars (val_value_t *val)
+    val_new_editvars (ncx_instance_t *instance, val_value_t *val)
 {
     val_editvars_t  *editvars;
 
     if (val->editvars) {
-        return SET_ERROR(ERR_NCX_DATA_EXISTS);
+        return SET_ERROR(instance, ERR_NCX_DATA_EXISTS);
     }
 
-    editvars = m__getObj(val_editvars_t);
+    editvars = m__getObj(instance, val_editvars_t);
     if (!editvars) {
         return ERR_INTERNAL_MEM;
     }
@@ -10595,7 +10781,8 @@ status_t
     val->editvars = editvars;
 
 #ifdef VAL_EDITVARS_DEBUG
-    log_debug3("\n\nval_new_editvars: %u = %p\n",
+    log_debug3(instance,
+               "\n\nval_new_editvars: %u = %p\n",
                ++editvars_malloc,
                editvars);
 #endif
@@ -10618,13 +10805,13 @@ status_t
 *    val->editop set to OP_EDITOP_NONE
 *********************************************************************/
 void
-    val_free_editvars (val_value_t *val)
+    val_free_editvars (ncx_instance_t *instance, val_value_t *val)
 {
     if (val == NULL) {
         return;
     }
 
-    free_editvars(val);
+    free_editvars(instance, val);
     val->editop = OP_EDITOP_NONE;
 
 }  /* val_free_editvars */

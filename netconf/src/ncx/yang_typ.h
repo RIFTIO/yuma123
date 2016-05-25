@@ -97,7 +97,8 @@ extern "C" {
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_consume_type (yang_pcb_t *pcb,
+    yang_typ_consume_type (struct ncx_instance_t_ *instance,
+                           yang_pcb_t *pcb,
                            tk_chain_t *tkc,
 			   ncx_module_t  *mod,
 			   typ_def_t *typdef);
@@ -122,7 +123,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_consume_metadata_type (yang_pcb_t *pcb,
+    yang_typ_consume_metadata_type (struct ncx_instance_t_ *instance,
+                                    yang_pcb_t *pcb,
                                     tk_chain_t *tkc,
 				    ncx_module_t  *mod,
 				    typ_def_t *intypdef);
@@ -149,7 +151,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_consume_typedef (yang_pcb_t *pcb,
+    yang_typ_consume_typedef (struct ncx_instance_t_ *instance,
+                              yang_pcb_t *pcb,
                               tk_chain_t *tkc,
 			      ncx_module_t  *mod,
 			      dlq_hdr_t *que);
@@ -191,7 +194,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_resolve_typedefs (yang_pcb_t *pcb,
+    yang_typ_resolve_typedefs (struct ncx_instance_t_ *instance,
+                               yang_pcb_t *pcb,
                                tk_chain_t *tkc,
 			       ncx_module_t  *mod,
 			       dlq_hdr_t *typeQ,
@@ -218,7 +222,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_resolve_typedefs_final (tk_chain_t *tkc,
+    yang_typ_resolve_typedefs_final (struct ncx_instance_t_ *instance,
+                                     tk_chain_t *tkc,
                                      ncx_module_t *mod,
                                      dlq_hdr_t *typeQ);
 
@@ -260,7 +265,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_resolve_typedefs_grp (yang_pcb_t *pcb,
+    yang_typ_resolve_typedefs_grp (struct ncx_instance_t_ *instance,
+                                   yang_pcb_t *pcb,
                                    tk_chain_t *tkc,
 				   ncx_module_t  *mod,
 				   dlq_hdr_t *typeQ,
@@ -301,7 +307,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_resolve_type (yang_pcb_t *pcb,
+    yang_typ_resolve_type (struct ncx_instance_t_ *instance,
+                           yang_pcb_t *pcb,
                            tk_chain_t *tkc,
 			   ncx_module_t  *mod,
 			   typ_def_t *typdef,
@@ -330,7 +337,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_resolve_type_final (tk_chain_t *tkc,
+    yang_typ_resolve_type_final (struct ncx_instance_t_ *instance,
+                                 tk_chain_t *tkc,
                                  ncx_module_t  *mod,
                                  typ_def_t *typdef,
                                  const xmlChar *defval,
@@ -352,7 +360,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_typ_rangenum_ok (typ_def_t *typdef,
+    yang_typ_rangenum_ok (struct ncx_instance_t_ *instance,
+			  typ_def_t *typdef,
 			  const ncx_num_t *num);
 
 

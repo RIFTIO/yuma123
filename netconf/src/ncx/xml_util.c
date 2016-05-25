@@ -104,7 +104,7 @@ typedef struct xml_chcvt_t_ {
 *********************************************************************/
 
 /* lookup list for the char entities that need to be converted */
-static xml_chcvt_t chcvt [] = {
+static const xml_chcvt_t chcvt [] = {
     {(const xmlChar *)"gt", '>'},
     {(const xmlChar *)"lt", '<'},
     {(const xmlChar *)"quot", '"'},
@@ -140,7 +140,8 @@ static xml_chcvt_t chcvt [] = {
 *   returns NO_ERR if all copied okay or even zero copied
 *********************************************************************/
 static status_t
-    get_attrs (xmlTextReaderPtr reader,
+    get_attrs (ncx_instance_t *instance,
+               xmlTextReaderPtr reader,
                xml_attrs_t  *attrs,
                boolean nserr)
 {
@@ -185,9 +186,9 @@ static status_t
                 res = ERR_XML_READER_NULLNAME;
             } else {
                 value = NULL;
-                res = xml_check_ns(reader, name, &nsid, &plen, &badns);
+                res = xml_check_ns(instance, reader, name, &nsid, &plen, &badns);
                 if (!nserr && res != NO_ERR) {
-                    nsid = xmlns_inv_id();
+                    nsid = xmlns_inv_id(instance);
                     plen = 0;
                     res = NO_ERR;
                 }
@@ -198,7 +199,8 @@ static status_t
                     /* save the values as received, may be QName 
                      * only error that can occur is a malloc fail
                      */
-                    (void)xml_add_qattr(attrs,
+                    (void)xml_add_qattr(instance,
+                                        attrs,
                                         nsid, 
                                         name, 
                                         plen, 
@@ -235,15 +237,15 @@ static status_t
 *   pointer to new node or NULL if malloc error
 *********************************************************************/
 xml_node_t *
-    xml_new_node (void)
+    xml_new_node (ncx_instance_t *instance)
 {
     xml_node_t *node;
 
-    node = m__getObj(xml_node_t);
+    node = m__getObj(instance, xml_node_t);
     if (!node) {
         return NULL;
     }
-    xml_init_node(node);
+    xml_init_node(instance, node);
     return node;
 
 } /* xml_new_node */
@@ -258,17 +260,17 @@ xml_node_t *
 *   node == pointer to node to init
 *********************************************************************/
 void
-    xml_init_node (xml_node_t *node)
+    xml_init_node (ncx_instance_t *instance, xml_node_t *node)
 {
 #ifdef DEBUG   
     if (!node) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     memset(node, 0x0, sizeof(xml_node_t));
-    xml_init_attrs(&node->attrs);
+    xml_init_attrs(instance, &node->attrs);
 } /* xml_init_node */
 
 
@@ -281,16 +283,16 @@ void
 *   node == pointer to node to free
 *********************************************************************/
 void
-    xml_free_node (xml_node_t *node)
+    xml_free_node (ncx_instance_t *instance, xml_node_t *node)
 {
 #ifdef DEBUG
     if (!node) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
-    xml_clean_node(node);
-    m__free(node);
+    xml_clean_node(instance, node);
+    m__free(instance, node);
 } /* xml_free_node */
 
 
@@ -303,11 +305,11 @@ void
 *   node == pointer to node to clean
 *********************************************************************/
 void
-    xml_clean_node (xml_node_t *node)
+    xml_clean_node (ncx_instance_t *instance, xml_node_t *node)
 {
 #ifdef DEBUG
     if (!node) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -315,19 +317,19 @@ void
     node->nodetyp = XML_NT_NONE;
     node->nsid = 0;
     if (node->qname) {
-        m__free(node->qname);
+        m__free(instance, node->qname);
         node->qname = NULL;
     }
     node->qname = NULL;
     node->elname = NULL;
     if (node->simfree) {
-        m__free(node->simfree);
+        m__free(instance, node->simfree);
         node->simfree = NULL;
     }
     node->simval = NULL;
     node->simlen = 0;
     node->depth = 0;
-    xml_clean_attrs(&node->attrs);
+    xml_clean_attrs(instance, &node->attrs);
 
 } /* xml_clean_node */
 
@@ -347,14 +349,15 @@ void
 *   status of the operation
 *********************************************************************/
 status_t
-    xml_get_reader_from_filespec (const char *filespec,
+    xml_get_reader_from_filespec (ncx_instance_t *instance,
+                                  const char *filespec,
                                   xmlTextReaderPtr  *reader)
 {
     int        options;
 
 #ifdef DEBUG
     if (!filespec || !reader) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     } 
 #endif
 
@@ -389,7 +392,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t
-    xml_get_reader_for_session (xmlInputReadCallback readfn,
+    xml_get_reader_for_session (ncx_instance_t *instance,
+                                xmlInputReadCallback readfn,
                                 xmlInputCloseCallback closefn,
                                 void *context,
                                 xmlTextReaderPtr  *reader)
@@ -398,7 +402,7 @@ status_t
 
 #ifdef DEBUG
     if (!readfn || !reader) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     } 
 #endif
 
@@ -438,7 +442,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t
-    xml_reset_reader_for_session (xmlInputReadCallback readfn,
+    xml_reset_reader_for_session (ncx_instance_t *instance,
+                                  xmlInputReadCallback readfn,
                                   xmlInputCloseCallback closefn,
                                   void *context,
                                   xmlTextReaderPtr  reader)
@@ -447,7 +452,7 @@ status_t
 
 #ifdef DEBUG
     if (!readfn || !reader) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     } 
 #endif
 
@@ -477,11 +482,11 @@ status_t
 *   none
 *********************************************************************/
 void
-    xml_free_reader (xmlTextReaderPtr reader)
+    xml_free_reader (ncx_instance_t *instance, xmlTextReaderPtr reader)
 {
 #ifdef DEBUG
     if (!reader) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -544,13 +549,13 @@ const char *
 *   FALSE if OEF seen, or TRUE if normal
 *********************************************************************/
 boolean 
-    xml_advance_reader (xmlTextReaderPtr reader)
+    xml_advance_reader (ncx_instance_t *instance, xmlTextReaderPtr reader)
 {
     int  ret;
 
 #ifdef DEBUG
     if (!reader) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -579,14 +584,15 @@ boolean
 *    status
 *********************************************************************/
 status_t 
-    xml_node_match (const xml_node_t *node,
+    xml_node_match (ncx_instance_t *instance,
+                    const xml_node_t *node,
                     xmlns_id_t        nsid,
                     const xmlChar *elname,
                     xml_nodetyp_t  nodetyp)
 {
 #ifdef DEBUG
     if (!node) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -601,7 +607,7 @@ status_t
         if (!node->elname) {
             return ERR_NCX_UNKNOWN_ELEMENT;
         }
-        if (xml_strcmp(elname, node->elname)) {
+        if (xml_strcmp(instance, elname, node->elname)) {
             return ERR_NCX_WRONG_ELEMENT;
         }
     }
@@ -630,12 +636,13 @@ status_t
 *    status,
 *********************************************************************/
 status_t 
-    xml_endnode_match (const xml_node_t *startnode,
+    xml_endnode_match (ncx_instance_t *instance,
+                       const xml_node_t *startnode,
                        const xml_node_t *endnode)
 {
 #ifdef DEBUG
     if (!startnode || !endnode) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -647,7 +654,7 @@ status_t
         return ERR_NCX_WRONG_NODEDEPTH;
     }
 
-    if (xml_strcmp(startnode->elname, endnode->elname)) {
+    if (xml_strcmp(instance, startnode->elname, endnode->elname)) {
         return ERR_NCX_UNKNOWN_ELEMENT;
     }
 
@@ -677,13 +684,13 @@ status_t
 *    If a node is read, the reader will be pointing to that node
 *********************************************************************/
 boolean 
-    xml_docdone (xmlTextReaderPtr reader)
+    xml_docdone (ncx_instance_t *instance, xmlTextReaderPtr reader)
 {
     int  ret;
 
 #ifdef DEBUG
     if (!reader) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return FALSE;
     }
 #endif
@@ -707,7 +714,7 @@ boolean
 *    node == node to dump
 *********************************************************************/
 void
-    xml_dump_node (const xml_node_t *node)
+    xml_dump_node (ncx_instance_t *instance, const xml_node_t *node)
 {
 
     const char *typ;
@@ -716,7 +723,7 @@ void
 
 #ifdef DEBUG
     if (!node) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -750,25 +757,27 @@ void
     }
 
     if (ok) {
-        log_write("\nXML node (%d:%d): %s %s",
+        log_write(instance,
+                  "\nXML node (%d:%d): %s %s",
                   node->nsid, node->depth, typ, 
                   (nam) ? (const char *)node->elname : "");
 
         if (node->simval) {
-            log_write("\n   val(%u):%s", node->simlen, node->simval);
+            log_write(instance, "\n   val(%u):%s", node->simlen, node->simval);
         }
-        for (attr = (const xml_attr_t *)dlq_firstEntry(&node->attrs);
+        for (attr = (const xml_attr_t *)dlq_firstEntry(instance, &node->attrs);
              attr != NULL;
-             attr = (const xml_attr_t *)dlq_nextEntry(attr)) {
-            log_write("\n   attr: ns:%d name:%s (%s)",
+             attr = (const xml_attr_t *)dlq_nextEntry(instance, attr)) {
+            log_write(instance,
+                      "\n   attr: ns:%d name:%s (%s)",
                       attr->attr_ns, 
                       (const char *)attr->attr_name, 
                       (const char *)attr->attr_val);
         }
     } else {
-        log_write("\nXML node ERR (%s)", typ);
+        log_write(instance, "\nXML node ERR (%s)", typ);
     }
-    log_write("\n");
+    log_write(instance, "\n");
 
 } /* xml_dump_node */
 
@@ -784,16 +793,16 @@ void
 *    none
 *********************************************************************/
 void
-    xml_init_attrs (xml_attrs_t *attrs)
+    xml_init_attrs (ncx_instance_t *instance, xml_attrs_t *attrs)
 {
 #ifdef DEBUG
     if (!attrs) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    dlq_createSQue(attrs);
+    dlq_createSQue(instance, attrs);
 
 }  /* xml_init_attrs */
 
@@ -809,11 +818,11 @@ void
 *    pointer to new xml_attr_t or NULL if malloc error
 *********************************************************************/
 xml_attr_t *
-    xml_new_attr (void)
+    xml_new_attr (ncx_instance_t *instance)
 {
     xml_attr_t  *attr;
 
-    attr = m__getObj(xml_attr_t);
+    attr = m__getObj(instance, xml_attr_t);
     if (!attr) {
         return NULL;
     }
@@ -832,25 +841,25 @@ xml_attr_t *
 *    attr == xml_attr_t to free
 *********************************************************************/
 void
-    xml_free_attr (xml_attr_t *attr)
+    xml_free_attr (ncx_instance_t *instance, xml_attr_t *attr)
 {
 #ifdef DEBUG
     if (!attr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
     if (attr->attr_dname) {
-        m__free(attr->attr_dname);
+        m__free(instance, attr->attr_dname);
     }
     if (attr->attr_val) {
-        m__free(attr->attr_val);
+        m__free(instance, attr->attr_val);
     }
     if (attr->attr_xpcb) {
-        xpath_free_pcb(attr->attr_xpcb);
+        xpath_free_pcb(instance, attr->attr_xpcb);
     }
 
-    m__free(attr);
+    m__free(instance, attr);
 
 }  /* xml_free_attr */
 
@@ -869,7 +878,8 @@ void
 *    NO_ERR if all okay
 *********************************************************************/
 status_t
-    xml_add_attr (xml_attrs_t *attrs, 
+    xml_add_attr (ncx_instance_t *instance, 
+                  xml_attrs_t *attrs, 
                   xmlns_id_t  ns_id,
                   const xmlChar *attr_name,
                   const xmlChar *attr_val)
@@ -878,29 +888,29 @@ status_t
 
 #ifdef DEBUG
     if (!attrs || !attr_name || !attr_val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    attr = xml_new_attr();
+    attr = xml_new_attr(instance);
     if (!attr) {
         return ERR_INTERNAL_MEM;
     }
-    attr->attr_dname = xml_strdup(attr_name);
+    attr->attr_dname = xml_strdup(instance, attr_name);
     attr->attr_name = attr->attr_dname;
     attr->attr_qname = attr->attr_dname;
     if (!attr->attr_dname) {
-        xml_free_attr(attr);
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        xml_free_attr(instance, attr);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
 
-    attr->attr_val = xml_strdup(attr_val);
+    attr->attr_val = xml_strdup(instance, attr_val);
     if (!attr->attr_val) {
-        xml_free_attr(attr);
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        xml_free_attr(instance, attr);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
     attr->attr_ns = ns_id;
-    dlq_enque(attr, attrs);
+    dlq_enque(instance, attr, attrs);
     return NO_ERR;
 
 }  /* xml_add_attr */
@@ -925,7 +935,8 @@ status_t
 *    pointer to attr that was added, NULL if none added
 *********************************************************************/
 xml_attr_t *
-    xml_add_qattr (xml_attrs_t *attrs, 
+    xml_add_qattr (ncx_instance_t *instance, 
+                   xml_attrs_t *attrs, 
                    xmlns_id_t  ns_id,
                    const xmlChar *attr_qname,
                    uint32  plen,
@@ -936,34 +947,34 @@ xml_attr_t *
 
 #ifdef DEBUG
     if (!attrs || !attr_qname || !attr_val || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    attr = xml_new_attr();
+    attr = xml_new_attr(instance);
     if (!attr) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
-    attr->attr_dname = xml_strdup(attr_qname);
+    attr->attr_dname = xml_strdup(instance, attr_qname);
     if (!attr->attr_dname) {
-        xml_free_attr(attr);
+        xml_free_attr(instance, attr);
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
     attr->attr_qname = attr->attr_dname;
     attr->attr_name = attr->attr_dname+plen;
 
-    attr->attr_val = xml_strdup(attr_val);
+    attr->attr_val = xml_strdup(instance, attr_val);
     if (!attr->attr_val) {
-        xml_free_attr(attr);
+        xml_free_attr(instance, attr);
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
     attr->attr_ns = ns_id;
-    dlq_enque(attr, attrs);
+    dlq_enque(instance, attr, attrs);
     *res = NO_ERR;
     return attr;
 
@@ -985,7 +996,8 @@ xml_attr_t *
 *    NO_ERR if all okay
 *********************************************************************/
 status_t
-    xml_add_xmlns_attr (xml_attrs_t *attrs, 
+    xml_add_xmlns_attr (ncx_instance_t *instance, 
+                        xml_attrs_t *attrs, 
                         xmlns_id_t  ns_id,
                         const xmlChar *pfix)
 {
@@ -996,47 +1008,47 @@ status_t
 
 #ifdef DEBUG
     if (!attrs) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* get a new attr struct */
-    attr = xml_new_attr();
+    attr = xml_new_attr(instance);
     if (!attr) {
         return ERR_INTERNAL_MEM;
     }
 
     /* get the namespace URI value */
-    nsval = xmlns_get_ns_name(ns_id);
+    nsval = xmlns_get_ns_name(instance, ns_id);
     if (!nsval) {
-        xml_free_attr(attr);
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        xml_free_attr(instance, attr);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* copy the namespace URI as the attr value */
-    attr->attr_val = xml_strdup(nsval);
+    attr->attr_val = xml_strdup(instance, nsval);
     if (!attr->attr_val) {
-        xml_free_attr(attr);
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        xml_free_attr(instance, attr);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
 
     /* get the dname buffer length to malloc */
     len = XMLNS_LEN+1;
     if (pfix) {
-        len += (xml_strlen(pfix) + 1);
+        len += (xml_strlen(instance, pfix) + 1);
     }
 
     /* get a name buffer */
-    attr->attr_dname = m__getMem(len);
+    attr->attr_dname = m__getMem(instance, len);
     if (!attr->attr_dname) {
-        xml_free_attr(attr);
+        xml_free_attr(instance, attr);
         return ERR_INTERNAL_MEM;
     }
     attr->attr_qname = attr->attr_dname;
 
     /* construct an xmlns:prefix string in the name buffer */
     s = attr->attr_dname;    
-    s += xml_strcpy(attr->attr_dname, XMLNS);
+    s += xml_strcpy(instance, attr->attr_dname, XMLNS);
 
     /* point the name field at the prefix value if there is one */
     if (pfix) {
@@ -1050,9 +1062,9 @@ status_t
     }
     *s = 0;
 
-    attr->attr_ns = xmlns_ns_id();
+    attr->attr_ns = xmlns_ns_id(instance);
     attr->attr_xmlns_ns = ns_id;
-    dlq_enque(attr, attrs);
+    dlq_enque(instance, attr, attrs);
     return NO_ERR;
 
 }  /* xml_add_xmlns_attr */
@@ -1073,7 +1085,8 @@ status_t
 *    NO_ERR if all okay
 *********************************************************************/
 status_t
-    xml_add_xmlns_attr_string (xml_attrs_t *attrs, 
+    xml_add_xmlns_attr_string (ncx_instance_t *instance, 
+                               xml_attrs_t *attrs, 
                                const xmlChar *ns,
                                const xmlChar *pfix)
 {
@@ -1083,40 +1096,40 @@ status_t
 
 #ifdef DEBUG
     if (!attrs || !ns) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* get a new attr struct */
-    attr = xml_new_attr();
+    attr = xml_new_attr(instance);
     if (!attr) {
         return ERR_INTERNAL_MEM;
     }
 
     /* copy the namespace URI as the attr value */
-    attr->attr_val = xml_strdup(ns);
+    attr->attr_val = xml_strdup(instance, ns);
     if (!attr->attr_val) {
-        xml_free_attr(attr);
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        xml_free_attr(instance, attr);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
 
     /* get the dname buffer length to malloc */
     len = XMLNS_LEN+1;
     if (pfix) {
-        len += (xml_strlen(pfix) + 1);
+        len += (xml_strlen(instance, pfix) + 1);
     }
 
     /* get a name buffer */
-    attr->attr_dname = m__getMem(len);
+    attr->attr_dname = m__getMem(instance, len);
     if (!attr->attr_dname) {
-        xml_free_attr(attr);
+        xml_free_attr(instance, attr);
         return ERR_INTERNAL_MEM;
     }
     attr->attr_qname = attr->attr_dname;
 
     /* construct an xmlns:prefix string in the name buffer */
     s = attr->attr_dname;    
-    s += xml_strcpy(attr->attr_dname, XMLNS);
+    s += xml_strcpy(instance, attr->attr_dname, XMLNS);
 
     /* point the name field at the prefix value if there is one */
     if (pfix) {
@@ -1130,9 +1143,9 @@ status_t
     }
     *s = 0;
 
-    attr->attr_ns = xmlns_ns_id();
+    attr->attr_ns = xmlns_ns_id(instance);
     attr->attr_xmlns_ns = 0;   /*****/
-    dlq_enque(attr, attrs);
+    dlq_enque(instance, attr, attrs);
     return NO_ERR;
 
 }  /* xml_add_xmlns_attr_string */
@@ -1156,7 +1169,8 @@ status_t
 *    NO_ERR if all okay
 *********************************************************************/
 status_t
-    xml_add_inv_xmlns_attr (xml_attrs_t *attrs, 
+    xml_add_inv_xmlns_attr (ncx_instance_t *instance, 
+                            xml_attrs_t *attrs, 
                             xmlns_id_t  ns_id,
                             const xmlChar *pfix,
                             const xmlChar *nsval)
@@ -1167,12 +1181,12 @@ status_t
 
 #ifdef DEBUG
     if (!attrs) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     /* get a new attr struct */
-    attr = xml_new_attr();
+    attr = xml_new_attr(instance);
     if (!attr) {
         return ERR_INTERNAL_MEM;
     }
@@ -1182,29 +1196,29 @@ status_t
     }
 
     /* copy the namespace URI as the attr value */
-    attr->attr_val = xml_strdup(nsval);
+    attr->attr_val = xml_strdup(instance, nsval);
     if (!attr->attr_val) {
-        xml_free_attr(attr);
-        return SET_ERROR(ERR_INTERNAL_MEM);
+        xml_free_attr(instance, attr);
+        return SET_ERROR(instance, ERR_INTERNAL_MEM);
     }
 
     /* get the dname buffer length to malloc */
     len = XMLNS_LEN+1;
     if (pfix) {
-        len += (xml_strlen(pfix) + 1);
+        len += (xml_strlen(instance, pfix) + 1);
     }
 
     /* get a name buffer */
-    attr->attr_dname = m__getMem(len);
+    attr->attr_dname = m__getMem(instance, len);
     if (!attr->attr_dname) {
-        xml_free_attr(attr);
+        xml_free_attr(instance, attr);
         return ERR_INTERNAL_MEM;
     }
     attr->attr_qname = attr->attr_dname;
 
     /* construct an xmlns:prefix string in the name buffer */
     s = attr->attr_dname;    
-    s += xml_strcpy(attr->attr_dname, XMLNS);
+    s += xml_strcpy(instance, attr->attr_dname, XMLNS);
 
     /* point the name field at the prefix value if there is one */
     if (pfix) {
@@ -1218,9 +1232,9 @@ status_t
     }
     *s = 0;
 
-    attr->attr_ns = xmlns_ns_id();
+    attr->attr_ns = xmlns_ns_id(instance);
     attr->attr_xmlns_ns = ns_id;
-    dlq_enque(attr, attrs);
+    dlq_enque(instance, attr, attrs);
     return NO_ERR;
 
 }  /* xml_add_inv_xmlns_attr */
@@ -1237,16 +1251,16 @@ status_t
 *    pointer to first entry or NULL if none
 *********************************************************************/
 xml_attr_t * 
-    xml_first_attr (xml_attrs_t  *attrs)
+    xml_first_attr (ncx_instance_t *instance, xml_attrs_t  *attrs)
 {
 #ifdef DEBUG
     if (!attrs) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (xml_attr_t *)dlq_firstEntry(attrs);
+    return (xml_attr_t *)dlq_firstEntry(instance, attrs);
 
 }  /* xml_first_attr */
 
@@ -1262,16 +1276,16 @@ xml_attr_t *
 *    pointer to first entry or NULL if none
 *********************************************************************/
 xml_attr_t * 
-    xml_get_first_attr (const xml_node_t *node)
+    xml_get_first_attr (ncx_instance_t *instance, const xml_node_t *node)
 {
 #ifdef DEBUG
     if (!node) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return (xml_attr_t *)dlq_firstEntry(&node->attrs);
+    return (xml_attr_t *)dlq_firstEntry(instance, &node->attrs);
 
 }  /* xml_get_first_attr */
 
@@ -1288,16 +1302,16 @@ xml_attr_t *
 *    pointer to the next entry or NULL if none
 *********************************************************************/
 xml_attr_t * 
-    xml_next_attr (xml_attr_t  *attr)
+    xml_next_attr (ncx_instance_t *instance, xml_attr_t  *attr)
 {
 #ifdef DEBUG
     if (!attr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }   
 #endif
 
-    return (xml_attr_t *)dlq_nextEntry(attr);
+    return (xml_attr_t *)dlq_nextEntry(instance, attr);
 
 }  /* xml_next_attr */
 
@@ -1313,20 +1327,20 @@ xml_attr_t *
 *    none
 *********************************************************************/
 void 
-    xml_clean_attrs (xml_attrs_t  *attrs)
+    xml_clean_attrs (ncx_instance_t *instance, xml_attrs_t  *attrs)
 {
     xml_attr_t  *attr;
 
 #ifdef DEBUG
     if (!attrs) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    while (!dlq_empty(attrs)) {
-        attr = (xml_attr_t *)dlq_deque(attrs);
-        xml_free_attr(attr);
+    while (!dlq_empty(instance, attrs)) {
+        attr = (xml_attr_t *)dlq_deque(instance, attrs);
+        xml_free_attr(instance, attr);
     }
 
 }  /* xml_clean_attrs */
@@ -1345,18 +1359,19 @@ void
 *   pointer to found xml_attr_t or NULL if not found
 *********************************************************************/
 xml_attr_t *
-    xml_find_attr (xml_node_t *node,
+    xml_find_attr (ncx_instance_t *instance,
+                   xml_node_t *node,
                    xmlns_id_t        nsid,
                    const xmlChar    *attrname)
 {
 #ifdef DEBUG
     if (!node || !attrname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    return xml_find_attr_q(&node->attrs, nsid, attrname);
+    return xml_find_attr_q(instance, &node->attrs, nsid, attrname);
 
 }  /* xml_find_attr */
 
@@ -1374,7 +1389,8 @@ xml_attr_t *
 *   pointer to found xml_attr_t or NULL if not found
 *********************************************************************/
 xml_attr_t *
-    xml_find_attr_q (xml_attrs_t *attrs,
+    xml_find_attr_q (ncx_instance_t *instance,
+                     xml_attrs_t *attrs,
                      xmlns_id_t        nsid,
                      const xmlChar    *attrname)
 {
@@ -1382,20 +1398,20 @@ xml_attr_t *
 
 #ifdef DEBUG
     if (!attrs || !attrname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (attr = (xml_attr_t *)dlq_firstEntry(attrs);
+    for (attr = (xml_attr_t *)dlq_firstEntry(instance, attrs);
          attr != NULL;
-         attr = (xml_attr_t *)dlq_nextEntry(attr)) {
+         attr = (xml_attr_t *)dlq_nextEntry(instance, attr)) {
         if (nsid && attr->attr_ns) {
             if (nsid==attr->attr_ns && 
-                !xml_strcmp(attr->attr_name, attrname)) {
+                !xml_strcmp(instance, attr->attr_name, attrname)) {
                 return attr;
             }
-        } else if (!xml_strcmp(attr->attr_name, attrname)) {
+        } else if (!xml_strcmp(instance, attr->attr_name, attrname)) {
             return attr;
         }
     }
@@ -1417,7 +1433,8 @@ xml_attr_t *
 *   pointer to found xml_attr_t or NULL if not found
 *********************************************************************/
 const xml_attr_t *
-    xml_find_ro_attr (const xml_node_t *node,
+    xml_find_ro_attr (ncx_instance_t *instance,
+                   const xml_node_t *node,
                    xmlns_id_t        nsid,
                    const xmlChar    *attrname)
 {
@@ -1425,20 +1442,20 @@ const xml_attr_t *
 
 #ifdef DEBUG
     if (!node || !attrname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    for (attr = (const xml_attr_t *)dlq_firstEntry(&node->attrs);
+    for (attr = (const xml_attr_t *)dlq_firstEntry(instance, &node->attrs);
          attr != NULL;
-         attr = (const xml_attr_t *)dlq_nextEntry(attr)) {
+         attr = (const xml_attr_t *)dlq_nextEntry(instance, attr)) {
         if (nsid && attr->attr_ns) {
             if (nsid==attr->attr_ns && 
-                !xml_strcmp(attr->attr_name, attrname)) {
+                !xml_strcmp(instance, attr->attr_name, attrname)) {
                 return attr;
             }
-        } else if (!xml_strcmp(attr->attr_name, attrname)) {
+        } else if (!xml_strcmp(instance, attr->attr_name, attrname)) {
             return attr;
         }
     }
@@ -1457,13 +1474,13 @@ const xml_attr_t *
 *   number of xmlChars before null terminator found
 *********************************************************************/
 uint32 
-    xml_strlen (const xmlChar *str)
+    xml_strlen (ncx_instance_t *instance, const xmlChar *str)
 {
     uint32  len = 0;
 
 #ifdef DEBUG
     if (!str) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -1494,14 +1511,15 @@ uint32
 *   number of xmlChars before null terminator found
 *********************************************************************/
 uint32 
-    xml_strlen_sp (const xmlChar *str,
+    xml_strlen_sp (ncx_instance_t *instance,
+                   const xmlChar *str,
                    boolean *sp)
 {
     uint32   len = 0;
 
 #ifdef DEBUG
     if (!str || !sp) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -1537,14 +1555,15 @@ uint32
 *   number of bytes copied to the result buffer, not including EOS
 *********************************************************************/
 uint32 
-    xml_strcpy (xmlChar *copyTo, 
+    xml_strcpy (ncx_instance_t *instance, 
+                xmlChar *copyTo, 
                 const xmlChar *copyFrom)
 {
     uint32  cnt;
 
 #ifdef DEBUG
     if (!copyTo || !copyFrom) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -1571,7 +1590,8 @@ uint32
 *   number of bytes copied to the result buffer
 *********************************************************************/
 uint32
-    xml_strncpy (xmlChar *copyTo, 
+    xml_strncpy (ncx_instance_t *instance, 
+                 xmlChar *copyTo, 
                  const xmlChar *copyFrom,
                  uint32  maxlen)
 {
@@ -1579,7 +1599,7 @@ uint32
 
 #ifdef DEBUG
     if (!copyTo || !copyFrom) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -1607,7 +1627,7 @@ uint32
 *   pointer to new string or NULL if some error
 *********************************************************************/
 xmlChar * 
-    xml_strdup (const xmlChar *copyFrom)
+    xml_strdup (ncx_instance_t *instance, const xmlChar *copyFrom)
 {
     
     xmlChar *str;
@@ -1615,15 +1635,15 @@ xmlChar *
 
 #ifdef DEBUG
     if (!copyFrom) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    len = xml_strlen(copyFrom);
+    len = xml_strlen(instance, copyFrom);
 
     /* get a string  buffer */
-    str = (xmlChar *)m__getMem(len+1);
+    str = (xmlChar *)m__getMem(instance, len+1);
     if (str==NULL) {
         return NULL;
     }
@@ -1650,19 +1670,20 @@ xmlChar *
 *   appendTo if no error or NULL if some error
 *********************************************************************/
 xmlChar * 
-    xml_strcat (xmlChar *appendTo,
+    xml_strcat (ncx_instance_t *instance,
+                xmlChar *appendTo,
                 const xmlChar *appendFrom)
 {
     uint32  len;
 
 #ifdef DEBUG
     if (!appendTo || !appendFrom) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    len = xml_strlen(appendTo);
+    len = xml_strlen(instance, appendTo);
     while (*appendFrom) {
         appendTo[len++] = *appendFrom++;
     }
@@ -1685,7 +1706,8 @@ xmlChar *
 *   appendTo if no error or NULL if some error
 *********************************************************************/
 xmlChar * 
-    xml_strncat (xmlChar *appendTo,
+    xml_strncat (ncx_instance_t *instance,
+                 xmlChar *appendTo,
                  const xmlChar *appendFrom,
                  uint32 maxlen)
 {
@@ -1693,12 +1715,12 @@ xmlChar *
 
 #ifdef DEBUG
     if (!appendTo || !appendFrom || !maxlen) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    len = xml_strlen(appendTo);
+    len = xml_strlen(instance, appendTo);
     while (*appendFrom && maxlen--) {
         appendTo[len++] = *appendFrom++;
     }
@@ -1720,7 +1742,8 @@ xmlChar *
 *   pointer to new string or NULL if some error
 *********************************************************************/
 xmlChar * 
-    xml_strndup (const xmlChar *copyFrom, 
+    xml_strndup (ncx_instance_t *instance, 
+                 const xmlChar *copyFrom, 
                  uint32 maxlen)
 {
     xmlChar *str;
@@ -1728,15 +1751,15 @@ xmlChar *
 
 #ifdef DEBUG
     if (!copyFrom) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    len = min(maxlen, xml_strlen(copyFrom));
+    len = min(maxlen, xml_strlen(instance, copyFrom));
 
     /* get a string buffer */
-    str = (xmlChar *)m__getMem(len+1);
+    str = (xmlChar *)m__getMem(instance, len+1);
     if (str==NULL) {
         return NULL;
     }
@@ -1762,7 +1785,8 @@ xmlChar *
 *   pointer to new string or NULL if some error
 *********************************************************************/
 char * 
-    xml_ch_strndup (const char *copyFrom, 
+    xml_ch_strndup (ncx_instance_t *instance, 
+                    const char *copyFrom, 
                     uint32 maxlen)
 {
     char *str;
@@ -1770,7 +1794,7 @@ char *
 
 #ifdef DEBUG
     if (!copyFrom) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -1778,7 +1802,7 @@ char *
     len = min(maxlen, (uint32)strlen(copyFrom));
 
     /* get a string buffer */
-    str = (char *)m__getMem(len+1);
+    str = (char *)m__getMem(instance, len+1);
     if (str==NULL) {
         return NULL;
     }
@@ -1807,12 +1831,13 @@ char *
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 int 
-    xml_strcmp (const xmlChar *s1, 
+    xml_strcmp (ncx_instance_t *instance, 
+                const xmlChar *s1, 
                 const xmlChar *s2)
 {
 #ifdef DEBUG
     if (!s1 || !s2) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -1846,14 +1871,15 @@ int
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 int 
-    xml_stricmp (const xmlChar *s1, 
+    xml_stricmp (ncx_instance_t *instance, 
+                 const xmlChar *s1, 
                  const xmlChar *s2)
 {
     xmlChar s1char, s2char;
 
 #ifdef DEBUG
     if (s1 == NULL || s2 == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -1890,7 +1916,8 @@ int
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 int 
-    xml_strncmp (const xmlChar *s1, 
+    xml_strncmp (ncx_instance_t *instance, 
+                 const xmlChar *s1, 
                  const xmlChar *s2,
                  uint32 maxlen)
 {
@@ -1898,7 +1925,7 @@ int
 
 #ifdef DEBUG
     if (!s1 || !s2) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -1936,7 +1963,8 @@ int
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 int 
-    xml_strnicmp (const xmlChar *s1, 
+    xml_strnicmp (ncx_instance_t *instance, 
+                  const xmlChar *s1, 
                   const xmlChar *s2,
                   uint32 maxlen)
 {
@@ -1945,7 +1973,7 @@ int
 
 #ifdef DEBUG
     if (s1 == NULL || s2 == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -2002,11 +2030,11 @@ boolean
 *   TRUE if all whitespace, FALSE otherwise
 *********************************************************************/
 boolean
-    xml_isspace_str (const xmlChar *str)
+    xml_isspace_str (ncx_instance_t *instance, const xmlChar *str)
 {
 #ifdef DEBUG
     if (!str) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return TRUE;
     }
 #endif
@@ -2043,12 +2071,13 @@ boolean
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 int 
-    xml_strcmp_nosp (const xmlChar *s1, 
+    xml_strcmp_nosp (ncx_instance_t *instance, 
+                     const xmlChar *s1, 
                      const xmlChar *s2)
 {
 #ifdef DEBUG
     if (!s1 || !s2) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return 0;
     }
 #endif
@@ -2116,7 +2145,7 @@ int
 *   pointer to new malloced string
 *********************************************************************/
 xmlChar *
-    xml_copy_clean_string (const xmlChar *str)
+    xml_copy_clean_string (ncx_instance_t *instance, const xmlChar *str)
 {
     const xmlChar *newstart, *endstr;
     xmlChar       *newstr;
@@ -2125,13 +2154,13 @@ xmlChar *
 
 #ifdef DEBUG
     if (!str) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
     allwhitespace = FALSE;
-    len = xml_strlen(str);
+    len = xml_strlen(instance, str);
     newlen = len;
     newstart = NULL;
 
@@ -2155,16 +2184,16 @@ xmlChar *
         }
     }
 
-    newstr = (xmlChar *)m__getMem(newlen+1);
+    newstr = (xmlChar *)m__getMem(instance, newlen+1);
     if (!newstr) {
-        SET_ERROR(ERR_INTERNAL_MEM);
+        SET_ERROR(instance, ERR_INTERNAL_MEM);
         return NULL;
     }
 
     if (len == newlen) {
-        xml_strcpy(newstr, str);
+        xml_strcpy(instance, newstr, str);
     } else {
-        xml_strncpy(newstr, newstart, newlen);
+        xml_strncpy(instance, newstr, newstart, newlen);
     }
 
     return newstr;
@@ -2185,7 +2214,8 @@ xmlChar *
 *   converted xmlChar
 *********************************************************************/
 xmlChar
-    xml_convert_char_entity (const xmlChar *str, 
+    xml_convert_char_entity (ncx_instance_t *instance, 
+                             const xmlChar *str, 
                              uint32 *used)
 {
     xmlChar buff[MAX_CHAR_ENT+1];
@@ -2193,7 +2223,7 @@ xmlChar
 
 #ifdef DEBUG
     if (!str || !used) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return (xmlChar)' ';   /* error -- return blank */
     }
 #endif
@@ -2217,7 +2247,7 @@ xmlChar
     /* look up the name in the conversion table */
     i = 0;
     while (chcvt[i].chstr) {
-        if (!xml_strcmp(chcvt[i].chstr, buff)) {
+        if (!xml_strcmp(instance, chcvt[i].chstr, buff)) {
             return chcvt[i].ch;
         }
         i++;
@@ -2249,7 +2279,8 @@ xmlChar
 *   status; could be error if namespace specified but not supported
 *********************************************************************/
 status_t
-    xml_check_ns (xmlTextReaderPtr reader,
+    xml_check_ns (ncx_instance_t *instance,
+                  xmlTextReaderPtr reader,
                   const xmlChar   *elname,
                   xmlns_id_t       *id,
                   uint32           *pfix_len,
@@ -2260,7 +2291,7 @@ status_t
 
 #ifdef DEBUG
     if (!reader || !elname || !id || !pfix_len || !badns) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2281,11 +2312,11 @@ status_t
     /* check the namespace associated with this node */
     str = xmlTextReaderConstNamespaceUri(reader);
     if (str != NULL) {
-        ns = def_reg_find_ns(str);
+        ns = def_reg_find_ns(instance, str);
         if (ns) {
             *id = ns->ns_id;
         } else {
-            *id = xmlns_inv_id();
+            *id = xmlns_inv_id(instance);
             *badns = str;
             return ERR_NCX_UNKNOWN_NS;
         }
@@ -2311,7 +2342,8 @@ status_t
 *    
 *********************************************************************/
 void
-    xml_check_qname_content (xmlTextReaderPtr reader,
+    xml_check_qname_content (ncx_instance_t *instance,
+                             xmlTextReaderPtr reader,
                              xml_node_t      *node)
 {
     xmlChar *str, *ns;
@@ -2328,14 +2360,14 @@ void
         *str = 0;
         ns = xmlTextReaderLookupNamespace(reader, node->simfree);
         if (ns) {
-            node->contentnsid = xmlns_find_ns_by_name(ns);
+            node->contentnsid = xmlns_find_ns_by_name(instance, ns);
             xmlFree(ns);
         }
         *str = ':';
     } else {
         ns = xmlTextReaderLookupNamespace(reader, NULL);
         if (ns) {
-            node->contentnsid = xmlns_find_ns_by_name(ns);
+            node->contentnsid = xmlns_find_ns_by_name(instance, ns);
             xmlFree(ns);
         }
     }
@@ -2363,7 +2395,8 @@ void
 *   status
 *********************************************************************/
 status_t
-    xml_get_namespace_id (xmlTextReaderPtr reader,
+    xml_get_namespace_id (ncx_instance_t *instance,
+                          xmlTextReaderPtr reader,
                           const xmlChar *prefix,
                           uint32 prefixlen,
                           xmlns_id_t  *retnsid)
@@ -2372,27 +2405,27 @@ status_t
 
 #ifdef DEBUG
     if (!reader || !retnsid) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     *retnsid = 0;
 
     if (prefix && prefixlen) {
-        str = xml_strndup(prefix, prefixlen);
+        str = xml_strndup(instance, prefix, prefixlen);
         if (!str) {
             return ERR_INTERNAL_MEM;
         }
         ns = xmlTextReaderLookupNamespace(reader, str);
         if (ns) {
-            *retnsid = xmlns_find_ns_by_name(ns);
+            *retnsid = xmlns_find_ns_by_name(instance, ns);
             xmlFree(ns);
         }
-        m__free(str);
+        m__free(instance, str);
     } else {
         ns = xmlTextReaderLookupNamespace(reader, NULL);
         if (ns) {
-            *retnsid = xmlns_find_ns_by_name(ns);
+            *retnsid = xmlns_find_ns_by_name(instance, ns);
 
             xmlFree(ns);
         }
@@ -2430,7 +2463,8 @@ status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    xml_consume_node (xmlTextReaderPtr reader,
+    xml_consume_node (ncx_instance_t *instance,
+                      xmlTextReaderPtr reader,
                       xml_node_t  *xmlnode,
                       boolean nserr,
                       boolean adv)
@@ -2444,7 +2478,7 @@ status_t
 
 #ifdef DEBUG
     if (reader == NULL || xmlnode == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -2471,7 +2505,7 @@ status_t
         xmlnode->depth = xmlTextReaderDepth(reader);
         if (xmlnode->depth == -1) {
             /* this never actaully happens */
-            SET_ERROR(ERR_XML_READER_INTERNAL);
+            SET_ERROR(instance, ERR_XML_READER_INTERNAL);
             xmlnode->depth = 0;
         }
 
@@ -2499,7 +2533,8 @@ status_t
         default:
             /* unused node type -- keep trying */
 #ifdef XML_UTIL_DEBUG
-            log_debug3("\nxml_consume_node: skip unused node (%s)",
+            log_debug3(instance,
+                   "\nxml_consume_node: skip unused node (%s)",
                    xml_get_node_name(nodetyp));
 #endif
             if (done) {
@@ -2515,7 +2550,7 @@ status_t
     case XML_NT_END:
     case XML_NT_EMPTY:
         /* get the element QName */
-        namestr = xml_strdup(xmlTextReaderConstName(reader));
+        namestr = xml_strdup(instance, xmlTextReaderConstName(reader));
         if (!namestr) {
             res = ERR_INTERNAL_MEM;
         } else {
@@ -2525,13 +2560,14 @@ status_t
              * only error returned is unknown-namespace 
              */
             len = 0;
-            res = xml_check_ns(reader, 
+            res = xml_check_ns(instance, 
+                               reader, 
                                namestr, 
                                &xmlnode->nsid, 
                                &len, 
                                &badns);
             if (!nserr && res != NO_ERR) {
-                xmlnode->nsid = xmlns_inv_id();
+                xmlnode->nsid = xmlns_inv_id(instance);
                 res = NO_ERR;
             }
             
@@ -2540,12 +2576,12 @@ status_t
         
             /* get all the attributes, except for XML_NT_END */
             if (xmlnode->nodetyp != XML_NT_END) {
-                res2 = get_attrs(reader, &xmlnode->attrs, nserr);
+                res2 = get_attrs(instance, reader, &xmlnode->attrs, nserr);
             }
 
             /* Set the node module */
             if (xmlnode->nsid) {
-                xmlnode->module = xmlns_get_module(xmlnode->nsid);
+                xmlnode->module = xmlns_get_module(instance, xmlnode->nsid);
             } else {
                 /* no entry, use the default owner (netconf) */
                 xmlnode->module = NCX_DEF_MODULE;
@@ -2557,14 +2593,14 @@ status_t
         xmlnode->simval = NULL;
         valstr = xmlTextReaderValue(reader);
         if (valstr) {
-            xmlnode->simfree = xml_copy_clean_string(valstr);
+            xmlnode->simfree = xml_copy_clean_string(instance, valstr);
             if (xmlnode->simfree) {
-                xmlnode->simlen = xml_strlen(xmlnode->simfree);
+                xmlnode->simlen = xml_strlen(instance, xmlnode->simfree);
                 xmlnode->simval = (const xmlChar *)xmlnode->simfree;
             }
 
             /* see if this is a QName string; if so save the NSID */
-            xml_check_qname_content(reader, xmlnode);
+            xml_check_qname_content(instance, reader, xmlnode);
 
             xmlFree(valstr);
         }
@@ -2580,10 +2616,11 @@ status_t
     }
 
 #ifdef XML_UTIL_DEBUG
-    log_debug3("\nxml_consume_node: return (%d)", 
+    log_debug3(instance, 
+           "\nxml_consume_node: return (%d)", 
            (res==NO_ERR) ? res2 : res);
     if (LOGDEBUG3) {
-        xml_dump_node(xmlnode);
+        xml_dump_node(instance, xmlnode);
     }
 #endif
 

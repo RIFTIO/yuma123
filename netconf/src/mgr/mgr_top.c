@@ -127,7 +127,7 @@ date         init     comment
 *  none
 *********************************************************************/
 void
-    mgr_top_dispatch_msg (ses_cb_t  *scb)
+    mgr_top_dispatch_msg (ncx_instance_t *instance, ses_cb_t  *scb)
 {
     xml_node_t     top;
     status_t       res;
@@ -135,37 +135,38 @@ void
 
 #ifdef DEBUG
     if (!scb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    xml_init_node(&top);
+    xml_init_node(instance, &top);
 
     /* get the first node */
-    res = mgr_xml_consume_node(scb->reader, &top);
+    res = mgr_xml_consume_node(instance, scb->reader, &top);
     if (res != NO_ERR) {
-        log_info("\nmgr_top: get node failed (%s); session dropped", 
+        log_info(instance, 
+                 "\nmgr_top: get node failed (%s); session dropped", 
                  get_error_string(res));
-        xml_clean_node(&top);
+        xml_clean_node(instance, &top);
         scb->state = SES_ST_SHUTDOWN_REQ;
         return;
     }
 
 #ifdef MGR_TOP_DEBUG
     if (LOGDEBUG3) {
-        log_debug3("\nmgr_top: got node");
-        xml_dump_node(&top);
+        log_debug3(instance, "\nmgr_top: got node");
+        xml_dump_node(instance, &top);
     }
 #endif
 
     /* check node type and if handler exists, then call it */
     if (top.nodetyp==XML_NT_START || top.nodetyp==XML_NT_EMPTY) {
         /* find the module, elname tuple in the topQ */
-        handler = top_find_handler(top.module, top.elname);
+        handler = top_find_handler(instance, top.module, top.elname);
         if (handler) {
             /* call the handler */
-            (*handler)(scb, &top);
+            (*handler)(instance, scb, &top);
         } else {
             res = ERR_NCX_DEF_NOT_FOUND;
         }
@@ -175,11 +176,12 @@ void
 
     /* check any error trying to invoke the top handler */
     if (res != NO_ERR) {
-        log_error("\nError: agt_top skipped msg for session %d (%s)",
+        log_error(instance,
+                  "\nError: agt_top skipped msg for session %d (%s)",
                   scb->sid, get_error_string(res));
     }
 
-    xml_clean_node(&top);
+    xml_clean_node(instance, &top);
 
 } /* mgr_top_dispatch_msg */
 

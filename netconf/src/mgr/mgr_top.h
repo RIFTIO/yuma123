@@ -62,7 +62,7 @@ extern "C" {
 *  none
 *********************************************************************/
 extern void
-    mgr_top_dispatch_msg (ses_cb_t  *scb);
+    mgr_top_dispatch_msg (struct ncx_instance_t_ *instance, ses_cb_t  *scb);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

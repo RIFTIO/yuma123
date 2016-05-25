@@ -71,20 +71,22 @@ typedef struct y_toaster_T_toastDone_ {
 /* send a y_toaster_toastDone notification */
 extern void
     y_toaster_toastDone_send (
-    const xmlChar *toastStatus);
+        struct ncx_instance_t_ *instance,
+        const xmlChar *toastStatus);
 
 /* toaster module init 1 */
 extern status_t
     y_toaster_init (
+        struct ncx_instance_t_ *instance,
         const xmlChar *modname,
         const xmlChar *revision);
 
 /* toaster module init 2 */
 extern status_t
-    y_toaster_init2 (void);
+    y_toaster_init2 (struct ncx_instance_t_ *instance);
 
 /* toaster module cleanup */
 extern void
-    y_toaster_cleanup (void);
+    y_toaster_cleanup (struct ncx_instance_t_ *instance);
 
 #endif

@@ -82,7 +82,8 @@ extern "C" {
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    yang_ext_consume_extension (tk_chain_t *tkc,
+    yang_ext_consume_extension (struct ncx_instance_t_ *instance,
+				tk_chain_t *tkc,
 				ncx_module_t  *mod);
 
 

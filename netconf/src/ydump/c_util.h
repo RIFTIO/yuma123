@@ -190,7 +190,8 @@ typedef struct c_define_t_ {
 *  FALSE if no RPCs found
 *********************************************************************/
 extern boolean
-    need_rpc_includes (const ncx_module_t *mod,
+    need_rpc_includes (struct ncx_instance_t_ *instance,
+                       const ncx_module_t *mod,
                        const yangdump_cvtparms_t *cp);
 
 
@@ -208,7 +209,8 @@ extern boolean
 *   FALSE if no notifications found
 *********************************************************************/
 extern boolean
-    need_notif_includes (const ncx_module_t *mod,
+    need_notif_includes (struct ncx_instance_t_ *instance,
+                         const ncx_module_t *mod,
                          const yangdump_cvtparms_t *cp);
 
 
@@ -222,7 +224,8 @@ extern boolean
 *   strval == string value
 *********************************************************************/
 extern void
-    write_c_safe_str (ses_cb_t *scb,
+    write_c_safe_str (struct ncx_instance_t_ *instance,
+                      ses_cb_t *scb,
                       const xmlChar *strval);
 
 
@@ -237,7 +240,8 @@ extern void
 *   quotes == quotes style (0, 1, 2)
 *********************************************************************/
 extern void
-    write_c_str (ses_cb_t *scb,
+    write_c_str (struct ncx_instance_t_ *instance,
+                 ses_cb_t *scb,
                  const xmlChar *strval,
                  uint32 quotes);
 
@@ -255,7 +259,8 @@ extern void
 *   quotes == quotes style (0, 1, 2)
 *********************************************************************/
 extern void
-    write_c_simple_str (ses_cb_t *scb,
+    write_c_simple_str (struct ncx_instance_t_ *instance,
+                        ses_cb_t *scb,
                         const xmlChar *kwname,
                         const xmlChar *strval,
                         int32 indent,
@@ -279,7 +284,8 @@ extern void
 *             FALSE if YUMA SIL file
 *********************************************************************/
 extern void
-    write_identifier (ses_cb_t *scb,
+    write_identifier (struct ncx_instance_t_ *instance,
+                      ses_cb_t *scb,
                       const xmlChar *modname,
                       const xmlChar *defpart,
                       const xmlChar *idname,
@@ -299,7 +305,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_ext_include (ses_cb_t *scb,
+    write_ext_include (struct ncx_instance_t_ *instance,
+                       ses_cb_t *scb,
                        const xmlChar *hfile);
 
 
@@ -317,7 +324,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_ncx_include (ses_cb_t *scb,
+    write_ncx_include (struct ncx_instance_t_ *instance,
+                       ses_cb_t *scb,
                        const xmlChar *modname);
 
 
@@ -333,7 +341,8 @@ extern void
 *   cvttyp == format enum to use
 *********************************************************************/
 extern void
-    write_cvt_include (ses_cb_t *scb,
+    write_cvt_include (struct ncx_instance_t_ *instance,
+                       ses_cb_t *scb,
                        const xmlChar *modname,
                        ncx_cvttyp_t cvttyp);
 
@@ -350,7 +359,7 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_qheader (ses_cb_t *scb);
+    write_qheader (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -375,7 +384,8 @@ extern void
 *   An error message will be generated if this type of error occurs
 *********************************************************************/
 extern status_t
-    save_oid_cdefine (dlq_hdr_t *cdefineQ,
+    save_oid_cdefine (struct ncx_instance_t_ *instance,
+                      dlq_hdr_t *cdefineQ,
                       const xmlChar *modname,
                       const xmlChar *defname);
 
@@ -403,7 +413,8 @@ extern status_t
 *   An error message will be generated if this type of error occurs
 *********************************************************************/
 extern status_t
-    save_path_cdefine (dlq_hdr_t *cdefineQ,
+    save_path_cdefine (struct ncx_instance_t_ *instance,
+                       dlq_hdr_t *cdefineQ,
                        const xmlChar *modname,
                        obj_template_t *obj,
                        c_mode_t cmode);
@@ -424,7 +435,8 @@ extern status_t
 *   NULL if not found
 *********************************************************************/
 extern c_define_t *
-    find_path_cdefine (dlq_hdr_t *cdefineQ,
+    find_path_cdefine (struct ncx_instance_t_ *instance,
+                       dlq_hdr_t *cdefineQ,
                        const obj_template_t *obj);
 
 
@@ -437,7 +449,7 @@ extern c_define_t *
 *   cdefineQ == Q of c_define_t structs to use
 *********************************************************************/
 extern void
-    clean_cdefineQ (dlq_hdr_t *cdefineQ);
+    clean_cdefineQ (struct ncx_instance_t_ *instance, dlq_hdr_t *cdefineQ);
 
 
 
@@ -453,7 +465,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_c_header (ses_cb_t *scb,
+    write_c_header (struct ncx_instance_t_ *instance,
+                    ses_cb_t *scb,
                     const ncx_module_t *mod,
                     const yangdump_cvtparms_t *cp);
 
@@ -469,7 +482,8 @@ extern void
 *   cp == conversion parameters to use
 *********************************************************************/
 extern void
-    write_c_footer (ses_cb_t *scb,
+    write_c_footer (struct ncx_instance_t_ *instance,
+                    ses_cb_t *scb,
                     const ncx_module_t *mod,
                     const yangdump_cvtparms_t *cp);
 
@@ -485,7 +499,8 @@ extern void
 *
 **********************************************************************/
 extern void
-    write_c_objtype (ses_cb_t *scb,
+    write_c_objtype (struct ncx_instance_t_ *instance,
+                     ses_cb_t *scb,
                      const obj_template_t *obj);
 
 
@@ -509,7 +524,8 @@ extern void
 *               !! only affects complex types, not simple types
 **********************************************************************/
 extern void
-    write_c_objtype_ex (ses_cb_t *scb,
+    write_c_objtype_ex (struct ncx_instance_t_ *instance,
+                        ses_cb_t *scb,
                         const obj_template_t *obj,
                         dlq_hdr_t  *cdefQ,
                         xmlChar endchar,
@@ -545,7 +561,8 @@ extern void
 *            ignored if usename == TRUE
 **********************************************************************/
 extern void
-    write_c_objtype_max (ses_cb_t *scb,
+    write_c_objtype_max (struct ncx_instance_t_ *instance,
+                         ses_cb_t *scb,
                          const obj_template_t *obj,
                          dlq_hdr_t *cdefQ,
                          xmlChar endchar,
@@ -568,7 +585,8 @@ extern void
 *
 **********************************************************************/
 extern void
-    write_c_val_macro_type (ses_cb_t *scb,
+    write_c_val_macro_type (struct ncx_instance_t_ *instance,
+                            ses_cb_t *scb,
                             const obj_template_t *obj);
 
 
@@ -583,7 +601,8 @@ extern void
 *
 **********************************************************************/
 extern void
-    write_c_oid_comment (ses_cb_t *scb,
+    write_c_oid_comment (struct ncx_instance_t_ *instance,
+                         ses_cb_t *scb,
                          const obj_template_t *obj);
 
 
@@ -605,7 +624,8 @@ extern void
 *  status
 *********************************************************************/
 extern status_t
-    save_c_objects (ncx_module_t *mod,
+    save_c_objects (struct ncx_instance_t_ *instance,
+                    ncx_module_t *mod,
                     dlq_hdr_t *datadefQ,
                     dlq_hdr_t *savecdefQ,
                     c_mode_t cmode);
@@ -629,7 +649,8 @@ extern status_t
 *  status
 *********************************************************************/
 extern status_t
-    save_all_c_objects (ncx_module_t *mod,
+    save_all_c_objects (struct ncx_instance_t_ *instance,
+                        ncx_module_t *mod,
                         const yangdump_cvtparms_t *cp,
                         dlq_hdr_t *savecdefQ,
                         c_mode_t cmode);
@@ -649,7 +670,7 @@ extern status_t
 *  FALSE if object should not be skipped
 *********************************************************************/
 extern boolean
-    skip_c_top_object (obj_template_t *obj);
+    skip_c_top_object (struct ncx_instance_t_ *instance, obj_template_t *obj);
 
 
 /********************************************************************
@@ -667,7 +688,8 @@ extern boolean
 *
 *********************************************************************/
 extern void
-    write_c_key_params(ses_cb_t *scb,
+    write_c_key_params(struct ncx_instance_t_ *instance,
+                       ses_cb_t *scb,
                        obj_template_t *obj, 
                        dlq_hdr_t *objnameQ,
                        uint32 keycount,
@@ -690,7 +712,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_c_key_vars (ses_cb_t *scb, 
+    write_c_key_vars (struct ncx_instance_t_ *instance, 
+                      ses_cb_t *scb, 
                       obj_template_t *obj, 
                       dlq_hdr_t *objnameQ, 
                       const xmlChar *parmname,
@@ -713,7 +736,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_c_key_values (ses_cb_t *scb, 
+    write_c_key_values (struct ncx_instance_t_ *instance, 
+                        ses_cb_t *scb, 
                         obj_template_t *obj, 
                         dlq_hdr_t *objnameQ, 
                         uint32 keycount,
@@ -731,7 +755,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_h_iffeature_start (ses_cb_t *scb,
+    write_h_iffeature_start (struct ncx_instance_t_ *instance,
+                             ses_cb_t *scb,
                              const dlq_hdr_t *iffeatureQ);
 
 
@@ -746,7 +771,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_h_iffeature_end (ses_cb_t *scb,
+    write_h_iffeature_end (struct ncx_instance_t_ *instance,
+                           ses_cb_t *scb,
                            const dlq_hdr_t *iffeatureQ);
 
 #ifdef __cplusplus

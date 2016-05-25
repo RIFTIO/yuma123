@@ -97,7 +97,7 @@ extern "C" {
 *    malloced appinfo entry or NULL if malloc error
 *********************************************************************/
 extern ncx_appinfo_t * 
-    ncx_new_appinfo (boolean isclone);
+    ncx_new_appinfo (struct ncx_instance_t_ *instance, boolean isclone);
 
 
 /********************************************************************
@@ -109,7 +109,7 @@ extern ncx_appinfo_t *
 *    appinfo == ncx_appinfo_t data structure to free
 *********************************************************************/
 extern void 
-    ncx_free_appinfo (ncx_appinfo_t *appinfo);
+    ncx_free_appinfo (struct ncx_instance_t_ *instance, ncx_appinfo_t *appinfo);
 
 
 /********************************************************************
@@ -130,7 +130,8 @@ extern void
 *    NULL if the entry is not found
 *********************************************************************/
 extern ncx_appinfo_t *
-    ncx_find_appinfo (dlq_hdr_t *appinfoQ,
+    ncx_find_appinfo (struct ncx_instance_t_ *instance,
+		      dlq_hdr_t *appinfoQ,
 		      const xmlChar *prefix,
 		      const xmlChar *varname);
 
@@ -153,7 +154,8 @@ extern ncx_appinfo_t *
 *    NULL if the entry is not found
 *********************************************************************/
 extern const ncx_appinfo_t *
-    ncx_find_const_appinfo (const dlq_hdr_t *appinfoQ,
+    ncx_find_const_appinfo (struct ncx_instance_t_ *instance,
+                            const dlq_hdr_t *appinfoQ,
                             const xmlChar *prefix,
                             const xmlChar *varname);
 
@@ -177,7 +179,8 @@ extern const ncx_appinfo_t *
 *    NULL if the entry is not found
 *********************************************************************/
 extern const ncx_appinfo_t *
-    ncx_find_next_appinfo (const ncx_appinfo_t *current,
+    ncx_find_next_appinfo (struct ncx_instance_t_ *instance,
+			   const ncx_appinfo_t *current,
 			   const xmlChar *prefix,
 			   const xmlChar *varname);
 
@@ -201,7 +204,8 @@ extern const ncx_appinfo_t *
 *    NULL if the entry is not found
 *********************************************************************/
 extern ncx_appinfo_t *
-    ncx_find_next_appinfo2 (ncx_appinfo_t *current,
+    ncx_find_next_appinfo2 (struct ncx_instance_t_ *instance,
+                            ncx_appinfo_t *current,
                             const xmlChar *prefix,
                             const xmlChar *varname);
 
@@ -219,7 +223,7 @@ extern ncx_appinfo_t *
 *    NULL if a malloc error
 *********************************************************************/
 extern ncx_appinfo_t *
-    ncx_clone_appinfo (ncx_appinfo_t *appinfo);
+    ncx_clone_appinfo (struct ncx_instance_t_ *instance, ncx_appinfo_t *appinfo);
 
 
 /********************************************************************
@@ -232,7 +236,7 @@ extern ncx_appinfo_t *
 *    appinfoQ == Q of ncx_appinfo_t data structures to free
 *********************************************************************/
 extern void 
-    ncx_clean_appinfoQ (dlq_hdr_t *appinfoQ);
+    ncx_clean_appinfoQ (struct ncx_instance_t_ *instance, dlq_hdr_t *appinfoQ);
 
 
 /********************************************************************
@@ -254,7 +258,8 @@ extern void
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_consume_appinfo (tk_chain_t *tkc,
+    ncx_consume_appinfo (struct ncx_instance_t_ *instance,
+			 tk_chain_t *tkc,
 			 ncx_module_t  *mod,
 			 dlq_hdr_t *appinfoQ);
 
@@ -281,7 +286,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_consume_appinfo2 (tk_chain_t *tkc,
+    ncx_consume_appinfo2 (struct ncx_instance_t_ *instance,
+			  tk_chain_t *tkc,
 			  ncx_module_t  *mod,
 			  dlq_hdr_t *appinfoQ);
 
@@ -304,7 +310,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    ncx_resolve_appinfoQ (yang_pcb_t *pcb,
+    ncx_resolve_appinfoQ (struct ncx_instance_t_ *instance,
+                          yang_pcb_t *pcb,
                           tk_chain_t *tkc,
 			  ncx_module_t  *mod,
 			  dlq_hdr_t *appinfoQ);
@@ -324,7 +331,7 @@ extern status_t
 *    NULL if no value
 *********************************************************************/
 extern const xmlChar *
-    ncx_get_appinfo_value (const ncx_appinfo_t *appinfo);
+    ncx_get_appinfo_value (struct ncx_instance_t_ *instance, const ncx_appinfo_t *appinfo);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

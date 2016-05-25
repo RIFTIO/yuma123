@@ -22,6 +22,7 @@
 #include "xpath.h"
 #include "xpath_wr.h"
 #include "xpath_yang.h"
+#include "xml_rd.h"
 
 static int my_ses_read_cb (void* context, char* buffer, int len)
 {
@@ -43,41 +44,42 @@ static int my_ses_read_cb (void* context, char* buffer, int len)
 *    status
 *********************************************************************/
 status_t
-    xml_rd_open_file (FILE *fp,
+    xml_rd_open_file (ncx_instance_t *instance,
+                      FILE *fp,
                       obj_template_t *obj, 
                       val_value_t **val)
 {
     xml_node_t     top;
     status_t       res;
     /* get a dummy session control block */
-    ses_cb_t *scb = ses_new_dummy_scb();
+    ses_cb_t *scb = ses_new_dummy_scb(instance);
     if (!scb) {
         return ERR_INTERNAL_MEM;
     }
     scb->fp = fp;
-    res = xml_get_reader_for_session(my_ses_read_cb,
+    res = xml_get_reader_for_session(instance, my_ses_read_cb,
                                      NULL, scb/*context*/, &scb->reader);
     if(res != NO_ERR) {
         return res;
     }
     /* parse */
-    *val = val_new_value();
+    *val = val_new_value(instance);
     if(*val == NULL) {
         return ERR_INTERNAL_MEM;
     }
-    xml_init_node(&top);
+    xml_init_node(instance, &top);
     
-    res = xml_consume_node(scb->reader, &top, TRUE, TRUE);
+    res = xml_consume_node(instance, scb->reader, &top, TRUE, TRUE);
     if (res != NO_ERR) {
         return res;
     }
 
-    res = val_parse(scb, obj, &top, *val);
+    res = val_parse(instance, scb, obj, &top, *val);
 
     scb->fp = NULL; /* skip fclose inside ses_free_scb */
-    ses_free_scb(scb);
+    ses_free_scb(instance, scb);
 
-    xml_clean_node(&top);
+    xml_clean_node(instance, &top);
 
     return res;
 

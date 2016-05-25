@@ -132,37 +132,37 @@ static boolean mgr_shutdown;
 *   status of the initialization procedure
 *********************************************************************/
 status_t 
-    mgr_init (void)
+    mgr_init (ncx_instance_t *instance)
 {
     status_t  res;
 
     if (mgr_init_done) {
-        log_info("\nManager Init Redo skipped...");
+        log_info(instance, "\nManager Init Redo skipped...");
         return NO_ERR;
     }
 
 #ifdef MGR_DEBUG
-    log_debug3("\nManager Init Starting...");
+    log_debug3(instance, "\nManager Init Starting...");
 #endif
 
     mgr_shutdown = FALSE;
 
-    res = mgr_cap_set_caps();
+    res = mgr_cap_set_caps(instance);
     if (res != NO_ERR) {
         return res;
     }
 
-    res = mgr_rpc_init();
+    res = mgr_rpc_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
-    res = mgr_not_init();
+    res = mgr_not_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
-    res = mgr_hello_init();
+    res = mgr_hello_init(instance);
     if (res != NO_ERR) {
         return res;
     }
@@ -186,18 +186,18 @@ status_t
 *
 *********************************************************************/
 void
-    mgr_cleanup (void)
+    mgr_cleanup (ncx_instance_t *instance)
 {
     if (mgr_init_done) {
 #ifdef MGR_DEBUG
-        log_debug3("\nManager Cleanup Starting...\n");
+        log_debug3(instance, "\nManager Cleanup Starting...\n");
 #endif
 
-        mgr_cap_cleanup();
-        mgr_rpc_cleanup();
-        mgr_not_cleanup();
-        mgr_ses_cleanup();
-        mgr_hello_cleanup();
+        mgr_cap_cleanup(instance);
+        mgr_rpc_cleanup(instance);
+        mgr_not_cleanup(instance);
+        mgr_ses_cleanup(instance);
+        mgr_hello_cleanup(instance);
         mgr_signal_cleanup();
         mgr_shutdown = FALSE;
         mgr_init_done = FALSE;
@@ -214,13 +214,13 @@ void
 *   manager session control block struct or NULL if malloc error
 *********************************************************************/
 mgr_scb_t *
-    mgr_new_scb (void)
+    mgr_new_scb (ncx_instance_t *instance)
 {
     mgr_scb_t *mscb;
 
-    mscb = m__getObj(mgr_scb_t);
+    mscb = m__getObj(instance, mgr_scb_t);
     if (mscb) {
-        mgr_init_scb(mscb);
+        mgr_init_scb(instance, mscb);
     }
     return mscb;
 
@@ -237,20 +237,20 @@ mgr_scb_t *
 *
 *********************************************************************/
 void
-    mgr_init_scb (mgr_scb_t *mscb)
+    mgr_init_scb (ncx_instance_t *instance, mgr_scb_t *mscb)
 {
 #ifdef DEBUG
     if (!mscb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     memset(mscb, 0x0, sizeof(mgr_scb_t));
-    cap_init_caplist(&mscb->caplist);
-    dlq_createSQue(&mscb->reqQ);
-    dlq_createSQue(&mscb->temp_modQ);
-    ncx_init_list(&mscb->temp_ync_features, NCX_BT_STRING);
+    cap_init_caplist(instance, &mscb->caplist);
+    dlq_createSQue(instance, &mscb->reqQ);
+    dlq_createSQue(instance, &mscb->temp_modQ);
+    ncx_init_list(instance, &mscb->temp_ync_features, NCX_BT_STRING);
     mscb->next_id = 1;
 
 }  /* mgr_init_scb */
@@ -265,17 +265,17 @@ void
 *   mscb == manager session control block struct to free
 *********************************************************************/
 void
-    mgr_free_scb (mgr_scb_t *mscb)
+    mgr_free_scb (ncx_instance_t *instance, mgr_scb_t *mscb)
 {
 #ifdef DEBUG
     if (!mscb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    mgr_clean_scb(mscb);
-    m__free(mscb);
+    mgr_clean_scb(instance, mscb);
+    m__free(instance, mscb);
 
 }  /* mgr_free_scb */
 
@@ -289,50 +289,51 @@ void
 *   mscb == manager session control block struct to clean
 *********************************************************************/
 void
-    mgr_clean_scb (mgr_scb_t *mscb)
+    mgr_clean_scb (ncx_instance_t *instance, mgr_scb_t *mscb)
 {
     ncx_module_t *mod;
 
 #ifdef DEBUG
     if (!mscb) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (mscb->temp_progcb && mscb->temp_sescb) {
-        ncxmod_free_session_tempdir(mscb->temp_progcb,
+        ncxmod_free_session_tempdir(instance,
+                                    mscb->temp_progcb,
                                     mscb->temp_sescb->sidnum);
         mscb->temp_progcb = NULL;
         mscb->temp_sescb = NULL;
     }
 
-    ncx_clean_list(&mscb->temp_ync_features);
+    ncx_clean_list(instance, &mscb->temp_ync_features);
     
-    cap_clean_caplist(&mscb->caplist);
+    cap_clean_caplist(instance, &mscb->caplist);
 
     if (mscb->root) {
-        val_free_value(mscb->root);
+        val_free_value(instance, mscb->root);
         mscb->root = NULL;
     }
 
     if (mscb->lastroot) {
-        val_free_value(mscb->lastroot);
+        val_free_value(instance, mscb->lastroot);
         mscb->lastroot = NULL;
     }
 
     if (mscb->chtime) {
-        m__free(mscb->chtime);
+        m__free(instance, mscb->chtime);
         mscb->chtime = NULL;
     }
 
     if (mscb->lastchtime) {
-        m__free(mscb->lastchtime);
+        m__free(instance, mscb->lastchtime);
         mscb->lastchtime = NULL;
     }
 
     if (mscb->target) {
-        m__free(mscb->target);
+        m__free(instance, mscb->target);
         mscb->target = NULL;
     }
 
@@ -347,12 +348,12 @@ void
         mscb->session = NULL;
     }
 
-    while (!dlq_empty(&mscb->temp_modQ)) {
-        mod = (ncx_module_t *)dlq_deque(&mscb->temp_modQ);
-        ncx_free_module(mod);
+    while (!dlq_empty(instance, &mscb->temp_modQ)) {
+        mod = (ncx_module_t *)dlq_deque(instance, &mscb->temp_modQ);
+        ncx_free_module(instance, mod);
     }
 
-    mgr_rpc_clean_requestQ(&mscb->reqQ);
+    mgr_rpc_clean_requestQ(instance, &mscb->reqQ);
 
 }  /* mgr_clean_scb */
 
@@ -364,9 +365,9 @@ void
 * 
 *********************************************************************/
 void
-    mgr_request_shutdown (void)
+    mgr_request_shutdown (ncx_instance_t *instance)
 {
-    log_debug3("\nmgr: shutdown requested\n");
+    log_debug3(instance, "\nmgr: shutdown requested\n");
     mgr_shutdown = TRUE;
 
 }  /* mgr_request_shutdown */
@@ -402,7 +403,8 @@ boolean
 *   status
 *********************************************************************/
 extern status_t
-    mgr_set_getvar_fn (ses_id_t  sid,
+    mgr_set_getvar_fn (ncx_instance_t *instance,
+                       ses_id_t  sid,
                        xpath_getvar_fn_t getvar_fn)
 {
     ses_cb_t               *scb;
@@ -412,7 +414,7 @@ extern status_t
     if (scb == NULL) {
         return ERR_NCX_NOT_FOUND;
     }
-    mscb = mgr_ses_get_mscb(scb);
+    mscb = mgr_ses_get_mscb(instance, scb);
     mscb->getvar_fn = getvar_fn;
     return NO_ERR;
 
@@ -429,22 +431,22 @@ extern status_t
 *   tolog == TRUE to print to log; FALSE to print to stdout
 *********************************************************************/
 void
-    mgr_print_libssh2_version (boolean tolog)
+    mgr_print_libssh2_version (ncx_instance_t *instance, boolean tolog)
 {
 
 #ifdef LIBSSH2_VERSION_MAJOR
 #ifdef LIBSSH2_VERSION_MINOR
 #if (LIBSSH2_VERSION_MAJOR >= 1 && LIBSSH2_VERSION_MINOR >= 1)
     if (tolog) {
-        log_write("libssh2 version %s", libssh2_version(0));
+        log_write(instance, "libssh2 version %s", libssh2_version(0));
     } else {
-        log_stdout("libssh2 version %s", libssh2_version(0));
+        log_stdout(instance, "libssh2 version %s", libssh2_version(0));
     }
 #else
     if (tolog) {
-        log_write("libssh2 version lower than 1.1 (unavailable)");
+        log_write(instance, "libssh2 version lower than 1.1 (unavailable)");
     } else {
-        log_stdout("libssh2 version lower than 1.1 (unavailable)");
+        log_stdout(instance, "libssh2 version lower than 1.1 (unavailable)");
     }
 #endif
 #endif

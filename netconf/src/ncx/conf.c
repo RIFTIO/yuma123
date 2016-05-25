@@ -172,13 +172,13 @@ date         init     comment
 *   status
 *********************************************************************/
 static status_t
-    adv_tk (tk_chain_t  *tkc)
+    adv_tk (ncx_instance_t *instance, tk_chain_t  *tkc)
 {
     status_t  res;
 
-    res = TK_ADV(tkc);
+    res = TK_ADV(instance, tkc);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, NULL, res);
+        ncx_print_errormsg(instance, tkc, NULL, res);
     }
     return res;
             
@@ -198,15 +198,16 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    get_tk (tk_chain_t  *tkc)
+    get_tk (ncx_instance_t *instance, tk_chain_t  *tkc)
 {
     boolean done;
     status_t  res;
+    (void)instance;
 
     res = NO_ERR;
     done = FALSE;
     while (!done) {
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
             done = TRUE;
         } else if (TK_CUR_TYP(tkc) != TK_TT_NEWLINE) {
@@ -232,12 +233,13 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    consume_tk (tk_chain_t  *tkc,
+    consume_tk (ncx_instance_t *instance,
+                tk_chain_t  *tkc,
                 tk_type_t  ttyp)
 {
     status_t  res;
 
-    res = get_tk(tkc);
+    res = get_tk(instance, tkc);
     if (res != NO_ERR) {
         return res;
     } else {
@@ -262,15 +264,16 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    match_name (tk_chain_t  *tkc,
+    match_name (ncx_instance_t *instance,
+                tk_chain_t  *tkc,
                 const xmlChar *name)
 {
     status_t res;
 
     /* get the next token */
-    res = consume_tk(tkc, TK_TT_TSTRING);
+    res = consume_tk(instance, tkc, TK_TT_TSTRING);
     if (res == NO_ERR) {
-        if (xml_strcmp(TK_CUR_VAL(tkc), name)) {
+        if (xml_strcmp(instance, TK_CUR_VAL(tkc), name)) {
             res = ERR_NCX_WRONG_VAL;
         }
     }
@@ -292,18 +295,19 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    skip_object (tk_chain_t  *tkc)
+    skip_object (ncx_instance_t *instance, tk_chain_t  *tkc)
 {
     status_t res;
     uint32   brace_count;
     boolean  done;
+    (void)instance;
 
     brace_count = 0;
     done = FALSE;
 
     /* get the next token */
     while (!done) {
-        res = TK_ADV(tkc);
+        res = TK_ADV(instance, tkc);
         if (res != NO_ERR) {
             return res;
         }
@@ -354,7 +358,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    parse_index (tk_chain_t  *tkc,
+    parse_index (ncx_instance_t *instance,
+                 tk_chain_t  *tkc,
                  obj_template_t *obj,
                  val_value_t *val,
                  xmlns_id_t  nsid)
@@ -363,43 +368,44 @@ static status_t
     val_value_t   *inval;
     status_t       res;
 
-    infirst = obj_first_key(obj);
+    infirst = obj_first_key(instance, obj);
 
     /* first make value nodes for all the index values */
     for (indef = infirst; 
          indef != NULL; 
-         indef = obj_next_key(indef)) {
+         indef = obj_next_key(instance, indef)) {
 
         /* advance to the next non-NEWLINE token */
-        res = get_tk(tkc);
+        res = get_tk(instance, tkc);
         if (res != NO_ERR) {
-            ncx_conf_exp_err(tkc, res, "index value");
+            ncx_conf_exp_err(instance, tkc, res, "index value");
             return res;
         }
 
         /* check if a valid token is given for the index value */
         if (TK_CUR_TEXT(tkc)) {
-            inval = val_make_simval_obj(indef->keyobj,
+            inval = val_make_simval_obj(instance,
+                                        indef->keyobj,
                                         TK_CUR_VAL(tkc), 
                                         &res);
             if (!inval) {
-                ncx_conf_exp_err(tkc, res, "index value");
+                ncx_conf_exp_err(instance, tkc, res, "index value");
                 return res;
             } else {
-                val_change_nsid(inval, nsid);
-                val_add_child(inval, val);
+                val_change_nsid(instance, inval, nsid);
+                val_add_child(instance, inval, val);
             }
         } else {
             res = ERR_NCX_WRONG_TKTYPE;
-            ncx_conf_exp_err(tkc, res, "index value");
+            ncx_conf_exp_err(instance, tkc, res, "index value");
             return res;
         }
     }
 
     /* generate the index chain in the indexQ */
-    res = val_gen_index_chain(obj, val);
+    res = val_gen_index_chain(instance, obj, val);
     if (res != NO_ERR) {
-        ncx_print_errormsg(tkc, NULL, res);
+        ncx_print_errormsg(instance, tkc, NULL, res);
     }
 
     return res;
@@ -432,7 +438,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    parse_val (tk_chain_t  *tkc,
+    parse_val (ncx_instance_t *instance,
+               tk_chain_t  *tkc,
                obj_template_t *obj,
                val_value_t *val)
 {
@@ -445,21 +452,21 @@ static status_t
     boolean          done;
     xmlns_id_t       nsid;
 
-    btyp = obj_get_basetype(obj);
-    nsid = obj_get_nsid(obj);
-    valname = obj_get_name(obj);
+    btyp = obj_get_basetype(instance, obj);
+    nsid = obj_get_nsid(instance, obj);
+    valname = obj_get_name(instance, obj);
     typdef = obj_get_typdef(obj);
 
     /* check if there is an index clause expected */
     if (typ_has_index(btyp)) {
-        res = parse_index(tkc, obj, val, nsid);
+        res = parse_index(instance, tkc, obj, val, nsid);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get next token, NEWLINE is significant at this point */
-    res = adv_tk(tkc);
+    res = adv_tk(instance, tkc);
     if (res != NO_ERR) {
         return res;
     }
@@ -471,40 +478,42 @@ static status_t
      * base type is NCX_BT_EMPTY, in which case the NEWLINE
      * is the expected token
      */
-    if (typ_is_simple(btyp)) {
+    if (typ_is_simple(instance, btyp)) {
         /* form for a leaf is: foo [value] NEWLINE  */
         if (TK_CUR_TYP(tkc)==TK_TT_NEWLINE) {
             useval = NULL;
         } else {
             useval = TK_CUR_VAL(tkc);
         }
-        res = val_set_simval(val, 
+        res = val_set_simval(instance, 
+                             val, 
                              typdef, 
                              nsid, 
                              valname,
                              useval);
 
         if (res != NO_ERR) {
-            log_error("\nError: '%s' cannot be set to '%s'",
+            log_error(instance,
+                      "\nError: '%s' cannot be set to '%s'",
                       valname,
                       (TK_CUR_VAL(tkc)) ? TK_CUR_VAL(tkc) : EMPTY_STRING);
             if (btyp == NCX_BT_EMPTY) {
-                ncx_conf_exp_err(tkc, res, "empty");
+                ncx_conf_exp_err(instance, tkc, res, "empty");
             } else {
-                ncx_conf_exp_err(tkc, res, "simple value string");
+                ncx_conf_exp_err(instance, tkc, res, "simple value string");
             }
             return res;
         }
 
         /* get a NEWLINE unless current token is already a NEWLINE */
         if (TK_CUR_TYP(tkc) != TK_TT_NEWLINE) {
-            res = adv_tk(tkc);
+            res = adv_tk(instance, tkc);
             if (res != NO_ERR) {
                 return res;
             }
             if (TK_CUR_TYP(tkc) != TK_TT_NEWLINE) {
                 res = ERR_NCX_WRONG_TKTYPE;
-                ncx_conf_exp_err(tkc, res, "\\n");
+                ncx_conf_exp_err(instance, tkc, res, "\\n");
             }
         }
     } else {
@@ -512,9 +521,9 @@ static status_t
          * foo index1 index2 { ... }
          * If there is an index, it was already parsed
          */
-        res = consume_tk(tkc, TK_TT_LBRACE);
+        res = consume_tk(instance, tkc, TK_TT_LBRACE);
         if (res != NO_ERR) {
-            ncx_conf_exp_err(tkc, res, "left brace");
+            ncx_conf_exp_err(instance, tkc, res, "left brace");
             return res;
         }
 
@@ -525,15 +534,15 @@ static status_t
             /* start out looking for a child node name or a
              * right brace to end the sub-section
              */
-            if (tk_next_typ(tkc)==TK_TT_NEWLINE) {
+            if (tk_next_typ(instance, tkc)==TK_TT_NEWLINE) {
                 /* skip the NEWLINE token */
-                (void)adv_tk(tkc);
-            } else if (tk_next_typ(tkc)==TK_TT_RBRACE) {
+                (void)adv_tk(instance, tkc);
+            } else if (tk_next_typ(instance, tkc)==TK_TT_RBRACE) {
                 /* found end of sub-section */
                 done = TRUE;
             } else {
                 /* get the next token */
-                res = adv_tk(tkc);
+                res = adv_tk(instance, tkc);
                 if (res != NO_ERR) {
                     continue;
                 }
@@ -547,41 +556,42 @@ static status_t
                     /* parent 'typdef' must have a child with a name
                      * that matches the current token vale
                      */
-                    chobj = obj_find_child(obj, 
+                    chobj = obj_find_child(instance, 
+                                           obj, 
                                            TK_CUR_MOD(tkc),
                                            TK_CUR_VAL(tkc));
                     if (chobj) {
-                        chval = val_new_value();
+                        chval = val_new_value(instance);
                         if (!chval) {
                             res = ERR_INTERNAL_MEM;
-                            ncx_print_errormsg(tkc, NULL, res);
+                            ncx_print_errormsg(instance, tkc, NULL, res);
                         } else {
-                            val_init_from_template(chval, chobj);
-                            res = parse_val(tkc, chobj, chval);
+                            val_init_from_template(instance, chval, chobj);
+                            res = parse_val(instance, tkc, chobj, chval);
                             if (res == NO_ERR) {
-                                val_add_child(chval, val);
+                                val_add_child(instance, chval, val);
                             } else {
-                                val_free_value(chval);
+                                val_free_value(instance, chval);
                             }
                         }
                     } else {
                         /* string is not a child name in this typdef */
                         res = ERR_NCX_DEF_NOT_FOUND;
-                        ncx_conf_exp_err(tkc, res, "identifier string");
+                        ncx_conf_exp_err(instance, tkc, res, "identifier string");
                     }
                 } else {
                     /* token is not an identifier string */
                     res = ERR_NCX_WRONG_TKTYPE;
-                    ncx_conf_exp_err(tkc, res, "identifier string");
+                    ncx_conf_exp_err(instance, tkc, res, "identifier string");
                 }
             }
         }  /* end loop through all the child nodes */
 
         /* expecting a right brace to finish the complex value */
         if (res == NO_ERR) {
-            res = consume_tk(tkc, TK_TT_RBRACE);
+            res = consume_tk(instance, tkc, TK_TT_RBRACE);
             if (res != NO_ERR) {
-                ncx_conf_exp_err(tkc, res, "right brace");
+                ncx_conf_exp_err(instance, tkc, res, "right brace");
                 return res;
             }
         }
@@ -612,7 +622,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    parse_parm (tk_chain_t  *tkc,
+    parse_parm (ncx_instance_t *instance,
+                tk_chain_t  *tkc,
                 val_value_t *val,
                 boolean keepvals)
 {
@@ -629,12 +640,12 @@ static status_t
      */
     if (TK_CUR_TYP(tkc) != TK_TT_TSTRING) {
         res = ERR_NCX_WRONG_TKTYPE;
-        ncx_conf_exp_err(tkc, res, "parameter name");
+        ncx_conf_exp_err(instance, tkc, res, "parameter name");
         return res;
     }
 
     curparm = NULL;
-    usewarning = ncx_warning_enabled(ERR_NCX_CONF_PARM_EXISTS);
+    usewarning = ncx_warning_enabled(instance, ERR_NCX_CONF_PARM_EXISTS);
 
     /* check if this TSTRING is a parameter in this parmset
      * make sure to always check for prefix:identifier
@@ -642,36 +653,41 @@ static status_t
      */
     if (TK_CUR_MOD(tkc)) {
         modname = xmlns_get_module
-            (xmlns_find_ns_by_prefix(TK_CUR_MOD(tkc)));
+            (instance, xmlns_find_ns_by_prefix(instance, TK_CUR_MOD(tkc)));
         if (modname) {
-            curparm = val_find_child(val, 
+            curparm = val_find_child(instance, 
+                                     val, 
                                      modname,
                                      TK_CUR_VAL(tkc));
         }
     }  else {
-        curparm = val_find_child(val, 
-                                 val_get_mod_name(val),
+        curparm = val_find_child(instance, 
+                                 val, 
+                                 val_get_mod_name(instance, val),
                                  TK_CUR_VAL(tkc));
     }
         
     if (curparm) {
         obj = curparm->obj;
     } else {
-        obj = obj_find_child(val->obj, 
+        obj = obj_find_child(instance, 
+                             val->obj, 
                              TK_CUR_MOD(tkc),
                              TK_CUR_VAL(tkc));
     }
     if (!obj) {
         res = ERR_NCX_UNKNOWN_PARM;
         if (TK_CUR_MOD(tkc)) {
-            log_error("\nError: parameter '%s:%s' not found",
+            log_error(instance,
+                      "\nError: parameter '%s:%s' not found",
                       TK_CUR_MOD(tkc),
                       TK_CUR_VAL(tkc));
         } else {
-            log_error("\nError: parameter '%s' not found",
+            log_error(instance,
+                      "\nError: parameter '%s' not found",
                       TK_CUR_VAL(tkc));
         }
-        ncx_conf_exp_err(tkc, res, "parameter name");
+        ncx_conf_exp_err(instance, tkc, res, "parameter name");
         return res;
     }
 
@@ -680,18 +696,18 @@ static status_t
      * that require the new value be parsed before knowing
      * if a parm value is a duplicate or not
      */
-    newparm = val_new_value();
+    newparm = val_new_value(instance);
     if (!newparm) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(tkc, NULL, res);
+        ncx_print_errormsg(instance, tkc, NULL, res);
         return res;
     }
-    val_init_from_template(newparm, obj);
+    val_init_from_template(instance, newparm, obj);
 
     /* parse the parameter value */
-    res = parse_val(tkc, obj, newparm);
+    res = parse_val(instance, tkc, obj, newparm);
     if (res != NO_ERR) {
-        val_free_value(newparm);
+        val_free_value(instance, newparm);
         return res;
     }
 
@@ -699,55 +715,57 @@ static status_t
      * add the newparm to the parmset
      */
     if (curparm) {
-        isdefault = val_set_by_default(curparm);
-        iqual = obj_get_iqualval(obj);
+        isdefault = val_set_by_default(instance, curparm);
+        iqual = obj_get_iqualval(instance, obj);
         if (iqual == NCX_IQUAL_ONE || iqual == NCX_IQUAL_OPT) {
             /* only one allowed, check really a match */
             match = TRUE;
-            if (val_has_index(curparm) &&
-                !val_index_match(newparm, curparm)) {
+            if (val_has_index(instance, curparm) &&
+                !val_index_match(instance, newparm, curparm)) {
                 match = FALSE;
             }
 
             if (!match) {
-                val_add_child(newparm, val);
+                val_add_child(instance, newparm, val);
             } else if (isdefault) {
-                dlq_remove(curparm);
-                val_free_value(curparm);
-                val_add_child(newparm, val);
+                dlq_remove(instance, curparm);
+                val_free_value(instance, curparm);
+                val_add_child(instance, newparm, val);
             } else if (keepvals) {
                 if (usewarning) {
                     /* keep current value and toss new value */
-                    log_warn("\nWarning: Parameter '%s' already exists. "
+                    log_warn(instance, 
+                             "\nWarning: Parameter '%s' already exists. "
                              "Not using new value\n", 
                              curparm->name);
                     if (LOGDEBUG2) {
-                        val_dump_value(newparm, NCX_DEF_INDENT);
-                        log_debug2("\n");
+                        val_dump_value(instance, newparm, NCX_DEF_INDENT);
+                        log_debug2(instance, "\n");
                     }
                 }
-                val_free_value(newparm);
+                val_free_value(instance, newparm);
             } else {
                 if (usewarning) {
                     /* replace current value and warn old value tossed */
-                    log_warn("\nconf: Parameter '%s' already exists. "
+                    log_warn(instance,
+                             "\nconf: Parameter '%s' already exists. "
                              "Overwriting with new value\n",
                              curparm->name);
                     if (LOGDEBUG2) {
-                        val_dump_value(newparm, NCX_DEF_INDENT);
-                        log_debug2("\n");
+                        val_dump_value(instance, newparm, NCX_DEF_INDENT);
+                        log_debug2(instance, "\n");
                     }
                 }
-                dlq_remove(curparm);
-                val_free_value(curparm);
-                val_add_child(newparm, val);
+                dlq_remove(instance, curparm);
+                val_free_value(instance, curparm);
+                val_add_child(instance, newparm, val);
             }
         } else {
             /* mutliple instances allowed */
-            val_add_child(newparm, val);
+            val_add_child(instance, newparm, val);
         }
     } else {
-        val_add_child(newparm, val);
+        val_add_child(instance, newparm, val);
     }
 
     return NO_ERR;
@@ -774,7 +792,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 static status_t 
-    parse_top (tk_chain_t  *tkc,
+    parse_top (ncx_instance_t *instance,
+               tk_chain_t  *tkc,
                val_value_t *val,
                boolean keepvals)
 {
@@ -786,16 +805,17 @@ static status_t
     /* get the container name */
     done = FALSE;
     while (!done) {
-        res = match_name(tkc, obj_get_name(val->obj));
+        res = match_name(instance, tkc, obj_get_name(instance, val->obj));
         if (res == ERR_NCX_EOF) {
             if (LOGDEBUG) {
-                log_debug("\nconf: object '%s' not found in file '%s'",
-                          obj_get_name(val->obj), 
+                log_debug(instance,
+                          "\nconf: object '%s' not found in file '%s'",
+                          obj_get_name(instance, val->obj), 
                           tkc->filename);
             }
             return NO_ERR;
         } else if (res != NO_ERR) {
-            res = skip_object(tkc);
+            res = skip_object(instance, tkc);
             if (res != NO_ERR) {
                 return res;
             }
@@ -805,16 +825,16 @@ static status_t
     }
 
     /* get a left brace */
-    res = consume_tk(tkc, TK_TT_LBRACE);
+    res = consume_tk(instance, tkc, TK_TT_LBRACE);
     if (res != NO_ERR) {
-        ncx_conf_exp_err(tkc, res, "left brace to start object");
+        ncx_conf_exp_err(instance, tkc, res, "left brace to start object");
         return res;
     }
 
     done = FALSE;
     while (!done) {
 
-        res = get_tk(tkc);
+        res = get_tk(instance, tkc);
         if (res == ERR_NCX_EOF) {
             return NO_ERR;
         } else if (res != NO_ERR) {
@@ -825,7 +845,7 @@ static status_t
         if (TK_CUR_TYP(tkc)==TK_TT_RBRACE) {
             done = TRUE;
         } else {
-            res = parse_parm(tkc, val, keepvals);
+            res = parse_parm(instance, tkc, val, keepvals);
             if (res != NO_ERR) {
                 done = TRUE;
             }
@@ -867,7 +887,8 @@ static status_t
 *   status of the operation
 *********************************************************************/
 status_t 
-    conf_parse_val_from_filespec (const xmlChar *filespec,
+    conf_parse_val_from_filespec (ncx_instance_t *instance,
+                                  const xmlChar *filespec,
                                   val_value_t *val,
                                   boolean keepvals,
                                   boolean fileerr)
@@ -879,17 +900,17 @@ status_t
 
 #ifdef DEBUG
     if (!filespec || !val) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     } 
 #endif
 
     if (*filespec == 0) {
-        log_error("\nError: no config file name specified");
+        log_error(instance, "\nError: no config file name specified");
         return ERR_NCX_INVALID_VALUE;
     }
         
     res = NO_ERR;
-    sourcespec = ncx_get_source(filespec, &res);
+    sourcespec = ncx_get_source(instance, filespec, &res);
     if (!sourcespec) {
         return res;
     }
@@ -897,9 +918,10 @@ status_t
     fp = fopen((const char *)sourcespec, "r");
 
     if (!fp) {
-        m__free(sourcespec);
+        m__free(instance, sourcespec);
         if (fileerr) {
-            log_error("\nError: config file '%s' could not be opened",
+            log_error(instance,
+                      "\nError: config file '%s' could not be opened",
                       filespec);
             return ERR_FIL_OPEN;
         } else {
@@ -908,43 +930,44 @@ status_t
     }
 
     if (LOGINFO) {
-        log_info("\nLoading CLI parameters from '%s'", sourcespec);
+        log_info(instance, "\nLoading CLI parameters from '%s'", sourcespec);
     }
 
-    m__free(sourcespec);
+    m__free(instance, sourcespec);
     sourcespec = NULL;
 
     /* get a new token chain */
     res = NO_ERR;
-    tkc = tk_new_chain();
+    tkc = tk_new_chain(instance);
     if (!tkc) {
         res = ERR_INTERNAL_MEM;
-        ncx_print_errormsg(NULL, NULL, res);
+        ncx_print_errormsg(instance, NULL, NULL, res);
         fclose(fp);
         return res;
     }
 
     /* else setup the token chain and parse this config file */
-    tk_setup_chain_conf(tkc, fp, filespec);
+    tk_setup_chain_conf(instance, tkc, fp, filespec);
 
-    res = tk_tokenize_input(tkc, NULL);
+    res = tk_tokenize_input(instance, tkc, NULL);
 
 #ifdef CONF_TK_DEBUG
     if (LOGDEBUG3) {
-        tk_dump_chain(tkc);
+        tk_dump_chain(instance, tkc);
     }
 #endif
 
     if (res == NO_ERR) {
-        res = parse_top(tkc, val, keepvals);
+        res = parse_top(instance, tkc, val, keepvals);
     }
 
     fclose(fp);
     tkc->fp = NULL;
-    tk_free_chain(tkc);
+    tk_free_chain(instance, tkc);
 
     if (res != NO_ERR) {
-        log_error("\nError: invalid .conf file '%s' (%s)",
+        log_error(instance,
+                  "\nError: invalid .conf file '%s' (%s)",
                   filespec,
                   get_error_string(res));
     }

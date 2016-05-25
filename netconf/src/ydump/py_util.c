@@ -113,7 +113,7 @@ date         init     comment
 *   SA type enumeration string
 *********************************************************************/
 const xmlChar *
-    get_sa_datatype (ncx_btype_t btyp)
+    get_sa_datatype (ncx_instance_t *instance, ncx_btype_t btyp)
 {
     switch (btyp) {
     case NCX_BT_NONE:
@@ -160,7 +160,7 @@ const xmlChar *
     case NCX_BT_INTERN:
         return SA_STRING;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return NCX_EL_NONE;
     }
     /*NOTREACHED*/
@@ -180,7 +180,8 @@ const xmlChar *
 *
 *********************************************************************/
 void
-    write_py_header (ses_cb_t *scb,
+    write_py_header (ncx_instance_t *instance,
+                     ses_cb_t *scb,
                      const ncx_module_t *mod,
                      const yangdump_cvtparms_t *cp)
 {
@@ -193,46 +194,49 @@ void
     }
 
     /* utf-8 decl */
-    ses_putstr(scb, PY_CODING);
+    ses_putstr(instance, scb, PY_CODING);
 
     /* start comment */
-    ses_putchar(scb, '\n');
-    ses_putstr(scb, PY_COMMENT);    
+    ses_putchar(instance, scb, '\n');
+    ses_putstr(instance, scb, PY_COMMENT);    
 
     /* banner comments */
-    ses_putstr(scb, COPYRIGHT_HEADER);
+    ses_putstr(instance, scb, COPYRIGHT_HEADER);
 
     /* generater tag */
-    write_banner_session_ex(scb, FALSE);
+    write_banner_session_ex(instance, scb, FALSE);
 
     /* module name */
     if (mod->ismod) {
-        ses_putstr_indent(scb, YANG_K_MODULE, indent);
+        ses_putstr_indent(instance, scb, YANG_K_MODULE, indent);
     } else {
-        ses_putstr_indent(scb, YANG_K_SUBMODULE, indent);
+        ses_putstr_indent(instance, scb, YANG_K_SUBMODULE, indent);
     }
-    ses_putchar(scb, ' ');
-    ses_putstr(scb, mod->name);
+    ses_putchar(instance, scb, ' ');
+    ses_putstr(instance, scb, mod->name);
 
     /* version */
     if (mod->version) {
-        write_c_simple_str(scb, 
+        write_c_simple_str(instance, 
+                           scb, 
                            YANG_K_REVISION,
                            mod->version, 
                            indent,
                            0);
-        ses_putchar(scb, '\n');
+        ses_putchar(instance, scb, '\n');
     }
 
     /* namespace or belongs-to */
     if (mod->ismod) {
-        write_c_simple_str(scb, 
+        write_c_simple_str(instance, 
+                           scb, 
                            YANG_K_NAMESPACE, 
                            mod->ns,
                            indent,
                            0);
     } else {
-        write_c_simple_str(scb, 
+        write_c_simple_str(instance, 
+                           scb, 
                            YANG_K_BELONGS_TO, 
                            mod->belongs,
                            indent,
@@ -241,19 +245,20 @@ void
 
     /* organization */
     if (mod->organization) {
-        write_c_simple_str(scb, 
+        write_c_simple_str(instance, 
+                           scb, 
                            YANG_K_ORGANIZATION,
                            mod->organization, 
                            indent,
                            0);
     }
 
-    ses_putchar(scb, '\n');
+    ses_putchar(instance, scb, '\n');
 
     /* end comment */
-    ses_putchar(scb, '\n');
-    ses_putstr(scb, PY_COMMENT);
-    ses_putchar(scb, '\n');
+    ses_putchar(instance, scb, '\n');
+    ses_putstr(instance, scb, PY_COMMENT);
+    ses_putchar(instance, scb, '\n');
 
 } /* write_py_header */
 
@@ -269,16 +274,17 @@ void
 *
 *********************************************************************/
 void
-    write_py_footer (ses_cb_t *scb,
+    write_py_footer (ncx_instance_t *instance,
+                    ses_cb_t *scb,
                     const ncx_module_t *mod)
 {
-    ses_putchar(scb, '\n');
-    ses_putstr(scb, PY_COMMENT);
-    ses_putstr(scb, (const xmlChar *)" END ");
-    write_c_safe_str(scb, ncx_get_modname(mod));
-    ses_putstr(scb, (const xmlChar *)".py ");
-    ses_putstr(scb, PY_COMMENT);
-    ses_putchar(scb, '\n');    
+    ses_putchar(instance, scb, '\n');
+    ses_putstr(instance, scb, PY_COMMENT);
+    ses_putstr(instance, scb, (const xmlChar *)" END ");
+    write_c_safe_str(instance, scb, ncx_get_modname(mod));
+    ses_putstr(instance, scb, (const xmlChar *)".py ");
+    ses_putstr(instance, scb, PY_COMMENT);
+    ses_putchar(instance, scb, '\n');    
 
 } /* write_py_footer */
 

@@ -88,7 +88,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t 
-    cyang_convert_module (const yang_pcb_t *pcb,
+    cyang_convert_module (struct ncx_instance_t_ *instance,
+			  const yang_pcb_t *pcb,
 			  const yangdump_cvtparms_t *cp,
 			  ses_cb_t *scb);
 

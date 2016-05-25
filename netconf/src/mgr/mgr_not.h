@@ -122,7 +122,7 @@ typedef void (*mgr_not_cbfn_t) (ses_cb_t *scb,
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 extern status_t 
-    mgr_not_init (void);
+    mgr_not_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -134,7 +134,7 @@ extern status_t
 *
 *********************************************************************/
 extern void 
-    mgr_not_cleanup (void);
+    mgr_not_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -149,7 +149,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    mgr_not_free_msg (mgr_not_msg_t *msg);
+    mgr_not_free_msg (struct ncx_instance_t_ *instance, mgr_not_msg_t *msg);
 
 
 /********************************************************************
@@ -164,7 +164,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    mgr_not_clean_msgQ (dlq_hdr_t *msgQ);
+    mgr_not_clean_msgQ (struct ncx_instance_t_ *instance, dlq_hdr_t *msgQ);
 
 
 /********************************************************************
@@ -181,7 +181,8 @@ extern void
 *   top == top element descriptor
 *********************************************************************/
 extern void
-    mgr_not_dispatch (ses_cb_t  *scb,
+    mgr_not_dispatch (struct ncx_instance_t_ *instance,
+		      ses_cb_t  *scb,
 		      xml_node_t *top);
 
 

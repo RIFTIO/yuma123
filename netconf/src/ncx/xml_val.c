@@ -142,19 +142,20 @@ date         init     comment
 *   A newly created string value or NULL
 *********************************************************************/
 static val_value_t*
-    new_string_attr( const xmlChar    *name, 
+    new_string_attr(ncx_instance_t *instance, 
+                      const xmlChar    *name, 
                      const xmlns_id_t  nsid,
                      xmlChar          *strval )
 {
     val_value_t *newval;
 
-    newval = val_new_value();
+    newval = val_new_value(instance);
     if (!newval) {
         return NULL;
     }   
 
     newval->btyp = NCX_BT_STRING;
-    newval->typdef = typ_get_basetype_typdef(NCX_BT_STRING);
+    newval->typdef = typ_get_basetype_typdef(instance, NCX_BT_STRING);
     newval->name = name;
     newval->nsid = nsid;
     newval->v.str = strval;
@@ -180,29 +181,30 @@ static val_value_t*
 *   malloced value string or NULL if malloc error
 *********************************************************************/
 xmlChar *
-    xml_val_make_qname (xmlns_id_t  nsid,
+    xml_val_make_qname (ncx_instance_t *instance,
+                        xmlns_id_t  nsid,
                         const xmlChar *name)
 {
     xmlChar          *str, *str2;
     const xmlChar    *pfix;
     uint32            len;
 
-    pfix = xmlns_get_ns_prefix(nsid);
+    pfix = xmlns_get_ns_prefix(instance, nsid);
     if (!pfix) {
-        SET_ERROR(ERR_INTERNAL_VAL);   /* catch no namespace error */
-        return xml_strdup(name);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);   /* catch no namespace error */
+        return xml_strdup(instance, name);
     }
 
-    len = xml_strlen(name) + xml_strlen(pfix) + 2;
-    str = m__getMem(len);
+    len = xml_strlen(instance, name) + xml_strlen(instance, pfix) + 2;
+    str = m__getMem(instance, len);
     if (!str) {
         return NULL;
     }
 
     str2 = str;
-    str2 += xml_strcpy(str2, pfix);
+    str2 += xml_strcpy(instance, str2, pfix);
     *str2++ = ':';
-    str2 += xml_strcpy(str2, name);
+    str2 += xml_strcpy(instance, str2, name);
 
     return str;
 
@@ -223,18 +225,19 @@ xmlChar *
 *   length of string needed for this QName
 *********************************************************************/
 uint32
-    xml_val_qname_len (xmlns_id_t  nsid,
+    xml_val_qname_len (ncx_instance_t *instance,
+                       xmlns_id_t  nsid,
                        const xmlChar *name)
 {
     const xmlChar    *pfix;
 
-    pfix = xmlns_get_ns_prefix(nsid);
+    pfix = xmlns_get_ns_prefix(instance, nsid);
     if (!pfix) {
-        SET_ERROR(ERR_INTERNAL_VAL);   /* catch no namespace error */
-        return xml_strlen(name);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);   /* catch no namespace error */
+        return xml_strlen(instance, name);
     }
 
-    return xml_strlen(name) + xml_strlen(pfix) + 1;
+    return xml_strlen(instance, name) + xml_strlen(instance, pfix) + 1;
 
 }   /* xml_val_qname_len */
 
@@ -254,7 +257,8 @@ uint32
 *   number of bytes written to the buffer
 *********************************************************************/
 uint32
-    xml_val_sprintf_qname (xmlChar *buff,
+    xml_val_sprintf_qname (ncx_instance_t *instance,
+                           xmlChar *buff,
                            uint32 bufflen,
                            xmlns_id_t  nsid,
                            const xmlChar *name)
@@ -263,23 +267,23 @@ uint32
     const xmlChar    *pfix;
     uint32            len;
 
-    pfix = xmlns_get_ns_prefix(nsid);
+    pfix = xmlns_get_ns_prefix(instance, nsid);
     if (!pfix) {
-        SET_ERROR(ERR_INTERNAL_VAL);   /* catch no namespace error */
+        SET_ERROR(instance, ERR_INTERNAL_VAL);   /* catch no namespace error */
         return 0;
     }
 
-    len = xml_strlen(name) + xml_strlen(pfix) + 2;
+    len = xml_strlen(instance, name) + xml_strlen(instance, pfix) + 2;
     if (len > bufflen) {
-        SET_ERROR(ERR_BUFF_OVFL);
+        SET_ERROR(instance, ERR_BUFF_OVFL);
         return 0;
     }
 
     /* construct the QName string */
     str = buff;
-    str += xml_strcpy(str, pfix);
+    str += xml_strcpy(instance, str, pfix);
     *str++ = ':';
-    str += xml_strcpy(str, name);
+    str += xml_strcpy(instance, str, name);
 
     return len-1;
 
@@ -302,7 +306,8 @@ uint32
 *   status
 *********************************************************************/
 status_t
-    xml_val_add_attr (const xmlChar *name,
+    xml_val_add_attr (ncx_instance_t *instance,
+                      const xmlChar *name,
                       xmlns_id_t nsid,
                       xmlChar *attrval,
                       val_value_t *val)
@@ -314,12 +319,12 @@ status_t
     }
 
     /* create a new value to hold the attribute name value pair */
-    newval = new_string_attr( name, nsid, attrval );
+    newval = new_string_attr(instance,  name, nsid, attrval );
     if (!newval) {
         return ERR_INTERNAL_MEM;
     }
 
-    dlq_enque(newval, &val->metaQ);
+    dlq_enque(instance, newval, &val->metaQ);
     return NO_ERR;
 }   /* xml_val_add_attr */
 
@@ -340,21 +345,22 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    xml_val_add_cattr (const xmlChar *name,
+    xml_val_add_cattr (ncx_instance_t *instance,
+                       const xmlChar *name,
                        xmlns_id_t nsid,
                        const xmlChar *cattrval,
                        val_value_t *val)
 {
     xmlChar     *str;
     status_t     res;
-    str = xml_strdup( cattrval );
+    str = xml_strdup(instance,  cattrval );
     if (!str) {
         return ERR_INTERNAL_MEM;
     }
 
-    res = xml_val_add_attr( name, nsid, str, val );
+    res = xml_val_add_attr(instance,  name, nsid, str, val );
     if ( NO_ERR != res ) {
-        m__free( str );
+        m__free(instance,  str );
     }
     return res;
 }   /* xml_val_add_cattr */
@@ -372,20 +378,21 @@ status_t
 *   new struct or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xml_val_new_struct (const xmlChar *name,
+    xml_val_new_struct (ncx_instance_t *instance,
+                        const xmlChar *name,
                         xmlns_id_t     nsid)
 {
     val_value_t *val;
 
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         return NULL;
     }
-    val_init_complex(val, NCX_BT_CONTAINER);
-    val->typdef = typ_get_basetype_typdef(NCX_BT_CONTAINER);
+    val_init_complex(instance, val, NCX_BT_CONTAINER);
+    val->typdef = typ_get_basetype_typdef(instance, NCX_BT_CONTAINER);
     val->name = name;
     val->nsid = nsid;
-    val->obj = ncx_get_gen_container();
+    val->obj = ncx_get_gen_container(instance);
 
     return val;
 
@@ -407,17 +414,18 @@ val_value_t *
 *   new string or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xml_val_new_string (const xmlChar *name,
+    xml_val_new_string (ncx_instance_t *instance,
+                        const xmlChar *name,
                         xmlns_id_t     nsid,
                         xmlChar *strval)
 {
     val_value_t *val;
 
-    val = new_string_attr( name, nsid, strval );
+    val = new_string_attr(instance,  name, nsid, strval );
     if (!val) {
         return NULL;
     }
-    val->obj = ncx_get_gen_string();
+    val->obj = ncx_get_gen_string(instance);
     return val;
 }   /* xml_val_new_string */
 
@@ -437,23 +445,24 @@ val_value_t *
 *   new string or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xml_val_new_cstring (const xmlChar *name,
+    xml_val_new_cstring (ncx_instance_t *instance,
+                         const xmlChar *name,
                          xmlns_id_t     nsid,
                          const xmlChar *strval)
 {
     xmlChar     *str;
     val_value_t *val;
-    str = xml_strdup(strval);
+    str = xml_strdup(instance, strval);
     if (!str) {
         return NULL;
     }
 
-    val = new_string_attr( name, nsid, str );
+    val = new_string_attr(instance,  name, nsid, str );
     if ( !val ) {
-        m__free( str );
+        m__free(instance,  str );
         return NULL;
     }
-    val->obj = ncx_get_gen_string();
+    val->obj = ncx_get_gen_string(instance);
     return val;
 }   /* xml_val_new_cstring */
 
@@ -471,21 +480,22 @@ val_value_t *
 *   new struct or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xml_val_new_flag (const xmlChar *name,
+    xml_val_new_flag (ncx_instance_t *instance,
+                      const xmlChar *name,
                       xmlns_id_t     nsid)
 {
     val_value_t *val;
 
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         return NULL;
     }
     val->btyp = NCX_BT_EMPTY;
     val->v.boo = TRUE;
-    val->typdef = typ_get_basetype_typdef(NCX_BT_EMPTY);
+    val->typdef = typ_get_basetype_typdef(instance, NCX_BT_EMPTY);
     val->name = name;
     val->nsid = nsid;
-    val->obj = ncx_get_gen_empty();
+    val->obj = ncx_get_gen_empty(instance);
 
     return val;
 
@@ -506,13 +516,14 @@ val_value_t *
 *   new struct or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xml_val_new_boolean (const xmlChar *name,
+    xml_val_new_boolean (ncx_instance_t *instance,
+                         const xmlChar *name,
                          xmlns_id_t     nsid,
                          boolean boo)
 {
     val_value_t *val;
 
-    val = xml_val_new_flag( name, nsid );
+    val = xml_val_new_flag(instance,  name, nsid );
     if (!val) {
         return NULL;
     }
@@ -538,7 +549,8 @@ val_value_t *
 *   new struct or NULL if malloc error
 *********************************************************************/
 val_value_t *
-    xml_val_new_number (const xmlChar *name,
+    xml_val_new_number (ncx_instance_t *instance,
+                        const xmlChar *name,
                         xmlns_id_t     nsid,
                         ncx_num_t *num,
                         ncx_btype_t btyp)
@@ -546,19 +558,19 @@ val_value_t *
     val_value_t *val;
     status_t     res;
 
-    val = val_new_value();
+    val = val_new_value(instance);
     if (!val) {
         return NULL;
     }
     val->btyp = btyp;
 
-    res = ncx_copy_num(num, &val->v.num, btyp);
+    res = ncx_copy_num(instance, num, &val->v.num, btyp);
     if (res != NO_ERR) {
-        val_free_value(val);
+        val_free_value(instance, val);
         return NULL;
     }
 
-    val->typdef = typ_get_basetype_typdef(btyp);
+    val->typdef = typ_get_basetype_typdef(instance, btyp);
     val->name = name;
     val->nsid = nsid;
 
@@ -566,7 +578,7 @@ val_value_t *
      * not sure it will really matter
      * since the val(nsid,name) is used instead
      */
-    val->obj = ncx_get_gen_string();
+    val->obj = ncx_get_gen_string(instance);
     return val;
 
 }   /* xml_val_new_number */

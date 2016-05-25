@@ -159,7 +159,7 @@ extern void
  *   status
  *********************************************************************/
 extern status_t 
-    mgr_io_run (void);
+    mgr_io_run (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -184,7 +184,8 @@ extern status_t
  *   FALSE if cursid confirmed dropped
  *********************************************************************/
 extern boolean
-    mgr_io_process_timeout (ses_id_t  cursid,
+    mgr_io_process_timeout (struct ncx_instance_t_ *instance,
+                            ses_id_t  cursid,
                             boolean *wantdata,
                             boolean *anystdout);
 

@@ -681,7 +681,7 @@ extern const xmlChar *
 *    status
 *********************************************************************/
 extern status_t
-    replace_connect_valset (const val_value_t *valset);
+    replace_connect_valset (struct ncx_instance_t_ *instance, const val_value_t *valset);
 
 
 /********************************************************************
@@ -722,7 +722,8 @@ extern dlq_hdr_t *
  *   none
  *********************************************************************/
 extern void
-    yangcli_reply_handler (ses_cb_t *scb,
+    yangcli_reply_handler (struct ncx_instance_t_ *instance,
+			   ses_cb_t *scb,
 			   mgr_rpc_req_t *req,
 			   mgr_rpc_rpy_t *rpy);
 
@@ -742,7 +743,8 @@ extern void
  *   status
  *********************************************************************/
 extern status_t
-    finish_result_assign (server_cb_t *server_cb,
+    finish_result_assign (struct ncx_instance_t_ *instance,
+			  server_cb_t *server_cb,
 			  val_value_t *resultvar,
 			  const xmlChar *resultstr);
 
@@ -761,7 +763,8 @@ extern status_t
 *  mode == help mode; ignored unless first == FALSE
 *********************************************************************/
 extern void
-    report_capabilities (server_cb_t *server_cb,
+    report_capabilities (struct ncx_instance_t_ *instance,
+                         server_cb_t *server_cb,
                          const ses_cb_t *scb,
                          boolean isfirst,
                          help_mode_t mode);

@@ -131,7 +131,7 @@ typedef void (*mgr_rpc_cbfn_t) (ses_cb_t *scb,
 *   NO_ERR if all okay, the minimum spare requests will be malloced
 *********************************************************************/
 extern status_t 
-    mgr_rpc_init (void);
+    mgr_rpc_init (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -143,7 +143,7 @@ extern status_t
 *
 *********************************************************************/
 extern void 
-    mgr_rpc_cleanup (void);
+    mgr_rpc_cleanup (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -158,7 +158,7 @@ extern void
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 extern mgr_rpc_req_t *
-    mgr_rpc_new_request (ses_cb_t *scb);
+    mgr_rpc_new_request (struct ncx_instance_t_ *instance, ses_cb_t *scb);
 
 
 /********************************************************************
@@ -173,7 +173,7 @@ extern mgr_rpc_req_t *
 *   none
 *********************************************************************/
 extern void
-    mgr_rpc_free_request (mgr_rpc_req_t *req);
+    mgr_rpc_free_request (struct ncx_instance_t_ *instance, mgr_rpc_req_t *req);
 
 
 /********************************************************************
@@ -188,7 +188,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    mgr_rpc_free_reply (mgr_rpc_rpy_t *rpy);
+    mgr_rpc_free_reply (struct ncx_instance_t_ *instance, mgr_rpc_rpy_t *rpy);
 
 
 /********************************************************************
@@ -203,7 +203,7 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    mgr_rpc_clean_requestQ (dlq_hdr_t *reqQ);
+    mgr_rpc_clean_requestQ (struct ncx_instance_t_ *instance, dlq_hdr_t *reqQ);
 
 
 /********************************************************************
@@ -223,7 +223,7 @@ extern void
 *   number of request timed out
 *********************************************************************/
 extern uint32
-    mgr_rpc_timeout_requestQ (dlq_hdr_t *reqQ);
+    mgr_rpc_timeout_requestQ (struct ncx_instance_t_ *instance, dlq_hdr_t *reqQ);
 
 
 /********************************************************************
@@ -242,7 +242,8 @@ extern uint32
 *   status
 *********************************************************************/
 extern status_t
-    mgr_rpc_send_request (ses_cb_t *scb,
+    mgr_rpc_send_request (struct ncx_instance_t_ *instance,
+			  ses_cb_t *scb,
 			  mgr_rpc_req_t *req,
 			  mgr_rpc_cbfn_t rpyfn);
 
@@ -261,7 +262,8 @@ extern status_t
 *   top == top element descriptor
 *********************************************************************/
 extern void
-    mgr_rpc_dispatch (ses_cb_t  *scb,
+    mgr_rpc_dispatch (struct ncx_instance_t_ *instance,
+		      ses_cb_t  *scb,
 		      xml_node_t *top);
 
 #ifdef __cplusplus

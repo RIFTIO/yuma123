@@ -44,6 +44,7 @@ date         init     comment
 #include  "status.h"
 #endif
 
+#include  "ncxtypes.h"
 
 /********************************************************************
 *                                                                   *
@@ -51,35 +52,18 @@ date         init     comment
 *                                                                   *
 *********************************************************************/
 
-#define MAX_ERR_FILENAME     64
-#define MAX_ERR_MSG_LEN      256
-#define MAX_ERR_LEVEL        15
-
 /********************************************************************
 *                                                                   *
 *                           T Y P E S                               *
 *                                                                   *
 *********************************************************************/
 
-/* the array of form IDs and form handlers */
-typedef struct error_snapshot_t_ {
-    int              linenum;
-    int              sqlError;
-    status_t         status;
-    char             filename[MAX_ERR_FILENAME];
-    const char      *msg;
-} error_snapshot_t;
 
 /********************************************************************
 *                                                                   *
 *                       V A R I A B L E S                           *
 *                                                                   *
 *********************************************************************/
-
-/* used for error_stack, when debug_level == NONE */
-static int error_level;
-static error_snapshot_t error_stack[MAX_ERR_LEVEL];
-static uint32 error_count;
 
 
 /********************************************************************
@@ -102,30 +86,32 @@ static uint32 error_count;
 * RETURNS
 *    the 'status' parameter will be returned
 *********************************************************************/
-status_t set_error (const char *filename, 
+status_t set_error (ncx_instance_t *instance, 
+                    const char *filename, 
                     int linenum, 
                     status_t status, 
                     int sqlError)
 {
     
-    if (log_get_debug_level() > LOG_DEBUG_NONE) {
-        log_error("\nE0:\n   %s:%d\n   Error %d: %s\n",
+    if (log_get_debug_level(instance) > LOG_DEBUG_NONE) {
+        log_error(instance,
+                  "\nE0:\n   %s:%d\n   Error %d: %s\n",
                   filename,
                   linenum,
                   status,
                   get_error_string(status));
-    } else if (error_level < MAX_ERR_LEVEL) {
-        error_stack[error_level].linenum = linenum;
-        error_stack[error_level].sqlError = sqlError;
-        error_stack[error_level].status = status;
-        strncpy(error_stack[error_level].filename, 
+    } else if (instance->error_level < MAX_ERR_LEVEL) {
+        instance->error_stack[instance->error_level].linenum = linenum;
+        instance->error_stack[instance->error_level].sqlError = sqlError;
+        instance->error_stack[instance->error_level].status = status;
+        strncpy(instance->error_stack[instance->error_level].filename, 
                 filename, MAX_ERR_FILENAME-1);
-        error_stack[error_level].filename[MAX_ERR_FILENAME-1] = 0;      
-        error_stack[error_level].msg = get_error_string(status);
-        error_level++;
+        instance->error_stack[instance->error_level].filename[MAX_ERR_FILENAME-1] = 0;      
+        instance->error_stack[instance->error_level].msg = get_error_string(status);
+        instance->error_level++;
     }
 
-    error_count++;
+    instance->error_count++;
 
     return status;
 
@@ -138,18 +124,18 @@ status_t set_error (const char *filename,
 * Dump any entries stored in the error_stack.
 *
 *********************************************************************/
-void print_errors (void)
+void print_errors (ncx_instance_t *instance)
 {
     int  i;
 
-    for (i=0; i < error_level; i++) {
-        log_error("\nE%d:\n   %s:%d\n   Error %d: %s", i,
-                  error_stack[i].filename,
-                  error_stack[i].linenum,
-                  error_stack[i].status,
-                  (error_stack[i].msg) ? error_stack[i].msg : "");
-        if (i==error_level-1) {
-            log_error("\n");
+    for (i=0; i < instance->error_level; i++) {
+        log_error(instance, "\nE%d:\n   %s:%d\n   Error %d: %s", i,
+                  instance->error_stack[i].filename,
+                  instance->error_stack[i].linenum,
+                  instance->error_stack[i].status,
+                  (instance->error_stack[i].msg) ? instance->error_stack[i].msg : "");
+        if (i==instance->error_level-1) {
+            log_error(instance, "\n");
         }
     }
 
@@ -162,18 +148,18 @@ void print_errors (void)
 * Clear the error_stack if it has any errors stored in it
 *
 *********************************************************************/
-void clear_errors (void)
+void clear_errors (ncx_instance_t *instance)
 {
     int  i;
 
-    for (i=0; i < error_level; i++) {
-        error_stack[i].linenum = 0;
-        error_stack[i].sqlError = 0;
-        error_stack[i].status = NO_ERR;
-        error_stack[i].filename[0] = 0;
-        error_stack[i].msg = NULL;
+    for (i=0; i < instance->error_level; i++) {
+        instance->error_stack[i].linenum = 0;
+        instance->error_stack[i].sqlError = 0;
+        instance->error_stack[i].status = NO_ERR;
+        instance->error_stack[i].filename[0] = 0;
+        instance->error_stack[i].msg = NULL;
     }
-    error_level = 0;
+    instance->error_level = 0;
 
 }   /* clear_errors */
 
@@ -842,11 +828,11 @@ status_t
 *
 *********************************************************************/
 void
-    status_init (void)
+    status_init (ncx_instance_t *instance)
 {
-    error_level = 0;
-    memset(&error_stack, 0x0, sizeof(error_stack));
-    error_count = 0;
+    instance->error_level = 0;
+    memset(&instance->error_stack, 0x0, sizeof(instance->error_stack));
+    instance->error_count = 0;
 
 } /* status_init */
 
@@ -858,9 +844,9 @@ void
 *
 *********************************************************************/
 void
-    status_cleanup (void)
+    status_cleanup (ncx_instance_t *instance)
 {
-    clear_errors();
+    clear_errors(instance);
 
 } /* status_cleanup */
 
@@ -875,12 +861,13 @@ void
 *
 *********************************************************************/
 void
-    print_error_count (void)
+    print_error_count (ncx_instance_t *instance)
 {
-    if (error_count) {
-        log_error("\n\n*** Total Internal Errors: %u ***\n", 
-                  error_count);
-        error_count = 0;
+    if (instance->error_count) {
+        log_error(instance, 
+                  "\n\n+++ Total Internal Errors: %u +++\n", 
+                  instance->error_count);
+        instance->error_count = 0;
     }
 
 } /* print_error_count */
@@ -894,39 +881,43 @@ void
 *
 *********************************************************************/
 void
-    print_error_messages (void)
+    print_error_messages (ncx_instance_t *instance)
 {
     status_t   res;
 
     /* internal errors */
     for (res = NO_ERR; res < ERR_LAST_INT_ERR; res++) {
-        log_write("\n%3d\t%s",
+        log_write(instance,
+                  "\n%3d\t%s",
                   res,
                   get_error_string(res));
     }
 
     /* system errors */
     for (res = ERR_SYS_BASE; res < ERR_LAST_SYS_ERR; res++) {
-        log_write("\n%3d\t%s",
+        log_write(instance,
+                  "\n%3d\t%s",
                   res,
                   get_error_string(res));
     }
 
     /* user errors */
     for (res = ERR_USR_BASE; res < ERR_LAST_USR_ERR; res++) {
-        log_write("\n%3d\t%s",
+        log_write(instance,
+                  "\n%3d\t%s",
                   res,
                   get_error_string(res));
     }
 
     /* warnings */
     for (res = ERR_WARN_BASE; res < ERR_LAST_WARN; res++) {
-        log_write("\n%3d\t%s",
+        log_write(instance,
+                  "\n%3d\t%s",
                   res,
                   get_error_string(res));
     }
 
-    log_write("\n");
+    log_write(instance, "\n");
 
 
 } /* print_error_messages */

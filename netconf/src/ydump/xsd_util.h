@@ -200,7 +200,7 @@ typedef struct xsd_keychain_t_ {
 *   const pointer to the XSD base type name string, NULL if error
 *********************************************************************/
 extern const xmlChar *
-    xsd_typename (ncx_btype_t btyp);
+    xsd_typename (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -220,7 +220,7 @@ extern const xmlChar *
 *   malloced value string or NULL if malloc error
 *********************************************************************/
 extern xmlChar *
-    xsd_make_basename (const typ_template_t *typ);
+    xsd_make_basename (struct ncx_instance_t_ *instance, const typ_template_t *typ);
 
 
 /********************************************************************
@@ -240,7 +240,8 @@ extern xmlChar *
 *   malloced value containing all the appinfo or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xsd_make_enum_appinfo (int32 enuval,
+    xsd_make_enum_appinfo (struct ncx_instance_t_ *instance,
+			   int32 enuval,
 			   const dlq_hdr_t  *appinfoQ,
 			   ncx_status_t status);
 
@@ -262,7 +263,8 @@ extern val_value_t *
 *   malloced value containing all the appinfo or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xsd_make_bit_appinfo (uint32 bitpos,
+    xsd_make_bit_appinfo (struct ncx_instance_t_ *instance,
+			  uint32 bitpos,
 			  const dlq_hdr_t  *appinfoQ,
 			  ncx_status_t status);
 
@@ -283,7 +285,8 @@ extern val_value_t *
 *   or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xsd_make_err_appinfo (const xmlChar *ref,
+    xsd_make_err_appinfo (struct ncx_instance_t_ *instance,
+			  const xmlChar *ref,
 			  const xmlChar *errmsg,
 			  const xmlChar *errtag);
 
@@ -305,8 +308,10 @@ extern val_value_t *
 *   malloced string or NULL if malloc error
 *********************************************************************/
 extern xmlChar *
-    xsd_make_schema_location (const ncx_module_t *mod,
+    xsd_make_schema_location (struct ncx_instance_t_ *instance,
+			      const ncx_module_t *mod,
 			      const xmlChar *schemaloc,
+            boolean is_import,
 			      boolean versionnames);
 
 
@@ -324,7 +329,8 @@ extern xmlChar *
 *   malloced string or NULL if malloc error
 *********************************************************************/
 extern xmlChar *
-    xsd_make_output_filename (const ncx_module_t *mod,
+    xsd_make_output_filename (struct ncx_instance_t_ *instance,
+			      const ncx_module_t *mod,
 			      const yangdump_cvtparms_t *cp);
 
 
@@ -346,7 +352,8 @@ extern xmlChar *
 *   status
 *********************************************************************/
 extern status_t
-    xsd_do_documentation (const xmlChar *descr,
+    xsd_do_documentation (struct ncx_instance_t_ *instance,
+			  const xmlChar *descr,
 			  val_value_t *val);
 
 
@@ -368,7 +375,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_do_reference (const xmlChar *ref,
+    xsd_do_reference (struct ncx_instance_t_ *instance,
+		      const xmlChar *ref,
 		      val_value_t *val);
 
 
@@ -389,7 +397,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    xsd_add_mod_documentation (const ncx_module_t *mod,
+    xsd_add_mod_documentation (struct ncx_instance_t_ *instance,
+			       const ncx_module_t *mod,
 			       val_value_t *annot);
 
 
@@ -411,7 +420,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_imports (yang_pcb_t *pcb,
+    xsd_add_imports (struct ncx_instance_t_ *instance,
+                     yang_pcb_t *pcb,
                      const ncx_module_t *mod,
 		     const yangdump_cvtparms_t *cp,
 		     val_value_t *val);
@@ -434,7 +444,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_includes (const ncx_module_t *mod,
+    xsd_add_includes (struct ncx_instance_t_ *instance,
+		      const ncx_module_t *mod,
 		      const yangdump_cvtparms_t *cp,
 		      val_value_t *val);
 
@@ -458,7 +469,8 @@ extern status_t
 *   new element data struct or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xsd_new_element (const ncx_module_t *mod,
+    xsd_new_element (struct ncx_instance_t_ *instance,
+		     const ncx_module_t *mod,
 		     const xmlChar *name,
 		     const typ_def_t *typdef,
 		     const typ_def_t *parent,
@@ -485,7 +497,8 @@ extern val_value_t *
 *   new element data struct or NULL if malloc error
 *********************************************************************/
 extern val_value_t *
-    xsd_new_leaf_element (const ncx_module_t *mod,
+    xsd_new_leaf_element (struct ncx_instance_t_ *instance,
+			  const ncx_module_t *mod,
 			  const obj_template_t *obj,
 			  boolean hasnodes,
 			  boolean addtype,
@@ -509,7 +522,8 @@ extern val_value_t *
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_parmtype_attr (xmlns_id_t targns,
+    xsd_add_parmtype_attr (struct ncx_instance_t_ *instance,
+			   xmlns_id_t targns,
 			   const typ_template_t *typ,
 			   val_value_t *val);
 
@@ -545,7 +559,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_do_annotation (const xmlChar *descr,
+    xsd_do_annotation (struct ncx_instance_t_ *instance,
+                       const xmlChar *descr,
                        const xmlChar *ref,
                        const xmlChar *condition,
                        const xmlChar *units,
@@ -573,8 +588,9 @@ extern status_t
 *    NULL if some error (*res != NO_ERR)
 *********************************************************************/
 extern val_value_t *
-    xsd_make_obj_annotation (obj_template_t *obj,
-			     status_t  *res);
+    xsd_make_obj_annotation (struct ncx_instance_t_ *instance,
+                             obj_template_t *obj, 
+                             status_t  *res);
 
 
 /********************************************************************
@@ -593,7 +609,8 @@ extern val_value_t *
 *    status
 *********************************************************************/
 extern status_t
-    xsd_do_type_annotation (const typ_template_t *typ,
+    xsd_do_type_annotation (struct ncx_instance_t_ *instance,
+			    const typ_template_t *typ,
 			    val_value_t *val);
 
 
@@ -615,7 +632,8 @@ extern status_t
 *    NULL if some error (*res != NO_ERR)
 *********************************************************************/
 extern val_value_t *
-    xsd_make_group_annotation (const grp_template_t *grp,
+    xsd_make_group_annotation (struct ncx_instance_t_ *instance,
+			       const grp_template_t *grp,
 			       status_t  *res);
 
 
@@ -631,7 +649,7 @@ extern val_value_t *
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_aughook (val_value_t *val);
+    xsd_add_aughook (struct ncx_instance_t_ *instance, val_value_t *val);
 
 
 /********************************************************************
@@ -646,7 +664,7 @@ extern status_t
 *   malloced buffer with the typename
 *********************************************************************/
 extern xmlChar *
-    xsd_make_rpc_output_typename (const obj_template_t *obj);
+    xsd_make_rpc_output_typename (struct ncx_instance_t_ *instance, const obj_template_t *obj);
 
 
 /********************************************************************
@@ -668,7 +686,8 @@ extern xmlChar *
 *   status
 *********************************************************************/
 extern status_t
-    xsd_add_type_attr (const ncx_module_t *mod,
+    xsd_add_type_attr (struct ncx_instance_t_ *instance,
+		       const ncx_module_t *mod,
 		       const typ_def_t *typdef,
 		       val_value_t *val);
 
@@ -687,7 +706,8 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    test_basetype_attr (const ncx_module_t *mod,
+    test_basetype_attr (struct ncx_instance_t_ *instance,
+                        const ncx_module_t *mod,
                         const typ_def_t *typdef);
 
 

@@ -5,10 +5,14 @@ AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 LT_INIT([disable-static])
 
+AM_PROG_AR
+
 AC_PROG_CC
 AC_PROG_CXX
 AM_PROG_AS
 AC_PROG_LIBTOOL
+
+AM_PROG_CC_C_O
 
 netconfmoduledir="$libdir/yuma"
 AC_SUBST(netconfmoduledir)
@@ -31,9 +35,6 @@ AC_SUBST(ncx_netconf_includedir)
 agt_netconf_includedir="$includedir/yuma/agt"
 AC_SUBST(agt_netconf_includedir)
 
-yangrpc_netconf_includedir="$includedir/yuma/yangrpc"
-AC_SUBST(yangrpc_netconf_includedir)
-
 platform_netconf_includedir="$includedir/yuma/platform"
 AC_SUBST(platform_netconf_includedir)
 
@@ -54,11 +55,11 @@ AC_CONFIG_FILES([
         netconf/src/ncx/Makefile
         netconf/src/yangcli/Makefile
         netconf/src/subsys/Makefile
+        netconf/src/ydump/Makefile
+        netconf/src/yangdiff/Makefile
+        netconf/src/yangdump/Makefile
         libtoaster/src/Makefile
         example-modules/helloworld/Makefile
-        netconf/src/yangrpc/Makefile
-        netconf/src/yangrpc/example/Makefile
-        netconf/src/yangrpc/yanghttpd/Makefile
 ])
 
 AC_OUTPUT

@@ -182,7 +182,7 @@ typedef struct xml_node_t_ {
 *   pointer to new node or NULL if malloc error
 *********************************************************************/
 extern xml_node_t *
-    xml_new_node (void);
+    xml_new_node (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -194,7 +194,7 @@ extern xml_node_t *
 *   node == pointer to node to init
 *********************************************************************/
 extern void
-    xml_init_node (xml_node_t *node);
+    xml_init_node (struct ncx_instance_t_ *instance, xml_node_t *node);
 
 
 /********************************************************************
@@ -206,7 +206,7 @@ extern void
 *   node == pointer to node to free
 *********************************************************************/
 extern void
-    xml_free_node (xml_node_t *node);
+    xml_free_node (struct ncx_instance_t_ *instance, xml_node_t *node);
 
 
 /********************************************************************
@@ -218,7 +218,7 @@ extern void
 *   node == pointer to node to clean
 *********************************************************************/
 extern void
-    xml_clean_node (xml_node_t *node);
+    xml_clean_node (struct ncx_instance_t_ *instance, xml_node_t *node);
 
 
 /********************************************************************
@@ -236,7 +236,8 @@ extern void
 *   status of the operation
 *********************************************************************/
 extern status_t
-    xml_get_reader_from_filespec (const char *filespec,
+    xml_get_reader_from_filespec (struct ncx_instance_t_ *instance,
+				  const char *filespec,
 				  xmlTextReaderPtr  *reader);
 
 
@@ -256,7 +257,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    xml_get_reader_for_session (xmlInputReadCallback readfn,
+    xml_get_reader_for_session (struct ncx_instance_t_ *instance,
+				xmlInputReadCallback readfn,
 				xmlInputCloseCallback closefn,
 				void *context,
 				xmlTextReaderPtr  *reader);
@@ -278,7 +280,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t
-    xml_reset_reader_for_session (xmlInputReadCallback readfn,
+    xml_reset_reader_for_session (struct ncx_instance_t_ *instance,
+				  xmlInputReadCallback readfn,
 				  xmlInputCloseCallback closefn,
 				  void *context,
 				  xmlTextReaderPtr  reader);
@@ -295,7 +298,7 @@ extern status_t
 *   none
 *********************************************************************/
 extern void
-    xml_free_reader (xmlTextReaderPtr reader);
+    xml_free_reader (struct ncx_instance_t_ *instance, xmlTextReaderPtr reader);
 
 
 /********************************************************************
@@ -325,7 +328,7 @@ extern const char *
 *   FALSE if OEF seen, or TRUE if normal
 *********************************************************************/
 extern boolean 
-    xml_advance_reader (xmlTextReaderPtr reader);
+    xml_advance_reader (struct ncx_instance_t_ *instance, xmlTextReaderPtr reader);
 
 
 /********************************************************************
@@ -342,7 +345,8 @@ extern boolean
 *    status
 *********************************************************************/
 extern status_t 
-    xml_node_match (const xml_node_t *node,
+    xml_node_match (struct ncx_instance_t_ *instance,
+		    const xml_node_t *node,
 		    xmlns_id_t nsid,
 		    const xmlChar *elname,
 		    xml_nodetyp_t  nodetyp);
@@ -361,7 +365,8 @@ extern status_t
 *    status,
 *********************************************************************/
 extern status_t
-    xml_endnode_match (const xml_node_t *startnode,
+    xml_endnode_match (struct ncx_instance_t_ *instance,
+		       const xml_node_t *startnode,
 		       const xml_node_t *endnode);
 
 
@@ -378,7 +383,7 @@ extern status_t
 *    If a node is read, the reader will be pointing to that node
 *********************************************************************/
 extern boolean 
-    xml_docdone (xmlTextReaderPtr reader);
+    xml_docdone (struct ncx_instance_t_ *instance, xmlTextReaderPtr reader);
 
 
 /********************************************************************
@@ -390,7 +395,7 @@ extern boolean
 *    node == node to dump
 *********************************************************************/
 extern void
-    xml_dump_node (const xml_node_t *node);
+    xml_dump_node (struct ncx_instance_t_ *instance, const xml_node_t *node);
 
 
 /********************************************************************
@@ -404,7 +409,7 @@ extern void
 *    none
 *********************************************************************/
 extern void
-    xml_init_attrs (xml_attrs_t *attrs);
+    xml_init_attrs (struct ncx_instance_t_ *instance, xml_attrs_t *attrs);
 
 
 /********************************************************************
@@ -418,7 +423,7 @@ extern void
 *    pointer to new xml_attr_t or NULL if malloc error
 *********************************************************************/
 extern xml_attr_t *
-    xml_new_attr (void);
+    xml_new_attr (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -430,7 +435,7 @@ extern xml_attr_t *
 *    attr == xml_attr_t to free
 *********************************************************************/
 extern void
-    xml_free_attr (xml_attr_t *attr);
+    xml_free_attr (struct ncx_instance_t_ *instance, xml_attr_t *attr);
 
 
 /********************************************************************
@@ -447,7 +452,8 @@ extern void
 *    NO_ERR if all okay
 *********************************************************************/
 extern status_t
-    xml_add_attr (xml_attrs_t *attrs, 
+    xml_add_attr (struct ncx_instance_t_ *instance, 
+		  xml_attrs_t *attrs, 
 		  xmlns_id_t  ns_id,
 		  const xmlChar *attr_name,
 		  const xmlChar *attr_val);
@@ -472,7 +478,8 @@ extern status_t
 *    pointer to attr that was added, NULL if none added
 *********************************************************************/
 extern xml_attr_t *
-    xml_add_qattr (xml_attrs_t *attrs, 
+    xml_add_qattr (struct ncx_instance_t_ *instance, 
+		   xml_attrs_t *attrs, 
 		   xmlns_id_t  ns_id,
 		   const xmlChar *attr_qname,
 		   uint32  plen,
@@ -495,7 +502,8 @@ extern xml_attr_t *
 *    NO_ERR if all okay
 *********************************************************************/
 extern status_t
-    xml_add_xmlns_attr (xml_attrs_t *attrs, 
+    xml_add_xmlns_attr (struct ncx_instance_t_ *instance, 
+			xml_attrs_t *attrs, 
 			xmlns_id_t  ns_id,
 			const xmlChar *pfix);
 
@@ -515,7 +523,8 @@ extern status_t
 *    NO_ERR if all okay
 *********************************************************************/
 extern status_t
-    xml_add_xmlns_attr_string (xml_attrs_t *attrs, 
+    xml_add_xmlns_attr_string (struct ncx_instance_t_ *instance, 
+			       xml_attrs_t *attrs, 
 			       const xmlChar *ns,
 			       const xmlChar *pfix);
 
@@ -538,7 +547,8 @@ extern status_t
 *    NO_ERR if all okay
 *********************************************************************/
 extern status_t
-    xml_add_inv_xmlns_attr (xml_attrs_t *attrs, 
+    xml_add_inv_xmlns_attr (struct ncx_instance_t_ *instance, 
+			    xml_attrs_t *attrs, 
 			    xmlns_id_t  ns_id,
 			    const xmlChar *pfix,
 			    const xmlChar *nsval);
@@ -555,7 +565,7 @@ extern status_t
 *    pointer to first entry or NULL if none
 *********************************************************************/
 extern xml_attr_t *
-    xml_first_attr (xml_attrs_t  *attrs);
+    xml_first_attr (struct ncx_instance_t_ *instance, xml_attrs_t  *attrs);
 
 
 /********************************************************************
@@ -569,7 +579,7 @@ extern xml_attr_t *
 *    pointer to first entry or NULL if none
 *********************************************************************/
 extern xml_attr_t *
-    xml_get_first_attr (const xml_node_t  *node);
+    xml_get_first_attr (struct ncx_instance_t_ *instance, const xml_node_t  *node);
 
 
 /********************************************************************
@@ -583,7 +593,7 @@ extern xml_attr_t *
 *    pointer to the next entry or NULL if none
 *********************************************************************/
 extern xml_attr_t *
-    xml_next_attr (xml_attr_t  *attr);
+    xml_next_attr (struct ncx_instance_t_ *instance, xml_attr_t  *attr);
 
 
 /********************************************************************
@@ -597,7 +607,7 @@ extern xml_attr_t *
 *    none
 *********************************************************************/
 extern void
-    xml_clean_attrs (xml_attrs_t  *attrs);
+    xml_clean_attrs (struct ncx_instance_t_ *instance, xml_attrs_t  *attrs);
 
 
 
@@ -614,7 +624,8 @@ extern void
 *   pointer to found xml_attr_t or NULL if not found
 *********************************************************************/
 extern xml_attr_t *
-    xml_find_attr (xml_node_t   *node,
+    xml_find_attr (struct ncx_instance_t_ *instance,
+		   xml_node_t   *node,
 		   xmlns_id_t    nsid,                  
 		   const xmlChar *attrname);
 
@@ -632,7 +643,8 @@ extern xml_attr_t *
 *   pointer to found xml_attr_t or NULL if not found
 *********************************************************************/
 extern xml_attr_t *
-    xml_find_attr_q (xml_attrs_t *attrs,
+    xml_find_attr_q (struct ncx_instance_t_ *instance,
+		     xml_attrs_t *attrs,
 		     xmlns_id_t        nsid,
 		     const xmlChar    *attrname);
 
@@ -650,7 +662,8 @@ extern xml_attr_t *
 *   pointer to found xml_attr_t or NULL if not found
 *********************************************************************/
 extern const xml_attr_t *
-    xml_find_ro_attr (const xml_node_t *node,
+    xml_find_ro_attr (struct ncx_instance_t_ *instance,
+                      const xml_node_t *node,
                       xmlns_id_t        nsid,
 		      const xmlChar    *attrname);
 
@@ -665,7 +678,7 @@ extern const xml_attr_t *
 *   number of xmlChars before null terminator found
 *********************************************************************/
 extern uint32
-    xml_strlen (const xmlChar *str);
+    xml_strlen (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -686,7 +699,8 @@ extern uint32
 *   number of xmlChars before null terminator found
 *********************************************************************/
 extern uint32 
-    xml_strlen_sp (const xmlChar *str,
+    xml_strlen_sp (struct ncx_instance_t_ *instance,
+		   const xmlChar *str,
 		   boolean *sp);
 
 
@@ -704,7 +718,8 @@ extern uint32
 *   number of bytes copied to the result buffer, not including EOS
 *********************************************************************/
 extern uint32
-    xml_strcpy (xmlChar *copyTo, 
+    xml_strcpy (struct ncx_instance_t_ *instance, 
+		xmlChar *copyTo, 
 		const xmlChar *copyFrom);
 
 
@@ -721,7 +736,8 @@ extern uint32
 *   number of bytes copied to the result buffer
 *********************************************************************/
 extern uint32
-    xml_strncpy (xmlChar *copyTo, 
+    xml_strncpy (struct ncx_instance_t_ *instance, 
+		 xmlChar *copyTo, 
 		 const xmlChar *copyFrom,
 		 uint32  maxlen);
 
@@ -736,7 +752,7 @@ extern uint32
 *   pointer to new string or NULL if some error
 *********************************************************************/
 extern xmlChar * 
-    xml_strdup (const xmlChar *copyFrom);
+    xml_strdup (struct ncx_instance_t_ *instance, const xmlChar *copyFrom);
 
 
 /********************************************************************
@@ -750,7 +766,8 @@ extern xmlChar *
 *   appendTo if no error or NULL if some error
 *********************************************************************/
 extern xmlChar * 
-    xml_strcat (xmlChar *appendTo, 
+    xml_strcat (struct ncx_instance_t_ *instance, 
+		xmlChar *appendTo, 
 		const xmlChar *appendFrom);
 
 
@@ -766,7 +783,8 @@ extern xmlChar *
 *   appendTo if no error or NULL if some error
 *********************************************************************/
 extern xmlChar * 
-    xml_strncat (xmlChar *appendTo,
+    xml_strncat (struct ncx_instance_t_ *instance,
+		 xmlChar *appendTo,
 		 const xmlChar *appendFrom,
 		 uint32 maxlen);
 
@@ -782,7 +800,8 @@ extern xmlChar *
 *   pointer to new string or NULL if some error
 *********************************************************************/
 extern xmlChar * 
-    xml_strndup (const xmlChar *copyFrom, 
+    xml_strndup (struct ncx_instance_t_ *instance, 
+		 const xmlChar *copyFrom, 
 		 uint32 maxlen);
 
 
@@ -797,7 +816,8 @@ extern xmlChar *
 *   pointer to new string or NULL if some error
 *********************************************************************/
 extern char * 
-    xml_ch_strndup (const char *copyFrom, 
+    xml_ch_strndup (struct ncx_instance_t_ *instance, 
+		    const char *copyFrom, 
 		    uint32 maxlen);
 
 
@@ -815,7 +835,8 @@ extern char *
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 extern int 
-    xml_strcmp (const xmlChar *s1, 
+    xml_strcmp (struct ncx_instance_t_ *instance, 
+		const xmlChar *s1, 
 		const xmlChar *s2);
 
 
@@ -833,7 +854,8 @@ extern int
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 extern int 
-    xml_stricmp (const xmlChar *s1, 
+    xml_stricmp (struct ncx_instance_t_ *instance, 
+                 const xmlChar *s1, 
                  const xmlChar *s2);
 
 
@@ -852,7 +874,8 @@ extern int
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 extern int 
-    xml_strncmp (const xmlChar *s1, 
+    xml_strncmp (struct ncx_instance_t_ *instance, 
+		 const xmlChar *s1, 
 		 const xmlChar *s2,
 		 uint32 maxlen);
 
@@ -874,7 +897,8 @@ extern int
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 extern int 
-    xml_strnicmp (const xmlChar *s1, 
+    xml_strnicmp (struct ncx_instance_t_ *instance, 
+                  const xmlChar *s1, 
                   const xmlChar *s2,
                   uint32 maxlen);
 
@@ -902,7 +926,7 @@ extern boolean
 *   TRUE if all whitespace, FALSE otherwise
 *********************************************************************/
 extern boolean
-    xml_isspace_str (const xmlChar *str);
+    xml_isspace_str (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -925,7 +949,8 @@ extern boolean
 *   == 1  : string 1 is greater than string 2
 *********************************************************************/
 extern int 
-    xml_strcmp_nosp (const xmlChar *s1, 
+    xml_strcmp_nosp (struct ncx_instance_t_ *instance, 
+		     const xmlChar *s1, 
 		     const xmlChar *s2);
 
 
@@ -944,7 +969,7 @@ extern int
 *   pointer to new malloced string
 *********************************************************************/
 extern xmlChar *
-    xml_copy_clean_string (const xmlChar *str);
+    xml_copy_clean_string (struct ncx_instance_t_ *instance, const xmlChar *str);
 
 
 /********************************************************************
@@ -960,7 +985,8 @@ extern xmlChar *
 *   converted xmlChar
 *********************************************************************/
 extern xmlChar
-    xml_convert_char_entity (const xmlChar *str, 
+    xml_convert_char_entity (struct ncx_instance_t_ *instance, 
+			     const xmlChar *str, 
 			     uint32 *used);
 
 
@@ -983,7 +1009,8 @@ extern xmlChar
 *   status; could be error if namespace specified but not supported
 *********************************************************************/
 extern status_t
-    xml_check_ns (xmlTextReaderPtr reader,
+    xml_check_ns (struct ncx_instance_t_ *instance,
+		  xmlTextReaderPtr reader,
 		  const xmlChar   *elname,
 		  xmlns_id_t       *id,
 		  uint32           *pfix_len,
@@ -1005,7 +1032,8 @@ extern status_t
 *    
 *********************************************************************/
 extern void
-    xml_check_qname_content (xmlTextReaderPtr reader,
+    xml_check_qname_content (struct ncx_instance_t_ *instance,
+			     xmlTextReaderPtr reader,
 			     xml_node_t      *node);
 
 
@@ -1029,7 +1057,8 @@ extern void
 *   status
 *********************************************************************/
 extern status_t
-    xml_get_namespace_id (xmlTextReaderPtr reader,
+    xml_get_namespace_id (struct ncx_instance_t_ *instance,
+			  xmlTextReaderPtr reader,
 			  const xmlChar *prefix,
 			  uint32 prefixlen,
 			  xmlns_id_t  *retnsid);
@@ -1057,7 +1086,8 @@ extern status_t
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    xml_consume_node (xmlTextReaderPtr reader,
+    xml_consume_node (struct ncx_instance_t_ *instance,
+                      xmlTextReaderPtr reader,
                       xml_node_t  *xmlnode,
                       boolean nserr,
                       boolean adv);

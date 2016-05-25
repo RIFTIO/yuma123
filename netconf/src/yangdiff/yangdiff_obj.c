@@ -109,14 +109,15 @@ date         init     comment
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    mustQ_changed (dlq_hdr_t *oldQ,
+    mustQ_changed (ncx_instance_t *instance,
+                   dlq_hdr_t *oldQ,
                    dlq_hdr_t *newQ)
 {
     xpath_pcb_t *oldm, *newm;
     uint32       oldcnt, newcnt;
 
-    oldcnt = dlq_count(oldQ);
-    newcnt = dlq_count(newQ);
+    oldcnt = dlq_count(instance, oldQ);
+    newcnt = dlq_count(instance, newQ);
 
     if (oldcnt != newcnt) {
         return 1;
@@ -126,20 +127,21 @@ static uint32
         return 0;
     }
 
-    for (newm = (xpath_pcb_t *)dlq_firstEntry(newQ);
+    for (newm = (xpath_pcb_t *)dlq_firstEntry(instance, newQ);
          newm != NULL;
-         newm = (xpath_pcb_t *)dlq_nextEntry(newm)) {
+         newm = (xpath_pcb_t *)dlq_nextEntry(instance, newm)) {
         newm->seen = FALSE;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldm = (xpath_pcb_t *)dlq_firstEntry(oldQ);
+    for (oldm = (xpath_pcb_t *)dlq_firstEntry(instance, oldQ);
          oldm != NULL;
-         oldm = (xpath_pcb_t *)dlq_nextEntry(oldm)) {
+         oldm = (xpath_pcb_t *)dlq_nextEntry(instance, oldm)) {
 
-        newm = xpath_find_pcb(newQ, oldm->exprstr);
+        newm = xpath_find_pcb(instance, newQ, oldm->exprstr);
         if (newm) {
-            if (errinfo_changed(&oldm->errinfo, 
+            if (errinfo_changed(instance, 
+                                &oldm->errinfo, 
                                 &newm->errinfo)) {
                 return 1;
             } else {
@@ -151,9 +153,9 @@ static uint32
     }
 
     /* look for must-stmts that were added in the new module */
-    for (newm = (xpath_pcb_t *)dlq_firstEntry(newQ);
+    for (newm = (xpath_pcb_t *)dlq_firstEntry(instance, newQ);
          newm != NULL;
-         newm = (xpath_pcb_t *)dlq_nextEntry(newm)) {
+         newm = (xpath_pcb_t *)dlq_nextEntry(instance, newm)) {
         if (!newm->seen) {
             return 1;
         }
@@ -176,41 +178,46 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_mustQ_diff (yangdiff_diffparms_t *cp,
+    output_mustQ_diff (ncx_instance_t *instance,
+                       yangdiff_diffparms_t *cp,
                        dlq_hdr_t *oldQ,
                        dlq_hdr_t *newQ)
 {
     xpath_pcb_t *oldm, *newm;
 
-    for (newm = (xpath_pcb_t *)dlq_firstEntry(newQ);
+    for (newm = (xpath_pcb_t *)dlq_firstEntry(instance, newQ);
          newm != NULL;
-         newm = (xpath_pcb_t *)dlq_nextEntry(newm)) {
+         newm = (xpath_pcb_t *)dlq_nextEntry(instance, newm)) {
         newm->seen = FALSE;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldm = (xpath_pcb_t *)dlq_firstEntry(oldQ);
+    for (oldm = (xpath_pcb_t *)dlq_firstEntry(instance, oldQ);
          oldm != NULL;
-         oldm = (xpath_pcb_t *)dlq_nextEntry(oldm)) {
+         oldm = (xpath_pcb_t *)dlq_nextEntry(instance, oldm)) {
 
-        newm = xpath_find_pcb(newQ, oldm->exprstr);
+        newm = xpath_find_pcb(instance, newQ, oldm->exprstr);
         if (newm) {
             newm->seen = TRUE;
-            if (errinfo_changed(&oldm->errinfo, 
+            if (errinfo_changed(instance, 
+                                &oldm->errinfo, 
                                 &newm->errinfo)) {
-                output_mstart_line(cp, 
+                output_mstart_line(instance, 
+                                   cp, 
                                    YANG_K_MUST, 
                                    oldm->exprstr, 
                                    FALSE);
-                indent_in(cp);
-                output_errinfo_diff(cp, 
+                indent_in(instance, cp);
+                output_errinfo_diff(instance, 
+                                    cp, 
                                     &oldm->errinfo, 
                                     &newm->errinfo);
-                indent_out(cp);
+                indent_out(instance, cp);
             }
         } else {
             /* must-stmt was removed from the new module */
-            output_diff(cp, 
+            output_diff(instance, 
+                        cp, 
                         YANG_K_MUST,  
                         oldm->exprstr, 
                         NULL, 
@@ -219,12 +226,13 @@ static void
     }
 
     /* look for must-stmts that were added in the new module */
-    for (newm = (xpath_pcb_t *)dlq_firstEntry(newQ);
+    for (newm = (xpath_pcb_t *)dlq_firstEntry(instance, newQ);
          newm != NULL;
-         newm = (xpath_pcb_t *)dlq_nextEntry(newm)) {
+         newm = (xpath_pcb_t *)dlq_nextEntry(instance, newm)) {
         if (!newm->seen) {
             /* must-stmt was added in the new module */
-            output_diff(cp, 
+            output_diff(instance, 
+                        cp, 
                         YANG_K_MUST,  
                         NULL, 
                         newm->exprstr, 
@@ -249,28 +257,29 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    uniqueQ_changed (dlq_hdr_t *oldQ,
+    uniqueQ_changed (ncx_instance_t *instance,
+                     dlq_hdr_t *oldQ,
                      dlq_hdr_t *newQ)
 {
 
     obj_unique_t *oldun, *newun;
 
-    if (dlq_count(oldQ) != dlq_count(newQ)) {
+    if (dlq_count(instance, oldQ) != dlq_count(instance, newQ)) {
         return 1;
     }
 
-    for (newun = (obj_unique_t *)dlq_firstEntry(newQ);
+    for (newun = (obj_unique_t *)dlq_firstEntry(instance, newQ);
          newun != NULL;
-         newun = (obj_unique_t *)dlq_nextEntry(newun)) {
+         newun = (obj_unique_t *)dlq_nextEntry(instance, newun)) {
         newun->seen = FALSE;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldun = (obj_unique_t *)dlq_firstEntry(oldQ);
+    for (oldun = (obj_unique_t *)dlq_firstEntry(instance, oldQ);
          oldun != NULL;
-         oldun = (obj_unique_t *)dlq_nextEntry(oldun)) {
+         oldun = (obj_unique_t *)dlq_nextEntry(instance, oldun)) {
 
-        newun = obj_find_unique(newQ, oldun->xpath);
+        newun = obj_find_unique(instance, newQ, oldun->xpath);
         if (newun) {
             newun->seen = TRUE;
         } else {
@@ -279,9 +288,9 @@ static uint32
     }
 
     /* look for unique-stmts that were added in the new module */
-    for (newun = (obj_unique_t *)dlq_firstEntry(newQ);
+    for (newun = (obj_unique_t *)dlq_firstEntry(instance, newQ);
          newun != NULL;
-         newun = (obj_unique_t *)dlq_nextEntry(newun)) {
+         newun = (obj_unique_t *)dlq_nextEntry(instance, newun)) {
         if (!newun->seen) {
             return 1;
         }
@@ -304,29 +313,31 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_uniqueQ_diff (yangdiff_diffparms_t *cp,
+    output_uniqueQ_diff (ncx_instance_t *instance,
+                         yangdiff_diffparms_t *cp,
                          dlq_hdr_t *oldQ,
                          dlq_hdr_t *newQ)
 {
     obj_unique_t *oldu, *newu;
 
-    for (newu = (obj_unique_t *)dlq_firstEntry(newQ);
+    for (newu = (obj_unique_t *)dlq_firstEntry(instance, newQ);
          newu != NULL;
-         newu = (obj_unique_t *)dlq_nextEntry(newu)) {
+         newu = (obj_unique_t *)dlq_nextEntry(instance, newu)) {
         newu->seen = FALSE;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldu = (obj_unique_t *)dlq_firstEntry(oldQ);
+    for (oldu = (obj_unique_t *)dlq_firstEntry(instance, oldQ);
          oldu != NULL;
-         oldu = (obj_unique_t *)dlq_nextEntry(oldu)) {
+         oldu = (obj_unique_t *)dlq_nextEntry(instance, oldu)) {
 
-        newu = obj_find_unique(newQ, oldu->xpath);
+        newu = obj_find_unique(instance, newQ, oldu->xpath);
         if (newu) {
             newu->seen = TRUE;
         } else {
             /* must-stmt was removed from the new module */
-            output_diff(cp, 
+            output_diff(instance, 
+                        cp, 
                         YANG_K_UNIQUE, 
                         oldu->xpath,
                         NULL, 
@@ -335,12 +346,13 @@ static void
     }
 
     /* look for unique-stmts that were added in the new module */
-    for (newu = (obj_unique_t *)dlq_firstEntry(newQ);
+    for (newu = (obj_unique_t *)dlq_firstEntry(instance, newQ);
          newu != NULL;
-         newu = (obj_unique_t *)dlq_nextEntry(newu)) {
+         newu = (obj_unique_t *)dlq_nextEntry(instance, newu)) {
         if (!newu->seen) {
             /* must-stmt was added in the new module */
-            output_diff(cp,
+            output_diff(instance,
+                        cp,
                         YANG_K_UNIQUE,
                         NULL,
                         newu->xpath,
@@ -366,7 +378,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    container_changed (yangdiff_diffparms_t *cp,
+    container_changed (ncx_instance_t *instance,
+                       yangdiff_diffparms_t *cp,
                        obj_template_t *oldobj,
                        obj_template_t *newobj)
 {
@@ -376,11 +389,12 @@ static uint32
     new = newobj->def.container;
 
 
-    if (mustQ_changed(&old->mustQ, &new->mustQ)) {
+    if (mustQ_changed(instance, &old->mustQ, &new->mustQ)) {
         return 1;
     }
 
-    if (str_field_changed(YANG_K_PRESENCE,
+    if (str_field_changed(instance,
+                          YANG_K_PRESENCE,
                           old->presence,
                           new->presence, 
                           FALSE,
@@ -396,7 +410,8 @@ static uint32
         return 1;
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status, 
                              new->status, 
                              FALSE,
@@ -404,7 +419,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr,
                           new->descr, 
                           FALSE,
@@ -412,7 +428,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref,
                           new->ref, 
                           FALSE,
@@ -420,15 +437,15 @@ static uint32
         return 1;
     }
 
-    if (typedefQ_changed(cp, old->typedefQ, new->typedefQ)) {
+    if (typedefQ_changed(instance, cp, old->typedefQ, new->typedefQ)) {
         return 1;
     }
 
-    if (groupingQ_changed(cp, old->groupingQ, new->groupingQ)) {
+    if (groupingQ_changed(instance, cp, old->groupingQ, new->groupingQ)) {
         return 1;
     }
 
-    if (datadefQ_changed(cp, old->datadefQ, new->datadefQ)) {
+    if (datadefQ_changed(instance, cp, old->datadefQ, new->datadefQ)) {
         return 1;
     }
 
@@ -449,7 +466,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_container_diff (yangdiff_diffparms_t *cp,
+    output_container_diff (ncx_instance_t *instance,
+                           yangdiff_diffparms_t *cp,
                            obj_template_t *oldobj,
                            obj_template_t *newobj)
 {
@@ -461,14 +479,15 @@ static void
     old = oldobj->def.container;
     new = newobj->def.container;
 
-    output_mustQ_diff(cp, &old->mustQ, &new->mustQ);
+    output_mustQ_diff(instance, cp, &old->mustQ, &new->mustQ);
 
-    if (str_field_changed(YANG_K_PRESENCE,
+    if (str_field_changed(instance,
+                          YANG_K_PRESENCE,
                           old->presence, 
                           new->presence, 
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (bool_field_changed(YANG_K_CONFIG, 
@@ -476,38 +495,41 @@ static void
                            (newobj->flags & OBJ_FL_CONFIG), 
                            isrev,
                            &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status,
                              new->status, 
                              isrev,
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr,
                           new->descr,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref,
                           new->ref,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_typedefQ_diff(cp, old->typedefQ, new->typedefQ);
+    output_typedefQ_diff(instance, cp, old->typedefQ, new->typedefQ);
 
-    output_groupingQ_diff(cp, old->groupingQ, new->groupingQ);
+    output_groupingQ_diff(instance, cp, old->groupingQ, new->groupingQ);
 
-    output_datadefQ_diff(cp, old->datadefQ, new->datadefQ);
+    output_datadefQ_diff(instance, cp, old->datadefQ, new->datadefQ);
 
 } /* output_container_diff */
 
@@ -527,7 +549,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    leaf_changed (yangdiff_diffparms_t *cp,
+    leaf_changed (ncx_instance_t *instance,
+                  yangdiff_diffparms_t *cp,
                   obj_template_t *oldobj,
                   obj_template_t *newobj)
 {
@@ -536,11 +559,12 @@ static uint32
     old = oldobj->def.leaf;
     new = newobj->def.leaf;
 
-    if (type_changed(cp, old->typdef, new->typdef)) {
+    if (type_changed(instance, cp, old->typdef, new->typdef)) {
         return 1;
     }
 
-    if (str_field_changed(YANG_K_UNITS, 
+    if (str_field_changed(instance, 
+                          YANG_K_UNITS, 
                           old->units, 
                           new->units, 
                           FALSE, 
@@ -548,11 +572,12 @@ static uint32
         return 1;
     }
 
-    if (mustQ_changed(&old->mustQ, &new->mustQ)) {
+    if (mustQ_changed(instance, &old->mustQ, &new->mustQ)) {
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DEFAULT,
+    if (str_field_changed(instance,
+                          YANG_K_DEFAULT,
                           old->defval, 
                           new->defval, 
                           FALSE, 
@@ -576,7 +601,8 @@ static uint32
         return 1;
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status, 
                              new->status, 
                              FALSE, 
@@ -584,7 +610,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr, 
                           new->descr, 
                           FALSE, 
@@ -592,7 +619,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref, 
                           new->ref, 
                           FALSE, 
@@ -620,7 +648,8 @@ static uint32
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    anyxml_changed (obj_template_t *oldobj,
+    anyxml_changed (ncx_instance_t *instance,
+                    obj_template_t *oldobj,
                     obj_template_t *newobj)
 {
     obj_leaf_t *old, *new;
@@ -628,7 +657,7 @@ static uint32
     old = oldobj->def.leaf;
     new = newobj->def.leaf;
 
-    if (mustQ_changed(&old->mustQ, &new->mustQ)) {
+    if (mustQ_changed(instance, &old->mustQ, &new->mustQ)) {
         return 1;
     }
 
@@ -648,7 +677,8 @@ static uint32
         return 1;
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status, 
                              new->status, 
                              FALSE, 
@@ -656,7 +686,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr, 
                           new->descr, 
                           FALSE, 
@@ -664,7 +695,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref, 
                           new->ref, 
                           FALSE, 
@@ -689,7 +721,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_leaf_diff (yangdiff_diffparms_t *cp,
+    output_leaf_diff (ncx_instance_t *instance,
+                      yangdiff_diffparms_t *cp,
                       obj_template_t *oldobj,
                       obj_template_t *newobj)
 {
@@ -701,26 +734,28 @@ static void
     old = oldobj->def.leaf;
     new = newobj->def.leaf;
 
-    if (type_changed(cp, old->typdef, new->typdef)) {
-        output_one_type_diff(cp, old->typdef, new->typdef);
+    if (type_changed(instance, cp, old->typdef, new->typdef)) {
+        output_one_type_diff(instance, cp, old->typdef, new->typdef);
     }
 
-    if (str_field_changed(YANG_K_UNITS, 
+    if (str_field_changed(instance, 
+                          YANG_K_UNITS, 
                           old->units, 
                           new->units, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_mustQ_diff(cp, &old->mustQ, &new->mustQ);
+    output_mustQ_diff(instance, cp, &old->mustQ, &new->mustQ);
 
-    if (str_field_changed(YANG_K_DEFAULT,
+    if (str_field_changed(instance,
+                          YANG_K_DEFAULT,
                           old->defval, 
                           new->defval, 
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (bool_field_changed(YANG_K_CONFIG,
@@ -728,7 +763,7 @@ static void
                            (newobj->flags & OBJ_FL_CONFIG), 
                            isrev,
                            &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (bool_field_changed(YANG_K_MANDATORY,
@@ -736,31 +771,34 @@ static void
                            (newobj->flags & OBJ_FL_MANDATORY), 
                            isrev,
                            &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status,
                              new->status, 
                              isrev,
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION, 
+    if (str_field_changed(instance, 
+                          YANG_K_DESCRIPTION, 
                           old->descr,
                           new->descr, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref,
                           new->ref,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
 } /* output_leaf_diff */
@@ -778,7 +816,8 @@ static void
  *
  *********************************************************************/
 static void
-    output_anyxml_diff (yangdiff_diffparms_t *cp,
+    output_anyxml_diff (ncx_instance_t *instance,
+                        yangdiff_diffparms_t *cp,
                         obj_template_t *oldobj,
                         obj_template_t *newobj)
 {
@@ -790,14 +829,14 @@ static void
     old = oldobj->def.leaf;
     new = newobj->def.leaf;
 
-    output_mustQ_diff(cp, &old->mustQ, &new->mustQ);
+    output_mustQ_diff(instance, cp, &old->mustQ, &new->mustQ);
 
     if (bool_field_changed(YANG_K_CONFIG,
                            (oldobj->flags & OBJ_FL_CONFIG),
                            (newobj->flags & OBJ_FL_CONFIG), 
                            isrev,
                            &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (bool_field_changed(YANG_K_MANDATORY,
@@ -805,31 +844,34 @@ static void
                            (newobj->flags & OBJ_FL_MANDATORY), 
                            isrev,
                            &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status,
                              new->status, 
                              isrev,
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION, 
+    if (str_field_changed(instance, 
+                          YANG_K_DESCRIPTION, 
                           old->descr,
                           new->descr, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref,
                           new->ref,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
 } /* output_anyxml_diff */
@@ -850,7 +892,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    leaf_list_changed (yangdiff_diffparms_t *cp,
+    leaf_list_changed (ncx_instance_t *instance,
+                       yangdiff_diffparms_t *cp,
                        obj_template_t *oldobj,
                        obj_template_t *newobj)
 {
@@ -859,11 +902,12 @@ static uint32
     old = oldobj->def.leaflist;
     new = newobj->def.leaflist;
 
-    if (type_changed(cp, old->typdef, new->typdef)) {
+    if (type_changed(instance, cp, old->typdef, new->typdef)) {
         return 1;
     }
 
-    if (str_field_changed(YANG_K_UNITS, 
+    if (str_field_changed(instance, 
+                          YANG_K_UNITS, 
                           old->units, 
                           new->units, 
                           FALSE, 
@@ -871,7 +915,7 @@ static uint32
         return 1;
     }
 
-    if (mustQ_changed(&old->mustQ, &new->mustQ)) {
+    if (mustQ_changed(instance, &old->mustQ, &new->mustQ)) {
         return 1;
     }
 
@@ -909,7 +953,8 @@ static uint32
         return 1;
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status, 
                              new->status, 
                              FALSE, 
@@ -917,7 +962,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr, 
                           new->descr, 
                           FALSE, 
@@ -925,7 +971,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref, 
                           new->ref, 
                           FALSE, 
@@ -950,7 +997,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_leaf_list_diff (yangdiff_diffparms_t *cp,
+    output_leaf_list_diff (ncx_instance_t *instance,
+                           yangdiff_diffparms_t *cp,
                            obj_template_t *oldobj,
                            obj_template_t *newobj)
 {
@@ -966,23 +1014,23 @@ static void
     old = oldobj->def.leaflist;
     new = newobj->def.leaflist;
 
-    if (type_changed(cp, old->typdef, new->typdef)) {
-        output_one_type_diff(cp, old->typdef, new->typdef);
+    if (type_changed(instance, cp, old->typdef, new->typdef)) {
+        output_one_type_diff(instance, cp, old->typdef, new->typdef);
     }
 
-    if (str_field_changed(YANG_K_UNITS, old->units, new->units, 
+    if (str_field_changed(instance, YANG_K_UNITS, old->units, new->units, 
                           isrev, &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_mustQ_diff(cp, &old->mustQ, &new->mustQ);
+    output_mustQ_diff(instance, cp, &old->mustQ, &new->mustQ);
 
     if (bool_field_changed(YANG_K_CONFIG,
                            (oldobj->flags & OBJ_FL_CONFIG),
                            (newobj->flags & OBJ_FL_CONFIG), 
                            isrev, 
                            &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (old->minset) {
@@ -998,12 +1046,13 @@ static void
         newn = NULL;
     }
 
-    if (str_field_changed(YANG_K_MIN_ELEMENTS, 
+    if (str_field_changed(instance, 
+                          YANG_K_MIN_ELEMENTS, 
                           oldn, 
                           newn,
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (old->maxset) {
@@ -1019,46 +1068,51 @@ static void
         newn = NULL;
     }
 
-    if (str_field_changed(YANG_K_MAX_ELEMENTS, 
+    if (str_field_changed(instance, 
+                          YANG_K_MAX_ELEMENTS, 
                           oldn, 
                           newn,
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     oldorder = (old->ordersys) ? YANG_K_SYSTEM : YANG_K_USER;
     neworder = (new->ordersys) ? YANG_K_SYSTEM : YANG_K_USER;
-    if (str_field_changed(YANG_K_ORDERED_BY, 
+    if (str_field_changed(instance, 
+                          YANG_K_ORDERED_BY, 
                           oldorder, 
                           neworder,
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (status_field_changed(YANG_K_STATUS, 
+    if (status_field_changed(instance, 
+                             YANG_K_STATUS, 
                              old->status,
                              new->status, 
                              isrev, 
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION, 
+    if (str_field_changed(instance, 
+                          YANG_K_DESCRIPTION, 
                           old->descr,
                           new->descr, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE, 
+    if (str_field_changed(instance, 
+                          YANG_K_REFERENCE, 
                           old->ref,
                           new->ref, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
 } /* output_leaf_list_diff */
@@ -1079,7 +1133,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    list_changed (yangdiff_diffparms_t *cp,
+    list_changed (ncx_instance_t *instance,
+                  yangdiff_diffparms_t *cp,
                   obj_template_t *oldobj,
                   obj_template_t *newobj)
 {
@@ -1088,19 +1143,20 @@ static uint32
     old = oldobj->def.list;
     new = newobj->def.list;
 
-    if (mustQ_changed(&old->mustQ, &new->mustQ)) {
+    if (mustQ_changed(instance, &old->mustQ, &new->mustQ)) {
         return 1;
     }
 
-    if (str_field_changed(YANG_K_KEY, 
-                          obj_get_keystr(oldobj), 
-                          obj_get_keystr(newobj), 
+    if (str_field_changed(instance, 
+                          YANG_K_KEY, 
+                          obj_get_keystr(instance, oldobj), 
+                          obj_get_keystr(instance, newobj), 
                           FALSE, 
                           NULL)) {
         return 1;
     }
 
-    if (uniqueQ_changed(&old->uniqueQ, &new->uniqueQ)) {
+    if (uniqueQ_changed(instance, &old->uniqueQ, &new->uniqueQ)) {
         return 1;
     }
 
@@ -1138,7 +1194,8 @@ static uint32
         return 1;
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status,
                              new->status, 
                              FALSE,
@@ -1146,7 +1203,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr,
                           new->descr, 
                           FALSE, 
@@ -1154,7 +1212,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref,
                           new->ref, 
                           FALSE,
@@ -1162,15 +1221,15 @@ static uint32
         return 1;
     }
 
-    if (typedefQ_changed(cp, old->typedefQ, new->typedefQ)) {
+    if (typedefQ_changed(instance, cp, old->typedefQ, new->typedefQ)) {
         return 1;
     }
 
-    if (groupingQ_changed(cp, old->groupingQ, new->groupingQ)) {
+    if (groupingQ_changed(instance, cp, old->groupingQ, new->groupingQ)) {
         return 1;
     }
 
-    if (datadefQ_changed(cp, old->datadefQ, new->datadefQ)) {
+    if (datadefQ_changed(instance, cp, old->datadefQ, new->datadefQ)) {
         return 1;
     }
 
@@ -1191,7 +1250,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_list_diff (yangdiff_diffparms_t *cp,
+    output_list_diff (ncx_instance_t *instance,
+                      yangdiff_diffparms_t *cp,
                       obj_template_t *oldobj,
                       obj_template_t *newobj)
 {
@@ -1207,24 +1267,25 @@ static void
     old = oldobj->def.list;
     new = newobj->def.list;
 
-    output_mustQ_diff(cp, &old->mustQ, &new->mustQ);
+    output_mustQ_diff(instance, cp, &old->mustQ, &new->mustQ);
 
-    if (str_field_changed(YANG_K_KEY, 
-                          obj_get_keystr(oldobj),
-                          obj_get_keystr(newobj),
+    if (str_field_changed(instance, 
+                          YANG_K_KEY, 
+                          obj_get_keystr(instance, oldobj),
+                          obj_get_keystr(instance, newobj),
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_uniqueQ_diff(cp, &old->uniqueQ, &new->uniqueQ);
+    output_uniqueQ_diff(instance, cp, &old->uniqueQ, &new->uniqueQ);
 
     if (bool_field_changed(YANG_K_CONFIG,
                            (oldobj->flags & OBJ_FL_CONFIG),
                            (newobj->flags & OBJ_FL_CONFIG), 
                            isrev,
                            &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (old->minset) {
@@ -1240,12 +1301,13 @@ static void
         newn = NULL;
     }
 
-    if (str_field_changed(YANG_K_MIN_ELEMENTS, 
+    if (str_field_changed(instance, 
+                          YANG_K_MIN_ELEMENTS, 
                           oldn,
                           newn,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (old->maxset) {
@@ -1261,53 +1323,58 @@ static void
         newn = NULL;
     }
 
-    if (str_field_changed(YANG_K_MAX_ELEMENTS, 
+    if (str_field_changed(instance, 
+                          YANG_K_MAX_ELEMENTS, 
                           oldn, 
                           newn,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     oldorder = (old->ordersys) ? YANG_K_SYSTEM : YANG_K_USER;
     neworder = (new->ordersys) ? YANG_K_SYSTEM : YANG_K_USER;
-    if (str_field_changed(YANG_K_ORDERED_BY, 
+    if (str_field_changed(instance, 
+                          YANG_K_ORDERED_BY, 
                           oldorder, 
                           neworder,
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status,
                              new->status,
                              isrev,
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr,
                           new->descr, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE, 
+    if (str_field_changed(instance, 
+                          YANG_K_REFERENCE, 
                           old->ref,
                           new->ref, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_typedefQ_diff(cp, old->typedefQ, new->typedefQ);
+    output_typedefQ_diff(instance, cp, old->typedefQ, new->typedefQ);
 
-    output_groupingQ_diff(cp, old->groupingQ, new->groupingQ);
+    output_groupingQ_diff(instance, cp, old->groupingQ, new->groupingQ);
 
-    output_datadefQ_diff(cp, old->datadefQ, new->datadefQ);
+    output_datadefQ_diff(instance, cp, old->datadefQ, new->datadefQ);
 
 } /* output_list_diff */
 
@@ -1327,7 +1394,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    choice_changed (yangdiff_diffparms_t *cp,
+    choice_changed (ncx_instance_t *instance,
+                    yangdiff_diffparms_t *cp,
                     obj_template_t *oldobj,
                     obj_template_t *newobj)
 {
@@ -1337,7 +1405,8 @@ static uint32
     new = newobj->def.choic;
 
 
-    if (str_field_changed(YANG_K_DEFAULT, 
+    if (str_field_changed(instance, 
+                          YANG_K_DEFAULT, 
                           old->defval, 
                           new->defval, 
                           FALSE, 
@@ -1353,7 +1422,8 @@ static uint32
         return 1;
     }
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status, 
                              new->status, 
                              FALSE, 
@@ -1361,7 +1431,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr, 
                           new->descr, 
                           FALSE, 
@@ -1369,7 +1440,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref, 
                           new->ref, 
                           FALSE, 
@@ -1377,7 +1449,7 @@ static uint32
         return 1;
     }
 
-    if (datadefQ_changed(cp, old->caseQ, new->caseQ)) {
+    if (datadefQ_changed(instance, cp, old->caseQ, new->caseQ)) {
         return 1;
     }
 
@@ -1399,7 +1471,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_choice_diff (yangdiff_diffparms_t *cp,
+    output_choice_diff (ncx_instance_t *instance,
+                        yangdiff_diffparms_t *cp,
                         obj_template_t *oldobj,
                         obj_template_t *newobj)
 {
@@ -1411,12 +1484,13 @@ static void
     old = oldobj->def.choic;
     new = newobj->def.choic;
 
-    if (str_field_changed(YANG_K_DEFAULT,
+    if (str_field_changed(instance,
+                          YANG_K_DEFAULT,
                           old->defval, 
                           new->defval, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
     if (bool_field_changed(YANG_K_MANDATORY,
@@ -1424,34 +1498,37 @@ static void
                            (newobj->flags & OBJ_FL_MANDATORY),
                            isrev, 
                            &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (status_field_changed(YANG_K_STATUS, 
+    if (status_field_changed(instance, 
+                             YANG_K_STATUS, 
                              old->status,
                              new->status, 
                              isrev, 
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION, 
+    if (str_field_changed(instance, 
+                          YANG_K_DESCRIPTION, 
                           old->descr,
                           new->descr, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE, 
+    if (str_field_changed(instance, 
+                          YANG_K_REFERENCE, 
                           old->ref,
                           new->ref, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_datadefQ_diff(cp, old->caseQ, new->caseQ);
+    output_datadefQ_diff(instance, cp, old->caseQ, new->caseQ);
 
 } /* output_choice_diff */
 
@@ -1471,7 +1548,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    case_changed (yangdiff_diffparms_t *cp,
+    case_changed (ncx_instance_t *instance,
+                  yangdiff_diffparms_t *cp,
                   obj_template_t *oldobj,
                   obj_template_t *newobj)
 {
@@ -1480,7 +1558,8 @@ static uint32
     old = oldobj->def.cas;
     new = newobj->def.cas;
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status, 
                              new->status, 
                              FALSE, 
@@ -1488,7 +1567,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr, 
                           new->descr, 
                           FALSE, 
@@ -1496,7 +1576,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref, 
                           new->ref, 
                           FALSE, 
@@ -1504,7 +1585,7 @@ static uint32
         return 1;
     }
 
-    if (datadefQ_changed(cp, old->datadefQ, new->datadefQ)) {
+    if (datadefQ_changed(instance, cp, old->datadefQ, new->datadefQ)) {
         return 1;
     }
 
@@ -1525,7 +1606,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_case_diff (yangdiff_diffparms_t *cp,
+    output_case_diff (ncx_instance_t *instance,
+                      yangdiff_diffparms_t *cp,
                       obj_template_t *oldobj,
                       obj_template_t *newobj)
 {
@@ -1537,31 +1619,34 @@ static void
     old = oldobj->def.cas;
     new = newobj->def.cas;
 
-    if (status_field_changed(YANG_K_STATUS, 
+    if (status_field_changed(instance, 
+                             YANG_K_STATUS, 
                              old->status,
                              new->status, 
                              isrev, 
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION, 
+    if (str_field_changed(instance, 
+                          YANG_K_DESCRIPTION, 
                           old->descr,
                           new->descr, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref,
                           new->ref,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_datadefQ_diff(cp, old->datadefQ, new->datadefQ);
+    output_datadefQ_diff(instance, cp, old->datadefQ, new->datadefQ);
 
 } /* output_case_diff */
 
@@ -1581,7 +1666,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    rpc_changed (yangdiff_diffparms_t *cp,
+    rpc_changed (ncx_instance_t *instance,
+                 yangdiff_diffparms_t *cp,
                  obj_template_t *oldobj,
                  obj_template_t *newobj)
 {
@@ -1590,7 +1676,8 @@ static uint32
     old = oldobj->def.rpc;
     new = newobj->def.rpc;
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status,
                              new->status, 
                              FALSE,
@@ -1598,7 +1685,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr,
                           new->descr, 
                           FALSE, 
@@ -1606,7 +1694,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref,
                           new->ref, 
                           FALSE, 
@@ -1614,15 +1703,15 @@ static uint32
         return 1;
     }
 
-    if (typedefQ_changed(cp, &old->typedefQ, &new->typedefQ)) {
+    if (typedefQ_changed(instance, cp, &old->typedefQ, &new->typedefQ)) {
         return 1;
     }
 
-    if (groupingQ_changed(cp, &old->groupingQ, &new->groupingQ)) {
+    if (groupingQ_changed(instance, cp, &old->groupingQ, &new->groupingQ)) {
         return 1;
     }
 
-    if (datadefQ_changed(cp, &old->datadefQ, &new->datadefQ)) {
+    if (datadefQ_changed(instance, cp, &old->datadefQ, &new->datadefQ)) {
         return 1;
     }
 
@@ -1643,7 +1732,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_rpc_diff (yangdiff_diffparms_t *cp,
+    output_rpc_diff (ncx_instance_t *instance,
+                     yangdiff_diffparms_t *cp,
                      obj_template_t *oldobj,
                      obj_template_t *newobj)
 {
@@ -1655,35 +1745,38 @@ static void
     old = oldobj->def.rpc;
     new = newobj->def.rpc;
 
-    if (status_field_changed(YANG_K_STATUS, 
+    if (status_field_changed(instance, 
+                             YANG_K_STATUS, 
                              old->status,
                              new->status, 
                              isrev, 
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION, 
+    if (str_field_changed(instance, 
+                          YANG_K_DESCRIPTION, 
                           old->descr,
                           new->descr, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE, 
+    if (str_field_changed(instance, 
+                          YANG_K_REFERENCE, 
                           old->ref,
                           new->ref, 
                           isrev, 
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_typedefQ_diff(cp, &old->typedefQ, &new->typedefQ);
+    output_typedefQ_diff(instance, cp, &old->typedefQ, &new->typedefQ);
 
-    output_groupingQ_diff(cp, &old->groupingQ, &new->groupingQ);
+    output_groupingQ_diff(instance, cp, &old->groupingQ, &new->groupingQ);
 
-    output_datadefQ_diff(cp, &old->datadefQ, &new->datadefQ);
+    output_datadefQ_diff(instance, cp, &old->datadefQ, &new->datadefQ);
 
 } /* output_rpc_diff */
 
@@ -1703,7 +1796,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    rpcio_changed (yangdiff_diffparms_t *cp,
+    rpcio_changed (ncx_instance_t *instance,
+                   yangdiff_diffparms_t *cp,
                    obj_template_t *oldobj,
                    obj_template_t *newobj)
 {
@@ -1712,15 +1806,15 @@ static uint32
     old = oldobj->def.rpcio;
     new = newobj->def.rpcio;
 
-    if (typedefQ_changed(cp, &old->typedefQ, &new->typedefQ)) {
+    if (typedefQ_changed(instance, cp, &old->typedefQ, &new->typedefQ)) {
         return 1;
     }
 
-    if (groupingQ_changed(cp, &old->groupingQ, &new->groupingQ)) {
+    if (groupingQ_changed(instance, cp, &old->groupingQ, &new->groupingQ)) {
         return 1;
     }
 
-    if (datadefQ_changed(cp, &old->datadefQ, &new->datadefQ)) {
+    if (datadefQ_changed(instance, cp, &old->datadefQ, &new->datadefQ)) {
         return 1;
     }
 
@@ -1741,7 +1835,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_rpcio_diff (yangdiff_diffparms_t *cp,
+    output_rpcio_diff (ncx_instance_t *instance,
+                       yangdiff_diffparms_t *cp,
                        obj_template_t *oldobj,
                        obj_template_t *newobj)
 {
@@ -1750,11 +1845,11 @@ static void
     old = oldobj->def.rpcio;
     new = newobj->def.rpcio;
 
-    output_typedefQ_diff(cp, &old->typedefQ, &new->typedefQ);
+    output_typedefQ_diff(instance, cp, &old->typedefQ, &new->typedefQ);
 
-    output_groupingQ_diff(cp, &old->groupingQ, &new->groupingQ);
+    output_groupingQ_diff(instance, cp, &old->groupingQ, &new->groupingQ);
 
-    output_datadefQ_diff(cp, &old->datadefQ, &new->datadefQ);
+    output_datadefQ_diff(instance, cp, &old->datadefQ, &new->datadefQ);
 
 } /* output_rpcio_diff */
 
@@ -1774,7 +1869,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    notif_changed (yangdiff_diffparms_t *cp,
+    notif_changed (ncx_instance_t *instance,
+                   yangdiff_diffparms_t *cp,
                    obj_template_t *oldobj,
                    obj_template_t *newobj)
 {
@@ -1783,7 +1879,8 @@ static uint32
     old = oldobj->def.notif;
     new = newobj->def.notif;
 
-    if (status_field_changed(YANG_K_STATUS,
+    if (status_field_changed(instance,
+                             YANG_K_STATUS,
                              old->status, 
                              new->status, 
                              FALSE, 
@@ -1791,7 +1888,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr, 
                           new->descr, 
                           FALSE, 
@@ -1799,7 +1897,8 @@ static uint32
         return 1;
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref, 
                           new->ref, 
                           FALSE, 
@@ -1807,15 +1906,15 @@ static uint32
         return 1;
     }
 
-    if (typedefQ_changed(cp, &old->typedefQ, &new->typedefQ)) {
+    if (typedefQ_changed(instance, cp, &old->typedefQ, &new->typedefQ)) {
         return 1;
     }
 
-    if (groupingQ_changed(cp, &old->groupingQ, &new->groupingQ)) {
+    if (groupingQ_changed(instance, cp, &old->groupingQ, &new->groupingQ)) {
         return 1;
     }
 
-    if (datadefQ_changed(cp, &old->datadefQ, &new->datadefQ)) {
+    if (datadefQ_changed(instance, cp, &old->datadefQ, &new->datadefQ)) {
         return 1;
     }
 
@@ -1836,7 +1935,8 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_notif_diff (yangdiff_diffparms_t *cp,
+    output_notif_diff (ncx_instance_t *instance,
+                       yangdiff_diffparms_t *cp,
                        obj_template_t *oldobj,
                        obj_template_t *newobj)
 {
@@ -1848,35 +1948,38 @@ static void
     old = oldobj->def.notif;
     new = newobj->def.notif;
 
-    if (status_field_changed(YANG_K_STATUS, 
+    if (status_field_changed(instance, 
+                             YANG_K_STATUS, 
                              old->status,
                              new->status, 
                              isrev, 
                              &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_DESCRIPTION,
+    if (str_field_changed(instance,
+                          YANG_K_DESCRIPTION,
                           old->descr,
                           new->descr,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    if (str_field_changed(YANG_K_REFERENCE,
+    if (str_field_changed(instance,
+                          YANG_K_REFERENCE,
                           old->ref,
                           new->ref,
                           isrev,
                           &cdb)) {
-        output_cdb_line(cp, &cdb);
+        output_cdb_line(instance, cp, &cdb);
     }
 
-    output_typedefQ_diff(cp, &old->typedefQ, &new->typedefQ);
+    output_typedefQ_diff(instance, cp, &old->typedefQ, &new->typedefQ);
 
-    output_groupingQ_diff(cp, &old->groupingQ, &new->groupingQ);
+    output_groupingQ_diff(instance, cp, &old->groupingQ, &new->groupingQ);
 
-    output_datadefQ_diff(cp, &old->datadefQ, &new->datadefQ);
+    output_datadefQ_diff(instance, cp, &old->datadefQ, &new->datadefQ);
 
 } /* output_notif_diff */
 
@@ -1896,7 +1999,8 @@ static void
  *    0 if field not changed
  *********************************************************************/
 static uint32
-    object_changed (yangdiff_diffparms_t *cp,
+    object_changed (ncx_instance_t *instance,
+                    yangdiff_diffparms_t *cp,
                     obj_template_t *oldobj,
                     obj_template_t *newobj)
 {
@@ -1904,7 +2008,8 @@ static uint32
         return 1;
     }
 
-    if (iffeatureQ_changed(obj_get_mod_prefix(oldobj),
+    if (iffeatureQ_changed(instance,
+                           obj_get_mod_prefix(oldobj),
                            &oldobj->iffeatureQ,
                            &newobj->iffeatureQ)) {
         return 1;
@@ -1912,27 +2017,27 @@ static uint32
 
     switch (oldobj->objtype) {
     case OBJ_TYP_CONTAINER:
-        return container_changed(cp, oldobj, newobj);
+        return container_changed(instance, cp, oldobj, newobj);
     case OBJ_TYP_ANYXML:
-        return anyxml_changed(oldobj, newobj);
+        return anyxml_changed(instance, oldobj, newobj);
     case OBJ_TYP_LEAF:
-        return leaf_changed(cp, oldobj, newobj);
+        return leaf_changed(instance, cp, oldobj, newobj);
     case OBJ_TYP_LEAF_LIST:
-        return leaf_list_changed(cp, oldobj, newobj);
+        return leaf_list_changed(instance, cp, oldobj, newobj);
     case OBJ_TYP_LIST:
-        return list_changed(cp, oldobj, newobj);
+        return list_changed(instance, cp, oldobj, newobj);
     case OBJ_TYP_CHOICE:
-        return choice_changed(cp, oldobj, newobj);
+        return choice_changed(instance, cp, oldobj, newobj);
     case OBJ_TYP_CASE:
-        return case_changed(cp, oldobj, newobj);
+        return case_changed(instance, cp, oldobj, newobj);
     case OBJ_TYP_RPC:
-        return rpc_changed(cp, oldobj, newobj);
+        return rpc_changed(instance, cp, oldobj, newobj);
     case OBJ_TYP_RPCIO:
-        return rpcio_changed(cp, oldobj, newobj);
+        return rpcio_changed(instance, cp, oldobj, newobj);
     case OBJ_TYP_NOTIF:
-        return notif_changed(cp, oldobj, newobj);
+        return notif_changed(instance, cp, oldobj, newobj);
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return 0;
     }
     /*NOTREACHED*/
@@ -1952,69 +2057,73 @@ static uint32
  *
  *********************************************************************/
 static void
-    output_one_object_diff (yangdiff_diffparms_t *cp,
+    output_one_object_diff (ncx_instance_t *instance,
+                            yangdiff_diffparms_t *cp,
                             obj_template_t *oldobj,
                             obj_template_t *newobj)
 {
-    output_mstart_line(cp, 
-                       obj_get_typestr(oldobj),
-                       obj_get_name(oldobj), 
+    output_mstart_line(instance, 
+                       cp, 
+                       obj_get_typestr(instance, oldobj),
+                       obj_get_name(instance, oldobj), 
                        TRUE);
 
     if (cp->edifftype == YANGDIFF_DT_TERSE) {
         return;
     }
 
-    indent_in(cp);
+    indent_in(instance, cp);
 
     if (oldobj->objtype != newobj->objtype) {
-        output_diff(cp, 
+        output_diff(instance, 
+                    cp, 
                     (const xmlChar *)"object-type",
-                    obj_get_typestr(oldobj),
-                    obj_get_typestr(newobj), 
+                    obj_get_typestr(instance, oldobj),
+                    obj_get_typestr(instance, newobj), 
                     TRUE);
     } else {
-        output_iffeatureQ_diff(cp,
+        output_iffeatureQ_diff(instance,
+                               cp,
                                obj_get_mod_prefix(oldobj),
                                &oldobj->iffeatureQ,
                                &newobj->iffeatureQ);
 
         switch (oldobj->objtype) {
         case OBJ_TYP_CONTAINER:
-            output_container_diff(cp, oldobj, newobj);
+            output_container_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_LEAF:
-            output_leaf_diff(cp, oldobj, newobj);
+            output_leaf_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_ANYXML:
-            output_anyxml_diff(cp, oldobj, newobj);
+            output_anyxml_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_LEAF_LIST:
-            output_leaf_list_diff(cp, oldobj, newobj);
+            output_leaf_list_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_LIST:
-            output_list_diff(cp, oldobj, newobj);
+            output_list_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_CHOICE:
-            output_choice_diff(cp, oldobj, newobj);
+            output_choice_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_CASE:
-            output_case_diff(cp, oldobj, newobj);
+            output_case_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_RPC:
-            output_rpc_diff(cp, oldobj, newobj);
+            output_rpc_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_RPCIO:
-            output_rpcio_diff(cp, oldobj, newobj);
+            output_rpcio_diff(instance, cp, oldobj, newobj);
             break;
         case OBJ_TYP_NOTIF:
-            output_notif_diff(cp, oldobj, newobj);
+            output_notif_diff(instance, cp, oldobj, newobj);
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
-    indent_out(cp);
+    indent_out(instance, cp);
 
 } /* output_one_object_diff */
 
@@ -2036,7 +2145,8 @@ static void
  *
  *********************************************************************/
 void
-    output_datadefQ_diff (yangdiff_diffparms_t *cp,
+    output_datadefQ_diff (ncx_instance_t *instance,
+                          yangdiff_diffparms_t *cp,
                           dlq_hdr_t *oldQ,
                           dlq_hdr_t *newQ)
 {
@@ -2045,21 +2155,22 @@ void
 
     anyout = FALSE;
 
-    for (newobj = (obj_template_t *)dlq_firstEntry(newQ);
+    for (newobj = (obj_template_t *)dlq_firstEntry(instance, newQ);
          newobj != NULL;
-         newobj = (obj_template_t *)dlq_nextEntry(newobj)) {
+         newobj = (obj_template_t *)dlq_nextEntry(instance, newobj)) {
         newobj->flags &= ~OBJ_FL_SEEN;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldobj = (obj_template_t *)dlq_firstEntry(oldQ);
+    for (oldobj = (obj_template_t *)dlq_firstEntry(instance, oldQ);
          oldobj != NULL;
-         oldobj = (obj_template_t *)dlq_nextEntry(oldobj)) {
+         oldobj = (obj_template_t *)dlq_nextEntry(instance, oldobj)) {
 
-        if (obj_has_name(oldobj)) {
-            newobj = obj_find_template(newQ, 
+        if (obj_has_name(instance, oldobj)) {
+            newobj = obj_find_template(instance, 
+                                       newQ, 
                                        cp->newmod->name, 
-                                       obj_get_name(oldobj));
+                                       obj_get_name(instance, oldobj));
         } else {
             continue;
         }
@@ -2068,12 +2179,12 @@ void
             newobj->flags |= OBJ_FL_SEEN;
             if (oldobj->flags & OBJ_FL_SEEN) {
                 if (oldobj->flags & OBJ_FL_DIFF) {
-                    output_one_object_diff(cp, oldobj, newobj);
+                    output_one_object_diff(instance, cp, oldobj, newobj);
                     anyout = TRUE;
                 }
-            } else if (object_changed(cp, oldobj, newobj)) {
+            } else if (object_changed(instance, cp, oldobj, newobj)) {
                 oldobj->flags |= (OBJ_FL_SEEN | OBJ_FL_DIFF);
-                output_one_object_diff(cp, oldobj, newobj);
+                output_one_object_diff(instance, cp, oldobj, newobj);
                 anyout = TRUE;
             } else {
                 oldobj->flags |= OBJ_FL_SEEN;
@@ -2081,9 +2192,10 @@ void
         } else {
             /* object was removed from the new module */
             oldobj->flags |= OBJ_FL_SEEN;
-            output_diff(cp, 
-                        obj_get_typestr(oldobj), 
-                        obj_get_name(oldobj), 
+            output_diff(instance, 
+                        cp, 
+                        obj_get_typestr(instance, oldobj), 
+                        obj_get_name(instance, oldobj), 
                         NULL, 
                         TRUE);
             anyout = TRUE;
@@ -2091,18 +2203,19 @@ void
     }
 
     /* look for objects that were added in the new module */
-    for (newobj = (obj_template_t *)dlq_firstEntry(newQ);
+    for (newobj = (obj_template_t *)dlq_firstEntry(instance, newQ);
          newobj != NULL;
-         newobj = (obj_template_t *)dlq_nextEntry(newobj)) {
-        if (!obj_has_name(newobj)) {
+         newobj = (obj_template_t *)dlq_nextEntry(instance, newobj)) {
+        if (!obj_has_name(instance, newobj)) {
             continue;
         }
         if (!(newobj->flags & OBJ_FL_SEEN)) {
             /* this object was added in the new version */
-            output_diff(cp, 
-                        obj_get_typestr(newobj),
+            output_diff(instance, 
+                        cp, 
+                        obj_get_typestr(instance, newobj),
                         NULL, 
-                        obj_get_name(newobj),
+                        obj_get_name(instance, newobj),
                         TRUE);
             anyout = TRUE;          
         }
@@ -2112,12 +2225,13 @@ void
      * is not a top-level object.  Use a little hack to test here
      */
     if (!anyout && (oldQ != &cp->oldmod->datadefQ)) {
-        oldobj = (obj_template_t *)dlq_firstEntry(oldQ);
-        newobj = (obj_template_t *)dlq_firstEntry(newQ);
+        oldobj = (obj_template_t *)dlq_firstEntry(instance, oldQ);
+        newobj = (obj_template_t *)dlq_firstEntry(instance, newQ);
         while (oldobj && newobj) {
-            if (obj_has_name(oldobj)) {
-                if (!obj_is_match(oldobj, newobj)) {
-                    output_mstart_line(cp, 
+            if (obj_has_name(instance, oldobj)) {
+                if (!obj_is_match(instance, oldobj, newobj)) {
+                    output_mstart_line(instance, 
+                                       cp, 
                                        (const xmlChar *)
                                        "child node order", 
                                        NULL, 
@@ -2125,8 +2239,8 @@ void
                     return;
                 }
             }
-            oldobj = (obj_template_t *)dlq_nextEntry(oldobj);
-            newobj = (obj_template_t *)dlq_nextEntry(newobj);
+            oldobj = (obj_template_t *)dlq_nextEntry(instance, oldobj);
+            newobj = (obj_template_t *)dlq_nextEntry(instance, newobj);
         }
     }
 
@@ -2149,43 +2263,45 @@ void
  *    0 if field not changed
  *********************************************************************/
 uint32
-    datadefQ_changed (yangdiff_diffparms_t *cp,
+    datadefQ_changed (ncx_instance_t *instance,
+                      yangdiff_diffparms_t *cp,
                       dlq_hdr_t *oldQ,
                       dlq_hdr_t *newQ)
 {
 
     obj_template_t *oldobj, *newobj;
 
-    if (dlq_count(oldQ) != dlq_count(newQ)) {
+    if (dlq_count(instance, oldQ) != dlq_count(instance, newQ)) {
         return 1;
     }
 
-    for (newobj = (obj_template_t *)dlq_firstEntry(newQ);
+    for (newobj = (obj_template_t *)dlq_firstEntry(instance, newQ);
          newobj != NULL;
-         newobj = (obj_template_t *)dlq_nextEntry(newobj)) {
+         newobj = (obj_template_t *)dlq_nextEntry(instance, newobj)) {
         newobj->flags &= ~OBJ_FL_SEEN;
     }
 
     /* look through the old Q for matching entries in the new Q */
-    for (oldobj = (obj_template_t *)dlq_firstEntry(oldQ);
+    for (oldobj = (obj_template_t *)dlq_firstEntry(instance, oldQ);
          oldobj != NULL;
-         oldobj = (obj_template_t *)dlq_nextEntry(oldobj)) {
+         oldobj = (obj_template_t *)dlq_nextEntry(instance, oldobj)) {
 
-        if (obj_is_hidden(oldobj)) {
+        if (obj_is_hidden(instance, oldobj)) {
             continue;
         }
 
-        if (obj_has_name(oldobj)) {
-            newobj = obj_find_template(newQ, 
+        if (obj_has_name(instance, oldobj)) {
+            newobj = obj_find_template(instance, 
+                                       newQ, 
                                        cp->newmod->name, 
-                                       obj_get_name(oldobj));
+                                       obj_get_name(instance, oldobj));
         } else {
             continue;
         }
 
         if (newobj) {
-            if (!obj_is_hidden(newobj)) {
-                if (object_changed(cp, oldobj, newobj)) {
+            if (!obj_is_hidden(instance, newobj)) {
+                if (object_changed(instance, cp, oldobj, newobj)) {
                     /* use the seen flag in the old tree to indicate
                      * that a node has been visited and the 'diff' flag 
                      * to indicate a node has changed
@@ -2202,10 +2318,10 @@ uint32
     }
 
     /* look for objects that were added in the new module */
-    for (newobj = (obj_template_t *)dlq_firstEntry(newQ);
+    for (newobj = (obj_template_t *)dlq_firstEntry(instance, newQ);
          newobj != NULL;
-         newobj = (obj_template_t *)dlq_nextEntry(newobj)) {
-        if (!obj_has_name(newobj) || obj_is_hidden(newobj)) {
+         newobj = (obj_template_t *)dlq_nextEntry(instance, newobj)) {
+        if (!obj_has_name(instance, newobj) || obj_is_hidden(instance, newobj)) {
             continue;
         }
         if (!(newobj->flags & OBJ_FL_SEEN)) {
@@ -2217,19 +2333,19 @@ uint32
      * is not a top-level object.  Use a little hack to test here
      */
     if (oldQ != &cp->oldmod->datadefQ) {
-        oldobj = (obj_template_t *)dlq_firstEntry(oldQ);
-        newobj = (obj_template_t *)dlq_firstEntry(newQ);
+        oldobj = (obj_template_t *)dlq_firstEntry(instance, oldQ);
+        newobj = (obj_template_t *)dlq_firstEntry(instance, newQ);
         while (oldobj && newobj) {
-            if (obj_has_name(oldobj) && 
-                obj_has_name(newobj) &&
-                !(obj_is_hidden(oldobj) || 
-                  obj_is_hidden(newobj))) {
-                if (!obj_is_match(oldobj, newobj)) {
+            if (obj_has_name(instance, oldobj) && 
+                obj_has_name(instance, newobj) &&
+                !(obj_is_hidden(instance, oldobj) || 
+                  obj_is_hidden(instance, newobj))) {
+                if (!obj_is_match(instance, oldobj, newobj)) {
                     return 1;
                 }
             }
-            oldobj = (obj_template_t *)dlq_nextEntry(oldobj);
-            newobj = (obj_template_t *)dlq_nextEntry(newobj);
+            oldobj = (obj_template_t *)dlq_nextEntry(instance, oldobj);
+            newobj = (obj_template_t *)dlq_nextEntry(instance, newobj);
         }
     }
                                

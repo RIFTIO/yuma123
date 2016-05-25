@@ -52,6 +52,8 @@ date         init     comment
 #include  "xml_util.h"
 #endif
 
+#include  "ncxtypes.h"
+
 
 /********************************************************************
 * FUNCTION time_to_string
@@ -124,14 +126,14 @@ static void
 *   buff is filled in
 *********************************************************************/
 void 
-    tstamp_datetime (xmlChar *buff)
+    tstamp_datetime (ncx_instance_t *instance, xmlChar *buff)
 {
     time_t  utime;
     struct tm  *curtime;
 
 #ifdef DEBUG
     if (!buff) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -155,14 +157,14 @@ void
 *   buff is filled in
 *********************************************************************/
 void 
-    tstamp_date (xmlChar *buff)
+    tstamp_date (ncx_instance_t *instance, xmlChar *buff)
 {
     time_t  utime;
     struct tm  *curtime;
 
 #ifdef DEBUG
     if (!buff) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -190,14 +192,14 @@ void
 *   buff is filled in
 *********************************************************************/
 void 
-    tstamp_datetime_sql (xmlChar *buff)
+    tstamp_datetime_sql (ncx_instance_t *instance, xmlChar *buff)
 {
     time_t  utime;
     struct tm  *curtime;
 
 #ifdef DEBUG
     if (!buff) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -239,7 +241,8 @@ void
 *   or NULL if some error
 *********************************************************************/
 xmlChar *
-    tstamp_convert_to_utctime (const xmlChar *timestr,
+    tstamp_convert_to_utctime (ncx_instance_t *instance,
+                               const xmlChar *timestr,
                                boolean *isNegative,
                                status_t *res)
 {
@@ -251,7 +254,7 @@ xmlChar *
 
 #ifdef DEBUG
     if (!timestr || !isNegative || !res) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
@@ -267,7 +270,7 @@ xmlChar *
         *isNegative = FALSE;
     }
 
-    len = xml_strlen(timestr);
+    len = xml_strlen(instance, timestr);
 
     if (len == 20) {
         /* could be in canonical form */
@@ -275,7 +278,7 @@ xmlChar *
                           "%FT%TZ",
                           &convertedtime);
         if (retptr && *retptr == '\0') {
-            buffer = xml_strdup(timestr);
+            buffer = xml_strdup(instance, timestr);
             if (!buffer) {
                 *res = ERR_INTERNAL_MEM;
                 return NULL;
@@ -335,7 +338,7 @@ xmlChar *
             return NULL;
         }
 
-        buffer = m__getMem(TSTAMP_MIN_SIZE);
+        buffer = m__getMem(instance, TSTAMP_MIN_SIZE);
         if (!buffer) {
             *res = ERR_INTERNAL_MEM;
             return NULL;
@@ -344,7 +347,7 @@ xmlChar *
         utime = mktime(&convertedtime);
         if (utime == (utime)-1) {
             *res = ERR_NCX_INVALID_VALUE;
-            m__free(buffer);
+            m__free(instance, buffer);
             return NULL;
         }
 
@@ -372,14 +375,14 @@ xmlChar *
 *   buff is filled in
 *********************************************************************/
 void 
-    tstamp_datetime_dirname (xmlChar *buff)
+    tstamp_datetime_dirname (ncx_instance_t *instance, xmlChar *buff)
 {
     time_t  utime;
     struct tm  *curtime;
 
 #ifdef DEBUG
     if (!buff) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif

@@ -104,7 +104,8 @@ extern "C" {
 *   status
 *********************************************************************/
 extern status_t 
-    xsd_convert_module (yang_pcb_t *pcb,
+    xsd_convert_module (struct ncx_instance_t_ *instance,
+                        yang_pcb_t *pcb,
                         ncx_module_t *mod,
                         yangdump_cvtparms_t *cp,
                         val_value_t **retval,
@@ -127,7 +128,7 @@ extern status_t
 *   status
 *********************************************************************/
 extern status_t
-    xsd_load_typenameQ (ncx_module_t *mod);
+    xsd_load_typenameQ (struct ncx_instance_t_ *instance, ncx_module_t *mod);
 
 #ifdef __cplusplus
 }  /* end extern 'C' */

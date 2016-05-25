@@ -77,7 +77,8 @@ extern "C" {
  *   status
  *********************************************************************/
 extern status_t
-    do_alias (server_cb_t *server_cb,
+    do_alias (struct ncx_instance_t_ *instance,
+              server_cb_t *server_cb,
               obj_template_t *rpc,
               const xmlChar *line,
               uint32  len);
@@ -104,7 +105,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_aliases (server_cb_t *server_cb,
+    do_aliases (struct ncx_instance_t_ *instance,
+                server_cb_t *server_cb,
                 obj_template_t *rpc,
                 const xmlChar *line,
                 uint32  len);
@@ -127,7 +129,8 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    do_unset (server_cb_t *server_cb,
+    do_unset (struct ncx_instance_t_ *instance,
+              server_cb_t *server_cb,
               obj_template_t *rpc,
               const xmlChar *line,
               uint32  len);
@@ -140,7 +143,7 @@ extern status_t
  *
  *********************************************************************/
 extern void
-    show_aliases (void);
+    show_aliases (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -152,7 +155,7 @@ extern void
  *    name == name of alias to show
  *********************************************************************/
 extern void
-    show_alias (const xmlChar *name);
+    show_alias (struct ncx_instance_t_ *instance, const xmlChar *name);
 
 
 /********************************************************************
@@ -162,7 +165,7 @@ extern void
  *
  *********************************************************************/
 extern void
-    free_aliases (void);
+    free_aliases (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -177,7 +180,7 @@ extern void
  *   status
  *********************************************************************/
 extern status_t
-    load_aliases (const xmlChar *fspec);
+    load_aliases (struct ncx_instance_t_ *instance, const xmlChar *fspec);
 
 
 /********************************************************************
@@ -192,7 +195,7 @@ extern status_t
  *   status
  *********************************************************************/
 extern status_t
-    save_aliases (const xmlChar *fspec);
+    save_aliases (struct ncx_instance_t_ *instance, const xmlChar *fspec);
 
 
 /********************************************************************
@@ -213,7 +216,8 @@ extern status_t
  *   NULL if *res==ERR_NCX_SKIPPED or some real error
  *********************************************************************/
 extern xmlChar *
-    expand_alias (xmlChar *line,
+    expand_alias (struct ncx_instance_t_ *instance,
+                  xmlChar *line,
                   status_t *res);
 
 

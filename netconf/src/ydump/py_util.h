@@ -107,7 +107,7 @@ extern "C" {
 *   SA type enumeration string
 *********************************************************************/
 extern const xmlChar *
-    get_sa_datatype (ncx_btype_t btyp);
+    get_sa_datatype (struct ncx_instance_t_ *instance, ncx_btype_t btyp);
 
 
 /********************************************************************
@@ -122,7 +122,8 @@ extern const xmlChar *
 *
 *********************************************************************/
 extern void
-    write_py_header (ses_cb_t *scb,
+    write_py_header (struct ncx_instance_t_ *instance,
+                     ses_cb_t *scb,
                      const ncx_module_t *mod,
                      const yangdump_cvtparms_t *cp);
 
@@ -138,7 +139,8 @@ extern void
 *
 *********************************************************************/
 extern void
-    write_py_footer (ses_cb_t *scb,
+    write_py_footer (struct ncx_instance_t_ *instance,
+                     ses_cb_t *scb,
                      const ncx_module_t *mod);
 
 #if 0

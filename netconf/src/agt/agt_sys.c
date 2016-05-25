@@ -122,8 +122,8 @@ date         init     comment
 *                       C O N S T A N T S                           *
 *                                                                   *
 *********************************************************************/
-#define ietf_system_N_system_state (const xmlChar *)"system-state"
-#define system_N_system (const xmlChar *)"yuma"
+
+#define system_N_system (const xmlChar *)"system"
 #define system_N_sysName (const xmlChar *)"sysName"
 #define system_N_sysCurrentDateTime (const xmlChar *)"sysCurrentDateTime"
 #define system_N_sysBootDateTime (const xmlChar *)"sysBootDateTime"
@@ -185,12 +185,10 @@ date         init     comment
 static boolean              agt_sys_init_done = FALSE;
 
 /* system.yang */
-static ncx_module_t         *ietf_sysmod;
 static ncx_module_t         *sysmod;
 
 /* cached pointer to the <system> element template */
-static obj_template_t *ietf_system_state_obj;
-static obj_template_t *yuma_system_obj;
+static obj_template_t *systemobj;
 
 /* cached pointers to the eventType nodes for this module */
 static obj_template_t *sysStartupobj;
@@ -212,10 +210,12 @@ static obj_template_t *sysConfirmedCommitobj;
 *    res == error status
 *********************************************************************/
 static void
-    payload_error (const xmlChar *name,
+    payload_error (ncx_instance_t *instance,
+                        const xmlChar *name,
                         status_t res)
 {
-    log_error( "\nError: cannot make payload leaf '%s' (%s)", 
+    log_error(instance, 
+                "\nError: cannot make payload leaf '%s' (%s)", 
                name, get_error_string(res) );
 
 }  /* payload_error */
@@ -233,7 +233,8 @@ static void
 *    status
 *********************************************************************/
 static status_t 
-    get_currentDateTime (ses_cb_t *scb,
+    get_currentDateTime (ncx_instance_t *instance,
+                         ses_cb_t *scb,
                          getcb_mode_t cbmode,
                          const val_value_t *virval,
                          val_value_t  *dstval)
@@ -244,11 +245,11 @@ static status_t
     (void)virval;
 
     if (cbmode == GETCB_GET_VALUE) {
-        buff = (xmlChar *)m__getMem(TSTAMP_MIN_SIZE);
+        buff = (xmlChar *)m__getMem(instance, TSTAMP_MIN_SIZE);
         if (!buff) {
             return ERR_INTERNAL_MEM;
         }
-        tstamp_datetime(buff);
+        tstamp_datetime(instance, buff);
         VAL_STR(dstval) = buff;
         return NO_ERR;
     } else {
@@ -270,7 +271,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t 
-    get_currentLogLevel (ses_cb_t *scb,
+    get_currentLogLevel (ncx_instance_t *instance,
+                         ses_cb_t *scb,
                          getcb_mode_t cbmode,
                          const val_value_t *virval,
                          val_value_t  *dstval)
@@ -284,12 +286,12 @@ static status_t
     res = NO_ERR;
 
     if (cbmode == GETCB_GET_VALUE) {
-        loglevel = log_get_debug_level();
-        loglevelstr = log_get_debug_level_string(loglevel);
+        loglevel = log_get_debug_level(instance);
+        loglevelstr = log_get_debug_level_string(instance, loglevel);
         if (loglevelstr == NULL) {
             res = ERR_NCX_OPERATION_FAILED;
         } else {
-            res = ncx_set_enum(loglevelstr, VAL_ENU(dstval));
+            res = ncx_set_enum(instance, loglevelstr, VAL_ENU(dstval));
         }
     } else {
         res = ERR_NCX_OPERATION_NOT_SUPPORTED;
@@ -311,7 +313,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t 
-    set_log_level_invoke (ses_cb_t *scb,
+    set_log_level_invoke (ncx_instance_t *instance,
+                          ses_cb_t *scb,
                           rpc_msg_t *msg,
                           xml_node_t *methnode)
 {
@@ -325,16 +328,17 @@ static status_t
     res = NO_ERR;
 
     /* get the level parameter */
-    levelval = val_find_child(msg->rpc_input, 
+    levelval = val_find_child(instance, 
+                              msg->rpc_input, 
                               AGT_SYS_MODULE,
                               NCX_EL_LOGLEVEL);
     if (levelval) {
         if (levelval->res == NO_ERR) {
             levelenum = 
-                log_get_debug_level_enum((const char *)
+                log_get_debug_level_enum(instance, (const char *)
                                          VAL_ENUM_NAME(levelval));
             if (levelenum != LOG_DEBUG_NONE) {
-                log_set_debug_level(levelenum);
+                log_set_debug_level(instance, levelenum);
             } else {
                 res = ERR_NCX_OPERATION_FAILED;
             }
@@ -355,7 +359,7 @@ static status_t
 *
 *********************************************************************/
 static void
-    send_sysStartup (void)
+    send_sysStartup (ncx_instance_t *instance)
 {
     agt_not_msg_t         *not;
     cfg_template_t        *cfg;
@@ -364,61 +368,63 @@ static void
     obj_template_t        *bootErrorobj;
     status_t               res;
 
-    log_debug("\nagt_sys: generating <sysStartup> notification");
+    log_debug(instance, "\nagt_sys: generating <sysStartup> notification");
 
-    not = agt_not_new_notification(sysStartupobj);
+    not = agt_not_new_notification(instance, sysStartupobj);
     if (!not) {
-        log_error("\nError: malloc failed; cannot send <sysStartup>");
+        log_error(instance, "\nError: malloc failed; cannot send <sysStartup>");
         return;
     }
 
     /* add sysStartup/startupSource */
-    cfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+    cfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
     if (cfg) {
         if (cfg->src_url) {
-            leafval = agt_make_leaf(sysStartupobj, 
+            leafval = agt_make_leaf(instance, 
+                    sysStartupobj, 
                     (const xmlChar *)"startupSource", cfg->src_url, &res);
             if (leafval) {
-                agt_not_add_to_payload(not, leafval);
+                agt_not_add_to_payload(instance, not, leafval);
             } else {
-                payload_error((const xmlChar *)"startupSource", res);
+                payload_error(instance, (const xmlChar *)"startupSource", res);
             }
         }
     
         /* add sysStartup/bootError for each error recorded */
-        if (!dlq_empty(&cfg->load_errQ)) {
+        if (!dlq_empty(instance, &cfg->load_errQ)) {
             /* get the bootError object */
-            bootErrorobj = obj_find_child( sysStartupobj, AGT_SYS_MODULE, 
+            bootErrorobj = obj_find_child(instance,  sysStartupobj, AGT_SYS_MODULE, 
                                            (const xmlChar *)"bootError");
             if (bootErrorobj) {
-                rpcerror = (rpc_err_rec_t *)dlq_firstEntry(&cfg->load_errQ);
+                rpcerror = (rpc_err_rec_t *)dlq_firstEntry(instance, &cfg->load_errQ);
                 for ( ; rpcerror;
-                     rpcerror = (rpc_err_rec_t *)dlq_nextEntry(rpcerror)) {
+                     rpcerror = (rpc_err_rec_t *)dlq_nextEntry(instance, rpcerror)) {
                     /* make the bootError value struct */
-                    bootErrorval = val_new_value();
+                    bootErrorval = val_new_value(instance);
                     if (!bootErrorval) {
-                        payload_error((const xmlChar *)"bootError", 
+                        payload_error(instance, 
+                                      (const xmlChar *)"bootError", 
                                       ERR_INTERNAL_MEM);
                     } else {
-                        val_init_from_template(bootErrorval, bootErrorobj);
-                        res = agt_rpc_fill_rpc_error(rpcerror, bootErrorval);
+                        val_init_from_template(instance, bootErrorval, bootErrorobj);
+                        res = agt_rpc_fill_rpc_error(instance, rpcerror, bootErrorval);
                         if (res != NO_ERR) {
-                            log_error("\nError: problems making <bootError> "
+                            log_error(instance, "\nError: problems making <bootError> "
                                       "(%s)", get_error_string(res));
                         }
                         /* add even if there are some missing leafs */
-                        agt_not_add_to_payload(not, bootErrorval);
+                        agt_not_add_to_payload(instance, not, bootErrorval);
                     }
                 }
             } else {
-                SET_ERROR(ERR_INTERNAL_VAL);
+                SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    agt_not_queue_notification(not);
+    agt_not_queue_notification(instance, not);
 } /* send_sysStartup */
 
 
@@ -435,7 +441,8 @@ static void
 *   'not' payloadQ has malloced entries added to it
 *********************************************************************/
 static void
-    add_common_session_parms (const ses_cb_t *scb,
+    add_common_session_parms (ncx_instance_t *instance,
+                              const ses_cb_t *scb,
                               agt_not_msg_t *not)
 {
     val_value_t     *leafval;
@@ -444,14 +451,15 @@ static void
 
     /* add userName */
     if (scb->username) {
-        leafval = agt_make_leaf(not->notobj,
+        leafval = agt_make_leaf(instance,
+                                not->notobj,
                                 system_N_userName,
                                 scb->username,
                                 &res);
         if (leafval) {
-            agt_not_add_to_payload(not, leafval);
+            agt_not_add_to_payload(instance, not, leafval);
         } else {
-            payload_error(system_N_userName, res);
+            payload_error(instance, system_N_userName, res);
         }
     }
 
@@ -467,27 +475,29 @@ static void
 
     leafval = NULL;
     if (use_sid) {
-        leafval = agt_make_uint_leaf(not->notobj,
+        leafval = agt_make_uint_leaf(instance,
+                                     not->notobj,
                                      system_N_sessionId,
                                      use_sid,
                                      &res);
     }
     if (leafval) {
-        agt_not_add_to_payload(not, leafval);
+        agt_not_add_to_payload(instance, not, leafval);
     } else {
-        payload_error(system_N_sessionId, res);
+        payload_error(instance, system_N_sessionId, res);
     }
 
     /* add remoteHost */
     if (scb->peeraddr) {
-        leafval = agt_make_leaf(not->notobj,
+        leafval = agt_make_leaf(instance,
+                                not->notobj,
                                 system_N_remoteHost,
                                 scb->peeraddr,
                                 &res);
         if (leafval) {
-            agt_not_add_to_payload(not, leafval);
+            agt_not_add_to_payload(instance, not, leafval);
         } else {
-            payload_error(system_N_remoteHost, res);
+            payload_error(instance, system_N_remoteHost, res);
         }
     }
 
@@ -503,10 +513,8 @@ static void
 static void
     init_static_sys_vars (void)
 {
-    ietf_sysmod = NULL;
     sysmod = NULL;
-    ietf_system_state_obj = NULL;
-    yuma_system_obj = NULL;
+    systemobj = NULL;
     sysStartupobj = NULL;
     sysConfigChangeobj = NULL;
     sysCapabilityChangeobj = NULL;
@@ -532,25 +540,26 @@ static void
 *   status
 *********************************************************************/
 status_t
-    agt_sys_init (void)
+    agt_sys_init (ncx_instance_t *instance)
 {
     agt_profile_t  *agt_profile;
     status_t        res;
 
     if (agt_sys_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
     if (LOGDEBUG2) {
-        log_debug2("\nagt_sys: Loading notifications module");
+        log_debug2(instance, "\nagt_sys: Loading notifications module");
     }
 
     agt_profile = agt_get_profile();
     init_static_sys_vars();
     agt_sys_init_done = TRUE;
 
-    /* load the yuma module */
-    res = ncxmod_load_module(AGT_SYS_MODULE, 
+    /* load the system module */
+    res = ncxmod_load_module(instance, 
+                             AGT_SYS_MODULE, 
                              NULL, 
                              &agt_profile->agt_savedevQ,
                              &sysmod);
@@ -558,80 +567,71 @@ status_t
         return res;
     }
 
-    /* load the ietf-system module */
-    res = ncxmod_load_module(AGT_IETF_SYS_MODULE,
-                             NULL,
-                             &agt_profile->agt_savedevQ,
-                             &ietf_sysmod);
-    if (res != NO_ERR) {
-        return res;
-    }
-
     /* find the object definition for the system element */
-    ietf_system_state_obj = ncx_find_object(ietf_sysmod,
-                                ietf_system_N_system_state);
+    systemobj = ncx_find_object(instance,
+                                sysmod,
+                                system_N_system);
 
-    if (!ietf_system_state_obj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
-    }
-
-    yuma_system_obj = 
-        obj_find_child(ietf_system_state_obj,
-                        AGT_SYS_MODULE,
-                        system_N_system);
-    if (!yuma_system_obj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+    if (!systemobj) {
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     sysStartupobj = 
-        ncx_find_object(sysmod,
+        ncx_find_object(instance,
+                        sysmod,
                         system_N_sysStartup);
     if (!sysStartupobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     sysConfigChangeobj = 
-        ncx_find_object(sysmod,
+        ncx_find_object(instance,
+                        sysmod,
                         system_N_sysConfigChange);
     if (!sysConfigChangeobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     sysCapabilityChangeobj = 
-        ncx_find_object(sysmod,
+        ncx_find_object(instance,
+                        sysmod,
                         system_N_sysCapabilityChange);
     if (!sysCapabilityChangeobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     sysSessionStartobj = 
-        ncx_find_object(sysmod,
+        ncx_find_object(instance,
+                        sysmod,
                         system_N_sysSessionStart);
     if (!sysSessionStartobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     sysSessionEndobj = 
-        ncx_find_object(sysmod,
+        ncx_find_object(instance,
+                        sysmod,
                         system_N_sysSessionEnd);
     if (!sysSessionEndobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     sysConfirmedCommitobj = 
-        ncx_find_object(sysmod,
+        ncx_find_object(instance,
+                        sysmod,
                         system_N_sysConfirmedCommit);
     if (!sysConfirmedCommitobj) {
-        return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     }
 
     /* set up set-log-level RPC operation */
-    res = agt_rpc_register_method(AGT_SYS_MODULE,
+    res = agt_rpc_register_method(instance,
+                                  AGT_SYS_MODULE,
                                   system_N_set_log_level,
                                   AGT_RPC_PH_INVOKE,
                                   set_log_level_invoke);
     if (res != NO_ERR) {
-        return SET_ERROR(res);
+        return SET_ERROR(instance, res);
     }
 
     return NO_ERR;
@@ -652,9 +652,9 @@ status_t
 *   status
 *********************************************************************/
 status_t
-    agt_sys_init2 (void)
+    agt_sys_init2 (ncx_instance_t *instance)
 {
-    val_value_t           *ietf_system_state_val, *yuma_system_val, *unameval, *childval, *tempval;
+    val_value_t           *topval, *unameval, *childval, *tempval;
     cfg_template_t        *runningcfg;
     const xmlChar         *myhostname;
     obj_template_t        *unameobj;
@@ -664,184 +664,172 @@ status_t
     int                    retval;
 
     if (!agt_sys_init_done) {
-        return SET_ERROR(ERR_INTERNAL_INIT_SEQ);
+        return SET_ERROR(instance, ERR_INTERNAL_INIT_SEQ);
     }
 
     /* get the running config to add some static data into */
-    runningcfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+    runningcfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
     if (!runningcfg || !runningcfg->root) {
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    /* add /system-state */
-    ietf_system_state_val = val_new_value();
-    if (!ietf_system_state_val) {
+    /* add /system */
+    topval = val_new_value(instance);
+    if (!topval) {
         return ERR_INTERNAL_MEM;
     }
-    val_init_from_template(ietf_system_state_val, ietf_system_state_obj);
+    val_init_from_template(instance, topval, systemobj);
 
     /* handing off the malloced memory here */
-    val_add_child_sorted(ietf_system_state_val, runningcfg->root);
+    val_add_child_sorted(instance, topval, runningcfg->root);
 
-    /* add /system-state/yuma */
-    yuma_system_val = val_new_value();
-    if (!yuma_system_val) {
-        return ERR_INTERNAL_MEM;
-    }
-    val_init_from_template(yuma_system_val, yuma_system_obj);
-
-    /* handing off the malloced memory here */
-    val_add_child_sorted(yuma_system_val, ietf_system_state_val);
-
-
-
-    /* add /system-state/yuma/sysName */
+    /* add /system/sysName */
     myhostname = (const xmlChar *)getenv("HOSTNAME");
     if (!myhostname) {
         myhostname = (const xmlChar *)"localhost";
     }
-    childval = agt_make_leaf(yuma_system_obj, system_N_sysName, myhostname, &res);
+    childval = agt_make_leaf(instance, systemobj, system_N_sysName, myhostname, &res);
     if (childval) {
-        val_add_child(childval, yuma_system_val);
+        val_add_child(instance, childval, topval);
     } else {
         return res;
     }
 
-    /* add /system-state/yuma/sysCurrentDateTime */
-    childval = agt_make_virtual_leaf(yuma_system_obj, system_N_sysCurrentDateTime,
+    /* add /system/sysCurrentDateTime */
+    childval = agt_make_virtual_leaf(instance, systemobj, system_N_sysCurrentDateTime,
                                      get_currentDateTime, &res);
     if (childval) {
-        val_add_child(childval, yuma_system_val);
+        val_add_child(instance, childval, topval);
     } else {
         return res;
     }
 
-    /* add /system-state/yuma/sysBootDateTime */
-    tstamp_datetime(tstampbuff);
-    childval = agt_make_leaf(yuma_system_obj, system_N_sysBootDateTime,
+    /* add /system/sysBootDateTime */
+    tstamp_datetime(instance, tstampbuff);
+    childval = agt_make_leaf(instance, systemobj, system_N_sysBootDateTime,
                              tstampbuff, &res);
     if (childval) {
-        val_add_child(childval, yuma_system_val);
+        val_add_child(instance, childval, topval);
     } else {
         return res;
     }
 
-    /* add /system-state/yuma/sysLogLevel */
-    childval = agt_make_virtual_leaf(yuma_system_obj, system_N_sysLogLevel,
+    /* add /system/sysLogLevel */
+    childval = agt_make_virtual_leaf(instance, systemobj, system_N_sysLogLevel,
                                      get_currentLogLevel, &res);
     if (childval) {
-        val_add_child(childval, yuma_system_val);
+        val_add_child(instance, childval, topval);
     } else {
         return res;
     }
 
-    /* add /system-state/yuma/sysNetconfServerId */
-    buffer = m__getMem(256);
+    /* add /system/sysNetconfServerId */
+    buffer = m__getMem(instance, 256);
     if (buffer == NULL) {
         return ERR_INTERNAL_MEM;
     }
     p = buffer;
-    p += xml_strcpy(p, (const xmlChar *)"netconfd ");
+    p += xml_strcpy(instance, p, (const xmlChar *)"netconfd ");
 
-    res = ncx_get_version(p, 247);
+    res = ncx_get_version(instance, p, 247);
     if (res == NO_ERR) {
-        childval = agt_make_leaf(yuma_system_obj, system_N_sysNetconfServerId,
+        childval = agt_make_leaf(instance, systemobj, system_N_sysNetconfServerId,
                                  buffer, &res);
-        m__free(buffer);
+        m__free(instance, buffer);
         if (childval) {
-            val_add_child(childval, yuma_system_val);
+            val_add_child(instance, childval, topval);
         } else {
             return res;
         }
     } else {
-        m__free(buffer);
-        log_error("\nError: could not get netconfd version");
+        m__free(instance, buffer);
+        log_error(instance, "\nError: could not get netconfd version");
     }
     buffer = NULL;
 
-    /* add /system-state/yuma/sysNetconfServerCLI */
-    tempval = val_clone(agt_cli_get_valset());
+    /* add /system/sysNetconfServerCLI */
+    tempval = val_clone(instance, agt_cli_get_valset());
     if (tempval == NULL) {
         return ERR_INTERNAL_MEM;
     }
-    val_change_nsid(tempval, yuma_system_val->nsid);
+    val_change_nsid(instance, tempval, topval->nsid);
 
-    childval = agt_make_object(yuma_system_obj, system_N_sysNetconfServerCLI, &res);
+    childval = agt_make_object(instance, systemobj, system_N_sysNetconfServerCLI, &res);
     if (childval == NULL) {
-        val_free_value(tempval);
+        val_free_value(instance, tempval);
         return ERR_INTERNAL_MEM;
     }
-    val_move_children(tempval, childval);
-    val_free_value(tempval);
-    val_add_child(childval, yuma_system_val);
+    val_move_children(instance, tempval, childval);
+    val_free_value(instance, tempval);
+    val_add_child(instance, childval, topval);
 
     /* get the system information */
     memset(&utsbuff, 0x0, sizeof(utsbuff));
     retval = uname(&utsbuff);
     if (retval) {
-        log_warn("\nWarning: <uname> data not available");
+        log_warn(instance, "\nWarning: <uname> data not available");
     } else {
-        unameobj = obj_find_child(yuma_system_obj, AGT_SYS_MODULE, system_N_uname);
+        unameobj = obj_find_child(instance, systemobj, AGT_SYS_MODULE, system_N_uname);
         if (!unameobj) {
-            return SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+            return SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
         } 
 
-        /* add /system-state/yuma/uname */
-        unameval = val_new_value();
+        /* add /system/uname */
+        unameval = val_new_value(instance);
         if (!unameval) {
             return ERR_INTERNAL_MEM;
         }
-        val_init_from_template(unameval, unameobj);
-        val_add_child(unameval, yuma_system_val);
+        val_init_from_template(instance, unameval, unameobj);
+        val_add_child(instance, unameval, topval);
 
-        /* add /system-state/yuma/uname/sysname */
-        childval = agt_make_leaf(unameobj, system_N_sysname,
+        /* add /system/uname/sysname */
+        childval = agt_make_leaf(instance, unameobj, system_N_sysname,
                                  (const xmlChar *)utsbuff.sysname, &res);
         if (childval) {
-            val_add_child(childval, unameval);
+            val_add_child(instance, childval, unameval);
         } else {
             return res;
         }
 
-        /* add /system-state/yuma/uname/release */
-        childval = agt_make_leaf(unameobj, system_N_release,
+        /* add /system/uname/release */
+        childval = agt_make_leaf(instance, unameobj, system_N_release,
                                  (const xmlChar *)utsbuff.release, &res);
         if (childval) {
-            val_add_child(childval, unameval);
+            val_add_child(instance, childval, unameval);
         } else {
             return res;
         }
 
-        /* add /system-state/yuma/uname/version */
-        childval = agt_make_leaf(unameobj, system_N_version,
+        /* add /system/uname/version */
+        childval = agt_make_leaf(instance, unameobj, system_N_version,
                                  (const xmlChar *)utsbuff.version, &res);
         if (childval) {
-            val_add_child(childval, unameval);
+            val_add_child(instance, childval, unameval);
         } else {
             return res;
         }
         
-        /* add /system-state/yuma/uname/machine */
-        childval = agt_make_leaf(unameobj, system_N_machine,
+        /* add /system/uname/machine */
+        childval = agt_make_leaf(instance, unameobj, system_N_machine,
                                  (const xmlChar *)utsbuff.machine, &res);
         if (childval) {
-            val_add_child(childval, unameval);
+            val_add_child(instance, childval, unameval);
         } else {
             return res;
         }
 
-        /* add /system-state/yuma/uname/nodename */
-        childval = agt_make_leaf(unameobj, system_N_nodename,
+        /* add /system/uname/nodename */
+        childval = agt_make_leaf(instance, unameobj, system_N_nodename,
                                  (const xmlChar *)utsbuff.nodename, &res);
         if (childval) {
-            val_add_child(childval, unameval);
+            val_add_child(instance, childval, unameval);
         } else {
             return res;
         }
     }
 
     /* add sysStartup to notificationQ */
-    send_sysStartup();
+    send_sysStartup(instance);
 
     return NO_ERR;
 
@@ -859,12 +847,13 @@ status_t
 *   none
 *********************************************************************/
 void 
-    agt_sys_cleanup (void)
+    agt_sys_cleanup (ncx_instance_t *instance)
 {
     if (agt_sys_init_done) {
         init_static_sys_vars();
         agt_sys_init_done = FALSE;
-        agt_rpc_unregister_method(AGT_SYS_MODULE,
+        agt_rpc_unregister_method(instance,
+                                  AGT_SYS_MODULE,
                                   system_N_set_log_level);
     }
 }  /* agt_sys_cleanup */
@@ -883,25 +872,25 @@ void
 *
 *********************************************************************/
 void
-    agt_sys_send_sysSessionStart (const ses_cb_t *scb)
+    agt_sys_send_sysSessionStart (ncx_instance_t *instance, const ses_cb_t *scb)
 {
     agt_not_msg_t         *not;
 
     if (LOGDEBUG) {
-        log_debug("\nagt_sys: generating <sysSessionStart> "
+        log_debug(instance, "\nagt_sys: generating <sysSessionStart> "
                   "notification");
     }
 
-    not = agt_not_new_notification(sysSessionStartobj);
+    not = agt_not_new_notification(instance, sysSessionStartobj);
     if (!not) {
-        log_error("\nError: malloc failed; cannot "
+        log_error(instance, "\nError: malloc failed; cannot "
                   "send <sysSessionStartup>");
         return;
     }
 
-    add_common_session_parms(scb, not);
+    add_common_session_parms(instance, scb, not);
 
-    agt_not_queue_notification(not);
+    agt_not_queue_notification(instance, not);
 
 } /* agt_sys_send_sysSessionStart */
 
@@ -919,13 +908,13 @@ void
 *
 *********************************************************************/
 static const xmlChar*
-    getTermReasonStr ( ses_term_reason_t termreason)
+    getTermReasonStr (ncx_instance_t *instance,  ses_term_reason_t termreason)
 {
     const xmlChar         *termreasonstr;
 
     switch (termreason) {
     case SES_TR_NONE:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         termreasonstr = (const xmlChar *)"other";
         break;
     case SES_TR_CLOSED:
@@ -950,7 +939,7 @@ static const xmlChar*
         termreasonstr = (const xmlChar *)"bad-hello";
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         termreasonstr = (const xmlChar *)"other";
     }
 
@@ -974,7 +963,8 @@ static const xmlChar*
 *
 *********************************************************************/
 void
-    agt_sys_send_sysSessionEnd (const ses_cb_t *scb,
+    agt_sys_send_sysSessionEnd (ncx_instance_t *instance,
+                                const ses_cb_t *scb,
                                 ses_term_reason_t termreason,
                                 ses_id_t killedby)
 {
@@ -985,42 +975,42 @@ void
 
     assert(scb && "agt_sys_send_sysSessionEnd() - param scb is NULL");
 
-    log_debug("\nagt_sys: generating <sysSessionEnd> notification");
+    log_debug(instance, "\nagt_sys: generating <sysSessionEnd> notification");
 
-    not = agt_not_new_notification(sysSessionEndobj);
+    not = agt_not_new_notification(instance, sysSessionEndobj);
     if (!not) {
-        log_error("\nError: malloc failed; cannot send <sysSessionEnd>");
+        log_error(instance, "\nError: malloc failed; cannot send <sysSessionEnd>");
         return;
     }
 
     /* session started;  not just being killed
      * in the <ncxconnect> message handler */
     if (termreason != SES_TR_BAD_START) {
-        add_common_session_parms(scb, not);
+        add_common_session_parms(instance, scb, not);
     }
 
     /* add sysSessionEnd/killedBy */
     if (termreason == SES_TR_KILLED) {
-        leafval = agt_make_uint_leaf( sysSessionEndobj, system_N_killedBy, 
+        leafval = agt_make_uint_leaf(instance,  sysSessionEndobj, system_N_killedBy, 
                                       killedby, &res );
         if (leafval) {
-            agt_not_add_to_payload(not, leafval);
+            agt_not_add_to_payload(instance, not, leafval);
         } else {
-            payload_error(system_N_killedBy, res);
+            payload_error(instance, system_N_killedBy, res);
         }
     }
 
     /* add sysSessionEnd/terminationReason */
-    termreasonstr = getTermReasonStr(termreason);
-    leafval = agt_make_leaf( sysSessionEndobj, system_N_terminationReason, 
+    termreasonstr = getTermReasonStr(instance, termreason);
+    leafval = agt_make_leaf(instance,  sysSessionEndobj, system_N_terminationReason, 
                              termreasonstr, &res );
     if (leafval) {
-        agt_not_add_to_payload(not, leafval);
+        agt_not_add_to_payload(instance, not, leafval);
     } else {
-        payload_error(system_N_terminationReason, res);
+        payload_error(instance, system_N_terminationReason, res);
     }
 
-    agt_not_queue_notification(not);
+    agt_not_queue_notification(instance, not);
 } /* agt_sys_send_sysSessionEnd */
 
 
@@ -1040,7 +1030,8 @@ void
 *
 *********************************************************************/
 void
-    agt_sys_send_sysConfigChange (const ses_cb_t *scb,
+    agt_sys_send_sysConfigChange (ncx_instance_t *instance,
+                                  const ses_cb_t *scb,
                                   dlq_hdr_t *auditrecQ)
 {
     agt_not_msg_t         *not;
@@ -1051,71 +1042,74 @@ void
 
 #ifdef DEBUG
     if (!scb || !auditrecQ) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (LOGDEBUG) {
-        log_debug("\nagt_sys: generating <sysConfigChange> "
+        log_debug(instance, "\nagt_sys: generating <sysConfigChange> "
                   "notification");
     }
 
-    not = agt_not_new_notification(sysConfigChangeobj);
+    not = agt_not_new_notification(instance, sysConfigChangeobj);
     if (!not) {
-        log_error("\nError: malloc failed; cannot "
+        log_error(instance, "\nError: malloc failed; cannot "
                   "send <sysConfigChange>");
         return;
     }
 
-    add_common_session_parms(scb, not);
+    add_common_session_parms(instance, scb, not);
 
-    listobj = obj_find_child(sysConfigChangeobj,
+    listobj = obj_find_child(instance,
+                             sysConfigChangeobj,
                              AGT_SYS_MODULE,
                              system_N_edit);
     if (listobj == NULL) {
-        SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
     } else {
-        for (auditrec = (agt_cfg_audit_rec_t *)dlq_firstEntry(auditrecQ);
+        for (auditrec = (agt_cfg_audit_rec_t *)dlq_firstEntry(instance, auditrecQ);
              auditrec != NULL;
-             auditrec = (agt_cfg_audit_rec_t *)dlq_nextEntry(auditrec)) {
+             auditrec = (agt_cfg_audit_rec_t *)dlq_nextEntry(instance, auditrec)) {
 
             /* add sysConfigChange/edit */
-            listval = val_new_value();
+            listval = val_new_value(instance);
             if (listval == NULL) {
-                payload_error(system_N_edit, ERR_INTERNAL_MEM);
+                payload_error(instance, system_N_edit, ERR_INTERNAL_MEM);
             } else {
-                val_init_from_template(listval, listobj);
+                val_init_from_template(instance, listval, listobj);
 
                 /* pass off listval malloc here */
-                agt_not_add_to_payload(not, listval);            
+                agt_not_add_to_payload(instance, not, listval);            
 
                 /* add sysConfigChange/edit/target */
-                leafval = agt_make_leaf(listobj,
+                leafval = agt_make_leaf(instance,
+                                        listobj,
                                         system_N_target,
                                         auditrec->target,
                                         &res);
                 if (leafval) {
-                    val_add_child(leafval, listval);
+                    val_add_child(instance, leafval, listval);
                 } else {
-                    payload_error(system_N_target, res);
+                    payload_error(instance, system_N_target, res);
                 }
 
                 /* add sysConfigChange/edit/operation */
-                leafval = agt_make_leaf(listobj,
+                leafval = agt_make_leaf(instance,
+                                        listobj,
                                         system_N_operation,
                                         op_editop_name(auditrec->editop),
                                         &res);
                 if (leafval) {
-                    val_add_child(leafval, listval);
+                    val_add_child(instance, leafval, listval);
                 } else {
-                    payload_error(system_N_operation, res);
+                    payload_error(instance, system_N_operation, res);
                 }
             }
         }
     }
 
-    agt_not_queue_notification(not);
+    agt_not_queue_notification(instance, not);
 
 } /* agt_sys_send_sysConfigChange */
 
@@ -1141,7 +1135,8 @@ void
 *
 *********************************************************************/
 void
-    agt_sys_send_sysCapabilityChange (ses_cb_t *changed_by,
+    agt_sys_send_sysCapabilityChange (ncx_instance_t *instance,
+                                      ses_cb_t *changed_by,
                                       boolean is_add,
                                       const xmlChar *capstr)
 {
@@ -1152,111 +1147,118 @@ void
 
 #ifdef DEBUG
     if (!capstr) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (LOGDEBUG) {
-        log_debug("\nagt_sys: generating <sysCapabilityChange> "
+        log_debug(instance, "\nagt_sys: generating <sysCapabilityChange> "
                   "notification");
     }
 
-    changedbyobj = obj_find_child(sysCapabilityChangeobj,
+    changedbyobj = obj_find_child(instance,
+                                  sysCapabilityChangeobj,
                                   AGT_SYS_MODULE,
                                   system_N_changed_by);
     if (!changedbyobj) {
-        SET_ERROR(ERR_NCX_DEF_NOT_FOUND);
+        SET_ERROR(instance, ERR_NCX_DEF_NOT_FOUND);
         return;
     }
 
-    not = agt_not_new_notification(sysCapabilityChangeobj);
+    not = agt_not_new_notification(instance, sysCapabilityChangeobj);
     if (!not) {
-        log_error("\nError: malloc failed; cannot "
+        log_error(instance, "\nError: malloc failed; cannot "
                   "send <sysCapabilityChange>");
         return;
     }
 
-    changedbyval = val_new_value();
+    changedbyval = val_new_value(instance);
     if (!changedbyval) {
-        log_error("\nError: malloc failed; cannot "
+        log_error(instance, "\nError: malloc failed; cannot "
                   "send <sysCapabilityChange>");
-        agt_not_free_notification(not);
+        agt_not_free_notification(instance, not);
         return;
     }
-    val_init_from_template(changedbyval, changedbyobj);
-    agt_not_add_to_payload(not, changedbyval);
+    val_init_from_template(instance, changedbyval, changedbyobj);
+    agt_not_add_to_payload(instance, not, changedbyval);
 
     if (changed_by) {
         /* add userName */
         if (changed_by->username) {
-            leafval = agt_make_leaf(changedbyobj,
+            leafval = agt_make_leaf(instance,
+                                    changedbyobj,
                                     system_N_userName,
                                     changed_by->username,
                                     &res);
             if (leafval) {
-                val_add_child(leafval, changedbyval);
+                val_add_child(instance, leafval, changedbyval);
             } else {
-                payload_error(system_N_userName, res);
+                payload_error(instance, system_N_userName, res);
             }
         }
 
         /* add sessionId */
-        leafval = agt_make_uint_leaf(changedbyobj,
+        leafval = agt_make_uint_leaf(instance,
+                                     changedbyobj,
                                      system_N_sessionId,
                                      changed_by->sid,
                                      &res);
         if (leafval) {
-            val_add_child(leafval, changedbyval);
+            val_add_child(instance, leafval, changedbyval);
         } else {
-            payload_error(system_N_sessionId, res);
+            payload_error(instance, system_N_sessionId, res);
         }
 
         /* add remoteHost */
         if (changed_by->peeraddr) {
-            leafval = agt_make_leaf(changedbyobj,
+            leafval = agt_make_leaf(instance,
+                                    changedbyobj,
                                     system_N_remoteHost,
                                     changed_by->peeraddr,
                                     &res);
             if (leafval) {
-                val_add_child(leafval, changedbyval);
+                val_add_child(instance, leafval, changedbyval);
             } else {
-                payload_error(system_N_remoteHost, res);
+                payload_error(instance, system_N_remoteHost, res);
             }
         }
     } else {
-        leafval = agt_make_leaf(changedbyobj,
+        leafval = agt_make_leaf(instance,
+                                changedbyobj,
                                 NCX_EL_SERVER,
                                 NULL,
                                 &res);
         if (leafval) {
-            val_add_child(leafval, changedbyval);
+            val_add_child(instance, leafval, changedbyval);
         } else {
-            payload_error(NCX_EL_SERVER, res);
+            payload_error(instance, NCX_EL_SERVER, res);
         }
     }
 
     if (is_add) {
         /* add sysCapoabilityChange/added-capability */
-        leafval = agt_make_leaf(sysCapabilityChangeobj,
+        leafval = agt_make_leaf(instance,
+                                sysCapabilityChangeobj,
                                 system_N_added_capability,
                                 capstr,
                                 &res);
     } else {
         /* add sysCapoabilityChange/deleted-capability */
-        leafval = agt_make_leaf(sysCapabilityChangeobj,
+        leafval = agt_make_leaf(instance,
+                                sysCapabilityChangeobj,
                                 system_N_deleted_capability,
                                 capstr,
                                 &res);
     }
     if (leafval) {
-        agt_not_add_to_payload(not, leafval);
+        agt_not_add_to_payload(instance, not, leafval);
     } else {
-        payload_error(is_add ? system_N_added_capability :
+        payload_error(instance, is_add ? system_N_added_capability :
                       system_N_deleted_capability, res);
     }
 
-    agt_not_queue_notification(not);
+    agt_not_queue_notification(instance, not);
 
 } /* agt_sys_send_sysCapabilityChange */
 
@@ -1275,7 +1277,8 @@ void
 *
 *********************************************************************/
 void
-    agt_sys_send_sysConfirmedCommit (const ses_cb_t *scb,
+    agt_sys_send_sysConfirmedCommit (ncx_instance_t *instance,
+                                     const ses_cb_t *scb,
                                      ncx_confirm_event_t event)
 {
     agt_not_msg_t         *not;
@@ -1288,39 +1291,41 @@ void
     eventstr = ncx_get_confirm_event_str(event);
 
     if (!eventstr) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
     if (LOGDEBUG) {
-        log_debug("\nagt_sys: generating <sysConfirmedCommit> "
+        log_debug(instance,
+                  "\nagt_sys: generating <sysConfirmedCommit> "
                   "notification (%s)",
                   eventstr);
     }
 
-    not = agt_not_new_notification(sysConfirmedCommitobj);
+    not = agt_not_new_notification(instance, sysConfirmedCommitobj);
     if (!not) {
-        log_error("\nError: malloc failed; cannot "
+        log_error(instance, "\nError: malloc failed; cannot "
                   "send <sysConfirmedCommit>");
         return;
     }
 
     if (scb) {
-        add_common_session_parms(scb, not);
+        add_common_session_parms(instance, scb, not);
     }
 
     /* add sysConfirmedCommit/confirmEvent */
-    leafval = agt_make_leaf(sysConfirmedCommitobj,
+    leafval = agt_make_leaf(instance,
+                            sysConfirmedCommitobj,
                             system_N_confirmEvent,
                             eventstr,
                             &res);
     if (leafval) {
-        agt_not_add_to_payload(not, leafval);
+        agt_not_add_to_payload(instance, not, leafval);
     } else {
-        payload_error(system_N_confirmEvent, res);
+        payload_error(instance, system_N_confirmEvent, res);
     }
 
-    agt_not_queue_notification(not);
+    agt_not_queue_notification(instance, not);
 
 } /* agt_sys_send_sysConfirmedCommit */
 

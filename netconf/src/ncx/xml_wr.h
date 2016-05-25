@@ -124,7 +124,8 @@ extern "C" {
 *   none
 *********************************************************************/
 extern void
-    xml_wr_buff (ses_cb_t *scb,
+    xml_wr_buff (struct ncx_instance_t_ *instance,
+		 ses_cb_t *scb,
 		 const xmlChar *buff,
 		 uint32 bufflen);
 
@@ -154,7 +155,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_begin_elem_ex (ses_cb_t *scb,
+    xml_wr_begin_elem_ex (struct ncx_instance_t_ *instance,
+			  ses_cb_t *scb,
 			  xml_msg_hdr_t *msg,
 			  xmlns_id_t  parent_nsid,
 			  xmlns_id_t  nsid,
@@ -184,7 +186,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_begin_elem (ses_cb_t *scb,
+    xml_wr_begin_elem (struct ncx_instance_t_ *instance,
+		       ses_cb_t *scb,
 		       xml_msg_hdr_t *msg,
 		       xmlns_id_t  parent_nsid,
 		       xmlns_id_t  nsid,
@@ -211,7 +214,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_empty_elem (ses_cb_t *scb,
+    xml_wr_empty_elem (struct ncx_instance_t_ *instance,
+		       ses_cb_t *scb,
 		       xml_msg_hdr_t *msg,
 		       xmlns_id_t  parent_nsid,
 		       xmlns_id_t  nsid,
@@ -240,7 +244,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_end_elem (ses_cb_t *scb,
+    xml_wr_end_elem (struct ncx_instance_t_ *instance,
+		     ses_cb_t *scb,
 		     xml_msg_hdr_t *msg,
 		     xmlns_id_t  nsid,
 		     const xmlChar *elname,
@@ -275,7 +280,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_string_elem (ses_cb_t *scb,
+    xml_wr_string_elem (struct ncx_instance_t_ *instance,
+			ses_cb_t *scb,
 			xml_msg_hdr_t *msg,
 			const xmlChar *str,
 			xmlns_id_t  parent_nsid,
@@ -315,7 +321,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_qname_elem (ses_cb_t *scb,
+    xml_wr_qname_elem (struct ncx_instance_t_ *instance,
+		       ses_cb_t *scb,
 		       xml_msg_hdr_t *msg,
 		       xmlns_id_t val_nsid,
 		       const xmlChar *str,
@@ -359,7 +366,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_check_val (ses_cb_t *scb,
+    xml_wr_check_val (struct ncx_instance_t_ *instance,
+		      ses_cb_t *scb,
 		      xml_msg_hdr_t *msg,
 		      val_value_t *val,
 		      int32  indent,
@@ -384,7 +392,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_val (ses_cb_t *scb,
+    xml_wr_val (struct ncx_instance_t_ *instance,
+		ses_cb_t *scb,
 		xml_msg_hdr_t *msg,
 		val_value_t *val,
 		int32 indent);
@@ -408,7 +417,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_full_check_val (ses_cb_t *scb,
+    xml_wr_full_check_val (struct ncx_instance_t_ *instance,
+			   ses_cb_t *scb,
 			   xml_msg_hdr_t *msg,
 			   val_value_t *val,
 			   int32  indent,
@@ -431,7 +441,8 @@ extern void
 *   none
 *********************************************************************/
 extern void
-    xml_wr_full_val (ses_cb_t *scb,
+    xml_wr_full_val (struct ncx_instance_t_ *instance,
+		     ses_cb_t *scb,
 		     xml_msg_hdr_t *msg,
 		     val_value_t *val,
 		     int32  indent);
@@ -460,7 +471,8 @@ extern void
 *    status
 *********************************************************************/
 extern status_t
-    xml_wr_check_open_file (FILE *fp, 
+    xml_wr_check_open_file (struct ncx_instance_t_ *instance, 
+                            FILE *fp, 
                             val_value_t *val,
                             xml_attrs_t *attrs,
                             boolean docmode,
@@ -494,7 +506,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    xml_wr_check_file (const xmlChar *filespec, 
+    xml_wr_check_file (struct ncx_instance_t_ *instance, 
+		       const xmlChar *filespec, 
 		       val_value_t *val,
 		       xml_attrs_t *attrs,
 		       boolean docmode,
@@ -527,7 +540,8 @@ extern status_t
 *    status
 *********************************************************************/
 extern status_t
-    xml_wr_file (const xmlChar *filespec, 
+    xml_wr_file (struct ncx_instance_t_ *instance, 
+		 const xmlChar *filespec, 
 		 val_value_t *val,
 		 xml_attrs_t *attrs,
 		 boolean docmode,

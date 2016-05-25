@@ -80,7 +80,8 @@ extern "C" {
 *   status of the operation
 *********************************************************************/
 extern status_t 
-    conf_parse_val_from_filespec (const xmlChar *filespec,
+    conf_parse_val_from_filespec (struct ncx_instance_t_ *instance,
+				  const xmlChar *filespec,
 				  val_value_t *val,
 				  boolean keepvals,
 				  boolean fileerr);

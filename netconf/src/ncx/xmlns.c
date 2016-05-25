@@ -78,15 +78,7 @@ date         init     comment
 *                       C O N S T A N T S                           *
 *                                                                   *
 *********************************************************************/
-/* max registered namespaces/modules in the database
- * increase to allow more modules loaded at once
- * (this is an arbitrary limit)
- */
-#define XMLNS_MAX_NS   4096
 
-#ifdef DEBUG
-#define XMLNS_DEBUG 1
-#endif
 
 /********************************************************************
 *                                                                   *
@@ -101,51 +93,6 @@ date         init     comment
 *                                                                   *
 *********************************************************************/
 
-/* INVALID namespace ID */
-static xmlns_id_t xmlns_invid;
-
-/* NETCONF namespace ID */
-static xmlns_id_t xmlns_ncid;
-
-/* XMLNS namespace ID */
-static xmlns_id_t xmlns_nsid;
-
-/* XSD namespace ID */
-static xmlns_id_t xmlns_xsid;
-
-/* NETCONF Extensions namespace ID */
-static xmlns_id_t xmlns_ncxid;
-
-/* XSD Instance (XSI) namespace ID */
-static xmlns_id_t xmlns_xsiid;
-
-/* 1998 XML Namespace ID */
-static xmlns_id_t xmlns_xmlid;
-
-/* NETCONF Notifications namespace ID */
-static xmlns_id_t xmlns_ncnid;
-
-/* YANG namespace ID */
-static xmlns_id_t xmlns_yangid;
-
-/* YIN namespace ID */
-static xmlns_id_t xmlns_yinid;
-
-/* Wildcard namespace ID */
-static xmlns_id_t xmlns_wildcardid;
-
-/* with-defaults wd:default attribute namespace ID */
-static xmlns_id_t xmlns_wdaid;
-
-
-/* next ID to allocate */
-static xmlns_id_t xmlns_next_id;
-
-/* array of xmlns_t pointers */
-static xmlns_t   *xmlns[XMLNS_MAX_NS];
-
-/* module init done flag */
-static boolean xmlns_init_done = FALSE;
 
 /********************************************************************
 *                                                                   *
@@ -162,8 +109,8 @@ static boolean xmlns_init_done = FALSE;
  * RETURN
  *   zero if not valid, non-zero if valid
  */
-#define valid_id(I) ((I)&&((I)<=XMLNS_MAX_NS)&&(xmlns[(I)-1]) && \
-                     (xmlns[(I)-1]->ns_id==(I)))
+#define valid_id(instance, I) ((I)&&((I)<=XMLNS_MAX_NS)&&(instance->xmlns[(I)-1]) && \
+                     (instance->xmlns[(I)-1]->ns_id==(I)))
 
 
 
@@ -177,11 +124,11 @@ static boolean xmlns_init_done = FALSE;
 *    pointer to new struct, or NULL if memorty error
 *********************************************************************/
 static xmlns_t *
-    new_xmlns (void)
+    new_xmlns (ncx_instance_t *instance)
 {
     xmlns_t  *rec;
 
-    rec = m__getObj(xmlns_t);
+    rec = m__getObj(instance, xmlns_t);
     if (!rec) {
         return NULL;
     }
@@ -200,18 +147,18 @@ static xmlns_t *
 *    rec == xmlns_t struct to free
 *********************************************************************/
 static void
-    free_xmlns (xmlns_t *rec)
+    free_xmlns (ncx_instance_t *instance, xmlns_t *rec)
 {
     if (rec->ns_pfix) {
-        m__free(rec->ns_pfix);
+        m__free(instance, rec->ns_pfix);
     }
     if (rec->ns_name) {
-        m__free(rec->ns_name);
+        m__free(instance, rec->ns_name);
     }
     if (rec->ns_module) {
-        m__free(rec->ns_module);
+        m__free(instance, rec->ns_module);
     }
-    m__free(rec);
+    m__free(instance, rec);
 
 }  /* free_xmlns */
 
@@ -228,28 +175,28 @@ static void
 *    none
 *********************************************************************/
 static void 
-    init_xmlns_static_vars (void)
+    init_xmlns_static_vars (ncx_instance_t *instance)
 {
     uint32 i;
 
     for (i=0; i < XMLNS_MAX_NS; i++) {
-        xmlns[i] = NULL;
+        instance->xmlns[i] = NULL;
     }
 
-    xmlns_invid = 0;
-    xmlns_ncid = 0;
-    xmlns_nsid = 0;
-    xmlns_xsid = 0;
-    xmlns_ncxid = 0;
-    xmlns_xsiid = 0;
-    xmlns_xmlid = 0;
-    xmlns_ncnid = 0;
-    xmlns_yangid = 0;
-    xmlns_yinid = 0;
-    xmlns_wildcardid = 0;
-    xmlns_wdaid = 0;
-    xmlns_next_id = 1;
-    xmlns_init_done = FALSE;
+    instance->xmlns_invid = 0;
+    instance->xmlns_ncid = 0;
+    instance->xmlns_nsid = 0;
+    instance->xmlns_xsid = 0;
+    instance->xmlns_ncxid = 0;
+    instance->xmlns_xsiid = 0;
+    instance->xmlns_xmlid = 0;
+    instance->xmlns_ncnid = 0;
+    instance->xmlns_yangid = 0;
+    instance->xmlns_yinid = 0;
+    instance->xmlns_wildcardid = 0;
+    instance->xmlns_wdaid = 0;
+    instance->xmlns_next_id = 1;
+    instance->xmlns_init_done = FALSE;
 
 }  /* init_xmlns_static_vars */
 
@@ -272,11 +219,11 @@ static void
 *    none
 *********************************************************************/
 void 
-    xmlns_init (void)
+    xmlns_init (ncx_instance_t *instance)
 {
-    if (!xmlns_init_done) {
-        init_xmlns_static_vars();
-        xmlns_init_done = TRUE;
+    if (!instance->xmlns_init_done) {
+        init_xmlns_static_vars(instance);
+        instance->xmlns_init_done = TRUE;
     }
 
 } /* xmlns_init */
@@ -293,17 +240,17 @@ void
 *    none
 *********************************************************************/
 void 
-    xmlns_cleanup (void)
+    xmlns_cleanup (ncx_instance_t *instance)
 {
     uint32 i;
 
-    if (xmlns_init_done) {
-        for (i=0; i<xmlns_next_id-1; i++) {
-            free_xmlns(xmlns[i]);
-            xmlns[i] = NULL;
+    if (instance->xmlns_init_done) {
+        for (i=0; i<instance->xmlns_next_id-1; i++) {
+            free_xmlns(instance, instance->xmlns[i]);
+            instance->xmlns[i] = NULL;
         }
-        init_xmlns_static_vars();
-        xmlns_init_done = FALSE;
+        init_xmlns_static_vars(instance);
+        instance->xmlns_init_done = FALSE;
     }
 
 }  /* xmlns_cleanup */
@@ -329,7 +276,8 @@ void
 *    status, NO_ERR if all okay
 *********************************************************************/
 status_t 
-    xmlns_register_ns (const xmlChar *ns,
+    xmlns_register_ns (ncx_instance_t *instance,
+                       const xmlChar *ns,
                        const xmlChar *pfix,
                        const xmlChar *modname,
                        void *modptr,
@@ -344,60 +292,60 @@ status_t
 
 #ifdef DEBUG
     if (!ns || !modname || !ns_id) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
-    mlen = xml_strlen(modname);
+    mlen = xml_strlen(instance, modname);
 
     if (pfix) {
-        plen = xml_strlen(pfix);
+        plen = xml_strlen(instance, pfix);
     } else {
         buff[0] = 'n';
-        snprintf(&buff[1], sizeof(buff) - 1, "%d", xmlns_next_id);
+        snprintf(&buff[1], sizeof(buff) - 1, "%d", instance->xmlns_next_id);
         pfix = (xmlChar *)buff;
-        plen = xml_strlen(pfix);
+        plen = xml_strlen(instance, pfix);
     }
 
     if (!mlen || !plen) {
         return ERR_NCX_WRONG_LEN;
     }
 
-    if (!xmlns_next_id || xmlns_next_id > XMLNS_MAX_NS) {
+    if (!instance->xmlns_next_id || instance->xmlns_next_id > XMLNS_MAX_NS) {
         return ERR_TOO_MANY_ENTRIES;
     }
 
     /* check duplicate entry */
-    if (xmlns_find_ns_by_name(ns)) {
+    if (xmlns_find_ns_by_name(instance, ns)) {
         return ERR_DUP_NS;
     }
 
     /* all ok - try to malloc the new entry at the end of the list */
-    rec = new_xmlns();
+    rec = new_xmlns(instance);
     if (!rec) {
         return ERR_INTERNAL_MEM;
     }
 
     /* copy the prefix string */
     if (pfix) {
-        rec->ns_pfix = xml_strdup(pfix);
+        rec->ns_pfix = xml_strdup(instance, pfix);
         if (!rec->ns_pfix) {
-            free_xmlns(rec);
+            free_xmlns(instance, rec);
             return ERR_INTERNAL_MEM;
         }
     }
 
     /* copy the name namespace URI string */
-    rec->ns_name = xml_strdup(ns);
+    rec->ns_name = xml_strdup(instance, ns);
     if (!rec->ns_name) {
-        free_xmlns(rec);
+        free_xmlns(instance, rec);
         return ERR_INTERNAL_MEM;
     }
 
     /* copy the name namespace URI string */
-    rec->ns_module = xml_strdup(modname);
+    rec->ns_module = xml_strdup(instance, modname);
     if (!rec->ns_module) {
-        free_xmlns(rec);
+        free_xmlns(instance, rec);
         return ERR_INTERNAL_MEM;
     }
 
@@ -405,53 +353,54 @@ status_t
     rec->ns_mod = (ncx_module_t *)modptr;
 
     /* assign the next XMLNS ID */
-    rec->ns_id = xmlns_next_id;
+    rec->ns_id = instance->xmlns_next_id;
 
     /* register the entry in the def_reg hash table */
-    res = def_reg_add_ns(rec);
+    res = def_reg_add_ns(instance, rec);
     if (res != NO_ERR) {
-        free_xmlns(rec);
+        free_xmlns(instance, rec);
         return res;
     }
 
-    xmlns[xmlns_next_id-1] = rec;
+    instance->xmlns[instance->xmlns_next_id-1] = rec;
 
     /* hack: check if this is one of the cached NS IDs */
-    if (!xml_strcmp(ns, NC_URN)) {
-        xmlns_ncid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, NCX_URN)) {
-        xmlns_ncxid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, NS_URN)) {
-        xmlns_nsid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, XSD_URN)) {
-        xmlns_xsid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, INVALID_URN)) {
-        xmlns_invid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, XSI_URN)) {
-        xmlns_xsiid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, XML_URN)) {
-        xmlns_xmlid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, NCN_URN)) {
-        xmlns_ncnid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, YANG_URN)) {
-        xmlns_yangid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, YIN_URN)) {
-        xmlns_yinid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, WILDCARD_URN)) {
-        xmlns_wildcardid = xmlns_next_id;
-    } else if (!xml_strcmp(ns, NC_WD_ATTR_URN)) {
-        xmlns_wdaid = xmlns_next_id;
+    if (!xml_strcmp(instance, ns, NC_URN)) {
+        instance->xmlns_ncid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, NCX_URN)) {
+        instance->xmlns_ncxid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, NS_URN)) {
+        instance->xmlns_nsid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, XSD_URN)) {
+        instance->xmlns_xsid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, INVALID_URN)) {
+        instance->xmlns_invid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, XSI_URN)) {
+        instance->xmlns_xsiid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, XML_URN)) {
+        instance->xmlns_xmlid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, NCN_URN)) {
+        instance->xmlns_ncnid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, YANG_URN)) {
+        instance->xmlns_yangid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, YIN_URN)) {
+        instance->xmlns_yinid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, WILDCARD_URN)) {
+        instance->xmlns_wildcardid = instance->xmlns_next_id;
+    } else if (!xml_strcmp(instance, ns, NC_WD_ATTR_URN)) {
+        instance->xmlns_wdaid = instance->xmlns_next_id;
     }
 
     if (LOGDEBUG2) {
-        log_debug2("\nxmlns_reg: id:%2d mod:%s\turi: %s",
+        log_debug2(instance,
+                   "\nxmlns_reg: id:%2d mod:%s\turi: %s",
                    rec->ns_id, 
                    rec->ns_module, 
                    rec->ns_name);
     }
 
     /* bump the next_id after returning the value used */
-    *ns_id = xmlns_next_id++; 
+    *ns_id = instance->xmlns_next_id++; 
     return NO_ERR;
 
 } /* xmlns_register_ns */
@@ -468,12 +417,12 @@ status_t
 *    pointer to prefix or NULL if bad params
 *********************************************************************/
 const xmlChar *
-    xmlns_get_ns_prefix (xmlns_id_t  ns_id)
+    xmlns_get_ns_prefix (ncx_instance_t *instance, xmlns_id_t  ns_id)
 {
-    if (!valid_id(ns_id)) {
+    if (!valid_id(instance, ns_id)) {
         return (const xmlChar *)"--";
     } else {
-        return (const xmlChar *)xmlns[ns_id-1]->ns_pfix;
+        return (const xmlChar *)instance->xmlns[ns_id-1]->ns_pfix;
     }
 } /* xmlns_get_ns_prefix */
 
@@ -489,12 +438,12 @@ const xmlChar *
 *    pointer to name or NULL if bad params
 *********************************************************************/
 const xmlChar *
-    xmlns_get_ns_name (xmlns_id_t  ns_id)
+    xmlns_get_ns_name (ncx_instance_t *instance, xmlns_id_t  ns_id)
 {
-    if (!valid_id(ns_id)) {
+    if (!valid_id(instance, ns_id)) {
         return NULL;
     } else {
-        return (const xmlChar *)xmlns[ns_id-1]->ns_name;
+        return (const xmlChar *)instance->xmlns[ns_id-1]->ns_name;
     }
 } /* xmlns_get_ns_name */
 
@@ -511,22 +460,22 @@ const xmlChar *
 *    namespace ID or XMLNS_NULL_NS_ID if error
 *********************************************************************/
 xmlns_id_t 
-    xmlns_find_ns_by_module (const xmlChar *modname)
+    xmlns_find_ns_by_module (ncx_instance_t *instance, const xmlChar *modname)
 {
     uint32    i;
     xmlns_t  *rec;
 
 #ifdef DEBUG
     if (!modname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return XMLNS_NULL_NS_ID;
     } 
 #endif
 
-    for (i=0; i<xmlns_next_id-1; i++) {
-        rec = xmlns[i];
+    for (i=0; i<instance->xmlns_next_id-1; i++) {
+        rec = instance->xmlns[i];
         if (rec->ns_module) {
-            if (!xml_strcmp(rec->ns_module, modname)) {
+            if (!xml_strcmp(instance, rec->ns_module, modname)) {
                 return rec->ns_id;
             }
         }
@@ -547,7 +496,7 @@ xmlns_id_t
 *    namespace ID or XMLNS_NULL_NS_ID if error
 *********************************************************************/
 xmlns_id_t 
-    xmlns_find_ns_by_prefix (const xmlChar *pfix)
+    xmlns_find_ns_by_prefix (ncx_instance_t *instance, const xmlChar *pfix)
 {
     uint32    i;
     xmlns_t  *rec;
@@ -558,10 +507,10 @@ xmlns_id_t
     } 
 #endif
 
-    for (i=0; i<xmlns_next_id-1; i++) {
-        rec = xmlns[i];
+    for (i=0; i<instance->xmlns_next_id-1; i++) {
+        rec = instance->xmlns[i];
         if (rec->ns_pfix[0]) {
-            if (!xml_strcmp(rec->ns_pfix, pfix)) {
+            if (!xml_strcmp(instance, rec->ns_pfix, pfix)) {
                 return rec->ns_id;
             }
         }
@@ -582,18 +531,18 @@ xmlns_id_t
 *    namespace ID or XMLNS_NULL_NS_ID if error
 *********************************************************************/
 xmlns_id_t 
-    xmlns_find_ns_by_name (const xmlChar *name)
+    xmlns_find_ns_by_name (ncx_instance_t *instance, const xmlChar *name)
 {
     xmlns_t  *ns;
 
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return XMLNS_NULL_NS_ID;
     } 
 #endif
 
-    ns = def_reg_find_ns(name);
+    ns = def_reg_find_ns(instance, name);
     if (ns) {
         return ns->ns_id;
     }
@@ -616,7 +565,8 @@ xmlns_id_t
 *    namespace ID or XMLNS_NULL_NS_ID if error
 *********************************************************************/
 xmlns_id_t 
-    xmlns_find_ns_by_name_str (const xmlChar *name,
+    xmlns_find_ns_by_name_str (ncx_instance_t *instance,
+                               const xmlChar *name,
                                uint32 namelen)
 {
     xmlns_t  *ns;
@@ -624,19 +574,19 @@ xmlns_id_t
 
 #ifdef DEBUG
     if (!name) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return XMLNS_NULL_NS_ID;
     } 
     if (!namelen) {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return XMLNS_NULL_NS_ID;
     } 
 #endif
 
-    for (i=0; i<xmlns_next_id-1; i++) {
-        ns = xmlns[i];
+    for (i=0; i<instance->xmlns_next_id-1; i++) {
+        ns = instance->xmlns[i];
         if (ns->ns_name) {
-            if (!xml_strncmp(ns->ns_name, name, namelen)) {
+            if (!xml_strncmp(instance, ns->ns_name, name, namelen)) {
                 return ns->ns_id;
             }
         }
@@ -658,9 +608,9 @@ xmlns_id_t
 *    NETCONF NS ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_nc_id (void)
+    xmlns_nc_id (ncx_instance_t *instance)
 {
-    return xmlns_ncid;
+    return instance->xmlns_ncid;
 }  /* xmlns_nc_id */
 
 
@@ -675,9 +625,9 @@ xmlns_id_t
 *    NETCONF-X NS ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_ncx_id (void)
+    xmlns_ncx_id (ncx_instance_t *instance)
 {
-    return xmlns_ncxid;
+    return instance->xmlns_ncxid;
 }  /* xmlns_ncx_id */
 
 
@@ -692,9 +642,9 @@ xmlns_id_t
 *    XMLNS NS ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_ns_id (void)
+    xmlns_ns_id (ncx_instance_t *instance)
 {
-    return xmlns_nsid;
+    return instance->xmlns_nsid;
 }  /* xmlns_ns_id */
 
 
@@ -709,9 +659,9 @@ xmlns_id_t
 *    INVALID NS ID or 0 if not set yet
 *********************************************************************/
 xmlns_id_t 
-    xmlns_inv_id (void)
+    xmlns_inv_id (ncx_instance_t *instance)
 {
-    return xmlns_invid;
+    return instance->xmlns_invid;
 }  /* xmlns_inv_id */
 
 
@@ -726,9 +676,9 @@ xmlns_id_t
 *    XSD NS ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_xs_id (void)
+    xmlns_xs_id (ncx_instance_t *instance)
 {
-    return xmlns_xsid;
+    return instance->xmlns_xsid;
 }  /* xmlns_xs_id */
 
 /********************************************************************
@@ -742,9 +692,9 @@ xmlns_id_t
 *    XSI ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_xsi_id (void)
+    xmlns_xsi_id (ncx_instance_t *instance)
 {
-    return xmlns_xsiid;
+    return instance->xmlns_xsiid;
 }  /* xmlns_xsi_id */
 
 
@@ -759,9 +709,9 @@ xmlns_id_t
 *    XML ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_xml_id (void)
+    xmlns_xml_id (ncx_instance_t *instance)
 {
-    return xmlns_xmlid;
+    return instance->xmlns_xmlid;
 }  /* xmlns_xml_id */
 
 
@@ -777,9 +727,9 @@ xmlns_id_t
 *    NCN ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_ncn_id (void)
+    xmlns_ncn_id (ncx_instance_t *instance)
 {
-    return xmlns_ncnid;
+    return instance->xmlns_ncnid;
 }  /* xmlns_ncn_id */
 
 
@@ -795,9 +745,9 @@ xmlns_id_t
 *    YANG ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_yang_id (void)
+    xmlns_yang_id (ncx_instance_t *instance)
 {
-    return xmlns_yangid;
+    return instance->xmlns_yangid;
 }  /* xmlns_yang_id */
 
 
@@ -813,9 +763,9 @@ xmlns_id_t
 *    YIN ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_yin_id (void)
+    xmlns_yin_id (ncx_instance_t *instance)
 {
-    return xmlns_yinid;
+    return instance->xmlns_yinid;
 }  /* xmlns_yin_id */
 
 
@@ -831,9 +781,9 @@ xmlns_id_t
 *    Wildcard ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_wildcard_id (void)
+    xmlns_wildcard_id (ncx_instance_t *instance)
 {
-    return xmlns_wildcardid;
+    return instance->xmlns_wildcardid;
 }  /* xmlns_wildcard_id */
 
 
@@ -849,9 +799,9 @@ xmlns_id_t
 *    with-defaults default attribute namespace ID or 0 if not found
 *********************************************************************/
 xmlns_id_t 
-    xmlns_wda_id (void)
+    xmlns_wda_id (ncx_instance_t *instance)
 {
-    return xmlns_wdaid;
+    return instance->xmlns_wdaid;
 }  /* xmlns_wda_id */
 
 
@@ -867,16 +817,16 @@ xmlns_id_t
 *    none
 *********************************************************************/
 const xmlChar *
-    xmlns_get_module (xmlns_id_t  nsid)
+    xmlns_get_module (ncx_instance_t *instance, xmlns_id_t  nsid)
 {
-    if (!xmlns_init_done) {
-        xmlns_init();
+    if (!instance->xmlns_init_done) {
+        xmlns_init(instance);
         return NULL;
     }
-    if (!valid_id(nsid)) {
+    if (!valid_id(instance, nsid)) {
         return NULL;
     }
-    return xmlns[nsid-1]->ns_module;
+    return instance->xmlns[nsid-1]->ns_module;
 
 }  /* xmlns_get_module */
 
@@ -892,16 +842,16 @@ const xmlChar *
 *    void * cast of the module or NULL
 *********************************************************************/
 void *
-    xmlns_get_modptr (xmlns_id_t  nsid)
+    xmlns_get_modptr (ncx_instance_t *instance, xmlns_id_t  nsid)
 {
-    if (!xmlns_init_done) {
-        xmlns_init();
+    if (!instance->xmlns_init_done) {
+        xmlns_init(instance);
         return NULL;
     }
-    if (!valid_id(nsid)) {
+    if (!valid_id(instance, nsid)) {
         return NULL;
     }
-    return xmlns[nsid-1]->ns_mod;
+    return instance->xmlns[nsid-1]->ns_mod;
 
 }  /* xmlns_get_modptr */
 
@@ -917,7 +867,8 @@ void *
 *
 *********************************************************************/
 void
-    xmlns_set_modptrs (const xmlChar *modname,
+    xmlns_set_modptrs (ncx_instance_t *instance,
+                       const xmlChar *modname,
                        void *modptr)
 {
     uint32    i;
@@ -925,20 +876,20 @@ void
 
 #ifdef DEBUG
     if (!modname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    if (!xmlns_init_done) {
-        xmlns_init();
+    if (!instance->xmlns_init_done) {
+        xmlns_init(instance);
         return;
     }
 
-    for (i=0; i<xmlns_next_id-1; i++) {
-        rec = xmlns[i];
+    for (i=0; i<instance->xmlns_next_id-1; i++) {
+        rec = instance->xmlns[i];
         if (rec->ns_module) {
-            if (!xml_strcmp(rec->ns_module, modname)) {
+            if (!xml_strcmp(instance, rec->ns_module, modname)) {
                 rec->ns_mod = modptr;
             }
         }
@@ -960,20 +911,20 @@ void
 *    pointer to new struct or NULL if malloc error
 *********************************************************************/
 xmlns_pmap_t *
-    xmlns_new_pmap (uint32 buffsize)
+    xmlns_new_pmap (ncx_instance_t *instance, uint32 buffsize)
 {
     xmlns_pmap_t *pmap;
 
-    pmap = m__getObj(xmlns_pmap_t);
+    pmap = m__getObj(instance, xmlns_pmap_t);
     if (!pmap) {
         return NULL;
     }
     memset(pmap, 0x0, sizeof(xmlns_pmap_t));
 
     if (buffsize) {
-        pmap->nm_pfix = m__getMem(buffsize);
+        pmap->nm_pfix = m__getMem(instance, buffsize);
         if (!pmap->nm_pfix) {
-            m__free(pmap);
+            m__free(instance, pmap);
             return NULL;
         } else {
             memset(pmap->nm_pfix, 0x0, buffsize);
@@ -995,19 +946,19 @@ xmlns_pmap_t *
 *
 *********************************************************************/
 void
-    xmlns_free_pmap (xmlns_pmap_t *pmap)
+    xmlns_free_pmap (ncx_instance_t *instance, xmlns_pmap_t *pmap)
 {
 #ifdef DEBUG
     if (!pmap) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     if (pmap->nm_pfix) {
-        m__free(pmap->nm_pfix);
+        m__free(instance, pmap->nm_pfix);
     }
-    m__free(pmap);
+    m__free(instance, pmap);
 
 }  /* xmlns_free_pmap */
 
@@ -1021,11 +972,11 @@ void
 *    pointer to new struct or NULL if malloc error
 *********************************************************************/
 xmlns_qname_t *
-    xmlns_new_qname (void)
+    xmlns_new_qname (ncx_instance_t *instance)
 {
     xmlns_qname_t *qname;
 
-    qname = m__getObj(xmlns_qname_t);
+    qname = m__getObj(instance, xmlns_qname_t);
     if (!qname) {
         return NULL;
     }
@@ -1045,16 +996,16 @@ xmlns_qname_t *
 *
 *********************************************************************/
 void
-    xmlns_free_qname (xmlns_qname_t *qname)
+    xmlns_free_qname (ncx_instance_t *instance, xmlns_qname_t *qname)
 {
 #ifdef DEBUG
     if (!qname) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
-    m__free(qname);
+    m__free(instance, qname);
 
 }  /* xmlns_free_qname */
 

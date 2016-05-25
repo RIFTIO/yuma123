@@ -249,7 +249,7 @@ static xmlChar        *default_module;
 static uint32          default_timeout;
 
 /* default value for val_dump_value display mode */
-static ncx_display_mode_t   display_mode;
+//static ncx_display_mode_t   display_mode;
 
 /* FALSE to send PDUs in manager-specified order
  * TRUE to always send in correct canonical order
@@ -323,7 +323,8 @@ static boolean use_xmlheader;
 *    if nothing done, then GLTO_CONTINUE will be returned
 *********************************************************************/
 static GlAfterTimeout
-    get_line_timeout (GetLine *gl, 
+    get_line_timeout (ncx_instance_t *instance, 
+                      GetLine *gl, 
                       void *data)
 {
     server_cb_t  *server_cb;
@@ -349,7 +350,7 @@ static GlAfterTimeout
 
     wantdata = FALSE;
     anystdout = FALSE;
-    retval = mgr_io_process_timeout(scb->sid, &wantdata, &anystdout);
+    retval = mgr_io_process_timeout(instance, scb->sid, &wantdata, &anystdout);
     if (retval) {
         /* this session is probably still alive */
         if (wantdata) {
@@ -375,7 +376,7 @@ static GlAfterTimeout
 * 
 *********************************************************************/
 static void
-    do_startup_screen (void)
+    do_startup_screen (ncx_instance_t *instance)
 {
     logfn_t             logfn;
     boolean             imode;
@@ -389,41 +390,41 @@ static void
         logfn = log_write;
     }
 
-    res = ncx_get_version(versionbuffer, NCX_VERSION_BUFFSIZE);
+    res = ncx_get_version(instance, versionbuffer, NCX_VERSION_BUFFSIZE);
     if (res == NO_ERR) {
-        (*logfn)("\n  yangcli version %s",  versionbuffer);
+        (*logfn)(instance, "\n  yangcli version %s",  versionbuffer);
         if (LOGINFO) {
-            (*logfn)("\n  ");
-            mgr_print_libssh2_version(!imode);
+            (*logfn)(instance, "\n  ");
+            mgr_print_libssh2_version(instance, !imode);
         }
     } else {
-        SET_ERROR(res);
+        SET_ERROR(instance, res);
     }
 
-    (*logfn)("\n\n  ");
-    (*logfn)(COPYRIGHT_STRING);
+    (*logfn)(instance, "\n\n  ");
+    (*logfn)(instance, COPYRIGHT_STRING);
 
     if (!imode) {
         return;
     }
 
-    (*logfn)("\n  Type 'help' or 'help <command-name>' to get started");
-    (*logfn)("\n  Use the <tab> key for command and value completion");
-    (*logfn)("\n  Use the <enter> key to accept the default value ");
-    (*logfn)("in brackets");
+    (*logfn)(instance, "\n  Type 'help' or 'help <command-name>' to get started");
+    (*logfn)(instance, "\n  Use the <tab> key for command and value completion");
+    (*logfn)(instance, "\n  Use the <enter> key to accept the default value ");
+    (*logfn)(instance, "in brackets");
 
-    (*logfn)("\n\n  These escape sequences are available ");
-    (*logfn)("when filling parameter values:");
-    (*logfn)("\n\n\t?\thelp");
-    (*logfn)("\n\t??\tfull help");
-    (*logfn)("\n\t?s\tskip current parameter");
-    (*logfn)("\n\t?c\tcancel current command");
+    (*logfn)(instance, "\n\n  These escape sequences are available ");
+    (*logfn)(instance, "when filling parameter values:");
+    (*logfn)(instance, "\n\n\t?\thelp");
+    (*logfn)(instance, "\n\t??\tfull help");
+    (*logfn)(instance, "\n\t?s\tskip current parameter");
+    (*logfn)(instance, "\n\t?c\tcancel current command");
 
-    (*logfn)("\n\n  These assignment statements are available ");
-    (*logfn)("when entering commands:");
-    (*logfn)("\n\n\t$<varname> = <expr>\tLocal user variable assignment");
-    (*logfn)("\n\t$$<varname> = <expr>\tGlobal user variable assignment");
-    (*logfn)("\n\t@<filespec> = <expr>\tFile assignment\n");
+    (*logfn)(instance, "\n\n  These assignment statements are available ");
+    (*logfn)(instance, "when entering commands:");
+    (*logfn)(instance, "\n\n\t$<varname> = <expr>\tLocal user variable assignment");
+    (*logfn)(instance, "\n\t$$<varname> = <expr>\tGlobal user variable assignment");
+    (*logfn)(instance, "\n\t@<filespec> = <expr>\tFile assignment\n");
 
 
 }  /* do_startup_screen */
@@ -440,7 +441,7 @@ static void
 *
 *********************************************************************/
 static void
-    free_server_cb (server_cb_t *server_cb)
+    free_server_cb (ncx_instance_t *instance, server_cb_t *server_cb)
 {
 
     modptr_t                *modptr;
@@ -455,39 +456,40 @@ static void
                             "#",   /* comment prefix */
                             -1);    /* save all entries */
         if (retval) {
-            log_error("\nError: could not save command line "
+            log_error(instance,
+                      "\nError: could not save command line "
                       "history file '%s'",
                       server_cb->history_filename);
         }
     }
 
     if (server_cb->name) {
-        m__free(server_cb->name);
+        m__free(instance, server_cb->name);
     }
     if (server_cb->address) {
-        m__free(server_cb->address);
+        m__free(instance, server_cb->address);
     }
     if (server_cb->password) {
-        m__free(server_cb->password);
+        m__free(instance, server_cb->password);
     }
     if (server_cb->local_result) {
-        val_free_value(server_cb->local_result);
+        val_free_value(instance, server_cb->local_result);
     }
     if (server_cb->result_name) {
-        m__free(server_cb->result_name);
+        m__free(instance, server_cb->result_name);
     }
     if (server_cb->result_filename) {
-        m__free(server_cb->result_filename);
+        m__free(instance, server_cb->result_filename);
     }
     if (server_cb->history_filename) {
-        m__free(server_cb->history_filename);
+        m__free(instance, server_cb->history_filename);
     }
     if (server_cb->history_line) {
-        m__free(server_cb->history_line);
+        m__free(instance, server_cb->history_line);
     }
 
     if (server_cb->connect_valset) {
-        val_free_value(server_cb->connect_valset);
+        val_free_value(instance, server_cb->connect_valset);
     }
 
 
@@ -496,25 +498,25 @@ static void
         (void)del_GetLine(server_cb->cli_gl);
     }
 
-    var_clean_varQ(&server_cb->varbindQ);
+    var_clean_varQ(instance, &server_cb->varbindQ);
 
-    ncxmod_clean_search_result_queue(&server_cb->searchresultQ);
+    ncxmod_clean_search_result_queue(instance, &server_cb->searchresultQ);
 
-    while (!dlq_empty(&server_cb->modptrQ)) {
-        modptr = (modptr_t *)dlq_deque(&server_cb->modptrQ);
-        free_modptr(modptr);
+    while (!dlq_empty(instance, &server_cb->modptrQ)) {
+        modptr = (modptr_t *)dlq_deque(instance, &server_cb->modptrQ);
+        free_modptr(instance, modptr);
     }
 
-    while (!dlq_empty(&server_cb->notificationQ)) {
-        notif = (mgr_not_msg_t *)dlq_deque(&server_cb->notificationQ);
-        mgr_not_free_msg(notif);
+    while (!dlq_empty(instance, &server_cb->notificationQ)) {
+        notif = (mgr_not_msg_t *)dlq_deque(instance, &server_cb->notificationQ);
+        mgr_not_free_msg(instance, notif);
     }
 
     if (server_cb->runstack_context) {
-        runstack_free_context(server_cb->runstack_context);
+        runstack_free_context(instance, server_cb->runstack_context);
     }
 
-    m__free(server_cb);
+    m__free(instance, server_cb);
 
 }  /* free_server_cb */
 
@@ -531,34 +533,34 @@ static void
 *   malloced server_cb struct or NULL of malloc failed
 *********************************************************************/
 static server_cb_t *
-    new_server_cb (const xmlChar *name)
+    new_server_cb (ncx_instance_t *instance, const xmlChar *name)
 {
     server_cb_t  *server_cb;
     int          retval;
 
-    server_cb = m__getObj(server_cb_t);
+    server_cb = m__getObj(instance, server_cb_t);
     if (server_cb == NULL) {
         return NULL;
     }
     memset(server_cb, 0x0, sizeof(server_cb_t));
 
-    server_cb->runstack_context = runstack_new_context();
+    server_cb->runstack_context = runstack_new_context(instance);
     if (server_cb->runstack_context == NULL) {
-        m__free(server_cb);
+        m__free(instance, server_cb);
         return NULL;
     }
 
-    dlq_createSQue(&server_cb->varbindQ);
-    dlq_createSQue(&server_cb->searchresultQ);
-    dlq_createSQue(&server_cb->modptrQ);
-    dlq_createSQue(&server_cb->notificationQ);
-    dlq_createSQue(&server_cb->autoload_modcbQ);
-    dlq_createSQue(&server_cb->autoload_devcbQ);
+    dlq_createSQue(instance, &server_cb->varbindQ);
+    dlq_createSQue(instance, &server_cb->searchresultQ);
+    dlq_createSQue(instance, &server_cb->modptrQ);
+    dlq_createSQue(instance, &server_cb->notificationQ);
+    dlq_createSQue(instance, &server_cb->autoload_modcbQ);
+    dlq_createSQue(instance, &server_cb->autoload_devcbQ);
 
     /* set the default CLI history file (may not get used) */
-    server_cb->history_filename = xml_strdup(YANGCLI_DEF_HISTORY_FILE);
+    server_cb->history_filename = xml_strdup(instance, YANGCLI_DEF_HISTORY_FILE);
     if (server_cb->history_filename == NULL) {
-        free_server_cb(server_cb);
+        free_server_cb(instance, server_cb);
         return NULL;
     }
     server_cb->history_auto = autohistory;
@@ -570,39 +572,39 @@ static server_cb_t *
      * server profiles are needed at once instead
      * of 1 session at a time
      */
-    server_cb->name = xml_strdup(name);
+    server_cb->name = xml_strdup(instance, name);
     if (server_cb->name == NULL) {
-        free_server_cb(server_cb);
+        free_server_cb(instance, server_cb);
         return NULL;
     }
 
     /* get a tecla CLI control block */
     server_cb->cli_gl = new_GetLine(YANGCLI_LINELEN, YANGCLI_HISTLEN);
     if (server_cb->cli_gl == NULL) {
-        log_error("\nError: cannot allocate a new GL");
-        free_server_cb(server_cb);
+        log_error(instance, "\nError: cannot allocate a new GL");
+        free_server_cb(instance, server_cb);
         return NULL;
     }
 
     /* setup CLI tab line completion */
     retval = gl_customize_completion(server_cb->cli_gl,
                                      &server_cb->completion_state,
-                                     yangcli_tab_callback);
+                                     (CplMatchFn *)yangcli_tab_callback);
     if (retval != 0) {
-        log_error("\nError: cannot set GL tab completion");
-        free_server_cb(server_cb);
+        log_error(instance, "\nError: cannot set GL tab completion");
+        free_server_cb(instance, server_cb);
         return NULL;
     }
 
     /* setup the inactivity timeout callback function */
     retval = gl_inactivity_timeout(server_cb->cli_gl,
-                                   get_line_timeout,
+                                   (GlTimeoutFn *)get_line_timeout,
                                    server_cb,
                                    1,
                                    0);
     if (retval != 0) {
-        log_error("\nError: cannot set GL inactivity timeout");
-        free_server_cb(server_cb);
+        log_error(instance, "\nError: cannot set GL inactivity timeout");
+        free_server_cb(instance, server_cb);
         return NULL;
     }
 
@@ -612,8 +614,8 @@ static server_cb_t *
                                  (const char *)server_cb->history_filename,
                                  "#");   /* comment prefix */
         if (retval) {
-            log_error("\nError: cannot load command line history buffer");
-            free_server_cb(server_cb);
+            log_error(instance, "\nError: cannot load command line history buffer");
+            free_server_cb(instance, server_cb);
             return NULL;
         }
     }
@@ -650,7 +652,7 @@ static server_cb_t *
     /* set default server flags to current settings */
     server_cb->state = MGR_IO_ST_INIT;
     server_cb->baddata = baddata;
-    server_cb->log_level = log_get_debug_level();
+    server_cb->log_level = log_get_debug_level(instance);
     server_cb->autoload = autoload;
     server_cb->fixorder = fixorder;
     server_cb->get_optional = optional;
@@ -658,7 +660,7 @@ static server_cb_t *
     server_cb->erroption = erroption;
     server_cb->defop = defop;
     server_cb->timeout = default_timeout;
-    server_cb->display_mode = display_mode;
+    server_cb->display_mode = instance->display_mode;
     server_cb->withdefaults = withdefaults;
     server_cb->history_size = YANGCLI_HISTLEN;
     server_cb->command_mode = CMD_MODE_NORMAL;
@@ -691,10 +693,10 @@ static server_cb_t *
 *
 *********************************************************************/
 static void
-    update_server_cb_vars (server_cb_t *server_cb)
+    update_server_cb_vars (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     server_cb->baddata = baddata;
-    server_cb->log_level = log_get_debug_level();
+    server_cb->log_level = log_get_debug_level(instance);
     server_cb->autoload = autoload;
     server_cb->fixorder = fixorder;
     server_cb->get_optional = optional;
@@ -702,7 +704,7 @@ static void
     server_cb->erroption = erroption;
     server_cb->defop = defop;
     server_cb->timeout = default_timeout;
-    server_cb->display_mode = display_mode;
+    server_cb->display_mode = instance->display_mode;
     server_cb->withdefaults = withdefaults;
     server_cb->defindent = defindent;
     server_cb->echo_replies = echo_replies;
@@ -731,7 +733,8 @@ static void
  *   status
  *********************************************************************/
 static status_t
-    handle_config_assign (server_cb_t *server_cb,
+    handle_config_assign (ncx_instance_t *instance,
+                          server_cb_t *server_cb,
                           val_value_t *configval,
                           val_value_t *newval,
                           const xmlChar *newvalstr)
@@ -752,165 +755,167 @@ static status_t
     res = NO_ERR;
     if (newval) {
         if (!typ_is_string(newval->btyp)) {
-            val_free_value( newval );
+            val_free_value(instance,  newval );
             return ERR_NCX_WRONG_TYPE;
         }
         if (VAL_STR(newval) == NULL) {
-            val_free_value( newval );
+            val_free_value(instance,  newval );
             return ERR_NCX_INVALID_VALUE;
         }
         usestr = VAL_STR(newval);
     } else if (newvalstr) {
         usestr = newvalstr;
     } else {
-        log_error("\nError: NULL value in config assignment");
+        log_error(instance, "\nError: NULL value in config assignment");
         return ERR_NCX_INVALID_VALUE;
     }
 
-    if (!xml_strcmp(configval->name, YANGCLI_SERVER)) {
+    if (!xml_strcmp(instance, configval->name, YANGCLI_SERVER)) {
         /* should check for valid IP address!!! */
-        if (val_need_quotes(usestr)) {
+        if (val_need_quotes(instance, usestr)) {
             /* using this dumb test as a placeholder */
-            log_error("\nError: invalid hostname");
+            log_error(instance, "\nError: invalid hostname");
         } else {
             /* save or update the connnect_valset */
-            testval = val_find_child(connect_valset, NULL, YANGCLI_SERVER);
+            testval = val_find_child(instance, connect_valset, NULL, YANGCLI_SERVER);
             if (testval) {
-                res = val_set_simval(testval,
+                res = val_set_simval(instance,
+                                     testval,
                                      testval->typdef,
                                      testval->nsid,
                                      testval->name,
                                      usestr);
                 if (res != NO_ERR) {
-                    log_error("\nError: changing 'server' failed");
+                    log_error(instance, "\nError: changing 'server' failed");
                 }
             } else {
-                testobj = obj_find_child(connect_valset->obj,
+                testobj = obj_find_child(instance,
+                                         connect_valset->obj,
                                          NULL, 
                                          YANGCLI_SERVER);
                 if (testobj) {
-                    testval = val_make_simval_obj(testobj, usestr, &res);
+                    testval = val_make_simval_obj(instance, testobj, usestr, &res);
                     if (testval) {
-                        val_add_child(testval, connect_valset);
+                        val_add_child(instance, testval, connect_valset);
                     }
                 }
             }
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_AUTOALIASES)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_AUTOALIASES)) {
+        if (ncx_is_true(instance, usestr)) {
             autoaliases = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             autoaliases = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_ALIASES_FILE)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_ALIASES_FILE)) {
         aliases_file = usestr;
-    } else if (!xml_strcmp(configval->name, YANGCLI_AUTOCOMP)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_AUTOCOMP)) {
+        if (ncx_is_true(instance, usestr)) {
             autocomp = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             autocomp = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_AUTOHISTORY)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_AUTOHISTORY)) {
+        if (ncx_is_true(instance, usestr)) {
             autohistory = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             autohistory = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_AUTOLOAD)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_AUTOLOAD)) {
+        if (ncx_is_true(instance, usestr)) {
             server_cb->autoload = TRUE;
             autoload = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             server_cb->autoload = FALSE;
             autoload = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_AUTOUSERVARS)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_AUTOUSERVARS)) {
+        if (ncx_is_true(instance, usestr)) {
             autouservars = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             autouservars = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_USERVARS_FILE)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_USERVARS_FILE)) {
         uservars_file = usestr;
-    } else if (!xml_strcmp(configval->name, YANGCLI_BADDATA)) {
-        testbaddata = ncx_get_baddata_enum(usestr);
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_BADDATA)) {
+        testbaddata = ncx_get_baddata_enum(instance, usestr);
         if (testbaddata != NCX_BAD_DATA_NONE) {
             server_cb->baddata = testbaddata;
             baddata = testbaddata;
         } else {
-            log_error("\nError: value must be 'ignore', 'warn', "
+            log_error(instance, "\nError: value must be 'ignore', 'warn', "
                       "'check', or 'error'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_DEF_MODULE)) {
-        if (!ncx_valid_name2(usestr)) {
-            log_error("\nError: must be a valid module name");
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_DEF_MODULE)) {
+        if (!ncx_valid_name2(instance, usestr)) {
+            log_error(instance, "\nError: must be a valid module name");
             res = ERR_NCX_INVALID_VALUE;
         } else {
             /* save a copy of the string value */
-            dupval = xml_strdup(usestr);
+            dupval = xml_strdup(instance, usestr);
             if (dupval == NULL) {
-                log_error("\nError: malloc failed");
+                log_error(instance, "\nError: malloc failed");
                 res = ERR_INTERNAL_MEM;
             } else {
                 if (default_module) {
-                    m__free(default_module);
+                    m__free(instance, default_module);
                 }
                 default_module = dupval;
             }
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_DISPLAY_MODE)) {
-        dmode = ncx_get_display_mode_enum(usestr);
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_DISPLAY_MODE)) {
+        dmode = ncx_get_display_mode_enum(instance, usestr);
         if (dmode != NCX_DISPLAY_MODE_NONE) {
-            display_mode = dmode;
+            instance->display_mode = dmode;
             server_cb->display_mode = dmode;
         } else {
-            log_error("\nError: value must be 'plain', 'prefix', "
+            log_error(instance, "\nError: value must be 'plain', 'prefix', "
                       "'json, 'xml', or 'xml-nons'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_ECHO_REPLIES)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_ECHO_REPLIES)) {
+        if (ncx_is_true(instance, usestr)) {
             server_cb->echo_replies = TRUE;
             echo_replies = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             server_cb->echo_replies = FALSE;
             echo_replies = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_TIME_RPCS)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_TIME_RPCS)) {
+        if (ncx_is_true(instance, usestr)) {
             server_cb->time_rpcs = TRUE;
             time_rpcs = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             server_cb->time_rpcs = FALSE;
             time_rpcs = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_MATCH_NAMES)) {
-        ncx_name_match_t match = ncx_get_name_match_enum(usestr);
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_MATCH_NAMES)) {
+        ncx_name_match_t match = ncx_get_name_match_enum(instance, usestr);
 
         if (match == NCX_MATCH_NONE) {
-            log_error("\nError: value must be 'exact', "
+            log_error(instance, "\nError: value must be 'exact', "
                       "'exact-nocase', 'one', 'one-nocase', "
                       "'first', or 'first-nocase'");
             res = ERR_NCX_INVALID_VALUE;
@@ -918,166 +923,170 @@ static status_t
             server_cb->match_names = match;
             match_names = match;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_ALT_NAMES)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_ALT_NAMES)) {
+        if (ncx_is_true(instance, usestr)) {
             server_cb->alt_names = TRUE;
             alt_names = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             server_cb->alt_names = FALSE;
             alt_names = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_USE_XMLHEADER)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_USE_XMLHEADER)) {
+        if (ncx_is_true(instance, usestr)) {
             server_cb->use_xmlheader = TRUE;
             use_xmlheader = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             server_cb->use_xmlheader = FALSE;
             use_xmlheader = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_USER)) {
-        if (!ncx_valid_name2(usestr)) {
-            log_error("\nError: must be a valid user name");
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_USER)) {
+        if (!ncx_valid_name2(instance, usestr)) {
+            log_error(instance, "\nError: must be a valid user name");
             res = ERR_NCX_INVALID_VALUE;
         } else {
             /* save or update the connnect_valset */
-            testval = val_find_child(connect_valset,
+            testval = val_find_child(instance,
+                                     connect_valset,
                                      NULL, 
                                      YANGCLI_USER);
             if (testval) {
-                res = val_set_simval(testval,
+                res = val_set_simval(instance,
+                                     testval,
                                      testval->typdef,
                                      testval->nsid,
                                      testval->name,
                                      usestr);
                 if (res != NO_ERR) {
-                    log_error("\nError: changing user name failed");
+                    log_error(instance, "\nError: changing user name failed");
                 }
             } else {
-                testobj = obj_find_child(connect_valset->obj,
+                testobj = obj_find_child(instance,
+                                         connect_valset->obj,
                                          NULL, 
                                          YANGCLI_USER);
                 if (testobj) {
-                    testval = val_make_simval_obj(testobj,
+                    testval = val_make_simval_obj(instance,
+                                                  testobj,
                                                   usestr,
                                                   &res);
                 }
                 if (testval) {
-                    val_add_child(testval, connect_valset);
+                    val_add_child(instance, testval, connect_valset);
                 }
             }
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_TEST_OPTION)) {
-        if (!xml_strcmp(usestr, NCX_EL_NONE)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_TEST_OPTION)) {
+        if (!xml_strcmp(instance, usestr, NCX_EL_NONE)) {
             server_cb->testoption = OP_TESTOP_NONE;
             testop = OP_TESTOP_NONE;
         } else {            
-            testop = op_testop_enum(usestr);
+            testop = op_testop_enum(instance, usestr);
             if (testop != OP_TESTOP_NONE) {
                 server_cb->testoption = testop;
                 testoption = testop;
             } else {
-                log_error("\nError: must be a valid 'test-option'");
-                log_error("\n       (none, test-then-set, set, "
+                log_error(instance, "\nError: must be a valid 'test-option'");
+                log_error(instance, "\n       (none, test-then-set, set, "
                           "test-only)\n");
                 res = ERR_NCX_INVALID_VALUE;
             }
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_ERROR_OPTION)) {
-        if (!xml_strcmp(usestr, NCX_EL_NONE)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_ERROR_OPTION)) {
+        if (!xml_strcmp(instance, usestr, NCX_EL_NONE)) {
             server_cb->erroption = OP_ERROP_NONE;
             erroption = OP_ERROP_NONE;
         } else {            
-            errop = op_errop_id(usestr);
+            errop = op_errop_id(instance, usestr);
             if (errop != OP_ERROP_NONE) {
                 server_cb->erroption = errop;
                 erroption = errop;
             } else {
-                log_error("\nError: must be a valid 'error-option'");
-                log_error("\n       (none, stop-on-error, "
+                log_error(instance, "\nError: must be a valid 'error-option'");
+                log_error(instance, "\n       (none, stop-on-error, "
                           "continue-on-error, rollback-on-error)\n");
                 res = ERR_NCX_INVALID_VALUE;
             }
         }
-    } else if (!xml_strcmp(configval->name, NCX_EL_DEFAULT_OPERATION)) {
-        mydefop = op_defop_id2(usestr);
+    } else if (!xml_strcmp(instance, configval->name, NCX_EL_DEFAULT_OPERATION)) {
+        mydefop = op_defop_id2(instance, usestr);
         if (mydefop != OP_DEFOP_NOT_SET) {
             server_cb->defop = mydefop;
             defop = mydefop;
         } else {
-            log_error("\nError: must be a valid 'default-operation'");
-            log_error("\n       (none, merge, "
+            log_error(instance, "\nError: must be a valid 'default-operation'");
+            log_error(instance, "\n       (none, merge, "
                       "replace, not-used)\n");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_TIMEOUT)) {
-        ncx_init_num(&testnum);
-        res = ncx_decode_num(usestr, NCX_BT_UINT32, &testnum);
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_TIMEOUT)) {
+        ncx_init_num(instance, &testnum);
+        res = ncx_decode_num(instance, usestr, NCX_BT_UINT32, &testnum);
         if (res == NO_ERR) {
             server_cb->timeout = testnum.u;
             default_timeout = testnum.u;
         } else {
-            log_error("\nError: must be valid uint32 value");
+            log_error(instance, "\nError: must be valid uint32 value");
         }
-        ncx_clean_num(NCX_BT_UINT32, &testnum);
-    } else if (!xml_strcmp(configval->name, YANGCLI_OPTIONAL)) {
-        if (ncx_is_true(usestr)) {
+        ncx_clean_num(instance, NCX_BT_UINT32, &testnum);
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_OPTIONAL)) {
+        if (ncx_is_true(instance, usestr)) {
             optional = TRUE;
             server_cb->get_optional = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             optional = FALSE;
             server_cb->get_optional = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, NCX_EL_LOGLEVEL)) {
+    } else if (!xml_strcmp(instance, configval->name, NCX_EL_LOGLEVEL)) {
         testloglevel = 
-            log_get_debug_level_enum((const char *)usestr);
+            log_get_debug_level_enum(instance, (const char *)usestr);
         if (testloglevel == LOG_DEBUG_NONE) {
-            log_error("\nError: value must be valid log-level:");
-            log_error("\n       (off, error,"
+            log_error(instance, "\nError: value must be valid log-level:");
+            log_error(instance, "\n       (off, error,"
                       "warn, info, debug, debug2)\n");
             res = ERR_NCX_INVALID_VALUE;
         } else {
-            log_set_debug_level(testloglevel);
+            log_set_debug_level(instance, testloglevel);
             server_cb->log_level = testloglevel;
         }
-    } else if (!xml_strcmp(configval->name, YANGCLI_FIXORDER)) {
-        if (ncx_is_true(usestr)) {
+    } else if (!xml_strcmp(instance, configval->name, YANGCLI_FIXORDER)) {
+        if (ncx_is_true(instance, usestr)) {
             fixorder = TRUE;
             server_cb->fixorder = TRUE;
-        } else if (ncx_is_false(usestr)) {
+        } else if (ncx_is_false(instance, usestr)) {
             fixorder = FALSE;
             server_cb->fixorder = FALSE;
         } else {
-            log_error("\nError: value must be 'true' or 'false'");
+            log_error(instance, "\nError: value must be 'true' or 'false'");
             res = ERR_NCX_INVALID_VALUE;
         }
-    } else if (!xml_strcmp(configval->name, NCX_EL_WITH_DEFAULTS)) {
-        if (!xml_strcmp(usestr, NCX_EL_NONE)) {
+    } else if (!xml_strcmp(instance, configval->name, NCX_EL_WITH_DEFAULTS)) {
+        if (!xml_strcmp(instance, usestr, NCX_EL_NONE)) {
             withdefaults = NCX_WITHDEF_NONE;
         } else {
-            if (ncx_get_withdefaults_enum(usestr) == NCX_WITHDEF_NONE) {
-                log_error("\nError: value must be 'none', "
+            if (ncx_get_withdefaults_enum(instance, usestr) == NCX_WITHDEF_NONE) {
+                log_error(instance, "\nError: value must be 'none', "
                           "'report-all', 'trim', or 'explicit'");
                 res = ERR_NCX_INVALID_VALUE;
             } else {
-                withdefaults = ncx_get_withdefaults_enum(usestr);
+                withdefaults = ncx_get_withdefaults_enum(instance, usestr);
                 server_cb->withdefaults = withdefaults;
             }
         }
-    } else if (!xml_strcmp(configval->name, NCX_EL_INDENT)) {
-        ncx_init_num(&testnum);
-        res = ncx_decode_num(usestr, NCX_BT_UINT32, &testnum);
+    } else if (!xml_strcmp(instance, configval->name, NCX_EL_INDENT)) {
+        ncx_init_num(instance, &testnum);
+        res = ncx_decode_num(instance, usestr, NCX_BT_UINT32, &testnum);
         if (res == NO_ERR) {
             if (testnum.u > YANGCLI_MAX_INDENT) {
-                log_error("\nError: value must be a uint32 (0..9)");
+                log_error(instance, "\nError: value must be a uint32 (0..9)");
                 res = ERR_NCX_INVALID_VALUE;
             } else {
                 /* indent value is valid */
@@ -1085,37 +1094,40 @@ static status_t
                 server_cb->defindent = defindent;
             }
         } else {
-            log_error("\nError: must be valid uint32 value");
+            log_error(instance, "\nError: must be valid uint32 value");
         }
-        ncx_clean_num(NCX_BT_INT32, &testnum);
+        ncx_clean_num(instance, NCX_BT_INT32, &testnum);
     } else {
         /* unknown parameter name */
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     /* update the variable value for user access */
     if (res == NO_ERR) {
         if (newval) {
-            res = var_set_move(server_cb->runstack_context,
+            res = var_set_move(instance,
+                               server_cb->runstack_context,
                                configval->name, 
-                               xml_strlen(configval->name),
+                               xml_strlen(instance, configval->name),
                                VAR_TYP_CONFIG, 
                                newval);
         } else {
-            res = var_set_from_string(server_cb->runstack_context,
+            res = var_set_from_string(instance,
+                                      server_cb->runstack_context,
                                       configval->name,
                                       newvalstr, 
                                       VAR_TYP_CONFIG);
         }
         if (res != NO_ERR) {
-            log_error("\nError: set result for '%s' failed (%s)",
+            log_error(instance,
+                          "\nError: set result for '%s' failed (%s)",
                           server_cb->result_name, 
                           get_error_string(res));
         }
     }
 
     if (res == NO_ERR) {
-        log_info("\nSystem variable set\n");
+        log_info(instance, "\nSystem variable set\n");
     }
     return res;
 
@@ -1137,7 +1149,7 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    handle_delete_result (server_cb_t *server_cb)
+    handle_delete_result (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     status_t     res;
     struct stat  statbuf;
@@ -1146,7 +1158,8 @@ static status_t
     res = NO_ERR;
 
     if (LOGDEBUG2) {
-        log_debug2("\n*** delete file result '%s'",
+        log_debug2(instance,
+                   "\n*** delete file result '%s'",
                    server_cb->result_filename);
     }
 
@@ -1154,23 +1167,26 @@ static status_t
     statresult = stat((const char *)server_cb->result_filename,
                       &statbuf);
     if (statresult != 0) {
-        log_error("\nError: assignment file '%s' could not be opened",
+        log_error(instance,
+                  "\nError: assignment file '%s' could not be opened",
                   server_cb->result_filename);
         res = errno_to_status();
     } else if (!S_ISREG(statbuf.st_mode)) {
-        log_error("\nError: assignment file '%s' is not a regular file",
+        log_error(instance,
+                  "\nError: assignment file '%s' is not a regular file",
                   server_cb->result_filename);
         res = ERR_NCX_OPERATION_FAILED;
     } else {
         statresult = remove((const char *)server_cb->result_filename);
         if (statresult == -1) {
-            log_error("\nError: assignment file '%s' could not be deleted",
+            log_error(instance,
+                      "\nError: assignment file '%s' could not be deleted",
                       server_cb->result_filename);
             res = errno_to_status();
         }
     }
 
-    clear_result(server_cb);
+    clear_result(instance, server_cb);
 
     return res;
 
@@ -1196,7 +1212,8 @@ static status_t
 *   status
 *********************************************************************/
 static status_t
-    output_file_result (server_cb_t *server_cb,
+    output_file_result (ncx_instance_t *instance,
+                        server_cb_t *server_cb,
                         val_value_t *resultval,
                         const xmlChar *resultstr)
 {
@@ -1209,7 +1226,8 @@ static status_t
     res = NO_ERR;
 
     if (LOGDEBUG2) {
-        log_debug2("\n*** output file result to '%s'",
+        log_debug2(instance,
+                   "\n*** output file result to '%s'",
                    server_cb->result_filename);
     }
 
@@ -1218,76 +1236,84 @@ static status_t
         statresult = stat((const char *)server_cb->result_filename,
                           &statbuf);
         if (statresult == 0) {
-            log_error("\nError: assignment file '%s' already exists",
+            log_error(instance,
+                      "\nError: assignment file '%s' already exists",
                       server_cb->result_filename);
-            clear_result(server_cb);
+            clear_result(instance, server_cb);
             return ERR_NCX_DATA_EXISTS;
         }
     }
     
     if (resultval) {
         result_format_t rf = 
-            get_file_result_format(server_cb->result_filename);
+            get_file_result_format(instance, server_cb->result_filename);
         switch (rf) {
         case RF_TEXT:
             /* output in text format to the specified file */
-            res = log_alt_open((const char *)
+            res = log_alt_open(instance, (const char *)
                                server_cb->result_filename);
             if (res != NO_ERR) {
-                log_error("\nError: assignment file '%s' could "
+                log_error(instance,
+                          "\nError: assignment file '%s' could "
                           "not be opened (%s)",
                           server_cb->result_filename,
                           get_error_string(res));
             } else {
-                val_dump_value_max(resultval,
+                val_dump_value_max(instance,
+                                   resultval,
                                    0,   /* startindent */
                                    server_cb->defindent,
                                    DUMP_VAL_ALT_LOG, /* dumpmode */
                                    server_cb->display_mode,
                                    FALSE,    /* withmeta */
                                    FALSE);   /* configonly */
-                log_alt_close();
+                log_alt_close(instance);
             }
             break;
         case RF_XML:
             /* output in XML format to the specified file */
-            xml_init_attrs(&attrs);
-            res = xml_wr_file(server_cb->result_filename,
+            xml_init_attrs(instance, &attrs);
+            res = xml_wr_file(instance,
+                              server_cb->result_filename,
                               resultval, &attrs, XMLMODE, 
                               server_cb->use_xmlheader,
                               (server_cb->display_mode 
                                == NCX_DISPLAY_MODE_XML_NONS) 
                               ? FALSE : TRUE, 0,
                               server_cb->defindent);
-            xml_clean_attrs(&attrs);
+            xml_clean_attrs(instance, &attrs);
             break;
         case RF_JSON:
             /* output in JSON format to the specified file */
-            res = json_wr_file(server_cb->result_filename,
+            res = json_wr_file(instance,
+                               server_cb->result_filename,
                                resultval, 0, server_cb->defindent);
             break;
         case RF_NONE:
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     } else if (resultstr) {
         fil = fopen((const char *)server_cb->result_filename, "w");
         if (fil == NULL) {
-            log_error("\nError: assignment file '%s' could "
+            log_error(instance,
+                      "\nError: assignment file '%s' could "
                       "not be opened",
                       server_cb->result_filename);
             res = errno_to_status();
         } else {
             statresult = fputs((const char *)resultstr, fil);
             if (statresult == EOF) {
-                log_error("\nError: assignment file '%s' could "
+                log_error(instance,
+                          "\nError: assignment file '%s' could "
                           "not be written",
                           server_cb->result_filename);
                 res = errno_to_status();
             } else {
                 statresult = fputc('\n', fil);  
                 if (statresult == EOF) {
-                    log_error("\nError: assignment file '%s' could "
+                    log_error(instance,
+                              "\nError: assignment file '%s' could "
                               "not be written",
                               server_cb->result_filename);
                     res = errno_to_status();
@@ -1297,17 +1323,18 @@ static status_t
         if (fil != NULL) {
             statresult = fclose(fil);
             if (statresult == EOF) {
-                log_error("\nError: assignment file '%s' could "
+                log_error(instance,
+                          "\nError: assignment file '%s' could "
                           "not be closed",
                           server_cb->result_filename);
                 res = errno_to_status();
             }
         }
     } else {
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
-    clear_result(server_cb);
+    clear_result(instance, server_cb);
 
     return res;
 
@@ -1356,7 +1383,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    check_assign_statement (server_cb_t *server_cb,
+    check_assign_statement (ncx_instance_t *instance,
+                            server_cb_t *server_cb,
                             const xmlChar *line,
                             uint32 *len,
                             boolean *getrpc,
@@ -1392,7 +1420,8 @@ static status_t
 
     if (*str == '$') {
         /* check if a valid variable assignment is being made */
-        res = var_check_ref(server_cb->runstack_context,
+        res = var_check_ref(instance,
+                            server_cb->runstack_context,
                             str, ISLEFT, &tlen, &vartype, &name, &nlen);
         if (res != NO_ERR) {
             /* error in the varref */
@@ -1410,24 +1439,26 @@ static status_t
              * it is supposed to contain the filespec
              * for the output file
              */
-            curval = var_get_str(server_cb->runstack_context,
+            curval = var_get_str(instance,
+                                 server_cb->runstack_context,
                                  name, nlen, vartype);
             if (curval == NULL) {
-                log_error("\nError: file assignment variable "
+                log_error(instance, "\nError: file assignment variable "
                           "not found");
                 return ERR_NCX_VAR_NOT_FOUND;
             }
 
             /* variable must be a string */
             if (!typ_is_string(curval->btyp)) {
-                log_error("\nError: file assignment variable '%s' "
+                log_error(instance,
+                          "\nError: file assignment variable '%s' "
                           "is wrong type '%s'",
                           curval->name,
                           tk_get_btype_sym(curval->btyp));
                 return ERR_NCX_VAR_NOT_FOUND;
             }
             filespec = VAL_STR(curval);
-            res = check_filespec(server_cb, filespec, curval->name);
+            res = check_filespec(instance, server_cb, filespec, curval->name);
             if (res != NO_ERR) {
                 return res;
             }
@@ -1441,21 +1472,23 @@ static status_t
              */
             switch (vartype) {
             case VAR_TYP_SYSTEM:
-                log_error("\nError: system variables "
+                log_error(instance, "\nError: system variables "
                           "are read-only");
                 return ERR_NCX_VAR_READ_ONLY;
             case VAR_TYP_GLOBAL:
             case VAR_TYP_CONFIG:
-                curval = var_get_str(server_cb->runstack_context,
+                curval = var_get_str(instance,
+                                     server_cb->runstack_context,
                                      name, nlen, vartype);
                 break;
             case VAR_TYP_LOCAL:
             case VAR_TYP_SESSION:
-                curval = var_get_local_str(server_cb->runstack_context,
+                curval = var_get_local_str(instance,
+                                           server_cb->runstack_context,
                                            name, nlen);
                 break;
             default:
-                return SET_ERROR(ERR_INTERNAL_VAL);
+                return SET_ERROR(instance, ERR_INTERNAL_VAL);
             }
         }
         /* move the str pointer past the variable name */
@@ -1474,15 +1507,15 @@ static status_t
         nlen = (uint32)(str-name);
 
         /* save the filename in a temp string */
-        tempstr = xml_strndup(name, nlen);
+        tempstr = xml_strndup(instance, name, nlen);
         if (tempstr == NULL) {
             return ERR_INTERNAL_MEM;
         }
 
         /* check filespec and save filename for real */
-        res = check_filespec(server_cb, tempstr, NULL);
+        res = check_filespec(instance, server_cb, tempstr, NULL);
 
-        m__free(tempstr);
+        m__free(instance, tempstr);
 
         if (res != NO_ERR) {
             return res;
@@ -1500,8 +1533,8 @@ static status_t
 
     /* check end of string */
     if (!*str) {
-        log_error("\nError: truncated assignment statement");
-        clear_result(server_cb);
+        log_error(instance, "\nError: truncated assignment statement");
+        clear_result(instance, server_cb);
         return ERR_NCX_DATA_MISSING;
     }
 
@@ -1510,8 +1543,8 @@ static status_t
         /* move past assignment char */
         str++;
     } else {
-        log_error("\nError: equals sign '=' expected");
-        clear_result(server_cb);
+        log_error(instance, "\nError: equals sign '=' expected");
+        clear_result(instance, server_cb);
         return ERR_NCX_WRONG_TKTYPE;
     }
 
@@ -1521,25 +1554,25 @@ static status_t
     }
 
     /* check EO string == unset command, but only if in a TRUE conditional */
-    if (!*str && runstack_get_cond_state(server_cb->runstack_context)) {
+    if (!*str && runstack_get_cond_state(instance, server_cb->runstack_context)) {
         if (*fileassign) {
             /* got file assignment (@foo) =  EOLN
              * treat this as a request to delete the file
              */
-            res = handle_delete_result(server_cb);
+            res = handle_delete_result(instance, server_cb);
         } else {
             /* got $foo =  EOLN
              * treat this as a request to unset the variable
              */
             if (vartype == VAR_TYP_SYSTEM ||
                 vartype == VAR_TYP_CONFIG) {
-                log_error("\nError: cannot remove system variables");
-                clear_result(server_cb);
+                log_error(instance, "\nError: cannot remove system variables");
+                clear_result(instance, server_cb);
                 return ERR_NCX_OPERATION_FAILED;
             }
 
             /* else try to unset this variable */
-            res = var_unset(server_cb->runstack_context, name, nlen, vartype);
+            res = var_unset(instance, server_cb->runstack_context, name, nlen, vartype);
         }
         *len = str - line;
         return res;
@@ -1564,7 +1597,8 @@ static status_t
     }
 
     /* get the script or CLI input as a new val_value_t struct */
-    val = var_check_script_val(server_cb->runstack_context,
+    val = var_check_script_val(instance,
+                               server_cb->runstack_context,
                                obj, str, ISTOP, &res);
     if (val) {
         if (obj == NULL) {
@@ -1572,37 +1606,38 @@ static status_t
         }
 
         /* a script value reference was found */
-        if (obj == NULL || obj == ncx_get_gen_string()) {
+        if (obj == NULL || obj == ncx_get_gen_string(instance)) {
             /* the generic name needs to be overwritten */
-            val_set_name(val, name, nlen);
+            val_set_name(instance, val, name, nlen);
         }
 
         if (*fileassign) {
             /* file assignment of a variable value 
              *   @foo.txt=$bar  or @$foo=$bar
              */
-            res = output_file_result(server_cb, val, NULL);
-            val_free_value(val);
+            res = output_file_result(instance, server_cb, val, NULL);
+            val_free_value(instance, val);
         } else {
             /* this is a plain assignment statement
              * first check if the input is VAR_TYP_CONFIG
              */
             if (vartype == VAR_TYP_CONFIG) {
                 if (curval==NULL) {
-                    val_free_value(val);
-                    res = SET_ERROR(ERR_INTERNAL_VAL);
+                    val_free_value(instance, val);
+                    res = SET_ERROR(instance, ERR_INTERNAL_VAL);
                 } else {
                     /* hand off 'val' memory here */
-                    res = handle_config_assign(server_cb, curval, val, NULL);
+                    res = handle_config_assign(instance, server_cb, curval, val, NULL);
                 }
             } else {
                 /* val is a malloced struct, pass it over to the
                  * var struct instead of cloning it
                  */
-                res = var_set_move(server_cb->runstack_context,
+                res = var_set_move(instance,
+                                   server_cb->runstack_context,
                                    name, nlen, vartype, val);
                 if (res != NO_ERR) {
-                    val_free_value(val);
+                    val_free_value(instance, val);
                 }
             }
         }
@@ -1611,15 +1646,16 @@ static status_t
          * of an RPC function call 
          */
         if (server_cb->result_name) {
-            log_error("\nError: result already pending for %s",
+            log_error(instance,
+                     "\nError: result already pending for %s",
                      server_cb->result_name);
-            m__free(server_cb->result_name);
+            m__free(instance, server_cb->result_name);
             server_cb->result_name = NULL;
         }
 
         if (!*fileassign) {
             /* save the variable result name */
-            server_cb->result_name = xml_strndup(name, nlen);
+            server_cb->result_name = xml_strndup(instance, name, nlen);
             if (server_cb->result_name == NULL) {
                 *len = 0;
                 res = ERR_INTERNAL_MEM;
@@ -1635,7 +1671,7 @@ static status_t
     } else {
         /* there was some error in the statement processing */
         *len = 0;
-        clear_result(server_cb);
+        clear_result(instance, server_cb);
     }
 
     return res;
@@ -1657,13 +1693,15 @@ static status_t
  *    status
  *********************************************************************/
 static status_t
-    create_system_var (server_cb_t *server_cb,
+    create_system_var (ncx_instance_t *instance,
+                       server_cb_t *server_cb,
                        const char *varname,
                        const char *varval)
 {
     status_t  res;
 
-    res = var_set_from_string(server_cb->runstack_context,
+    res = var_set_from_string(instance,
+                              server_cb->runstack_context,
                               (const xmlChar *)varname,
                               (const xmlChar *)varval,
                               VAR_TYP_SYSTEM);
@@ -1686,13 +1724,15 @@ static status_t
  *    status
  *********************************************************************/
 static status_t
-    create_config_var (server_cb_t *server_cb,
+    create_config_var (ncx_instance_t *instance,
+                       server_cb_t *server_cb,
                        const xmlChar *varname,
                        const xmlChar *varval)
 {
     status_t  res;
 
-    res = var_set_from_string(server_cb->runstack_context,
+    res = var_set_from_string(instance,
+                              server_cb->runstack_context,
                               varname, 
                               varval,
                               VAR_TYP_CONFIG);
@@ -1713,67 +1753,67 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    init_system_vars (server_cb_t *server_cb)
+    init_system_vars (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     const char *envstr;
     status_t    res;
 
     envstr = getenv(NCXMOD_PWD);
-    res = create_system_var(server_cb, NCXMOD_PWD, envstr);
+    res = create_system_var(instance, server_cb, NCXMOD_PWD, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
-    envstr = (const char *)ncxmod_get_home();
-    res = create_system_var(server_cb, USER_HOME, envstr);
+    envstr = (const char *)ncxmod_get_home(instance);
+    res = create_system_var(instance, server_cb, USER_HOME, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
     envstr = getenv(ENV_HOST);
-    res = create_system_var(server_cb, ENV_HOST, envstr);
+    res = create_system_var(instance, server_cb, ENV_HOST, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
     envstr = getenv(ENV_SHELL);
-    res = create_system_var(server_cb, ENV_SHELL, envstr);
+    res = create_system_var(instance, server_cb, ENV_SHELL, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
     envstr = getenv(ENV_USER);
-    res = create_system_var(server_cb, ENV_USER, envstr);
+    res = create_system_var(instance, server_cb, ENV_USER, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
     envstr = getenv(ENV_LANG);
-    res = create_system_var(server_cb, ENV_LANG, envstr);
+    res = create_system_var(instance, server_cb, ENV_LANG, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
     envstr = getenv(NCXMOD_HOME);
-    res = create_system_var(server_cb, NCXMOD_HOME, envstr);
+    res = create_system_var(instance, server_cb, NCXMOD_HOME, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
     envstr = getenv(NCXMOD_MODPATH);
-    res = create_system_var(server_cb, NCXMOD_MODPATH, envstr);
+    res = create_system_var(instance, server_cb, NCXMOD_MODPATH, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
     envstr = getenv(NCXMOD_DATAPATH);
-    res = create_system_var(server_cb, NCXMOD_DATAPATH, envstr);
+    res = create_system_var(instance, server_cb, NCXMOD_DATAPATH, envstr);
     if (res != NO_ERR) {
         return res;
     }
 
     envstr = getenv(NCXMOD_RUNPATH);
-    res = create_system_var(server_cb, NCXMOD_RUNPATH, envstr);
+    res = create_system_var(instance, server_cb, NCXMOD_RUNPATH, envstr);
     if (res != NO_ERR) {
         return res;
     }
@@ -1795,7 +1835,7 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    init_config_vars (server_cb_t *server_cb)
+    init_config_vars (ncx_instance_t *instance, server_cb_t *server_cb)
 {
     val_value_t    *parm;
     const xmlChar  *strval;
@@ -1804,112 +1844,112 @@ static status_t
 
     /* $$server = ip-address */
     strval = NULL;
-    parm = val_find_child(mgr_cli_valset, NULL, YANGCLI_SERVER);
+    parm = val_find_child(instance, mgr_cli_valset, NULL, YANGCLI_SERVER);
     if (parm) {
         strval = VAL_STR(parm);
     }
-    res = create_config_var(server_cb, YANGCLI_SERVER, strval);
+    res = create_config_var(instance, server_cb, YANGCLI_SERVER, strval);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ autoaliases = boolean */
-    res = create_config_var(server_cb, YANGCLI_AUTOALIASES, 
+    res = create_config_var(instance, server_cb, YANGCLI_AUTOALIASES, 
                             (autoaliases) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ aliases-file = filespec */
-    res = create_config_var(server_cb, YANGCLI_ALIASES_FILE, aliases_file);
+    res = create_config_var(instance, server_cb, YANGCLI_ALIASES_FILE, aliases_file);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$autocomp = boolean */
-    res = create_config_var(server_cb, YANGCLI_AUTOCOMP, 
+    res = create_config_var(instance, server_cb, YANGCLI_AUTOCOMP, 
                             (autocomp) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ autohistory = boolean */
-    res = create_config_var(server_cb, YANGCLI_AUTOHISTORY, 
+    res = create_config_var(instance, server_cb, YANGCLI_AUTOHISTORY, 
                             (autohistory) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ autoload = boolean */
-    res = create_config_var(server_cb, YANGCLI_AUTOLOAD, 
+    res = create_config_var(instance, server_cb, YANGCLI_AUTOLOAD, 
                             (autoload) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ autouservars = boolean */
-    res = create_config_var(server_cb, YANGCLI_AUTOUSERVARS, 
+    res = create_config_var(instance, server_cb, YANGCLI_AUTOUSERVARS, 
                             (autouservars) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ uservars-file = filespec */
-    res = create_config_var(server_cb, YANGCLI_USERVARS_FILE, uservars_file);
+    res = create_config_var(instance, server_cb, YANGCLI_USERVARS_FILE, uservars_file);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$baddata = enum */
-    res = create_config_var(server_cb, YANGCLI_BADDATA, 
-                            ncx_get_baddata_string(baddata));
+    res = create_config_var(instance, server_cb, YANGCLI_BADDATA, 
+                            ncx_get_baddata_string(instance, baddata));
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$default-module = string */
-    res = create_config_var(server_cb, YANGCLI_DEF_MODULE, default_module);
+    res = create_config_var(instance, server_cb, YANGCLI_DEF_MODULE, default_module);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$display-mode = enum */
-    res = create_config_var(server_cb, YANGCLI_DISPLAY_MODE, 
-                            ncx_get_display_mode_str(display_mode));
+    res = create_config_var(instance, server_cb, YANGCLI_DISPLAY_MODE, 
+                            ncx_get_display_mode_str(instance->display_mode));
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$echo-replies = boolean */
-    res = create_config_var(server_cb, YANGCLI_ECHO_REPLIES, 
+    res = create_config_var(instance, server_cb, YANGCLI_ECHO_REPLIES, 
                             (echo_replies) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ time-rpcs = boolean */
-    res = create_config_var(server_cb, YANGCLI_TIME_RPCS, 
+    res = create_config_var(instance, server_cb, YANGCLI_TIME_RPCS, 
                             (time_rpcs) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ match-names = enum */
-    res = create_config_var(server_cb, YANGCLI_MATCH_NAMES, 
-                            ncx_get_name_match_string(match_names));
+    res = create_config_var(instance, server_cb, YANGCLI_MATCH_NAMES, 
+                            ncx_get_name_match_string(instance, match_names));
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ alt-names = boolean */
-    res = create_config_var(server_cb, YANGCLI_ALT_NAMES, 
+    res = create_config_var(instance, server_cb, YANGCLI_ALT_NAMES, 
                             (alt_names) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$ use-xmlheader = boolean */
-    res = create_config_var(server_cb, YANGCLI_USE_XMLHEADER, 
+    res = create_config_var(instance, server_cb, YANGCLI_USE_XMLHEADER, 
                             (use_xmlheader) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
@@ -1917,26 +1957,26 @@ static status_t
 
     /* $$user = string */
     strval = NULL;
-    parm = val_find_child(mgr_cli_valset, NULL, YANGCLI_USER);
+    parm = val_find_child(instance, mgr_cli_valset, NULL, YANGCLI_USER);
     if (parm) {
         strval = VAL_STR(parm);
     } else {
         strval = (const xmlChar *)getenv(ENV_USER);
     }
-    res = create_config_var(server_cb, YANGCLI_USER, strval);
+    res = create_config_var(instance, server_cb, YANGCLI_USER, strval);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$test-option = enum */
-    res = create_config_var(server_cb, YANGCLI_TEST_OPTION,
+    res = create_config_var(instance, server_cb, YANGCLI_TEST_OPTION,
                             op_testop_name(testoption));
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$error-optiona = enum */
-    res = create_config_var(server_cb, YANGCLI_ERROR_OPTION,
+    res = create_config_var(instance, server_cb, YANGCLI_ERROR_OPTION,
                             op_errop_name(erroption)); 
     if (res != NO_ERR) {
         return res;
@@ -1944,20 +1984,20 @@ static status_t
 
     /* $$default-timeout = uint32 */
     sprintf((char *)numbuff, "%u", default_timeout);
-    res = create_config_var(server_cb, YANGCLI_TIMEOUT, numbuff);
+    res = create_config_var(instance, server_cb, YANGCLI_TIMEOUT, numbuff);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$indent = int32 */
     sprintf((char *)numbuff, "%d", defindent);
-    res = create_config_var(server_cb, NCX_EL_INDENT, numbuff);
+    res = create_config_var(instance, server_cb, NCX_EL_INDENT, numbuff);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$optional = boolean */
-    res = create_config_var(server_cb, YANGCLI_OPTIONAL, 
+    res = create_config_var(instance, server_cb, YANGCLI_OPTIONAL, 
                             (cur_server_cb->get_optional) 
                             ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
@@ -1967,29 +2007,29 @@ static status_t
     /* $$log-level = enum
      * could have changed during CLI processing; do not cache
      */
-    res = create_config_var(server_cb, NCX_EL_LOGLEVEL, 
+    res = create_config_var(instance, server_cb, NCX_EL_LOGLEVEL, 
                             log_get_debug_level_string
-                            (log_get_debug_level()));
+                            (instance, log_get_debug_level(instance)));
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$fixorder = boolean */
-    res = create_config_var(server_cb, YANGCLI_FIXORDER, 
+    res = create_config_var(instance, server_cb, YANGCLI_FIXORDER, 
                             (fixorder) ? NCX_EL_TRUE : NCX_EL_FALSE);
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$with-defaults = enum */
-    res = create_config_var(server_cb, YANGCLI_WITH_DEFAULTS,
-                            ncx_get_withdefaults_string(withdefaults)); 
+    res = create_config_var(instance, server_cb, YANGCLI_WITH_DEFAULTS,
+                            ncx_get_withdefaults_string(instance, withdefaults)); 
     if (res != NO_ERR) {
         return res;
     }
 
     /* $$default-operation = enum */
-    res = create_config_var(server_cb, NCX_EL_DEFAULT_OPERATION,
+    res = create_config_var(instance, server_cb, NCX_EL_DEFAULT_OPERATION,
                             op_defop_name(defop)); 
     if (res != NO_ERR) {
         return res;
@@ -2019,7 +2059,8 @@ static status_t
 *    NO_ERR if all goes well
 *********************************************************************/
 static status_t
-    process_cli_input (server_cb_t *server_cb,
+    process_cli_input (ncx_instance_t *instance,
+                       server_cb_t *server_cb,
                        int argc,
                        char *argv[])
 {
@@ -2034,7 +2075,7 @@ static status_t
     defs_done = FALSE;
 
     /* find the parmset definition in the registry */
-    obj = ncx_find_object(yangcli_mod, YANGCLI_BOOT);
+    obj = ncx_find_object(instance, yangcli_mod, YANGCLI_BOOT);
     if (obj == NULL) {
         res = ERR_NCX_NOT_FOUND;
     }
@@ -2042,15 +2083,16 @@ static status_t
     if (res == NO_ERR) {
         /* check no command line parms */
         if (argc <= 1) {
-            mgr_cli_valset = val_new_value();
+            mgr_cli_valset = val_new_value(instance);
             if (mgr_cli_valset == NULL) {
                 res = ERR_INTERNAL_MEM;
             } else {
-                val_init_from_template(mgr_cli_valset, obj);
+                val_init_from_template(instance, mgr_cli_valset, obj);
             }
         } else {
             /* parse the command line against the object template */    
-            mgr_cli_valset = cli_parse(server_cb->runstack_context,
+            mgr_cli_valset = cli_parse(instance,
+                                       server_cb->runstack_context,
                                        argc, 
                                        argv, 
                                        obj,
@@ -2065,30 +2107,33 @@ static status_t
 
     if (res != NO_ERR) {
         if (mgr_cli_valset) {
-            val_free_value(mgr_cli_valset);
+            val_free_value(instance, mgr_cli_valset);
             mgr_cli_valset = NULL;
         }
         return res;
     }
 
     /* next get any params from the conf file */
-    confname = get_strparm(mgr_cli_valset, 
+    confname = get_strparm(instance, 
+                           mgr_cli_valset, 
                            YANGCLI_MOD, 
                            YANGCLI_CONFIG);
     if (confname != NULL) {
-        res = conf_parse_val_from_filespec(confname, 
+        res = conf_parse_val_from_filespec(instance, 
+                                           confname, 
                                            mgr_cli_valset,
                                            TRUE, 
                                            TRUE);
     } else {
-        res = conf_parse_val_from_filespec(YANGCLI_DEF_CONF_FILE,
+        res = conf_parse_val_from_filespec(instance,
+                                           YANGCLI_DEF_CONF_FILE,
                                            mgr_cli_valset,
                                            TRUE, 
                                            FALSE);
     }
 
     if (res == NO_ERR && defs_done == FALSE) {
-        res = val_add_defaults(mgr_cli_valset, NULL, NULL, FALSE);
+        res = val_add_defaults(instance, mgr_cli_valset, NULL, NULL, FALSE);
     }
 
     if (res != NO_ERR) {
@@ -2101,38 +2146,38 @@ static status_t
      ****************************************************/
 
     /* set the logging control parameters */
-    val_set_logging_parms(mgr_cli_valset);
+    val_set_logging_parms(instance, mgr_cli_valset);
 
     /* set the file search path parms */
-    val_set_path_parms(mgr_cli_valset);
+    val_set_path_parms(instance, mgr_cli_valset);
 
     /* set the warning control parameters */
-    val_set_warning_parms(mgr_cli_valset);
+    val_set_warning_parms(instance, mgr_cli_valset);
 
     /* set the subdirs parm */
-    val_set_subdirs_parm(mgr_cli_valset);
+    val_set_subdirs_parm(instance, mgr_cli_valset);
 
     /* set the protocols parm */
-    res = val_set_protocols_parm(mgr_cli_valset);
+    res = val_set_protocols_parm(instance, mgr_cli_valset);
     if (res != NO_ERR) {
         return res;
     }
 
     /* set the feature code generation parameters */
-    val_set_feature_parms(mgr_cli_valset);
+    val_set_feature_parms(instance, mgr_cli_valset);
 
     /* get the server parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_SERVER);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_SERVER);
     if (parm && parm->res == NO_ERR) {
         /* save to the connect_valset parmset */
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get the autoaliases parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOALIASES);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOALIASES);
     if (parm && parm->res == NO_ERR) {
         autoaliases = VAL_BOOL(parm);
     } else {
@@ -2140,7 +2185,7 @@ static status_t
     }
 
     /* get the aliases-file parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_ALIASES_FILE);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_ALIASES_FILE);
     if (parm && parm->res == NO_ERR) {
         aliases_file = VAL_STR(parm);
     } else {
@@ -2148,7 +2193,7 @@ static status_t
     }
 
     /* get the autocomp parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOCOMP);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOCOMP);
     if (parm && parm->res == NO_ERR) {
         autocomp = VAL_BOOL(parm);
     } else {
@@ -2156,7 +2201,7 @@ static status_t
     }
 
     /* get the autohistory parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOHISTORY);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOHISTORY);
     if (parm && parm->res == NO_ERR) {
         autohistory = VAL_BOOL(parm);
     } else {
@@ -2164,7 +2209,7 @@ static status_t
     }
 
     /* get the autoload parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOLOAD);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOLOAD);
     if (parm && parm->res == NO_ERR) {
         autoload = VAL_BOOL(parm);
     } else {
@@ -2172,7 +2217,7 @@ static status_t
     }
 
     /* get the autouservars parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOUSERVARS);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_AUTOUSERVARS);
     if (parm && parm->res == NO_ERR) {
         autouservars = VAL_BOOL(parm);
     } else {
@@ -2180,11 +2225,11 @@ static status_t
     }
 
     /* get the baddata parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_BADDATA);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_BADDATA);
     if (parm && parm->res == NO_ERR) {
-        baddata = ncx_get_baddata_enum(VAL_ENUM_NAME(parm));
+        baddata = ncx_get_baddata_enum(instance, VAL_ENUM_NAME(parm));
         if (baddata == NCX_BAD_DATA_NONE) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
             baddata = YANGCLI_DEF_BAD_DATA;
         }
     } else {
@@ -2192,30 +2237,30 @@ static status_t
     }
 
     /* get the batch-mode parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_BATCHMODE);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_BATCHMODE);
     if (parm && parm->res == NO_ERR) {
         batchmode = TRUE;
     }
 
     /* get the default module for unqualified module addesses */
-    default_module = get_strparm(mgr_cli_valset, YANGCLI_MOD, 
+    default_module = get_strparm(instance, mgr_cli_valset, YANGCLI_MOD, 
                                  YANGCLI_DEF_MODULE);
 
     /* get the display-mode parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_DISPLAY_MODE);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_DISPLAY_MODE);
     if (parm && parm->res == NO_ERR) {
-        dmode = ncx_get_display_mode_enum(VAL_ENUM_NAME(parm));
+        dmode = ncx_get_display_mode_enum(instance, VAL_ENUM_NAME(parm));
         if (dmode != NCX_DISPLAY_MODE_NONE) {
-            display_mode = dmode;
+            instance->display_mode = dmode;
         } else {
-            display_mode = YANGCLI_DEF_DISPLAY_MODE;
+            instance->display_mode = YANGCLI_DEF_DISPLAY_MODE;
         }
     } else {
-        display_mode = YANGCLI_DEF_DISPLAY_MODE;
+        instance->display_mode = YANGCLI_DEF_DISPLAY_MODE;
     }
 
     /* get the echo-replies parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_ECHO_REPLIES);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_ECHO_REPLIES);
     if (parm && parm->res == NO_ERR) {
         echo_replies = VAL_BOOL(parm);
     } else {
@@ -2223,7 +2268,7 @@ static status_t
     }
 
     /* get the time-rpcs parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_TIME_RPCS);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_TIME_RPCS);
     if (parm && parm->res == NO_ERR) {
         time_rpcs = VAL_BOOL(parm);
     } else {
@@ -2231,7 +2276,7 @@ static status_t
     }
 
     /* get the fixorder parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_FIXORDER);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_FIXORDER);
     if (parm && parm->res == NO_ERR) {
         fixorder = VAL_BOOL(parm);
     } else {
@@ -2239,18 +2284,18 @@ static status_t
     }
 
     /* get the help flag */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_HELP);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_HELP);
     if (parm && parm->res == NO_ERR) {
         helpmode = TRUE;
     }
 
     /* help submode parameter (brief/normal/full) */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, NCX_EL_BRIEF);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, NCX_EL_BRIEF);
     if (parm) {
         helpsubmode = HELP_MODE_BRIEF;
     } else {
         /* full parameter */
-        parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, NCX_EL_FULL);
+        parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, NCX_EL_FULL);
         if (parm) {
             helpsubmode = HELP_MODE_FULL;
         } else {
@@ -2259,7 +2304,7 @@ static status_t
     }
 
     /* get indent param */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, NCX_EL_INDENT);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, NCX_EL_INDENT);
     if (parm && parm->res == NO_ERR) {
         defindent = (int32)VAL_UINT(parm);
     } else {
@@ -2267,80 +2312,81 @@ static status_t
     }
 
     /* get the password parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_PASSWORD);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_PASSWORD);
     if (parm && parm->res == NO_ERR) {
         /* save to the connect_valset parmset */
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get the --ncport parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_NCPORT);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_NCPORT);
     if (parm && parm->res == NO_ERR) {
         /* save to the connect_valset parmset */
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get the --private-key parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_PRIVATE_KEY);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_PRIVATE_KEY);
     if (parm && parm->res == NO_ERR) {
         /* save to the connect_valset parmset */
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get the --public-key parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_PUBLIC_KEY);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_PUBLIC_KEY);
     if (parm && parm->res == NO_ERR) {
         /* save to the connect_valset parmset */
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get the --transport parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_TRANSPORT);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_TRANSPORT);
     if (parm && parm->res == NO_ERR) {
         /* save to the connect_valset parmset */
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get the --tcp-direct-enable parameter */
-    parm = val_find_child(mgr_cli_valset, 
+    parm = val_find_child(instance, 
+                          mgr_cli_valset, 
                           YANGCLI_MOD, 
                           YANGCLI_TCP_DIRECT_ENABLE);
     if (parm && parm->res == NO_ERR) {
         /* save to the connect_valset parmset */
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get the run-script parameter */
-    runscript = get_strparm(mgr_cli_valset, YANGCLI_MOD, YANGCLI_RUN_SCRIPT);
+    runscript = get_strparm(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_RUN_SCRIPT);
 
     /* get the run-command parameter */
-    runcommand = get_strparm(mgr_cli_valset, YANGCLI_MOD, YANGCLI_RUN_COMMAND);
+    runcommand = get_strparm(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_RUN_COMMAND);
 
     /* get the timeout parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_TIMEOUT);
     if (parm && parm->res == NO_ERR) {
         default_timeout = VAL_UINT(parm);
 
         /* save to the connect_valset parmset */
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
@@ -2349,24 +2395,24 @@ static status_t
     }
 
     /* get the user name */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_USER);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_USER);
     if (parm && parm->res == NO_ERR) {
-        res = add_clone_parm(parm, connect_valset);
+        res = add_clone_parm(instance, parm, connect_valset);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* get the version parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, NCX_EL_VERSION);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, NCX_EL_VERSION);
     if (parm && parm->res == NO_ERR) {
         versionmode = TRUE;
     }
 
     /* get the match-names parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_MATCH_NAMES);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_MATCH_NAMES);
     if (parm && parm->res == NO_ERR) {
-        match_names = ncx_get_name_match_enum(VAL_ENUM_NAME(parm));
+        match_names = ncx_get_name_match_enum(instance, VAL_ENUM_NAME(parm));
         if (match_names == NCX_MATCH_NONE) {
             return ERR_NCX_INVALID_VALUE;
         }
@@ -2375,7 +2421,7 @@ static status_t
     }
 
     /* get the alt-names parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_ALT_NAMES);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_ALT_NAMES);
     if (parm && parm->res == NO_ERR) {
         alt_names = VAL_BOOL(parm);
     } else {
@@ -2383,7 +2429,7 @@ static status_t
     }
 
     /* get the force-target parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_FORCE_TARGET);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_FORCE_TARGET);
     if (parm && parm->res == NO_ERR) {
         force_target = VAL_ENUM_NAME(parm);
     } else {
@@ -2391,7 +2437,7 @@ static status_t
     }
 
     /* get the use-xmlheader parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_USE_XMLHEADER);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_USE_XMLHEADER);
     if (parm && parm->res == NO_ERR) {
         use_xmlheader = VAL_BOOL(parm);
     } else {
@@ -2399,7 +2445,7 @@ static status_t
     }
 
     /* get the uservars-file parameter */
-    parm = val_find_child(mgr_cli_valset, YANGCLI_MOD, YANGCLI_USERVARS_FILE);
+    parm = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, YANGCLI_USERVARS_FILE);
     if (parm && parm->res == NO_ERR) {
         uservars_file = VAL_STR(parm);
     } else {
@@ -2422,14 +2468,15 @@ static status_t
  *     status
  *********************************************************************/
 static status_t
-    load_base_schema (void)
+    load_base_schema (ncx_instance_t *instance)
 {
     status_t   res;
 
-    log_debug2("\nyangcli: Loading NCX yangcli-cli Parmset");
+    log_debug2(instance, "\nyangcli: Loading NCX yangcli-cli Parmset");
 
     /* load in the server boot parameter definition file */
-    res = ncxmod_load_module(YANGCLI_MOD, 
+    res = ncxmod_load_module(instance, 
+                             YANGCLI_MOD, 
                              NULL, 
                              NULL,
                              &yangcli_mod);
@@ -2438,7 +2485,8 @@ static status_t
     }
 
     /* load in the NETCONF data types and RPC methods */
-    res = ncxmod_load_module(NCXMOD_NETCONF, 
+    res = ncxmod_load_module(instance, 
+                             NCXMOD_NETCONF, 
                              NULL, 
                              NULL,
                              &netconf_mod);
@@ -2449,7 +2497,8 @@ static status_t
     /* load the netconf-state module to use
      * the <get-schema> operation 
      */
-    res = ncxmod_load_module(NCXMOD_IETF_NETCONF_STATE, 
+    res = ncxmod_load_module(instance, 
+                             NCXMOD_IETF_NETCONF_STATE, 
                              NULL,
                              NULL,
                              NULL);
@@ -2474,14 +2523,15 @@ static status_t
  *     status
  *********************************************************************/
 static status_t
-    load_core_schema (void)
+    load_core_schema (ncx_instance_t *instance)
 {
     status_t   res;
 
-    log_debug2("\nNcxmgr: Loading NETCONF Module");
+    log_debug2(instance, "\nNcxmgr: Loading NETCONF Module");
 
     /* load in the XSD data types */
-    res = ncxmod_load_module(XSDMOD, 
+    res = ncxmod_load_module(instance, 
+                             XSDMOD, 
                              NULL, 
                              NULL,
                              NULL);
@@ -2490,7 +2540,8 @@ static status_t
     }
 
     /* load in the NCX data types */
-    res = ncxmod_load_module(NCXDTMOD, 
+    res = ncxmod_load_module(instance, 
+                             NCXDTMOD, 
                              NULL, 
                              NULL,
                              NULL);
@@ -2516,13 +2567,15 @@ static status_t
 *  clientns == client provided URI
 *********************************************************************/
 static void
-    namespace_mismatch_warning (const xmlChar *module,
+    namespace_mismatch_warning (ncx_instance_t *instance,
+                                const xmlChar *module,
                                 const xmlChar *revision,
                                 const xmlChar *namespacestr,
                                 const xmlChar *clientns)
 {
     /* !!! FIXME: need a warning number for suppression */
-    log_warn("\nWarning: module namespace URI mismatch:"
+    log_warn(instance,
+             "\nWarning: module namespace URI mismatch:"
              "\n   module:    '%s'"
              "\n   revision:  '%s'"
              "\n   server ns: '%s'"
@@ -2571,7 +2624,8 @@ static void
 *
 *********************************************************************/
 static void
-    check_module_capabilities (server_cb_t *server_cb,
+    check_module_capabilities (ncx_instance_t *instance,
+                               server_cb_t *server_cb,
                                ses_cb_t *scb)
 {
     mgr_scb_t              *mscb;
@@ -2584,13 +2638,14 @@ static void
 
     mscb = (mgr_scb_t *)scb->mgrcb;
 
-    log_info("\n\nChecking Server Modules...\n");
+    log_info(instance, "\n\nChecking Server Modules...\n");
 
     if (!cap_std_set(&mscb->caplist, CAP_STDID_V1)) {
-        log_warn("\nWarning: NETCONF v1 capability not found");
+        log_warn(instance, "\nWarning: NETCONF v1 capability not found");
     }
 
-    retrieval_supported = cap_set(&mscb->caplist,
+    retrieval_supported = cap_set(instance,
+                                  &mscb->caplist,
                                   CAP_SCHEMA_RETRIEVAL);
 
     /* check all the YANG modules;
@@ -2599,7 +2654,7 @@ static void
      * or proceed without them
      * save the results in the server_cb->searchresultQ
      */
-    cap = cap_first_modcap(&mscb->caplist);
+    cap = cap_first_modcap(instance, &mscb->caplist);
     while (cap) {
         mod = NULL;
         module = NULL;
@@ -2607,7 +2662,8 @@ static void
         namespacestr = NULL;
         libresult = NULL;
 
-        cap_split_modcap(cap,
+        cap_split_modcap(instance,
+                         cap,
                          &module,
                          &revision,
                          &namespacestr);
@@ -2620,12 +2676,13 @@ static void
         }
 
         if (namespacestr == NULL) {
-            if (ncx_warning_enabled(ERR_NCX_RCV_INVALID_MODCAP)) {
-                log_warn("\nWarning: skipping enterprise capability "
+            if (ncx_warning_enabled(instance, ERR_NCX_RCV_INVALID_MODCAP)) {
+                log_warn(instance, 
+                         "\nWarning: skipping enterprise capability "
                          "for URI '%s'", 
                          cap->cap_uri);
             }
-            cap = cap_next_modcap(cap);
+            cap = cap_next_modcap(instance, cap);
             continue;
         }
 
@@ -2633,7 +2690,8 @@ static void
             /* check if there is a module in the modlibQ that
              * has the same namespace URI as 'namespacestr' base
              */
-            libresult = ncxmod_find_search_result(&modlibQ,
+            libresult = ncxmod_find_search_result(instance,
+                                                  &modlibQ,
                                                   NULL,
                                                   NULL,
                                                   namespacestr);
@@ -2642,21 +2700,23 @@ static void
                 revision = libresult->revision;
             } else {
                 /* nothing found and modname is NULL, so continue */
-                if (ncx_warning_enabled(ERR_NCX_RCV_INVALID_MODCAP)) {
-                    log_warn("\nWarning: skipping enterprise capability "
+                if (ncx_warning_enabled(instance, ERR_NCX_RCV_INVALID_MODCAP)) {
+                    log_warn(instance, 
+                             "\nWarning: skipping enterprise capability "
                              "for URI '%s'", 
                              cap->cap_uri);
                 }
-                cap = cap_next_modcap(cap);
+                cap = cap_next_modcap(instance, cap);
                 continue;
             }
         }
 
-        mod = ncx_find_module(module, revision);
+        mod = ncx_find_module(instance, module, revision);
         if (mod != NULL) {
             /* make sure that the namespace URIs match */
-            if (ncx_compare_base_uris(mod->ns, namespacestr)) {
-                namespace_mismatch_warning(module,
+            if (ncx_compare_base_uris(instance, mod->ns, namespacestr)) {
+                namespace_mismatch_warning(instance,
+                                           module,
                                            revision,
                                            namespacestr,
                                            mod->ns);
@@ -2669,7 +2729,8 @@ static void
             /* check if there is a module in the modlibQ that
              * has the same namespace URI as 'namespacestr' base
              */
-            libresult = ncxmod_find_search_result(&modlibQ,
+            libresult = ncxmod_find_search_result(instance,
+                                                  &modlibQ,
                                                   NULL,
                                                   NULL,
                                                   namespacestr);
@@ -2686,20 +2747,21 @@ static void
              */
             if (server_cb->autoload) {
                 if (libresult) {
-                    searchresult = ncxmod_clone_search_result(libresult);
+                    searchresult = ncxmod_clone_search_result(instance, libresult);
                     if (searchresult == NULL) {
-                        log_error("\nError: cannot load file, "
+                        log_error(instance, "\nError: cannot load file, "
                                   "malloc failed");
                         return;
                     }
                 } else {
-                    searchresult = ncxmod_find_module(module, revision);
+                    searchresult = ncxmod_find_module(instance, module, revision);
                 }
                 if (searchresult) {
                     searchresult->cap = cap;
                     if (searchresult->res != NO_ERR) {
                         if (LOGDEBUG2) {
-                            log_debug2("\nLocal module search failed (%s)",
+                            log_debug2(instance,
+                                       "\nLocal module search failed (%s)",
                                        get_error_string(searchresult->res));
                         }
                     } else if (searchresult->source) {
@@ -2709,12 +2771,13 @@ static void
                          */
                         if (searchresult->namespacestr) {
                             if (ncx_compare_base_uris
-                                (searchresult->namespacestr, namespacestr)) {
+                                (instance, searchresult->namespacestr, namespacestr)) {
                                 /* cannot use this local file because
                                  * it has a different namespace
                                  */
                                 namespace_mismatch_warning
-                                    (module,
+                                    (instance,
+                                     module,
                                      revision,
                                      namespacestr,
                                      searchresult->namespacestr);
@@ -2726,7 +2789,8 @@ static void
                             /* this module found is invalid;
                              * has no namespace statement
                              */
-                            log_error("\nError: found module '%s' "
+                            log_error(instance,
+                                      "\nError: found module '%s' "
                                       "revision '%s' "
                                       "has no namespace-stmt",
                                       module,
@@ -2743,24 +2807,27 @@ static void
                              * !!! FIXME: need warning number 
                              */
                             if (revision != NULL) {
-                                log_warn("\nWarning: module '%s' "
+                                log_warn(instance,
+                                         "\nWarning: module '%s' "
                                          "revision '%s' not available",
                                          module,
                                          revision);
                             } else {
-                                log_warn("\nWarning: module '%s' "
+                                log_warn(instance,
+                                         "\nWarning: module '%s' "
                                          "(no revision) not available",
                                          module);
                             }
                         } else if (LOGDEBUG) {
-                            log_debug("\nautoload: Module '%s' not available,"
+                            log_debug(instance,
+                                      "\nautoload: Module '%s' not available,"
                                       " will try <get-schema>",
                                       module);
                         }
                     }
 
                     /* save the search result no matter what */
-                    dlq_enque(searchresult, &server_cb->searchresultQ);
+                    dlq_enque(instance, searchresult, &server_cb->searchresultQ);
                 } else {
                     /* libresult was NULL, so there was no searchresult
                      * ncxmod did not find any YANG module with this namespace
@@ -2771,12 +2838,14 @@ static void
                          * !!! need warning number 
                          */
                         if (revision != NULL) {
-                            log_warn("\nWarning: module '%s' "
+                            log_warn(instance,
+                                     "\nWarning: module '%s' "
                                      "revision '%s' not available",
                                      module,
                                      revision);
                         } else {
-                            log_warn("\nWarning: module '%s' "
+                            log_warn(instance,
+                                     "\nWarning: module '%s' "
                                      "(no revision) not available",
                                      module);
                         }
@@ -2785,19 +2854,21 @@ static void
                          * will attempt to retrieve it
                          */
                         searchresult = 
-                            ncxmod_new_search_result_str(module, 
+                            ncxmod_new_search_result_str(instance, 
+                                                         module, 
                                                          revision);
                         if (searchresult) {
                             searchresult->cap = cap;
-                            dlq_enque(searchresult, &server_cb->searchresultQ);
+                            dlq_enque(instance, searchresult, &server_cb->searchresultQ);
                             if (LOGDEBUG) {
-                                log_debug("\nyangcli_autoload: Module '%s' "
+                                log_debug(instance,
+                                          "\nyangcli_autoload: Module '%s' "
                                           "not available, will try "
                                           "<get-schema>",
                                           module);
                             }
                         } else {
-                            log_error("\nError: cannot load file, "
+                            log_error(instance, "\nError: cannot load file, "
                                       "malloc failed");
                             return;
                         }
@@ -2806,7 +2877,8 @@ static void
             } else {
                 /* --autoload=false */
                 if (LOGINFO) {
-                    log_info("\nModule '%s' "
+                    log_info(instance,
+                             "\nModule '%s' "
                              "revision '%s' not "
                              "loaded, autoload disabled",
                              module,
@@ -2820,27 +2892,28 @@ static void
              * so it will be copied and recompiled with the 
              * correct features and deviations applied
              */
-            searchresult = ncxmod_new_search_result_ex(mod);
+            searchresult = ncxmod_new_search_result_ex(instance, mod);
             if (searchresult == NULL) {
-                log_error("\nError: cannot load file, malloc failed");
+                log_error(instance, "\nError: cannot load file, malloc failed");
                 return;
             } else {
                 searchresult->cap = cap;
                 searchresult->capmatch = TRUE;
-                dlq_enque(searchresult, &server_cb->searchresultQ);
+                dlq_enque(instance, searchresult, &server_cb->searchresultQ);
             }
         }
 
         /* move on to the next module */
-        cap = cap_next_modcap(cap);
+        cap = cap_next_modcap(instance, cap);
     }
 
     /* get all the advertised YANG data model modules into the
      * session temp work directory that are local to the system
      */
-    res = autoload_setup_tempdir(server_cb, scb);
+    res = autoload_setup_tempdir(instance, server_cb, scb);
     if (res != NO_ERR) {
-        log_error("\nError: autoload setup temp files failed (%s)",
+        log_error(instance,
+                  "\nError: autoload setup temp files failed (%s)",
                   get_error_string(res));
     }
 
@@ -2855,9 +2928,10 @@ static void
         /* compile phase will be delayed until autoload
          * get-schema operations are done
          */
-        res = autoload_start_get_modules(server_cb, scb);
+        res = autoload_start_get_modules(instance, server_cb, scb);
         if (res != NO_ERR) {
-            log_error("\nError: autoload get modules failed (%s)",
+            log_error(instance,
+                      "\nError: autoload get modules failed (%s)",
                       get_error_string(res));
         }
     }
@@ -2869,9 +2943,10 @@ static void
          * from yang_parse.c will not be stored in the local module
          * directory -- just used for this one session then deleted
          */
-        res = autoload_compile_modules(server_cb, scb);
+        res = autoload_compile_modules(instance, server_cb, scb);
         if (res != NO_ERR) {
-            log_error("\nError: autoload compile modules failed (%s)",
+            log_error(instance,
+                      "\nError: autoload compile modules failed (%s)",
                       get_error_string(res));
         }
     }
@@ -2894,7 +2969,7 @@ static void
 *   FALSE if no messages have timed out
 *********************************************************************/
 static boolean
-    message_timed_out (ses_cb_t *scb)
+    message_timed_out (ncx_instance_t *instance, ses_cb_t *scb)
 {
     mgr_scb_t    *mscb;
     uint32        deletecount;
@@ -2902,9 +2977,9 @@ static boolean
     mscb = (mgr_scb_t *)scb->mgrcb;
 
     if (mscb) {
-        deletecount = mgr_rpc_timeout_requestQ(&mscb->reqQ);
+        deletecount = mgr_rpc_timeout_requestQ(instance, &mscb->reqQ);
         if (deletecount) {
-            log_error("\nError: request to server timed out");
+            log_error(instance, "\nError: request to server timed out");
         }
         return (deletecount) ? TRUE : FALSE;
     }
@@ -2963,7 +3038,8 @@ static boolean
  *    pointer to the line to use; do not free this memory
 *********************************************************************/
 static xmlChar *
-    get_input_line (server_cb_t *server_cb,
+    get_input_line (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      status_t *res)
 {
     xmlChar        *line;
@@ -2979,23 +3055,24 @@ static xmlChar *
 
     while (!done && *res == NO_ERR) {
         /* figure out where to get the next input line */
-        rsrc = runstack_get_source(server_cb->runstack_context);
+        rsrc = runstack_get_source(instance, server_cb->runstack_context);
 
         switch (rsrc) {
         case RUNSTACK_SRC_NONE:
-            *res = SET_ERROR(ERR_INTERNAL_VAL);
+            *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             break;
         case RUNSTACK_SRC_USER:
             /* block until user enters some input */
-            line = get_cmd_line(server_cb, res);
+            line = get_cmd_line(instance, server_cb, res);
             break;
         case RUNSTACK_SRC_SCRIPT:
             /* get one line of script text */
-            line = runstack_get_cmd(server_cb->runstack_context, res);
+            line = runstack_get_cmd(instance, server_cb->runstack_context, res);
             break;
         case RUNSTACK_SRC_LOOP:
             /* get one line of script text */
-            line = runstack_get_loop_cmd(server_cb->runstack_context,
+            line = runstack_get_loop_cmd(instance,
+                                         server_cb->runstack_context,
                                          res);
             if (line == NULL || *res != NO_ERR) {
                 if (*res == ERR_NCX_LOOP_ENDED) {
@@ -3007,11 +3084,12 @@ static xmlChar *
             }
             break;
         default:
-            *res = SET_ERROR(ERR_INTERNAL_VAL);
+            *res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         if (*res == NO_ERR) {
-            *res = runstack_save_line(server_cb->runstack_context,
+            *res = runstack_save_line(instance,
+                                      server_cb->runstack_context,
                                       line);
         }
         /* only 1 time through loop in normal conditions */
@@ -3038,7 +3116,8 @@ static xmlChar *
  *   status
  *********************************************************************/
 static status_t
-    do_bang_recall (server_cb_t *server_cb,
+    do_bang_recall (ncx_instance_t *instance,
+                    server_cb_t *server_cb,
                     const xmlChar *line)
 {
     status_t            res;
@@ -3051,24 +3130,25 @@ static status_t
         if (isdigit(line[1])) {
             /* assume the form is !42 to recall by line number */
             ncx_num_t num;
-            ncx_init_num(&num);
-            res = ncx_decode_num(&line[1], NCX_BT_UINT64, &num);
+            ncx_init_num(instance, &num);
+            res = ncx_decode_num(instance, &line[1], NCX_BT_UINT64, &num);
             if (res != NO_ERR) {
-                log_error("\nError: invalid number '%s'", 
+                log_error(instance, 
+                          "\nError: invalid number '%s'", 
                           get_error_string(res));
             } else {
-                res = do_line_recall(server_cb, num.ul);
+                res = do_line_recall(instance, server_cb, num.ul);
             }
-            ncx_clean_num(NCX_BT_UINT64, &num);
+            ncx_clean_num(instance, NCX_BT_UINT64, &num);
         } else {
             /* assume form is !command string and recall by
              * most recent match of the partial command line given
              */
-            res = do_line_recall_string(server_cb, &line[1]);
+            res = do_line_recall_string(instance, server_cb, &line[1]);
         }
     } else {
         res = ERR_NCX_MISSING_PARM;
-        log_error("\nError: missing recall string\n");
+        log_error(instance, "\nError: missing recall string\n");
     }
 
     return res;
@@ -3089,7 +3169,7 @@ static status_t
 *   new program state
 *********************************************************************/
 static mgr_io_state_t
-    yangcli_stdin_handler (void)
+    yangcli_stdin_handler (ncx_instance_t *instance)
 {
     server_cb_t     *server_cb;
     xmlChar        *line;
@@ -3108,14 +3188,15 @@ static mgr_io_state_t
 
     if (server_cb->returncode == MGR_IO_RC_WANTDATA) {
         if (LOGDEBUG2) {
-            log_debug2("\nyangcli: sending dummy <get> keepalive");
+            log_debug2(instance, "\nyangcli: sending dummy <get> keepalive");
         }
         (void)send_keepalive_get(server_cb);
         server_cb->returncode = MGR_IO_RC_NONE;        
     }
 
     if (server_cb->cli_fn == NULL && !server_cb->climore) {
-        init_completion_state(&server_cb->completion_state,
+        init_completion_state(instance,
+                              &server_cb->completion_state,
                               server_cb, 
                               CMD_STATE_FULL);
     }
@@ -3134,30 +3215,30 @@ static mgr_io_state_t
         scb = mgr_ses_get_scb(server_cb->mysid);
         if (scb==NULL || scb->state == SES_ST_SHUTDOWN_REQ) {
             if (scb) {
-                (void)mgr_ses_free_session(server_cb->mysid);
+                (void)mgr_ses_free_session(instance, server_cb->mysid);
             }
-            clear_server_cb_session(server_cb);
+            clear_server_cb_session(instance, server_cb);
         } else  {
             res = NO_ERR;
             mscb = (mgr_scb_t *)scb->mgrcb;
-            ncx_set_temp_modQ(&mscb->temp_modQ);
+            ncx_set_temp_modQ(instance, &mscb->temp_modQ);
 
             /* check locks timeout */
             if (!(server_cb->command_mode == CMD_MODE_NORMAL ||
                   server_cb->command_mode == CMD_MODE_AUTOLOAD)) {
 
-                if (check_locks_timeout(server_cb)) {
+                if (check_locks_timeout(instance, server_cb)) {
                     res = ERR_NCX_TIMEOUT;
 
-                    if (runstack_level(server_cb->runstack_context)) {
-                        runstack_cancel(server_cb->runstack_context);
+                    if (runstack_level(instance, server_cb->runstack_context)) {
+                        runstack_cancel(instance, server_cb->runstack_context);
                     }
 
                     switch (server_cb->command_mode) {
                     break;
                     case CMD_MODE_AUTODISCARD:
                     case CMD_MODE_AUTOLOCK:
-                        handle_locks_cleanup(server_cb);
+                        handle_locks_cleanup(instance, server_cb);
                         if (server_cb->command_mode != CMD_MODE_NORMAL) {
                             return server_cb->state;
                         }
@@ -3168,25 +3249,26 @@ static mgr_io_state_t
                     case CMD_MODE_AUTOLOAD:
                     case CMD_MODE_NORMAL:
                     default:
-                        SET_ERROR(ERR_INTERNAL_VAL);
+                        SET_ERROR(instance, ERR_INTERNAL_VAL);
                     }
                 } else if (server_cb->command_mode == CMD_MODE_AUTOLOCK) {
                     if (server_cb->locks_waiting) {
                         server_cb->command_mode = CMD_MODE_AUTOLOCK;
                         done = FALSE;
-                        res = handle_get_locks_request_to_server(server_cb,
+                        res = handle_get_locks_request_to_server(instance,
+                                                                server_cb,
                                                                 FALSE,
                                                                 &done);
                         if (done) {
                             /* check if the locks are all good */
                             if (get_lock_worked(server_cb)) {
-                                log_info("\nget-locks finished OK");
+                                log_info(instance, "\nget-locks finished OK");
                                 server_cb->command_mode = CMD_MODE_NORMAL;
                                 server_cb->locks_waiting = FALSE;
                             } else {
-                                log_error("\nError: get-locks failed, "
+                                log_error(instance, "\nError: get-locks failed, "
                                           "starting cleanup");
-                                handle_locks_cleanup(server_cb);
+                                handle_locks_cleanup(instance, server_cb);
                             }
                         }
                     }
@@ -3201,23 +3283,23 @@ static mgr_io_state_t
             /* session startup failed */
             server_cb->state = MGR_IO_ST_IDLE;
             if (batchmode) {
-                mgr_request_shutdown();
+                mgr_request_shutdown(instance);
                 return server_cb->state;
             }
         } else if (scb->state == SES_ST_IDLE 
-                   && dlq_empty(&scb->outQ)) {
+                   && dlq_empty(instance, &scb->outQ)) {
             /* incoming hello OK and outgoing hello is sent */
             server_cb->state = MGR_IO_ST_CONN_IDLE;
-            report_capabilities(server_cb, scb, TRUE, HELP_MODE_NONE);
-            check_module_capabilities(server_cb, scb);
+            report_capabilities(instance, server_cb, scb, TRUE, HELP_MODE_NONE);
+            check_module_capabilities(instance, server_cb, scb);
             mscb = (mgr_scb_t *)scb->mgrcb;
-            ncx_set_temp_modQ(&mscb->temp_modQ);
+            ncx_set_temp_modQ(instance, &mscb->temp_modQ);
         } else {
             /* check timeout */
-            if (message_timed_out(scb)) {
+            if (message_timed_out(instance, scb)) {
                 server_cb->state = MGR_IO_ST_IDLE;
                 if (batchmode) {
-                    mgr_request_shutdown();
+                    mgr_request_shutdown(instance);
                     return server_cb->state;
                 }
                 break;
@@ -3230,28 +3312,28 @@ static mgr_io_state_t
         scb = mgr_ses_get_scb(server_cb->mysid);
         if (scb==NULL || scb->state == SES_ST_SHUTDOWN_REQ) {
             if (scb) {
-                (void)mgr_ses_free_session(server_cb->mysid);
+                (void)mgr_ses_free_session(instance, server_cb->mysid);
             }
-            clear_server_cb_session(server_cb);
+            clear_server_cb_session(instance, server_cb);
         } else  {
             res = NO_ERR;
             mscb = (mgr_scb_t *)scb->mgrcb;
-            ncx_set_temp_modQ(&mscb->temp_modQ);
+            ncx_set_temp_modQ(instance, &mscb->temp_modQ);
 
             /* check timeout */
-            if (message_timed_out(scb)) {
+            if (message_timed_out(instance, scb)) {
                 res = ERR_NCX_TIMEOUT;
             } else if (!(server_cb->command_mode == CMD_MODE_NORMAL ||
                          server_cb->command_mode == CMD_MODE_AUTOLOAD ||
                          server_cb->command_mode == CMD_MODE_SAVE)) {
-                if (check_locks_timeout(server_cb)) {
+                if (check_locks_timeout(instance, server_cb)) {
                     res = ERR_NCX_TIMEOUT;
                 }
             }
 
             if (res != NO_ERR) {
-                if (runstack_level(server_cb->runstack_context)) {
-                    runstack_cancel(server_cb->runstack_context);
+                if (runstack_level(instance, server_cb->runstack_context)) {
+                    runstack_cancel(instance, server_cb->runstack_context);
                 }
                 server_cb->state = MGR_IO_ST_CONN_IDLE;
 
@@ -3263,13 +3345,13 @@ static mgr_io_state_t
                      * attempt to compile the modules
                      * that are already present
                      */
-                    autoload_compile_modules(server_cb, scb);
+                    autoload_compile_modules(instance, server_cb, scb);
                     break;
                 case CMD_MODE_AUTODISCARD:
                     server_cb->command_mode = CMD_MODE_AUTOLOCK;
                     /* fall through */
                 case CMD_MODE_AUTOLOCK:
-                    handle_locks_cleanup(server_cb);
+                    handle_locks_cleanup(instance, server_cb);
                     if (server_cb->command_mode != CMD_MODE_NORMAL) {
                         return server_cb->state;
                     }
@@ -3281,7 +3363,7 @@ static mgr_io_state_t
                     server_cb->command_mode = CMD_MODE_NORMAL;
                     break;
                 default:
-                    SET_ERROR(ERR_INTERNAL_VAL);
+                    SET_ERROR(instance, ERR_INTERNAL_VAL);
                 }
             } else {
                 /* keep waiting for reply */
@@ -3298,17 +3380,17 @@ static mgr_io_state_t
         scb = mgr_ses_get_scb(server_cb->mysid);
         if (scb==NULL || scb->state == SES_ST_SHUTDOWN_REQ) {
             if (scb) {
-                (void)mgr_ses_free_session(server_cb->mysid);
+                (void)mgr_ses_free_session(instance, server_cb->mysid);
             }
-            clear_server_cb_session(server_cb);
-        } else if (message_timed_out(scb)) {
-            clear_server_cb_session(server_cb);
+            clear_server_cb_session(instance, server_cb);
+        } else if (message_timed_out(instance, scb)) {
+            clear_server_cb_session(instance, server_cb);
         }
 
         /* do not accept chars in these states */
         return server_cb->state;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return server_cb->state;
     }
 
@@ -3323,13 +3405,13 @@ static mgr_io_state_t
     if (runscript) {
         if (!runscriptdone) {
             runscriptdone = TRUE;
-            (void)do_startup_script(server_cb, runscript);
+            (void)do_startup_script(instance, server_cb, runscript);
             /* drop through and get input line from runstack */
         }
     } else if (runcommand) {
         if (!runcommanddone) {
             runcommanddone = TRUE;
-            (void)do_startup_command(server_cb, runcommand);
+            (void)do_startup_command(instance, server_cb, runcommand);
             /* exit now in case there was a session started up and a remote
              * command sent as part of run-command.  
              * May need to let write_sessions() run in mgr_io.c.
@@ -3338,7 +3420,7 @@ static mgr_io_state_t
             return server_cb->state;            
         } else if (batchmode) {
             /* run command is done at this point */
-            mgr_request_shutdown();
+            mgr_request_shutdown(instance);
             return server_cb->state;
         }
     }
@@ -3347,16 +3429,16 @@ static mgr_io_state_t
      * this is really a const pointer
      */
     res = NO_ERR;
-    line = get_input_line(server_cb, &res);
+    line = get_input_line(instance, server_cb, &res);
 
     /* figure out where to get the next input line */
-    rsrc = runstack_get_source(server_cb->runstack_context);
+    rsrc = runstack_get_source(instance, server_cb->runstack_context);
 
-    runstack_clear_cancel(server_cb->runstack_context);
+    runstack_clear_cancel(instance, server_cb->runstack_context);
 
     switch (rsrc) {
     case RUNSTACK_SRC_NONE:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
         break;
     case RUNSTACK_SRC_USER:
         if (line == NULL) {
@@ -3364,7 +3446,7 @@ static mgr_io_state_t
              * user mode; check batch-mode exit;
              */
             if (batchmode) {
-                mgr_request_shutdown();
+                mgr_request_shutdown(instance);
             }
             return server_cb->state;
         }
@@ -3376,7 +3458,7 @@ static mgr_io_state_t
                 ;
             }
             if (batchmode && res != NO_ERR) {
-                mgr_request_shutdown();
+                mgr_request_shutdown(instance);
             }
             return server_cb->state;
         }
@@ -3384,13 +3466,13 @@ static mgr_io_state_t
     case RUNSTACK_SRC_LOOP:
         if (line==NULL || res != NO_ERR) {
             if (batchmode && res != NO_ERR) {
-                mgr_request_shutdown();
+                mgr_request_shutdown(instance);
             }
             return server_cb->state;
         }
         break;
     default:
-        res = SET_ERROR(ERR_INTERNAL_VAL);
+        res = SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     if (res != NO_ERR) {
@@ -3399,30 +3481,32 @@ static mgr_io_state_t
 
     /* check bang recall statement */
     if (*line == YANGCLI_RECALL_CHAR) {
-        res = do_bang_recall(server_cb, line);
+        res = do_bang_recall(instance, server_cb, line);
         return server_cb->state;
     }
 
     /* check if this is an assignment statement */
-    res = check_assign_statement(server_cb, 
+    res = check_assign_statement(instance, 
+                                 server_cb, 
                                  line, 
                                  &len, 
                                  &getrpc,
                                  &fileassign);
     if (res != NO_ERR) {
-        log_error("\nyangcli: Variable assignment failed (%s) (%s)",
+        log_error(instance,
+                  "\nyangcli: Variable assignment failed (%s) (%s)",
                   line, 
                   get_error_string(res));
 
-        if (runstack_level(server_cb->runstack_context)) {
-            runstack_cancel(server_cb->runstack_context);
+        if (runstack_level(instance, server_cb->runstack_context)) {
+            runstack_cancel(instance, server_cb->runstack_context);
         }
 
         switch (server_cb->command_mode) {
             break;
         case CMD_MODE_AUTODISCARD:
         case CMD_MODE_AUTOLOCK:
-            handle_locks_cleanup(server_cb);
+            handle_locks_cleanup(instance, server_cb);
             break;
         case CMD_MODE_AUTOUNLOCK:
             clear_lock_cbs(server_cb);
@@ -3431,18 +3515,18 @@ static mgr_io_state_t
         case CMD_MODE_NORMAL:
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     } else if (getrpc) {
         res = NO_ERR;
         switch (server_cb->state) {
         case MGR_IO_ST_IDLE:
             /* waiting for top-level commands */
-            res = top_command(server_cb, &line[len]);
+            res = top_command(instance, server_cb, &line[len]);
             break;
         case MGR_IO_ST_CONN_IDLE:
             /* waiting for session commands */
-            res = conn_command(server_cb, &line[len]);
+            res = conn_command(instance, server_cb, &line[len]);
             break;
         case MGR_IO_ST_CONN_RPYWAIT:
             /* waiting for RPC reply while more input typed */
@@ -3454,8 +3538,8 @@ static mgr_io_state_t
         }
 
         if (res != NO_ERR) {
-            if (runstack_level(server_cb->runstack_context)) {
-                runstack_cancel(server_cb->runstack_context);
+            if (runstack_level(instance, server_cb->runstack_context)) {
+                runstack_cancel(instance, server_cb->runstack_context);
             }
         }
 
@@ -3469,7 +3553,8 @@ static mgr_io_state_t
                     val_value_t  *resval = server_cb->local_result;
                     server_cb->local_result = NULL;
                     /* pass off malloced local_result here */
-                    res = finish_result_assign(server_cb, 
+                    res = finish_result_assign(instance, 
+                                               server_cb, 
                                                resval,
                                                NULL);
                     /* clear_result already called */
@@ -3478,20 +3563,21 @@ static mgr_io_state_t
                     resultstr = (res == NO_ERR) ? 
                         (const xmlChar *)"ok" :
                         (const xmlChar *)get_error_string(res);
-                    res = finish_result_assign(server_cb, 
+                    res = finish_result_assign(instance, 
+                                               server_cb, 
                                                NULL,
                                                resultstr);
                     /* clear_result already called */
                 }
             } else {
-                clear_result(server_cb);
+                clear_result(instance, server_cb);
             }
             break;
         default:
             ;
         }
     } else {
-        log_info("\nOK\n");
+        log_info(instance, "\nOK\n");
     }
     
     return server_cb->state;
@@ -3516,7 +3602,8 @@ static mgr_io_state_t
  *                  it will be freed by mgr_not_dispatch
  *********************************************************************/
 static void
-    yangcli_notification_handler (ses_cb_t *scb,
+    yangcli_notification_handler (ncx_instance_t *instance,
+                                  ses_cb_t *scb,
                                   mgr_not_msg_t *msg,
                                   boolean *consumed)
 {
@@ -3525,7 +3612,7 @@ static void
 
 #ifdef DEBUG
     if (!scb || !msg || !consumed) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -3533,7 +3620,7 @@ static void
     *consumed = FALSE;
     mgrcb = scb->mgrcb;
     if (mgrcb) {
-        ncx_set_temp_modQ(&mgrcb->temp_modQ);
+        ncx_set_temp_modQ(instance, &mgrcb->temp_modQ);
     }
 
     /***  TBD: multi-session support ***/
@@ -3544,17 +3631,19 @@ static void
         if (LOGWARN) {
             gl_normal_io(server_cb->cli_gl);
             if (LOGINFO) {
-                log_info("\n\nIncoming notification:");
-                val_dump_value_max(msg->notification, 
+                log_info(instance, "\n\nIncoming notification:");
+                val_dump_value_max(instance, 
+                                   msg->notification, 
                                    0,
                                    server_cb->defindent,
                                    DUMP_VAL_LOG,
                                    server_cb->display_mode,
                                    FALSE,
                                    FALSE);
-                log_info("\n\n");
+                log_info(instance, "\n\n");
             } else if (msg->eventType) {
-                log_warn("\n\nIncoming <%s> "
+                log_warn(instance, 
+                         "\n\nIncoming <%s> "
                          "notification\n\n", 
                          msg->eventType->name);
             }
@@ -3563,7 +3652,7 @@ static void
         /* Log the notification by removing it from the message
          * and storing it in the server notification log
          */
-        dlq_enque(msg, &server_cb->notificationQ);
+        dlq_enque(instance, msg, &server_cb->notificationQ);
         *consumed = TRUE;
     }
     
@@ -3583,7 +3672,8 @@ static void
  *   status
  *********************************************************************/
 static status_t 
-    yangcli_init (int argc,
+    yangcli_init (ncx_instance_t *instance,
+                  int argc,
                   char *argv[])
 {
     obj_template_t       *obj;
@@ -3603,10 +3693,10 @@ static status_t
     /* set the default debug output level */
     log_level = LOG_DEBUG_INFO;
 
-    dlq_createSQue(&savedevQ);
+    dlq_createSQue(instance, &savedevQ);
 
     /* init the module static vars */
-    dlq_createSQue(&server_cbQ);
+    dlq_createSQue(instance, &server_cbQ);
     cur_server_cb = NULL;
     yangcli_mod = NULL;
     netconf_mod = NULL;
@@ -3619,7 +3709,7 @@ static status_t
     runscriptdone = FALSE;
     runcommand = NULL;
     runcommanddone = FALSE;
-    dlq_createSQue(&mgrloadQ);
+    dlq_createSQue(instance, &mgrloadQ);
     aliases_file = YANGCLI_DEF_ALIASES_FILE;
     autoaliases = TRUE;
     autocomp = TRUE;
@@ -3631,7 +3721,7 @@ static status_t
     confname = NULL;
     default_module = NULL;
     default_timeout = 30;
-    display_mode = NCX_DISPLAY_MODE_PLAIN;
+    instance->display_mode = NCX_DISPLAY_MODE_PLAIN;
     fixorder = TRUE;
     optional = FALSE;
     testoption = YANGCLI_DEF_TEST_OPTION;
@@ -3642,8 +3732,8 @@ static status_t
     time_rpcs = FALSE;
     uservars_file = YANGCLI_DEF_USERVARS_FILE;
     temp_progcb = NULL;
-    dlq_createSQue(&modlibQ);
-    dlq_createSQue(&aliasQ);
+    dlq_createSQue(instance, &modlibQ);
+    dlq_createSQue(instance, &aliasQ);
 
     /* set the character set LOCALE to the user default */
     setlocale(LC_CTYPE, "");
@@ -3652,16 +3742,16 @@ static status_t
      * to be processed.  No module can get its internal config
      * until the NCX module parser and definition registry is up
      */
-    res = ncx_init(NCX_SAVESTR, log_level, TRUE, NULL, argc, argv);
+    res = ncx_init(instance, NCX_SAVESTR, log_level, TRUE, NULL, argc, argv);
     if (res != NO_ERR) {
         return res;
     }
 
 #ifdef YANGCLI_DEBUG
     if (argc>1 && LOGDEBUG2) {
-        log_debug2("\nCommand line parameters:");
+        log_debug2(instance, "\nCommand line parameters:");
         for (i=0; i<argc; i++) {
-            log_debug2("\n   arg%d: %s", i, argv[i]);
+            log_debug2(instance, "\n   arg%d: %s", i, argv[i]);
         }
     }
 #endif
@@ -3669,20 +3759,22 @@ static status_t
     /* make sure the Yuma directory
      * exists for saving per session data
      */
-    res = ncxmod_setup_yumadir();
+    res = ncxmod_setup_yumadir(instance);
     if (res != NO_ERR) {
-        log_error("\nError: could not setup yuma dir '%s'",
-                  ncxmod_get_yumadir());
+        log_error(instance,
+                  "\nError: could not setup yuma dir '%s'",
+                  ncxmod_get_yumadir(instance));
         return res;
     }
 
     /* make sure the Yuma temp directory
      * exists for saving per session data
      */
-    res = ncxmod_setup_tempdir();
+    res = ncxmod_setup_tempdir(instance);
     if (res != NO_ERR) {
-        log_error("\nError: could not setup temp dir '%s/tmp'",
-                  ncxmod_get_yumadir());
+        log_error(instance,
+                  "\nError: could not setup temp dir '%s/tmp'",
+                  ncxmod_get_yumadir(instance));
         return res;
     }
 
@@ -3691,31 +3783,31 @@ static status_t
      */
 
     /* Load the yangcli base module */
-    res = load_base_schema();
+    res = load_base_schema(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* Initialize the Netconf Manager Library */
-    res = mgr_init();
+    res = mgr_init(instance);
     if (res != NO_ERR) {
         return res;
     }
 
     /* set up handler for incoming notifications */
-    mgr_not_set_callback_fn(yangcli_notification_handler);
+    mgr_not_set_callback_fn((mgr_not_cbfn_t)yangcli_notification_handler);
 
     /* init the connect parmset object template;
      * find the connect RPC method
      * !!! MUST BE AFTER load_base_schema !!!
      */
-    obj = ncx_find_object(yangcli_mod, YANGCLI_CONNECT);
+    obj = ncx_find_object(instance, yangcli_mod, YANGCLI_CONNECT);
     if (obj==NULL) {
         return ERR_NCX_DEF_NOT_FOUND;
     }
 
     /* set the parmset object to the input node of the RPC */
-    obj = obj_find_child(obj, NULL, YANG_K_INPUT);
+    obj = obj_find_child(instance, obj, NULL, YANG_K_INPUT);
     if (obj==NULL) {
         return ERR_NCX_DEF_NOT_FOUND;
     }
@@ -3724,50 +3816,50 @@ static status_t
      * it is saved for auto-start plus restart parameters
      * Setup an empty parmset to hold the connect parameters
      */
-    connect_valset = val_new_value();
+    connect_valset = val_new_value(instance);
     if (connect_valset==NULL) {
         return ERR_INTERNAL_MEM;
     } else {
-        val_init_from_template(connect_valset, obj);
+        val_init_from_template(instance, connect_valset, obj);
     }
 
     /* create the program instance temporary directory */
-    temp_progcb = ncxmod_new_program_tempdir(&res);
+    temp_progcb = ncxmod_new_program_tempdir(instance, &res);
     if (temp_progcb == NULL || res != NO_ERR) {
         return res;
     }
 
     /* set the CLI handler */
-    mgr_io_set_stdin_handler(yangcli_stdin_handler);
+    mgr_io_set_stdin_handler((mgr_io_stdin_fn_t)yangcli_stdin_handler);
 
     /* create a default server control block */
-    server_cb = new_server_cb(YANGCLI_DEF_SERVER);
+    server_cb = new_server_cb(instance, YANGCLI_DEF_SERVER);
     if (server_cb==NULL) {
         return ERR_INTERNAL_MEM;
     }
-    dlq_enque(server_cb, &server_cbQ);
+    dlq_enque(instance, server_cb, &server_cbQ);
 
     cur_server_cb = server_cb;
 
     /* Get any command line and conf file parameters */
-    res = process_cli_input(server_cb, argc, argv);
+    res = process_cli_input(instance, server_cb, argc, argv);
     if (res != NO_ERR) {
         return res;
     }
 
     /* check print version */
     if (versionmode || helpmode) {
-        res = ncx_get_version(versionbuffer, NCX_VERSION_BUFFSIZE);
+        res = ncx_get_version(instance, versionbuffer, NCX_VERSION_BUFFSIZE);
         if (res == NO_ERR) {
-            log_stdout("\nyangcli version %s\n", versionbuffer);
+            log_stdout(instance, "\nyangcli version %s\n", versionbuffer);
         } else {
-            SET_ERROR(res);
+            SET_ERROR(instance, res);
         }
     }
 
     /* check print help and exit */
     if (helpmode) {
-        help_program_module(YANGCLI_MOD, YANGCLI_BOOT, helpsubmode);
+        help_program_module(instance, YANGCLI_MOD, YANGCLI_BOOT, helpsubmode);
     }
 
     /* check quick exit */
@@ -3778,92 +3870,95 @@ static status_t
     /* set any server control block defaults which were supplied
      * in the CLI or conf file
      */
-    update_server_cb_vars(server_cb);
+    update_server_cb_vars(instance, server_cb);
 
     /* Load the NETCONF, XSD, SMI and other core modules */
     if (autoload) {
-        res = load_core_schema();
+        res = load_core_schema(instance);
         if (res != NO_ERR) {
             return res;
         }
     }
 
     /* check if there are any deviation parameters to load first */
-    for (modval = val_find_child(mgr_cli_valset, YANGCLI_MOD,
+    for (modval = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD,
                                  NCX_EL_DEVIATION);
          modval != NULL && res == NO_ERR;
-         modval = val_find_next_child(mgr_cli_valset, YANGCLI_MOD,
+         modval = val_find_next_child(instance, mgr_cli_valset, YANGCLI_MOD,
                                       NCX_EL_DEVIATION,
                                       modval)) {
 
-        res = ncxmod_load_deviation(VAL_STR(modval), &savedevQ);
+        res = ncxmod_load_deviation(instance, VAL_STR(modval), &savedevQ);
         if (res != NO_ERR) {
-            log_error("\n load deviation failed (%s)", 
+            log_error(instance, 
+                      "\n load deviation failed (%s)", 
                       get_error_string(res));
         } else {
-            log_info("\n load OK");
+            log_info(instance, "\n load OK");
         }
     }
 
     if (res == NO_ERR) {
         /* check if any explicitly listed modules should be loaded */
-        modval = val_find_child(mgr_cli_valset, YANGCLI_MOD, NCX_EL_MODULE);
+        modval = val_find_child(instance, mgr_cli_valset, YANGCLI_MOD, NCX_EL_MODULE);
         while (modval != NULL && res == NO_ERR) {
-            log_info("\nyangcli: Loading requested module %s", 
+            log_info(instance, 
+                     "\nyangcli: Loading requested module %s", 
                      VAL_STR(modval));
 
             revision = NULL;
             savestr = NULL;
             modlen = 0;
 
-            if (yang_split_filename(VAL_STR(modval), &modlen)) {
+            if (yang_split_filename(instance, VAL_STR(modval), &modlen)) {
                 savestr = &(VAL_STR(modval)[modlen]);
                 *savestr = '\0';
                 revision = savestr + 1;
             }
 
-            res = ncxmod_load_module(VAL_STR(modval), revision,
+            res = ncxmod_load_module(instance, VAL_STR(modval), revision,
                                      &savedevQ, NULL);
             if (res != NO_ERR) {
-                log_error("\n load module failed (%s)", 
+                log_error(instance, 
+                          "\n load module failed (%s)", 
                           get_error_string(res));
             } else {
-                log_info("\n load OK");
+                log_info(instance, "\n load OK");
             }
 
-            modval = val_find_next_child(mgr_cli_valset, YANGCLI_MOD,
+            modval = val_find_next_child(instance, mgr_cli_valset, YANGCLI_MOD,
                                          NCX_EL_MODULE, modval);
         }
     }
 
     /* discard any deviations loaded from the CLI or conf file */
-    ncx_clean_save_deviationsQ(&savedevQ);
+    ncx_clean_save_deviationsQ(instance, &savedevQ);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the system (read-only) variables */
-    res = init_system_vars(server_cb);
+    res = init_system_vars(instance, server_cb);
     if (res != NO_ERR) {
         return res;
     }
 
     /* load the system config variables */
-    res = init_config_vars(server_cb);
+    res = init_config_vars(instance, server_cb);
     if (res != NO_ERR) {
         return res;
     }
 
     /* initialize the module library search result queue */
     {
-        log_debug_t dbglevel = log_get_debug_level();
+        log_debug_t dbglevel = log_get_debug_level(instance);
         if (LOGDEBUG3) {
             ; 
         } else {
-            log_set_debug_level(LOG_DEBUG_NONE);
+            log_set_debug_level(instance, LOG_DEBUG_NONE);
         }
-        res = ncxmod_find_all_modules(&modlibQ);
-        log_set_debug_level(dbglevel);
+        res = ncxmod_find_all_modules(instance, &modlibQ);
+        log_set_debug_level(instance, dbglevel);
         if (res != NO_ERR) {
             return res;
         }
@@ -3871,7 +3966,7 @@ static status_t
 
     /* load the user aliases */
     if (autoaliases) {
-        res = load_aliases(aliases_file);
+        res = load_aliases(instance, aliases_file);
         if (res != NO_ERR) {
             return res;
         }
@@ -3879,7 +3974,7 @@ static status_t
 
     /* load the user variables */
     if (autouservars) {
-        res = load_uservars(server_cb, uservars_file);
+        res = load_uservars(instance, server_cb, uservars_file);
         if (res != NO_ERR) {
             return res;
         }
@@ -3888,7 +3983,7 @@ static status_t
     /* make sure the startup screen is generated
      * before the auto-connect sequence starts
      */
-    do_startup_screen();    
+    do_startup_screen(instance);    
 
     /* check to see if a session should be auto-started
      * --> if the server parameter is set a connect will
@@ -3899,9 +3994,9 @@ static status_t
      */
     server_cb->state = MGR_IO_ST_IDLE;
     if (connect_valset) {
-        parm = val_find_child(connect_valset, YANGCLI_MOD, YANGCLI_SERVER);
+        parm = val_find_child(instance, connect_valset, YANGCLI_MOD, YANGCLI_SERVER);
         if (parm && parm->res == NO_ERR) {
-            res = do_connect(server_cb, NULL, NULL, 0, TRUE);
+            res = do_connect(instance, server_cb, NULL, NULL, 0, TRUE);
             if (res != NO_ERR) {
                 if (!batchmode) {
                     res = NO_ERR;
@@ -3922,44 +4017,44 @@ static status_t
  * 
  *********************************************************************/
 static void
-    yangcli_cleanup (void)
+    yangcli_cleanup (ncx_instance_t *instance)
 {
     server_cb_t  *server_cb;
     modptr_t     *modptr;
     status_t      res = NO_ERR;
 
-    log_debug2("\nShutting down yangcli\n");
+    log_debug2(instance, "\nShutting down yangcli\n");
 
     /* save the user variables */
     if (autouservars && init_done) {
         if (cur_server_cb) {
-            res = save_uservars(cur_server_cb, uservars_file);
+            res = save_uservars(instance, cur_server_cb, uservars_file);
         } else {
             res = ERR_NCX_MISSING_PARM;
         }
         if (res != NO_ERR) {
-            log_error("\nError: yangcli user variables could "
+            log_error(instance, "\nError: yangcli user variables could "
                       "not be saved (%s)", get_error_string(res));
         }
     }
 
     /* save the user aliases */
     if (autoaliases && init_done) {
-        res = save_aliases(aliases_file);
+        res = save_aliases(instance, aliases_file);
         if (res != NO_ERR) {
-            log_error("\nError: yangcli command aliases could "
+            log_error(instance, "\nError: yangcli command aliases could "
                       "not be saved (%s)", get_error_string(res));
         }
     }
 
-    while (!dlq_empty(&mgrloadQ)) {
-        modptr = (modptr_t *)dlq_deque(&mgrloadQ);
-        free_modptr(modptr);
+    while (!dlq_empty(instance, &mgrloadQ)) {
+        modptr = (modptr_t *)dlq_deque(instance, &mgrloadQ);
+        free_modptr(instance, modptr);
     }
 
-    while (!dlq_empty(&server_cbQ)) {
-        server_cb = (server_cb_t *)dlq_deque(&server_cbQ);
-        free_server_cb(server_cb);
+    while (!dlq_empty(instance, &server_cbQ)) {
+        server_cb = (server_cb_t *)dlq_deque(instance, &server_cbQ);
+        free_server_cb(instance, server_cb);
     }
 
     /* clean and reset all module static vars */
@@ -3969,53 +4064,53 @@ static void
     }
 
     if (mgr_cli_valset) {
-        val_free_value(mgr_cli_valset);
+        val_free_value(instance, mgr_cli_valset);
         mgr_cli_valset = NULL;
     }
 
     if (connect_valset) {
-        val_free_value(connect_valset);
+        val_free_value(instance, connect_valset);
         connect_valset = NULL;
     }
 
     if (default_module) {
-        m__free(default_module);
+        m__free(instance, default_module);
         default_module = NULL;
     }
 
     if (confname) {
-        m__free(confname);
+        m__free(instance, confname);
         confname = NULL;
     }
 
     if (runscript) {
-        m__free(runscript);
+        m__free(instance, runscript);
         runscript = NULL;
     }
 
     if (runcommand) {
-        m__free(runcommand);
+        m__free(instance, runcommand);
         runcommand = NULL;
     }
 
     /* Cleanup the Netconf Server Library */
-    mgr_cleanup();
+    mgr_cleanup(instance);
 
     /* free this after the mgr_cleanup in case any session is active
      * and needs to be cleaned up before this main temp_progcb is freed
      */
     if (temp_progcb) {
-        ncxmod_free_program_tempdir(temp_progcb);
+        ncxmod_free_program_tempdir(instance, temp_progcb);
         temp_progcb = NULL;
     }
 
     /* cleanup the module library search results */
-    ncxmod_clean_search_result_queue(&modlibQ);
+    ncxmod_clean_search_result_queue(instance, &modlibQ);
 
-    free_aliases();
+    free_aliases(instance);
 
     /* cleanup the NCX engine and registries */
-    ncx_cleanup();
+    ncx_cleanup(instance);
 
 }  /* yangcli_cleanup */
 
@@ -4032,27 +4127,29 @@ static void
  *   the RPC error code for the <rpc-error> that was found
  *********************************************************************/
 static rpc_err_t
-    get_rpc_error_tag (val_value_t *replyval)
+    get_rpc_error_tag (ncx_instance_t *instance, val_value_t *replyval)
 {
     val_value_t  *errval, *tagval;
 
-    errval = val_find_child(replyval, 
+    errval = val_find_child(instance, 
+                            replyval, 
                             NC_MODULE,
                             NCX_EL_RPC_ERROR);
     if (errval == NULL) {
-        log_error("\nError: No <rpc-error> elements found");
+        log_error(instance, "\nError: No <rpc-error> elements found");
         return RPC_ERR_NONE;
     }
 
-    tagval = val_find_child(errval, 
+    tagval = val_find_child(instance, 
+                            errval, 
                             NC_MODULE,
                             NCX_EL_ERROR_TAG);
     if (tagval == NULL) {
-        log_error("\nError: <rpc-error> did not contain an <error-tag>");
+        log_error(instance, "\nError: <rpc-error> did not contain an <error-tag>");
         return RPC_ERR_NONE;
     }
 
-    return rpc_err_get_errtag_enum(VAL_ENUM_NAME(tagval));
+    return rpc_err_get_errtag_enum(instance, VAL_ENUM_NAME(tagval));
 
 }  /* get_rpc_error_tag */
 
@@ -4068,7 +4165,8 @@ static rpc_err_t
  *
  *********************************************************************/
 static void
-    handle_rpc_timing (server_cb_t *server_cb,
+    handle_rpc_timing (ncx_instance_t *instance,
+                       server_cb_t *server_cb,
                        mgr_rpc_req_t *req)
 {
     struct timeval      now;
@@ -4093,12 +4191,12 @@ static void
     sprintf((char *)numbuff, "%ld.%06ld", sec, usec);
 
     if (interactive_mode()) {
-        log_stdout("\nRoundtrip time: %s seconds\n", numbuff);
-        if (log_get_logfile() != NULL) {
-            log_write("\nRoundtrip time: %s seconds\n", numbuff);
+        log_stdout(instance, "\nRoundtrip time: %s seconds\n", numbuff);
+        if (log_get_logfile(instance) != NULL) {
+            log_write(instance, "\nRoundtrip time: %s seconds\n", numbuff);
         }
     } else {
-        log_write("\nRoundtrip time: %s seconds\n", numbuff);
+        log_write(instance, "\nRoundtrip time: %s seconds\n", numbuff);
     }
 
 }  /* handle_rpc_timing */
@@ -4287,18 +4385,18 @@ const xmlChar *
 *    status
 *********************************************************************/
 status_t
-    replace_connect_valset (const val_value_t *valset)
+    replace_connect_valset (ncx_instance_t *instance, const val_value_t *valset)
 {
     val_value_t   *findval, *replaceval;
 
 #ifdef DEBUG
     if (valset == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
     if (connect_valset == NULL) {
-        connect_valset = val_clone(valset);
+        connect_valset = val_clone(instance, valset);
         if (connect_valset == NULL) {
             return ERR_INTERNAL_MEM;
         } else {
@@ -4310,19 +4408,20 @@ status_t
      * to the existing connect_valset; only replace the
      * parameters that are not already set
      */
-    for (findval = val_get_first_child(valset);
+    for (findval = val_get_first_child(instance, valset);
          findval != NULL;
-         findval = val_get_next_child(findval)) {
+         findval = val_get_next_child(instance, findval)) {
 
-        replaceval = val_find_child(connect_valset,
-                                    val_get_mod_name(findval),
+        replaceval = val_find_child(instance,
+                                    connect_valset,
+                                    val_get_mod_name(instance, findval),
                                     findval->name);
         if (replaceval == NULL) {
-            replaceval = val_clone(findval);
+            replaceval = val_clone(instance, findval);
             if (replaceval == NULL) {
                 return ERR_INTERNAL_MEM;
             }
-            val_add_child(replaceval, connect_valset);
+            val_add_child(instance, replaceval, connect_valset);
         }
     }
 
@@ -4375,7 +4474,8 @@ dlq_hdr_t *
  *   none
  *********************************************************************/
 void
-    yangcli_reply_handler (ses_cb_t *scb,
+    yangcli_reply_handler (ncx_instance_t *instance,
+                           ses_cb_t *scb,
                            mgr_rpc_req_t *req,
                            mgr_rpc_rpy_t *rpy)
 {
@@ -4390,7 +4490,7 @@ void
 
 #ifdef DEBUG
     if (!scb || !req || !rpy) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
@@ -4399,7 +4499,7 @@ void
     mgrcb = scb->mgrcb;
     if (mgrcb) {
         usesid = mgrcb->agtsid;
-        ncx_set_temp_modQ(&mgrcb->temp_modQ);
+        ncx_set_temp_modQ(instance, &mgrcb->temp_modQ);
     } else {
         usesid = 0;
     }
@@ -4412,64 +4512,70 @@ void
 
     /* check the contents of the reply */
     if (rpy && rpy->reply) {
-        if (val_find_child(rpy->reply, 
+        if (val_find_child(instance, 
+                           rpy->reply, 
                            NC_MODULE,
                            NCX_EL_RPC_ERROR)) {
             if (server_cb->command_mode == CMD_MODE_NORMAL || LOGDEBUG) {
-                log_error("\nRPC Error Reply %s for session %u:\n",
+                log_error(instance,
+                          "\nRPC Error Reply %s for session %u:\n",
                           rpy->msg_id, 
                           usesid);
-                val_dump_value_max(rpy->reply, 
+                val_dump_value_max(instance, 
+                                   rpy->reply, 
                                    0,
                                    server_cb->defindent,
                                    DUMP_VAL_LOG,
                                    server_cb->display_mode,
                                    FALSE,
                                    FALSE);
-                log_error("\n");
+                log_error(instance, "\n");
                 anyout = TRUE;
             }
             if (server_cb->time_rpcs) {
-                handle_rpc_timing(server_cb, req);
+                handle_rpc_timing(instance, server_cb, req);
                 anyout = TRUE;
             }
             anyerrors = TRUE;
-        } else if (val_find_child(rpy->reply, NC_MODULE, NCX_EL_OK)) {
+        } else if (val_find_child(instance, rpy->reply, NC_MODULE, NCX_EL_OK)) {
             if (server_cb->command_mode == CMD_MODE_NORMAL || LOGDEBUG2) {
                 if (server_cb->echo_replies) {
-                    log_info("\nRPC OK Reply %s for session %u:\n",
+                    log_info(instance,
+                             "\nRPC OK Reply %s for session %u:\n",
                              rpy->msg_id, 
                              usesid);
                     anyout = TRUE;
                 }
             }
             if (server_cb->time_rpcs) {
-                handle_rpc_timing(server_cb, req);
+                handle_rpc_timing(instance, server_cb, req);
                 anyout = TRUE;
             }
         } else if ((server_cb->command_mode == CMD_MODE_NORMAL && LOGINFO) ||
                    (server_cb->command_mode != CMD_MODE_NORMAL && LOGDEBUG2)) {
 
             if (server_cb->echo_replies) {
-                log_info("\nRPC Data Reply %s for session %u:\n",
+                log_info(instance,
+                         "\nRPC Data Reply %s for session %u:\n",
                          rpy->msg_id, 
                          usesid);
-                val_dump_value_max(rpy->reply, 
+                val_dump_value_max(instance, 
+                                   rpy->reply, 
                                    0,
                                    server_cb->defindent,
                                    DUMP_VAL_LOG,
                                    server_cb->display_mode,
                                    FALSE,
                                    FALSE);
-                log_info("\n");
+                log_info(instance, "\n");
                 anyout = TRUE;
             }
             if (server_cb->time_rpcs) {
-                handle_rpc_timing(server_cb, req);
+                handle_rpc_timing(instance, server_cb, req);
                 anyout = TRUE;
             }
         } else if (server_cb->time_rpcs) {
-            handle_rpc_timing(server_cb, req);
+            handle_rpc_timing(instance, server_cb, req);
             anyout = TRUE;
         }
 
@@ -4479,13 +4585,13 @@ void
          */
         if (server_cb->result_name || server_cb->result_filename) {
             /* save the data element if it exists */
-            val = val_first_child_name(rpy->reply, NCX_EL_DATA);
+            val = val_first_child_name(instance, rpy->reply, NCX_EL_DATA);
             if (val) {
-                val_remove_child(val);
+                val_remove_child(instance, val);
             } else {
-                if (val_child_cnt(rpy->reply) == 1) {
-                    val = val_get_first_child(rpy->reply);
-                    val_remove_child(val);
+                if (val_child_cnt(instance, rpy->reply) == 1) {
+                    val = val_get_first_child(instance, rpy->reply);
+                    val_remove_child(instance, val);
                 } else {
                     /* not 1 child node, so save the entire reply
                      * need a single top-level element to be a
@@ -4497,26 +4603,26 @@ void
             }
 
             /* hand off the malloced 'val' node here */
-            res = finish_result_assign(server_cb, val, NULL);
+            res = finish_result_assign(instance, server_cb, val, NULL);
         }  else if (LOGINFO && 
                     !anyout && 
                     !anyerrors && 
                     server_cb->command_mode == CMD_MODE_NORMAL &&
                     interactive_mode()) {
-            log_stdout("\nOK\n");
+            log_stdout(instance, "\nOK\n");
         }
     } else {
-        log_error("\nError: yangcli: no reply parsed\n");
+        log_error(instance, "\nError: yangcli: no reply parsed\n");
     }
 
     /* check if a script is running */
     if ((anyerrors || res != NO_ERR) && 
-        runstack_level(server_cb->runstack_context)) {
-        runstack_cancel(server_cb->runstack_context);
+        runstack_level(instance, server_cb->runstack_context)) {
+        runstack_cancel(instance, server_cb->runstack_context);
     }
 
     if (anyerrors && rpy->reply) {
-        rpcerrtyp = get_rpc_error_tag(rpy->reply);
+        rpcerrtyp = get_rpc_error_tag(instance, rpy->reply);
     } else {
         /* default error: may not get used */
         rpcerrtyp = RPC_ERR_OPERATION_FAILED;
@@ -4525,7 +4631,7 @@ void
     switch (server_cb->state) {
     case MGR_IO_ST_CONN_CLOSEWAIT:
         if (mgrcb->closed) {
-            mgr_ses_free_session(server_cb->mysid);
+            mgr_ses_free_session(instance, server_cb->mysid);
             server_cb->mysid = 0;
             server_cb->state = MGR_IO_ST_IDLE;
         } /* else keep waiting */
@@ -4536,7 +4642,8 @@ void
         case CMD_MODE_NORMAL:
             break;
         case CMD_MODE_AUTOLOAD:
-            (void)autoload_handle_rpc_reply(server_cb,
+            (void)autoload_handle_rpc_reply(instance,
+                                            server_cb,
                                             scb,
                                             rpy->reply,
                                             anyerrors);
@@ -4548,9 +4655,9 @@ void
                 if (rpcerrtyp == RPC_ERR_LOCK_DENIED) {
                     lockcb->lock_state = LOCK_STATE_TEMP_ERROR;
                 } else if (lockcb->config_id == NCX_CFGID_CANDIDATE) {
-                    res = send_discard_changes_pdu_to_server(server_cb);
+                    res = send_discard_changes_pdu_to_server(instance, server_cb);
                     if (res != NO_ERR) {
-                        handle_locks_cleanup(server_cb);
+                        handle_locks_cleanup(instance, server_cb);
                     }
                     done = TRUE;
                 } else {
@@ -4562,22 +4669,23 @@ void
             }
 
             if (!done) {
-                res = handle_get_locks_request_to_server(server_cb,
+                res = handle_get_locks_request_to_server(instance,
+                                                        server_cb,
                                                         FALSE,
                                                         &done);
                 if (done) {
                     /* check if the locks are all good */
                     if (get_lock_worked(server_cb)) {
-                        log_info("\nget-locks finished OK");
+                        log_info(instance, "\nget-locks finished OK");
                         server_cb->command_mode = CMD_MODE_NORMAL;
                         server_cb->locks_waiting = FALSE;
                     } else {
-                        log_error("\nError: get-locks failed, "
+                        log_error(instance, "\nError: get-locks failed, "
                                   "starting cleanup");
-                        handle_locks_cleanup(server_cb);
+                        handle_locks_cleanup(instance, server_cb);
                     }
                 } else if (res != NO_ERR) {
-                    log_error("\nError: get-locks failed, no cleanup");
+                    log_error(instance, "\nError: get-locks failed, no cleanup");
                 }
             }
             break;
@@ -4589,7 +4697,8 @@ void
                 lockcb->lock_state = LOCK_STATE_RELEASED;
             }
 
-            (void)handle_release_locks_request_to_server(server_cb,
+            (void)handle_release_locks_request_to_server(instance,
+                                                         server_cb,
                                                          FALSE,
                                                          &done);
             if (done) {
@@ -4600,38 +4709,39 @@ void
             lockcb = &server_cb->lock_cb[server_cb->locks_cur_cfg];
             server_cb->command_mode = CMD_MODE_AUTOLOCK;
             if (anyerrors) {
-                handle_locks_cleanup(server_cb);
+                handle_locks_cleanup(instance, server_cb);
             } else {
-                res = handle_get_locks_request_to_server(server_cb,
+                res = handle_get_locks_request_to_server(instance,
+                                                        server_cb,
                                                         FALSE,
                                                         &done);
                 if (done) {
                     /* check if the locks are all good */
                     if (get_lock_worked(server_cb)) {
-                        log_info("\nget-locks finished OK");
+                        log_info(instance, "\nget-locks finished OK");
                         server_cb->command_mode = CMD_MODE_NORMAL;
                         server_cb->locks_waiting = FALSE;
                     } else {
-                        log_error("\nError: get-locks failed, "
+                        log_error(instance, "\nError: get-locks failed, "
                                   "starting cleanup");
-                        handle_locks_cleanup(server_cb);
+                        handle_locks_cleanup(instance, server_cb);
                     }
                 } else if (res != NO_ERR) {
-                    log_error("\nError: get-locks failed, no cleanup");
+                    log_error(instance, "\nError: get-locks failed, no cleanup");
                 }
             }            
             break;
         case CMD_MODE_SAVE:
             if (anyerrors) {
-                log_warn("\nWarning: Final <copy-config> canceled  because "
+                log_warn(instance, "\nWarning: Final <copy-config> canceled  because "
                          "<commit> failed");
             } else {
-                (void)finish_save(server_cb);
+                (void)finish_save(instance, server_cb);
             }
             server_cb->command_mode = CMD_MODE_NORMAL;
             break;
         default:
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     default:
@@ -4639,9 +4749,9 @@ void
     }
 
     /* free the request and reply */
-    mgr_rpc_free_request(req);
+    mgr_rpc_free_request(instance, req);
     if (rpy) {
-        mgr_rpc_free_reply(rpy);
+        mgr_rpc_free_reply(instance, rpy);
     }
 
 }  /* yangcli_reply_handler */
@@ -4664,7 +4774,8 @@ void
  *   status
  *********************************************************************/
 status_t
-    finish_result_assign (server_cb_t *server_cb,
+    finish_result_assign (ncx_instance_t *instance,
+                          server_cb_t *server_cb,
                           val_value_t *resultvar,
                           const xmlChar *resultstr)
 {
@@ -4673,7 +4784,7 @@ status_t
 
 #ifdef DEBUG
     if (server_cb == NULL) {
-        return SET_ERROR(ERR_INTERNAL_PTR);
+        return SET_ERROR(instance, ERR_INTERNAL_PTR);
     }
 #endif
 
@@ -4684,31 +4795,32 @@ status_t
          * malloced instead of backptrs to
          * the object name
          */
-        res = val_force_dname(resultvar);
+        res = val_force_dname(instance, resultvar);
         if (res != NO_ERR) {
-            val_free_value(resultvar);
+            val_free_value(instance, resultvar);
         }
     }
 
     if (res != NO_ERR) {
         ;
     } else if (server_cb->result_filename != NULL) {
-        res = output_file_result(server_cb, resultvar, resultstr);
+        res = output_file_result(instance, server_cb, resultvar, resultstr);
         if (resultvar) {
-            val_free_value(resultvar);
+            val_free_value(instance, resultvar);
         }
     } else if (server_cb->result_name != NULL) {
         if (server_cb->result_vartype == VAR_TYP_CONFIG) {
-            configvar = var_get(server_cb->runstack_context,
+            configvar = var_get(instance,
+                                server_cb->runstack_context,
                                 server_cb->result_name,
                                 VAR_TYP_CONFIG);
             if (configvar==NULL) {
-                res = SET_ERROR(ERR_INTERNAL_VAL);
+                res = SET_ERROR(instance, ERR_INTERNAL_VAL);
             } else {
-                res = handle_config_assign(server_cb, configvar,
+                res = handle_config_assign(instance, server_cb, configvar,
                                            resultvar, resultstr);
                 if (res == NO_ERR) {
-                    log_info("\nOK\n");
+                    log_info(instance, "\nOK\n");
                 }                    
             }
         } else if (resultvar != NULL) {
@@ -4716,37 +4828,41 @@ status_t
              * hand off the malloced 'resultvar' here
              */
             if (res == NO_ERR) {
-                res = var_set_move(server_cb->runstack_context,
+                res = var_set_move(instance,
+                                   server_cb->runstack_context,
                                    server_cb->result_name, 
-                                   xml_strlen(server_cb->result_name),
+                                   xml_strlen(instance, server_cb->result_name),
                                    server_cb->result_vartype,
                                    resultvar);
             }
             if (res != NO_ERR) {
                 /* resultvar is freed even if error returned */
-                log_error("\nError: set result for '%s' failed (%s)",
+                log_error(instance,
+                          "\nError: set result for '%s' failed (%s)",
                           server_cb->result_name, 
                           get_error_string(res));
             } else {
-                log_info("\nOK\n");
+                log_info(instance, "\nOK\n");
             }
         } else {
             /* this is just a string assignment */
-            res = var_set_from_string(server_cb->runstack_context,
+            res = var_set_from_string(instance,
+                                      server_cb->runstack_context,
                                       server_cb->result_name,
                                       resultstr, 
                                       server_cb->result_vartype);
             if (res != NO_ERR) {
-                log_error("\nyangcli: Error setting variable %s (%s)",
+                log_error(instance,
+                          "\nyangcli: Error setting variable %s (%s)",
                           server_cb->result_name, 
                           get_error_string(res));
             } else {
-                log_info("\nOK\n");
+                log_info(instance, "\nOK\n");
             }
         }
     }
 
-    clear_result(server_cb);
+    clear_result(instance, server_cb);
 
     return res;
 
@@ -4767,7 +4883,8 @@ status_t
 *  mode == help mode; ignored unless first == FALSE
 *********************************************************************/
 void
-    report_capabilities (server_cb_t *server_cb,
+    report_capabilities (ncx_instance_t *instance,
+                         server_cb_t *server_cb,
                          const ses_cb_t *scb,
                          boolean isfirst,
                          help_mode_t mode)
@@ -4783,7 +4900,8 @@ void
 
     mscb = (const mgr_scb_t *)scb->mgrcb;
 
-    parm = val_find_child(server_cb->connect_valset, 
+    parm = val_find_child(instance, 
+                          server_cb->connect_valset, 
                           YANGCLI_MOD, 
                           YANGCLI_SERVER);
     if (parm && parm->res == NO_ERR) {
@@ -4792,158 +4910,160 @@ void
         server = (const xmlChar *)"--";
     }
 
-    log_write("\n\nNETCONF session established for %s on %s",
+    log_write(instance,
+              "\n\nNETCONF session established for %s on %s",
               scb->username, 
               mscb->target ? mscb->target : server);
 
 
-    log_write("\n\nClient Session Id: %u", scb->sid);
-    log_write("\nServer Session Id: %u", mscb->agtsid);
+    log_write(instance, "\n\nClient Session Id: %u", scb->sid);
+    log_write(instance, "\nServer Session Id: %u", mscb->agtsid);
 
     if (isfirst || mode > HELP_MODE_BRIEF) {
-        log_write("\n\nServer Protocol Capabilities");
-        cap_dump_stdcaps(&mscb->caplist);
+        log_write(instance, "\n\nServer Protocol Capabilities");
+        cap_dump_stdcaps(instance, &mscb->caplist);
 
-        log_write("\n\nServer Module Capabilities");
-        cap_dump_modcaps(&mscb->caplist);
+        log_write(instance, "\n\nServer Module Capabilities");
+        cap_dump_modcaps(instance, &mscb->caplist);
 
-        log_write("\n\nServer Enterprise Capabilities");
-        cap_dump_entcaps(&mscb->caplist);
-        log_write("\n");
+        log_write(instance, "\n\nServer Enterprise Capabilities");
+        cap_dump_entcaps(instance, &mscb->caplist);
+        log_write(instance, "\n");
     }
 
-    log_write("\nProtocol version set to: ");
-    switch (ses_get_protocol(scb)) {
+    log_write(instance, "\nProtocol version set to: ");
+    switch (ses_get_protocol(instance, scb)) {
     case NCX_PROTO_NETCONF10:
-        log_write("RFC 4741 (base:1.0)");
+        log_write(instance, "RFC 4741 (base:1.0)");
         break;
     case NCX_PROTO_NETCONF11:
-        log_write("RFC 6241 (base:1.1)");
+        log_write(instance, "RFC 6241 (base:1.1)");
         break;
     default:
-        log_write("unknown");
+        log_write(instance, "unknown");
     }
 
     if (!isfirst && (mode <= HELP_MODE_BRIEF)) {
         return;
     }
 
-    log_write("\nDefault target set to: ");
+    log_write(instance, "\nDefault target set to: ");
 
     switch (mscb->targtyp) {
     case NCX_AGT_TARG_NONE:
         if (isfirst) {
             server_cb->default_target = NULL;
         }
-        log_write("none");
+        log_write(instance, "none");
         break;
     case NCX_AGT_TARG_CANDIDATE:
         if (isfirst) {
             server_cb->default_target = NCX_EL_CANDIDATE;
         }
-        log_write("<candidate>");
+        log_write(instance, "<candidate>");
         break;
     case NCX_AGT_TARG_RUNNING:
         if (isfirst) {
             server_cb->default_target = NCX_EL_RUNNING;
         }
-        log_write("<running>");
+        log_write(instance, "<running>");
         break;
     case NCX_AGT_TARG_CAND_RUNNING:
         if (force_target != NULL &&
-            !xml_strcmp(force_target, NCX_EL_RUNNING)) {
+            !xml_strcmp(instance, force_target, NCX_EL_RUNNING)) {
             /* set to running */
             if (isfirst) {
                 server_cb->default_target = NCX_EL_RUNNING;
             }
-            log_write("<running> (<candidate> also supported)");
+            log_write(instance, "<running> (<candidate> also supported)");
         } else {
             /* set to candidate */
             if (isfirst) {
                 server_cb->default_target = NCX_EL_CANDIDATE;
             }
-            log_write("<candidate> (<running> also supported)");
+            log_write(instance, "<candidate> (<running> also supported)");
         }
         break;
     case NCX_AGT_TARG_LOCAL:
         if (isfirst) {
             server_cb->default_target = NULL;
         }
-        log_write("none -- local file");        
+        log_write(instance, "none -- local file");        
         break;
     case NCX_AGT_TARG_REMOTE:
         if (isfirst) {
             server_cb->default_target = NULL;
         }
-        log_write("none -- remote file");       
+        log_write(instance, "none -- remote file");       
         break;
     default:
         if (isfirst) {
             server_cb->default_target = NULL;
         }
-        SET_ERROR(ERR_INTERNAL_VAL);
-        log_write("none -- unknown (%d)", mscb->targtyp);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
+        log_write(instance, "none -- unknown (%d)", mscb->targtyp);
         break;
     }
 
-    log_write("\nSave operation mapped to: ");
+    log_write(instance, "\nSave operation mapped to: ");
     switch (mscb->targtyp) {
     case NCX_AGT_TARG_NONE:
-        log_write("none");
+        log_write(instance, "none");
         break;
     case NCX_AGT_TARG_CANDIDATE:
     case NCX_AGT_TARG_CAND_RUNNING:
-        if (!xml_strcmp(server_cb->default_target,
+        if (!xml_strcmp(instance,
+                        server_cb->default_target,
                         NCX_EL_CANDIDATE)) {
-            log_write("commit");
+            log_write(instance, "commit");
             if (mscb->starttyp == NCX_AGT_START_DISTINCT) {
-                log_write(" + copy-config <running> <startup>");
+                log_write(instance, " + copy-config <running> <startup>");
             }
         } else {
             if (mscb->starttyp == NCX_AGT_START_DISTINCT) {
-                log_write("copy-config <running> <startup>");
+                log_write(instance, "copy-config <running> <startup>");
             } else {
-                log_write("none");
+                log_write(instance, "none");
             }
         }
         break;
     case NCX_AGT_TARG_RUNNING:
         if (mscb->starttyp == NCX_AGT_START_DISTINCT) {
-            log_write("copy-config <running> <startup>");
+            log_write(instance, "copy-config <running> <startup>");
         } else {
-            log_write("none");
+            log_write(instance, "none");
         }           
         break;
     case NCX_AGT_TARG_LOCAL:
     case NCX_AGT_TARG_REMOTE:
         /* no way to assign these enums from the capabilities alone! */
         if (cap_std_set(&mscb->caplist, CAP_STDID_URL)) {
-            log_write("copy-config <running> <url>");
+            log_write(instance, "copy-config <running> <url>");
         } else {
-            log_write("none");
+            log_write(instance, "none");
         }           
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
-        log_write("none");
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
+        log_write(instance, "none");
         break;
     }
 
-    log_write("\nDefault with-defaults behavior: ");
+    log_write(instance, "\nDefault with-defaults behavior: ");
     if (mscb->caplist.cap_defstyle) {
-        log_write("%s", mscb->caplist.cap_defstyle);
+        log_write(instance, "%s", mscb->caplist.cap_defstyle);
     } else {
-        log_write("unknown");
+        log_write(instance, "unknown");
     }
 
-    log_write("\nAdditional with-defaults behavior: ");
+    log_write(instance, "\nAdditional with-defaults behavior: ");
     if (mscb->caplist.cap_supported) {
-        log_write("%s", mscb->caplist.cap_supported);
+        log_write(instance, "%s", mscb->caplist.cap_supported);
     } else {
-        log_write("unknown");
+        log_write(instance, "unknown");
     }
 
-    log_write("\n");
+    log_write(instance, "\n");
     
 } /* report_capabilities */
 
@@ -4961,31 +5081,32 @@ int main (int argc, char *argv[])
     mtrace();
 #endif
 
-    res = yangcli_init(argc, argv);
+    ncx_instance_t* instance = ncx_alloc();
+    res = yangcli_init(ncx_alloc(), argc, argv);
     init_done = (res == NO_ERR) ? TRUE : FALSE;
     if (res != NO_ERR) {
-        log_error("\nyangcli: init returned error (%s)\n", 
+        log_error(instance, "\nyangcli: init returned error (%s)\n", 
                   get_error_string(res));
     } else if (!(helpmode || versionmode)) {
         /* normal run mode */
-        res = mgr_io_run();
+        res = mgr_io_run(instance);
         if (res != NO_ERR) {
-            log_error("\nmgr_io failed (%d)\n", res);
+            log_error(instance, "\nmgr_io failed (%d)\n", res);
         } else {
-            log_write("\n");
+            log_write(instance, "\n");
         }
     }
 
-    print_errors();
+    print_errors(instance);
 
-    print_error_count();
+    print_error_count(instance);
 
-    yangcli_cleanup();
+    yangcli_cleanup(instance);
 
-    print_error_count();
+    print_error_count(instance);
 
 #ifdef MEMORY_DEBUG
-    muntrace();
+    muntrace(instance);
 #endif
 
 

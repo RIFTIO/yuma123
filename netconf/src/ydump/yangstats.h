@@ -59,7 +59,8 @@ extern "C" {
  *    cp == conversion parameters to use
  *********************************************************************/
 extern void
-    yangstats_collect_module_stats (yang_pcb_t *pcb,
+    yangstats_collect_module_stats (struct ncx_instance_t_ *instance,
+                                    yang_pcb_t *pcb,
                                     yangdump_cvtparms_t *cp);
 
 
@@ -74,7 +75,8 @@ extern void
  *    scb == session control block to use for output
  *********************************************************************/
 extern void
-    yangstats_output_module_stats (yang_pcb_t *pcb,
+    yangstats_output_module_stats (struct ncx_instance_t_ *instance,
+                                   yang_pcb_t *pcb,
                                    yangdump_cvtparms_t *cp,
                                    ses_cb_t *scb);
 
@@ -90,7 +92,8 @@ extern void
  *    scb == session control block to use for output
  *********************************************************************/
 extern void
-    yangstats_output_final_stats (yangdump_cvtparms_t *cp,
+    yangstats_output_final_stats (struct ncx_instance_t_ *instance,
+                                  yangdump_cvtparms_t *cp,
                                   ses_cb_t *scb);
 
 #ifdef __cplusplus

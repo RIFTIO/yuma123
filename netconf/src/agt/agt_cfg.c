@@ -226,22 +226,24 @@ static const xmlChar *agt_cfg_txid_filespec;
 *    new value of agt_cfg_txid
 *********************************************************************/
 static cfg_transaction_id_t
-    allocate_txid (void)
+    allocate_txid (ncx_instance_t *instance)
 {
     ++agt_cfg_txid;
     if (agt_cfg_txid == 0) {
         /* skip value zero */
         ++agt_cfg_txid;
     }
-    log_debug2("\nAllocated transaction ID '%llu'", 
+    log_debug2(instance, 
+               "\nAllocated transaction ID '%llu'", 
                (unsigned long long)agt_cfg_txid);
 
     /* for now, update txid file every time new transaction allocated
      * may need to change this to timer-based task if lots of
      * transactions requested per second   */
-    status_t res = agt_cfg_update_txid();
+    status_t res = agt_cfg_update_txid(instance);
     if (res != NO_ERR) {
-        log_error("\nError: could not update TXID file (%s)",
+        log_error(instance,
+                  "\nError: could not update TXID file (%s)",
                   get_error_string(res));
     }
 
@@ -266,7 +268,8 @@ static cfg_transaction_id_t
 *    status
 *********************************************************************/
 static status_t
-    read_txid_file (const xmlChar *txidfile,
+    read_txid_file (ncx_instance_t *instance,
+                    const xmlChar *txidfile,
                     cfg_transaction_id_t *curid)
 {
 
@@ -278,7 +281,8 @@ static status_t
     FILE *fil = fopen((const char *)txidfile, "r");
     if (!fil) {
         res = errno_to_status();
-        log_error("\nError: Open txid file for read failed (%s)", 
+        log_error(instance, 
+                  "\nError: Open txid file for read failed (%s)", 
                   get_error_string(res));
         return res;
     } 
@@ -287,35 +291,39 @@ static status_t
     if (fgets(buffer, sizeof buffer, fil)) {
         /* expecting just 1 line containing the ASCII encoding of
          * the transaction ID  */
-        log_debug4("\nRead transaction ID line '%s'", buffer);
+        log_debug4(instance, "\nRead transaction ID line '%s'", buffer);
 
-        uint32 len = xml_strlen((const xmlChar *)buffer);
+        uint32 len = xml_strlen(instance, (const xmlChar *)buffer);
         if (len > 1) {
             /* strip ending newline */
             buffer[len-1] = 0;
 
             ncx_num_t num;
-            ncx_init_num(&num);
-            res = ncx_convert_num((xmlChar *)buffer, NCX_NF_DEC, NCX_BT_UINT64,
+            ncx_init_num(instance, &num);
+            res = ncx_convert_num(instance, (xmlChar *)buffer, NCX_NF_DEC, NCX_BT_UINT64,
                                   &num);
             if (res == NO_ERR) {
                 agt_cfg_txid = num.ul;
                 *curid = num.ul;
-                log_debug3("\nGot transaction ID line '%llu'", 
+                log_debug3(instance, 
+                           "\nGot transaction ID line '%llu'", 
                            (unsigned long long)num.ul);
             } else {
-                log_error("\nError: txid is not valid (%s)",
+                log_error(instance,
+                          "\nError: txid is not valid (%s)",
                           get_error_string(res));
             }
-            ncx_clean_num(NCX_BT_UINT64, &num);
+            ncx_clean_num(instance, NCX_BT_UINT64, &num);
         } else {
             res = ERR_NCX_INVALID_NUM;
-            log_error("\nError: txid is not valid (%s)",
+            log_error(instance,
+                      "\nError: txid is not valid (%s)",
                       get_error_string(res));
         }
     } else {
         res = errno_to_status();
-        log_error("\nError: Read txid file failed (%s)", 
+        log_error(instance, 
+                  "\nError: Read txid file failed (%s)", 
                   get_error_string(res));
     }
 
@@ -339,7 +347,8 @@ static status_t
 *    status
 *********************************************************************/
 static status_t
-    write_txid_file (const xmlChar *txidfile,
+    write_txid_file (ncx_instance_t *instance,
+                     const xmlChar *txidfile,
                      cfg_transaction_id_t *curid)
 {
 
@@ -350,7 +359,8 @@ static status_t
     FILE *fil = fopen((const char *)txidfile, "w");
     if (!fil) {
         res = errno_to_status();
-        log_error("\nError: Open txid file for write failed (%s)", 
+        log_error(instance, 
+                  "\nError: Open txid file for write failed (%s)", 
                   get_error_string(res));
         return res;
     } 
@@ -359,25 +369,27 @@ static status_t
     char buffer [128];
     ncx_num_t num;
 
-    ncx_init_num(&num);
+    ncx_init_num(instance, &num);
     num.ul = *curid;
 
-    res = ncx_sprintf_num((xmlChar *)buffer, &num, NCX_BT_UINT64, &len);
+    res = ncx_sprintf_num(instance, (xmlChar *)buffer, &num, NCX_BT_UINT64, &len);
     if (res == NO_ERR) {
         buffer[len] = '\n';
         buffer[len+1] = 0;
         int ret = fputs(buffer, fil);
         if (ret <= 0) {
             res = errno_to_status();
-            log_error("\nError: write txid ID file failed (%s)",
+            log_error(instance,
+                      "\nError: write txid ID file failed (%s)",
                       get_error_string(res));
         }
     } else {
-        log_error("\nError: sprintf txid ID failed (%s)",
+        log_error(instance,
+                  "\nError: sprintf txid ID failed (%s)",
                   get_error_string(res));
     }
 
-    ncx_clean_num(NCX_BT_UINT64, &num);
+    ncx_clean_num(instance, NCX_BT_UINT64, &num);
     fclose(fil);
     return res;
 
@@ -402,40 +414,41 @@ static status_t
 *   none
 *********************************************************************/
 static void 
-    clean_undorec (agt_cfg_undo_rec_t *undo,
+    clean_undorec (ncx_instance_t *instance,
+                   agt_cfg_undo_rec_t *undo,
                    boolean reuse)
 {
     if (undo->free_curnode && undo->curnode) {
-        val_free_value(undo->curnode);
+        val_free_value(instance, undo->curnode);
     }
 
     if (undo->curnode_clone) {
-        val_free_value(undo->curnode_clone);
+        val_free_value(instance, undo->curnode_clone);
     }
 
     if (undo->newnode_marker) {
-        val_free_value(undo->newnode_marker);
+        val_free_value(instance, undo->newnode_marker);
     }
 
     if (undo->curnode_marker) {
-        val_free_value(undo->curnode_marker);
+        val_free_value(instance, undo->curnode_marker);
     }
 
     /* really expecting the extra_deleteQ to be empty at this point */
-    while (!dlq_empty(&undo->extra_deleteQ)) {
+    while (!dlq_empty(instance, &undo->extra_deleteQ)) {
         agt_cfg_nodeptr_t *nodeptr = (agt_cfg_nodeptr_t *)
-            dlq_deque(&undo->extra_deleteQ);
+            dlq_deque(instance, &undo->extra_deleteQ);
         if (nodeptr && nodeptr->node) {
-            val_remove_child(nodeptr->node);
-            val_free_value(nodeptr->node);
+            val_remove_child(instance, nodeptr->node);
+            val_free_value(instance, nodeptr->node);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
-        agt_cfg_free_nodeptr(nodeptr);
+        agt_cfg_free_nodeptr(instance, nodeptr);
     }
 
     if (reuse) {
-        agt_cfg_init_undorec(undo);
+        agt_cfg_init_undorec(instance, undo);
     }
 
 } /* clean_undorec */
@@ -466,7 +479,8 @@ static void
 *    malloced transaction struct; need to call agt_cfg_free_transaction
 *********************************************************************/
 agt_cfg_transaction_t *
-    agt_cfg_new_transaction (ncx_cfg_t cfgid,
+    agt_cfg_new_transaction (ncx_instance_t *instance,
+                             ncx_cfg_t cfgid,
                              agt_cfg_edit_type_t edit_type,
                              boolean rootcheck,
                              boolean is_validate,
@@ -476,7 +490,7 @@ agt_cfg_transaction_t *
     assert( edit_type && "edit_type in NONE" );
     assert( res && "res is NULL" );
 
-    cfg_template_t *cfg = cfg_get_config_id(cfgid);
+    cfg_template_t *cfg = cfg_get_config_id(instance, cfgid);
     if (cfg == NULL) {
         *res = ERR_NCX_CFG_NOT_FOUND;
         return NULL;
@@ -488,17 +502,17 @@ agt_cfg_transaction_t *
         return NULL;
     }
 
-    agt_cfg_transaction_t *txcb = m__getObj(agt_cfg_transaction_t);
+    agt_cfg_transaction_t *txcb = m__getObj(instance, agt_cfg_transaction_t);
     if (txcb == NULL) {
         *res = ERR_INTERNAL_MEM;
         return NULL;
     }
 
-    memset(txcb, 0x0, sizeof txcb);
-    dlq_createSQue(&txcb->undoQ);
-    dlq_createSQue(&txcb->auditQ);
-    dlq_createSQue(&txcb->deadnodeQ);
-    txcb->txid = allocate_txid();
+    memset(txcb, 0x0, sizeof(*txcb));
+    dlq_createSQue(instance, &txcb->undoQ);
+    dlq_createSQue(instance, &txcb->auditQ);
+    dlq_createSQue(instance, &txcb->deadnodeQ);
+    txcb->txid = allocate_txid(instance);
     txcb->cfg_id = cfgid;
     txcb->rootcheck = rootcheck;
     txcb->edit_type = edit_type;
@@ -529,7 +543,7 @@ agt_cfg_transaction_t *
 *    txcb == transaction struct to free
 *********************************************************************/
 void
-    agt_cfg_free_transaction (agt_cfg_transaction_t *txcb)
+    agt_cfg_free_transaction (ncx_instance_t *instance, agt_cfg_transaction_t *txcb)
 {
     if (txcb == NULL) {
         return;
@@ -537,10 +551,11 @@ void
 
     /* clear current config txid if any */
     if (txcb->txid) {
-        cfg_template_t *cfg = cfg_get_config_id(txcb->cfg_id);
+        cfg_template_t *cfg = cfg_get_config_id(instance, txcb->cfg_id);
         if (cfg) {
             if (cfg->cur_txid == txcb->txid) {
-                log_debug3("\nClearing current txid for %s config",
+                log_debug3(instance,
+                           "\nClearing current txid for %s config",
                            cfg->name);
                 cfg->cur_txid = 0;
             }
@@ -548,27 +563,27 @@ void
     }
 
     /* clean undo queue */
-    while (!dlq_empty(&txcb->undoQ)) {
+    while (!dlq_empty(instance, &txcb->undoQ)) {
         agt_cfg_undo_rec_t *undorec = (agt_cfg_undo_rec_t *)
-            dlq_deque(&txcb->undoQ);
-        agt_cfg_free_undorec(undorec);
+            dlq_deque(instance, &txcb->undoQ);
+        agt_cfg_free_undorec(instance, undorec);
     }
 
     /* clean audit queue */
-    while (!dlq_empty(&txcb->auditQ)) {
+    while (!dlq_empty(instance, &txcb->auditQ)) {
         agt_cfg_audit_rec_t *auditrec = (agt_cfg_audit_rec_t *)
-            dlq_deque(&txcb->auditQ);
-        agt_cfg_free_auditrec(auditrec);
+            dlq_deque(instance, &txcb->auditQ);
+        agt_cfg_free_auditrec(instance, auditrec);
     }
 
     /* clean dead node queue */
-    while (!dlq_empty(&txcb->deadnodeQ)) {
+    while (!dlq_empty(instance, &txcb->deadnodeQ)) {
         agt_cfg_nodeptr_t *nodeptr = (agt_cfg_nodeptr_t *)
-            dlq_deque(&txcb->deadnodeQ);
-        agt_cfg_free_nodeptr(nodeptr);
+            dlq_deque(instance, &txcb->deadnodeQ);
+        agt_cfg_free_nodeptr(instance, nodeptr);
     }
 
-    m__free(txcb);
+    m__free(instance, txcb);
 
 }  /* agt_cfg_free_transaction */
 
@@ -585,7 +600,8 @@ void
 *   status
 *********************************************************************/
 status_t
-    agt_cfg_init_transactions (const xmlChar *txidfile,
+    agt_cfg_init_transactions (ncx_instance_t *instance,
+                               const xmlChar *txidfile,
                                boolean foundfile)
 {
     assert( txidfile && "txidfile is NULL" );
@@ -598,11 +614,11 @@ status_t
     cfg_transaction_id_t txid = CFG_INITIAL_TXID;
     
     if (foundfile) {
-        res = read_txid_file(txidfile, &txid);
+        res = read_txid_file(instance, txidfile, &txid);
     } else {
-        log_debug("\nNo initial transaction ID file found;"
+        log_debug(instance, "\nNo initial transaction ID file found;"
                   " Setting running config initial transaction id to '0'");
-        res = write_txid_file(txidfile, &txid);
+        res = write_txid_file(instance, txidfile, &txid);
     }
 
     if (res != NO_ERR) {
@@ -610,17 +626,17 @@ status_t
     }
 
     /* set all the last transaction ID values for the standard datastores */
-    cfg_template_t *cfg = cfg_get_config_id(NCX_CFGID_RUNNING);
+    cfg_template_t *cfg = cfg_get_config_id(instance, NCX_CFGID_RUNNING);
     if (cfg != NULL) {
         cfg->last_txid = txid;
     }
 
-    cfg = cfg_get_config_id(NCX_CFGID_CANDIDATE);
+    cfg = cfg_get_config_id(instance, NCX_CFGID_CANDIDATE);
     if (cfg != NULL) {
         cfg->last_txid = txid;
     }
 
-    cfg = cfg_get_config_id(NCX_CFGID_STARTUP);
+    cfg = cfg_get_config_id(instance, NCX_CFGID_STARTUP);
     if (cfg != NULL) {
         cfg->last_txid = txid;
     }
@@ -645,9 +661,9 @@ status_t
 *    txid of transaction in progress or 0 if none
 *********************************************************************/
 cfg_transaction_id_t
-    agt_cfg_txid_in_progress (ncx_cfg_t cfgid)
+    agt_cfg_txid_in_progress (ncx_instance_t *instance, ncx_cfg_t cfgid)
 {
-    cfg_template_t *cfg = cfg_get_config_id(cfgid);
+    cfg_template_t *cfg = cfg_get_config_id(instance, cfgid);
     if (cfg) {
         return cfg->cur_txid;
     }
@@ -667,15 +683,15 @@ cfg_transaction_id_t
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 agt_cfg_undo_rec_t *
-    agt_cfg_new_undorec (void)
+    agt_cfg_new_undorec (ncx_instance_t *instance)
 {
     agt_cfg_undo_rec_t *undo;
 
-    undo = m__getObj(agt_cfg_undo_rec_t);
+    undo = m__getObj(instance, agt_cfg_undo_rec_t);
     if (!undo) {
         return NULL;
     }
-    agt_cfg_init_undorec(undo);
+    agt_cfg_init_undorec(instance, undo);
     return undo;
 
 } /* agt_cfg_new_undorec */
@@ -692,17 +708,17 @@ agt_cfg_undo_rec_t *
 *   none
 *********************************************************************/
 void
-    agt_cfg_init_undorec (agt_cfg_undo_rec_t *undo)
+    agt_cfg_init_undorec (ncx_instance_t *instance, agt_cfg_undo_rec_t *undo)
 {
 #ifdef DEBUG
     if (!undo) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return;
     }
 #endif
 
     memset(undo, 0x0, sizeof(agt_cfg_undo_rec_t));
-    dlq_createSQue(&undo->extra_deleteQ);
+    dlq_createSQue(instance, &undo->extra_deleteQ);
     undo->apply_res = ERR_NCX_SKIPPED;
     undo->commit_res = ERR_NCX_SKIPPED;
     undo->rollback_res = ERR_NCX_SKIPPED;
@@ -721,13 +737,13 @@ void
 *   none
 *********************************************************************/
 void 
-    agt_cfg_free_undorec (agt_cfg_undo_rec_t *undo)
+    agt_cfg_free_undorec (ncx_instance_t *instance, agt_cfg_undo_rec_t *undo)
 {
     if (!undo) {
         return;
     }
-    clean_undorec(undo, FALSE);
-    m__free(undo);
+    clean_undorec(instance, undo, FALSE);
+    m__free(instance, undo);
 
 } /* agt_cfg_free_undorec */
 
@@ -747,12 +763,12 @@ void
 *   none
 *********************************************************************/
 void 
-    agt_cfg_clean_undorec (agt_cfg_undo_rec_t *undo)
+    agt_cfg_clean_undorec (ncx_instance_t *instance, agt_cfg_undo_rec_t *undo)
 {
     if (!undo) {
         return;
     }
-    clean_undorec(undo, TRUE);
+    clean_undorec(instance, undo, TRUE);
 
 } /* agt_cfg_clean_undorec */
 
@@ -770,26 +786,27 @@ void
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 agt_cfg_audit_rec_t *
-    agt_cfg_new_auditrec (const xmlChar *target,
+    agt_cfg_new_auditrec (ncx_instance_t *instance,
+                          const xmlChar *target,
                           op_editop_t editop)
 {
     agt_cfg_audit_rec_t *auditrec;
 
 #ifdef DEBUG
     if (target == NULL) {
-        SET_ERROR(ERR_INTERNAL_PTR);
+        SET_ERROR(instance, ERR_INTERNAL_PTR);
         return NULL;
     }
 #endif
 
-    auditrec = m__getObj(agt_cfg_audit_rec_t);
+    auditrec = m__getObj(instance, agt_cfg_audit_rec_t);
     if (!auditrec) {
         return NULL;
     }
     memset(auditrec, 0x0, sizeof(agt_cfg_audit_rec_t));
-    auditrec->target = xml_strdup(target);
+    auditrec->target = xml_strdup(instance, target);
     if (auditrec->target == NULL) {
-        m__free(auditrec);
+        m__free(instance, auditrec);
         return NULL;
     }
     auditrec->editop = editop;
@@ -810,15 +827,15 @@ agt_cfg_audit_rec_t *
 *   none
 *********************************************************************/
 void 
-    agt_cfg_free_auditrec (agt_cfg_audit_rec_t *auditrec)
+    agt_cfg_free_auditrec (ncx_instance_t *instance, agt_cfg_audit_rec_t *auditrec)
 {
     if (auditrec == NULL) {
         return;
     }
     if (auditrec->target) {
-        m__free(auditrec->target);
+        m__free(instance, auditrec->target);
     }
-    m__free(auditrec);
+    m__free(instance, auditrec);
 
 } /* agt_cfg_free_auditrec */
 
@@ -833,9 +850,9 @@ void
 *   malloced commit test struct or NULL if ERR_INTERNAL_MEM
 *********************************************************************/
 agt_cfg_commit_test_t *
-    agt_cfg_new_commit_test (void)
+    agt_cfg_new_commit_test (ncx_instance_t *instance)
 {
-    agt_cfg_commit_test_t *commit_test = m__getObj(agt_cfg_commit_test_t);
+    agt_cfg_commit_test_t *commit_test = m__getObj(instance, agt_cfg_commit_test_t);
     if (commit_test) {
         memset(commit_test, 0x0, sizeof(agt_cfg_commit_test_t));
     }
@@ -854,19 +871,19 @@ agt_cfg_commit_test_t *
 *
 *********************************************************************/
 void
-    agt_cfg_free_commit_test (agt_cfg_commit_test_t *commit_test)
+    agt_cfg_free_commit_test (ncx_instance_t *instance, agt_cfg_commit_test_t *commit_test)
 {
     if (commit_test == NULL) {
         return;
     }
  
     if (commit_test->objpcb) {
-        xpath_free_pcb(commit_test->objpcb);
+        xpath_free_pcb(instance, commit_test->objpcb);
     }
     if (commit_test->result) {
-        xpath_free_result(commit_test->result);
+        xpath_free_result(instance, commit_test->result);
     }
-    m__free(commit_test);
+    m__free(instance, commit_test);
 
 } /* agt_cfg_free_commit_test */
 
@@ -882,11 +899,11 @@ void
 *   pointer to struct or NULL or memory error
 *********************************************************************/
 agt_cfg_nodeptr_t *
-    agt_cfg_new_nodeptr (val_value_t *node)
+    agt_cfg_new_nodeptr (ncx_instance_t *instance, val_value_t *node)
 {
     agt_cfg_nodeptr_t *nodeptr;
 
-    nodeptr = m__getObj(agt_cfg_nodeptr_t);
+    nodeptr = m__getObj(instance, agt_cfg_nodeptr_t);
     if (!nodeptr) {
         return NULL;
     }
@@ -906,12 +923,12 @@ agt_cfg_nodeptr_t *
 *   nodeptr == agt_cfg_nodeptr_t to clean and delete
 *********************************************************************/
 void 
-    agt_cfg_free_nodeptr (agt_cfg_nodeptr_t *nodeptr)
+    agt_cfg_free_nodeptr (ncx_instance_t *instance, agt_cfg_nodeptr_t *nodeptr)
 {
     if (!nodeptr) {
         return;
     }
-    m__free(nodeptr);
+    m__free(instance, nodeptr);
 
 } /* agt_cfg_free_nodeptr */
 
@@ -925,15 +942,16 @@ void
 *   status
 *********************************************************************/
 status_t 
-    agt_cfg_update_txid (void)
+    agt_cfg_update_txid (ncx_instance_t *instance)
 {
     assert( agt_cfg_txid_filespec && "txidfile is NULL" );
 
     status_t res = NO_ERR;
 
-    log_debug2("\nUpdating agt_txid file to '%llu'",
+    log_debug2(instance,
+               "\nUpdating agt_txid file to '%llu'",
                (unsigned long long)agt_cfg_txid);
-    res = write_txid_file(agt_cfg_txid_filespec, &agt_cfg_txid);
+    res = write_txid_file(instance, agt_cfg_txid_filespec, &agt_cfg_txid);
     return res;
 
 }  /* agt_cfg_update_txid */

@@ -98,6 +98,8 @@ date         init     comment
 extern "C" {
 #endif
 
+struct ncx_instance_t_;
+
 /********************************************************************
 *
 *                             C O N S T A N T S
@@ -150,7 +152,7 @@ typedef struct TAGdlq_hdrT
 * INPUTS:
 *   nodeP == Q header cast as a void *
 *********************************************************************/
-extern void dlq_dumpHdr (const void *nodeP);
+extern void dlq_dumpHdr (struct ncx_instance_t_ *instance, const void *nodeP);
 #endif
 
 
@@ -163,7 +165,7 @@ extern void dlq_dumpHdr (const void *nodeP);
 *   pointer to malloced queue header
 *   NULL if memory error
 *********************************************************************/
-extern dlq_hdrT * dlq_createQue (void);
+extern dlq_hdrT * dlq_createQue (struct ncx_instance_t_ *instance);
 
 
 /********************************************************************
@@ -174,7 +176,7 @@ extern dlq_hdrT * dlq_createQue (void);
 * INPUTS:
 *   queAddr == pointer to malloced queue header to initialize
 *********************************************************************/
-extern void dlq_createSQue (dlq_hdrT * queAddr);
+extern void dlq_createSQue (struct ncx_instance_t_ *instance, dlq_hdrT * queAddr);
 
 
 /********************************************************************
@@ -186,7 +188,7 @@ extern void dlq_createSQue (dlq_hdrT * queAddr);
 * INPUTS:
 *   listP == pointer to malloced queue header to free
 *********************************************************************/
-extern void dlq_destroyQue (dlq_hdrT * listP);
+extern void dlq_destroyQue (struct ncx_instance_t_ *instance, dlq_hdrT * listP);
 
 
 /********************************************************************
@@ -198,7 +200,7 @@ extern void dlq_destroyQue (dlq_hdrT * listP);
 *   newP == pointer to queue entry to add
 *   listP == pointer to queue list to put newP
 *********************************************************************/
-extern void dlq_enque (REG void *newP, REG dlq_hdrT * listP);
+extern void dlq_enque (struct ncx_instance_t_ *instance, REG void *newP, REG dlq_hdrT * listP);
 
 
 /********************************************************************
@@ -213,7 +215,7 @@ extern void dlq_enque (REG void *newP, REG dlq_hdrT * listP);
 *   pointer to removed first entry
 *   NULL if the queue was empty
 *********************************************************************/
-extern void *dlq_deque (dlq_hdrT * listP);
+extern void *dlq_deque (struct ncx_instance_t_ *instance, dlq_hdrT * listP);
 
 
 /********************************************************************
@@ -229,9 +231,9 @@ extern void *dlq_deque (dlq_hdrT * listP);
 *   NULL if the no next entry was found
 *********************************************************************/
 #if defined(CPP_NO_MACROS)
-extern void *dlq_nextEntry (const void *nodeP);
+extern void *dlq_nextEntry (struct ncx_instance_t_ *instance, const void *nodeP);
 #else
-#define dlq_nextEntry(P)  (_data_node(((const dlq_hdrT *) (P))->next) ? \
+#define dlq_nextEntry(instance, P)  (_data_node(((const dlq_hdrT *) (P))->next) ? \
       ((const dlq_hdrT *) (P))->next : NULL)
 #endif        /* END CPP_NO_MACROS */
 
@@ -249,9 +251,9 @@ extern void *dlq_nextEntry (const void *nodeP);
 *   NULL if the no previous entry was found
 *********************************************************************/
 #if defined(CPP_NO_MACROS)
-extern void *dlq_prevEntry (const void *nodeP);
+extern void *dlq_prevEntry (struct ncx_instance_t_ *instance, const void *nodeP);
 #else
-#define dlq_prevEntry(P) (_data_node(((const dlq_hdrT *) (P))->prev ) ? \
+#define dlq_prevEntry(instance, P) (_data_node(((const dlq_hdrT *) (P))->prev ) ? \
       ((const dlq_hdrT *) (P))->prev : NULL)
 #endif    /* CPP_NO_MACROS */
 
@@ -265,7 +267,7 @@ extern void *dlq_prevEntry (const void *nodeP);
 *   newP == pointer to new queue entry to insert ahead of nodeP
 *   nodeP == pointer to current queue entry to insert ahead
 *********************************************************************/
-extern void dlq_insertAhead (void *newP, void *nodeP);
+extern void dlq_insertAhead (struct ncx_instance_t_ *instance, void *newP, void *nodeP);
 
 
 /********************************************************************
@@ -277,7 +279,7 @@ extern void dlq_insertAhead (void *newP, void *nodeP);
 *   newP == pointer to new queue entry to insert after nodeP
 *   nodeP == pointer to current queue entry to insert after
 *********************************************************************/
-extern void dlq_insertAfter (void *newP, void *nodeP);
+extern void dlq_insertAfter (struct ncx_instance_t_ *instance, void *newP, void *nodeP);
 
 
 /********************************************************************
@@ -290,7 +292,7 @@ extern void dlq_insertAfter (void *newP, void *nodeP);
 * INPUTS:
 *   nodeP == pointer to queue entry to remove from queue
 *********************************************************************/
-extern void dlq_remove (void *nodeP);
+extern void dlq_remove (struct ncx_instance_t_ *instance, void *nodeP);
 
 
 /********************************************************************
@@ -306,7 +308,7 @@ extern void dlq_remove (void *nodeP);
 *   new_node == pointer to new queue entry to put into queue
 *   cur_node == pointer to current queue entry to remove from queue
 *********************************************************************/
-extern void dlq_swap (void *new_node, void *cur_node);
+extern void dlq_swap (struct ncx_instance_t_ *instance, void *new_node, void *cur_node);
 
 
 /********************************************************************
@@ -322,9 +324,9 @@ extern void dlq_swap (void *new_node, void *cur_node);
 *   NULL if the queue is empty
 *********************************************************************/
 #if defined(CPP_NO_MACROS)
-extern void *dlq_firstEntry (const dlq_hdrT * listP);
+extern void *dlq_firstEntry (struct ncx_instance_t_ *instance, const dlq_hdrT * listP);
 #else
-#define dlq_firstEntry(P) ((P) != ((const dlq_hdrT *)(P))->next ? \
+#define dlq_firstEntry(instance, P) ((P) != ((const dlq_hdrT *)(P))->next ? \
         ((const dlq_hdrT *)(P))->next : NULL)
 #endif        /* CPP_NO_MACROS */
 
@@ -342,9 +344,9 @@ extern void *dlq_firstEntry (const dlq_hdrT * listP);
 *   NULL if the queue is empty
 *********************************************************************/
 #if defined(CPP_NO_MACROS)
-extern void *dlq_lastEntry (const dlq_hdrT * listP);
+extern void *dlq_lastEntry (struct ncx_instance_t_ *instance, const dlq_hdrT * listP);
 #else
-#define dlq_lastEntry(P) ((P) != ((const dlq_hdrT *)(P))->next ? \
+#define dlq_lastEntry(instance, P) ((P) != ((const dlq_hdrT *)(P))->next ? \
         ((const dlq_hdrT *)(P))->prev : NULL)
 #endif        /* CPP_NO_MACROS */
 
@@ -362,9 +364,9 @@ extern void *dlq_lastEntry (const dlq_hdrT * listP);
 *   FALSE if queue is not empty
 *********************************************************************/
 #if defined(CPP_NO_MACROS)
-extern boolean dlq_empty (const dlq_hdrT * listP);
+extern boolean dlq_empty (struct ncx_instance_t_ *instance, const dlq_hdrT * listP);
 #else
-#define dlq_empty(P) (boolean)((P)==((const dlq_hdrT *)(P))->next)
+#define dlq_empty(instance, P) (boolean)((P)==((const dlq_hdrT *)(P))->next)
 #endif        /* CPP_NO_MACROS */
 
 
@@ -378,7 +380,7 @@ extern boolean dlq_empty (const dlq_hdrT * listP);
 *   srcP == pointer to queue list entry to add end of dstP list
 *   dstP == pointer to queue list to add all newP entries
 *********************************************************************/
-extern void dlq_block_enque (dlq_hdrT * srcP, dlq_hdrT * dstP);
+extern void dlq_block_enque (struct ncx_instance_t_ *instance, dlq_hdrT * srcP, dlq_hdrT * dstP);
 
 
 /********************************************************************
@@ -392,7 +394,7 @@ extern void dlq_block_enque (dlq_hdrT * srcP, dlq_hdrT * dstP);
 *           ahead of dstP
 *   dstP == pointer to current queue entry to insert ahead
 *********************************************************************/
-extern void dlq_block_insertAhead (dlq_hdrT *srcP, void *dstP);
+extern void dlq_block_insertAhead (struct ncx_instance_t_ *instance, dlq_hdrT *srcP, void *dstP);
 
 
 /********************************************************************
@@ -406,7 +408,7 @@ extern void dlq_block_insertAhead (dlq_hdrT *srcP, void *dstP);
 *           after dstP
 *   dstP == pointer to current queue entry to insert after
 *********************************************************************/
-extern void dlq_block_insertAfter (dlq_hdrT *srcP, void *dstP);
+extern void dlq_block_insertAfter (struct ncx_instance_t_ *instance, dlq_hdrT *srcP, void *dstP);
 
 
 /********************************************************************
@@ -424,7 +426,7 @@ extern void dlq_block_insertAfter (dlq_hdrT *srcP, void *dstP);
 *   dstQ == pointer to destination queue list to move the
 *           entries from the srcQ to the end of this queue
 *********************************************************************/
-extern void dlq_block_move (dlq_hdrT *srcQ, void *srcP, dlq_hdrT * dstQ);
+extern void dlq_block_move (struct ncx_instance_t_ *instance, dlq_hdrT *srcQ, void *srcP, dlq_hdrT * dstQ);
 
 
 /********************************************************************
@@ -438,7 +440,7 @@ extern void dlq_block_move (dlq_hdrT *srcQ, void *srcP, dlq_hdrT * dstQ);
 * RETURNS:
 *   number of queue entries found in listP queue
 *********************************************************************/
-extern unsigned int dlq_count (const dlq_hdrT *listP);
+extern unsigned int dlq_count (struct ncx_instance_t_ *instance, const dlq_hdrT *listP);
 
 
 #ifdef __cplusplus

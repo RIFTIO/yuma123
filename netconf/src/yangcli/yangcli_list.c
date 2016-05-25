@@ -138,7 +138,8 @@ date         init     comment
  *   status
  *********************************************************************/
 static status_t
-    do_list_one_oid (obj_template_t *obj,
+    do_list_one_oid (ncx_instance_t *instance,
+                     obj_template_t *obj,
                      help_mode_t help_mode)
 {
     xmlChar      *buffer;
@@ -147,36 +148,39 @@ static status_t
 
     res = NO_ERR;
 
-    if (obj_is_data_db(obj) && 
-        obj_has_name(obj) &&
-        !obj_is_hidden(obj) && 
-        !obj_is_abstract(obj)) {
+    if (obj_is_data_db(instance, obj) && 
+        obj_has_name(instance, obj) &&
+        !obj_is_hidden(instance, obj) && 
+        !obj_is_abstract(instance, obj)) {
 
         imode = interactive_mode();
         buffer = NULL;
-        res = obj_gen_object_id(obj, &buffer);
+        res = obj_gen_object_id(instance, obj, &buffer);
         if (res != NO_ERR) {
-            log_error("\nError: list OID failed (%s)",
+            log_error(instance,
+                      "\nError: list OID failed (%s)",
                       get_error_string(res));
         } else if (help_mode == HELP_MODE_FULL) {
             if (imode) {
-                log_stdout("\n   %s %s", 
-                           obj_get_typestr(obj),
+                log_stdout(instance, 
+                           "\n   %s %s", 
+                           obj_get_typestr(instance, obj),
                            buffer);
             } else {
-                log_write("\n   %s %s", 
-                          obj_get_typestr(obj),
+                log_write(instance, 
+                          "\n   %s %s", 
+                          obj_get_typestr(instance, obj),
                           buffer);
             }
         } else {
             if (imode) {
-                log_stdout("\n   %s", buffer);
+                log_stdout(instance, "\n   %s", buffer);
             } else {
-                log_write("\n   %s", buffer);
+                log_write(instance, "\n   %s", buffer);
             }
         }
         if (buffer) {
-            m__free(buffer);
+            m__free(instance, buffer);
         }
     }
 
@@ -199,7 +203,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_list_oid (obj_template_t *obj,
+    do_list_oid (ncx_instance_t *instance,
+                 obj_template_t *obj,
                  uint32 level,
                  help_mode_t  help_mode)
     
@@ -209,12 +214,12 @@ static status_t
 
     res = NO_ERR;
 
-    if (obj_get_level(obj) <= level) {
-        res = do_list_one_oid(obj, help_mode);
-        for (chobj = obj_first_child(obj);
+    if (obj_get_level(instance, obj) <= level) {
+        res = do_list_one_oid(instance, obj, help_mode);
+        for (chobj = obj_first_child(instance, obj);
              chobj != NULL && res == NO_ERR;
-             chobj = obj_next_child(chobj)) {
-            res = do_list_oid(chobj, level, help_mode);
+             chobj = obj_next_child(instance, chobj)) {
+            res = do_list_oid(instance, chobj, level, help_mode);
         }
     }
 
@@ -238,7 +243,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_list_oids (server_cb_t *server_cb,
+    do_list_oids (ncx_instance_t *instance,
+                  server_cb_t *server_cb,
                   ncx_module_t *mod,
                   help_mode_t mode)
 {
@@ -263,36 +269,36 @@ static status_t
         level = 999;
         break;
     default:
-        return SET_ERROR(ERR_INTERNAL_VAL);
+        return SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
     imode = interactive_mode();
 
     if (mod) {
-        obj = ncx_get_first_object(mod);
+        obj = ncx_get_first_object(instance, mod);
         while (obj && res == NO_ERR) {
-            res = do_list_oid(obj, level, mode);
-            obj = ncx_get_next_object(mod, obj);
+            res = do_list_oid(instance, obj, level, mode);
+            obj = ncx_get_next_object(instance, mod, obj);
         }
-    } else if (use_servercb(server_cb)) {
+    } else if (use_servercb(instance, server_cb)) {
         for (modptr = (modptr_t *)
-                 dlq_firstEntry(&server_cb->modptrQ);
+                 dlq_firstEntry(instance, &server_cb->modptrQ);
              modptr != NULL;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            obj = ncx_get_first_object(modptr->mod);
+            obj = ncx_get_first_object(instance, modptr->mod);
             while (obj && res == NO_ERR) {
-                res = do_list_oid(obj, level, mode);
-                obj = ncx_get_next_object(modptr->mod, obj);
+                res = do_list_oid(instance, obj, level, mode);
+                obj = ncx_get_next_object(instance, modptr->mod, obj);
             }
         }
     } else {
         return res;
     }
     if (imode) {
-        log_stdout("\n");
+        log_stdout(instance, "\n");
     } else {
-        log_write("\n");
+        log_write(instance, "\n");
     }
 
     return res;
@@ -313,32 +319,37 @@ static status_t
  *    status
  *********************************************************************/
 static status_t
-    do_list_one_command (obj_template_t *obj,
+    do_list_one_command (ncx_instance_t *instance,
+                         obj_template_t *obj,
                          help_mode_t mode)
 {
     if (interactive_mode()) {
         if (mode == HELP_MODE_BRIEF) {
-            log_stdout("\n   %s", obj_get_name(obj));
+            log_stdout(instance, "\n   %s", obj_get_name(instance, obj));
         } else if (mode == HELP_MODE_NORMAL) {
-            log_stdout("\n   %s:%s",
+            log_stdout(instance,
+                       "\n   %s:%s",
                        obj_get_mod_xmlprefix(obj),
-                       obj_get_name(obj));
+                       obj_get_name(instance, obj));
         } else {
-            log_stdout("\n   %s:%s",
-                       obj_get_mod_name(obj),
-                       obj_get_name(obj));
+            log_stdout(instance,
+                       "\n   %s:%s",
+                       obj_get_mod_name(instance, obj),
+                       obj_get_name(instance, obj));
         }
     } else {
         if (mode == HELP_MODE_BRIEF) {
-            log_write("\n   %s", obj_get_name(obj));
+            log_write(instance, "\n   %s", obj_get_name(instance, obj));
         } else if (mode == HELP_MODE_NORMAL) {
-            log_write("\n   %s:%s",
+            log_write(instance,
+                      "\n   %s:%s",
                       obj_get_mod_xmlprefix(obj),
-                      obj_get_name(obj));
+                      obj_get_name(instance, obj));
         } else {
-            log_write("\n   %s:%s",
-                      obj_get_mod_name(obj),
-                      obj_get_name(obj));
+            log_write(instance,
+                      "\n   %s:%s",
+                      obj_get_mod_name(instance, obj),
+                      obj_get_name(instance, obj));
         }
     }
 
@@ -362,7 +373,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_list_objects (server_cb_t *server_cb,
+    do_list_objects (ncx_instance_t *instance,
+                     server_cb_t *server_cb,
                      ncx_module_t *mod,
                      help_mode_t mode)
 {
@@ -382,62 +394,62 @@ static status_t
     }
 
     if (mod) {
-        obj = ncx_get_first_object(mod);
+        obj = ncx_get_first_object(instance, mod);
         while (obj && res == NO_ERR) {
-            if (obj_is_data_db(obj) && 
-                obj_has_name(obj) &&
-                !obj_is_hidden(obj) && 
-                !obj_is_abstract(obj)) {
+            if (obj_is_data_db(instance, obj) && 
+                obj_has_name(instance, obj) &&
+                !obj_is_hidden(instance, obj) && 
+                !obj_is_abstract(instance, obj)) {
                 anyout = TRUE;
-                res = do_list_one_command(obj, mode);
+                res = do_list_one_command(instance, obj, mode);
             }
-            obj = ncx_get_next_object(mod, obj);
+            obj = ncx_get_next_object(instance, mod, obj);
         }
     } else {
-        if (use_servercb(server_cb)) {
+        if (use_servercb(instance, server_cb)) {
             for (modptr = (modptr_t *)
-                     dlq_firstEntry(&server_cb->modptrQ);
+                     dlq_firstEntry(instance, &server_cb->modptrQ);
                  modptr != NULL;
-                 modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+                 modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-                obj = ncx_get_first_object(modptr->mod);
+                obj = ncx_get_first_object(instance, modptr->mod);
                 while (obj && res == NO_ERR) {
-                    if (obj_is_data_db(obj) && 
-                        obj_has_name(obj) &&
-                        !obj_is_hidden(obj) && 
-                        !obj_is_abstract(obj)) {
+                    if (obj_is_data_db(instance, obj) && 
+                        obj_has_name(instance, obj) &&
+                        !obj_is_hidden(instance, obj) && 
+                        !obj_is_abstract(instance, obj)) {
                         anyout = TRUE;                  
-                        res = do_list_one_command(obj, mode);
+                        res = do_list_one_command(instance, obj, mode);
                     }
-                    obj = ncx_get_next_object(modptr->mod, obj);
+                    obj = ncx_get_next_object(instance, modptr->mod, obj);
                 }
             }
         }
 
         for (modptr = (modptr_t *)
-                 dlq_firstEntry(get_mgrloadQ());
+                 dlq_firstEntry(instance, get_mgrloadQ());
              modptr != NULL && res == NO_ERR;
-             modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+             modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-            obj = ncx_get_first_object(modptr->mod);
+            obj = ncx_get_first_object(instance, modptr->mod);
             while (obj && res == NO_ERR) {
-                if (obj_is_data_db(obj) && 
-                    obj_has_name(obj) &&
-                    !obj_is_hidden(obj) && 
-                    !obj_is_abstract(obj)) {
+                if (obj_is_data_db(instance, obj) && 
+                    obj_has_name(instance, obj) &&
+                    !obj_is_hidden(instance, obj) && 
+                    !obj_is_abstract(instance, obj)) {
                     anyout = TRUE;                  
-                    res = do_list_one_command(obj, mode);
+                    res = do_list_one_command(instance, obj, mode);
                 }
-                obj = ncx_get_next_object(modptr->mod, obj);
+                obj = ncx_get_next_object(instance, modptr->mod, obj);
             }
         }
     }
 
     if (!anyout) {
-        (*logfn)("\nNo objects found to list");
+        (*logfn)(instance, "\nNo objects found to list");
     }
 
-    (*logfn)("\n");
+    (*logfn)(instance, "\n");
 
     return res;
 
@@ -459,7 +471,8 @@ static status_t
  *   status
  *********************************************************************/
 static status_t
-    do_list_commands (server_cb_t *server_cb,
+    do_list_commands (ncx_instance_t *instance,
+                      server_cb_t *server_cb,
                       ncx_module_t *mod,
                       help_mode_t mode)
 {
@@ -479,59 +492,59 @@ static status_t
 
     if (mod) {
         anyout = FALSE;
-        obj = ncx_get_first_object(mod);
+        obj = ncx_get_first_object(instance, mod);
         while (obj && res == NO_ERR) {
-            if (obj_is_rpc(obj)) {
-                res = do_list_one_command(obj, mode);
+            if (obj_is_rpc(instance, obj)) {
+                res = do_list_one_command(instance, obj, mode);
                 anyout = TRUE;
             }
-            obj = ncx_get_next_object(mod, obj);
+            obj = ncx_get_next_object(instance, mod, obj);
         }
         if (!anyout) {
-            (*logfn)("\nNo commands found in module '%s'",
+            (*logfn)(instance, "\nNo commands found in module '%s'",
                      mod->name);
         }
     } else {
-        if (use_servercb(server_cb)) {
-            (*logfn)("\nServer Commands:");
+        if (use_servercb(instance, server_cb)) {
+            (*logfn)(instance, "\nServer Commands:");
         
             for (modptr = (modptr_t *)
-                     dlq_firstEntry(&server_cb->modptrQ);
+                     dlq_firstEntry(instance, &server_cb->modptrQ);
                  modptr != NULL && res == NO_ERR;
-                 modptr = (modptr_t *)dlq_nextEntry(modptr)) {
+                 modptr = (modptr_t *)dlq_nextEntry(instance, modptr)) {
 
-                obj = ncx_get_first_object(modptr->mod);
+                obj = ncx_get_first_object(instance, modptr->mod);
                 while (obj) {
-                    if (obj_is_rpc(obj)) {
-                        res = do_list_one_command(obj, mode);
+                    if (obj_is_rpc(instance, obj)) {
+                        res = do_list_one_command(instance, obj, mode);
                     }
-                    obj = ncx_get_next_object(modptr->mod, obj);
+                    obj = ncx_get_next_object(instance, modptr->mod, obj);
                 }
             }
         }
 
-        (*logfn)("\n\nLocal Commands:");
+        (*logfn)(instance, "\n\nLocal Commands:");
 
-        obj = ncx_get_first_object(get_yangcli_mod());
+        obj = ncx_get_first_object(instance, get_yangcli_mod());
         while (obj && res == NO_ERR) {
-            if (obj_is_rpc(obj)) {
-                if (use_servercb(server_cb)) {
+            if (obj_is_rpc(instance, obj)) {
+                if (use_servercb(instance, server_cb)) {
                     /* list a local command */
-                    res = do_list_one_command(obj, mode);
+                    res = do_list_one_command(instance, obj, mode);
                 } else {
                     /* session not active so filter out
                      * all the commands except top command
                      */
-                    if (is_top_command(obj_get_name(obj))) {
-                        res = do_list_one_command(obj, mode);
+                    if (is_top_command(instance, obj_get_name(instance, obj))) {
+                        res = do_list_one_command(instance, obj, mode);
                     }
                 }
             }
-            obj = ncx_get_next_object(get_yangcli_mod(), obj);
+            obj = ncx_get_next_object(instance, get_yangcli_mod(), obj);
         }
     }
 
-    (*logfn)("\n");
+    (*logfn)(instance, "\n");
 
     return res;
 
@@ -557,7 +570,8 @@ static status_t
  *   status
  *********************************************************************/
 status_t
-    do_list (server_cb_t *server_cb,
+    do_list (ncx_instance_t *instance,
+             server_cb_t *server_cb,
              obj_template_t *rpc,
              const xmlChar *line,
              uint32  len)
@@ -573,18 +587,20 @@ status_t
     res = NO_ERR;
     imode = interactive_mode();
 
-    valset = get_valset(server_cb, rpc, &line[len], &res);
+    valset = get_valset(instance, server_cb, rpc, &line[len], &res);
     if (valset && res == NO_ERR) {
         mode = HELP_MODE_NORMAL;
 
         /* check if the 'brief' flag is set first */
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_BRIEF);
         if (parm && parm->res == NO_ERR) {
             mode = HELP_MODE_BRIEF;
         } else {
-            parm = val_find_child(valset, 
+            parm = val_find_child(instance, 
+                                  valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_FULL);
             if (parm && parm->res == NO_ERR) {
@@ -592,17 +608,20 @@ status_t
             }
         }
 
-        parm = val_find_child(valset, 
+        parm = val_find_child(instance, 
+                              valset, 
                               YANGCLI_MOD, 
                               YANGCLI_MODULE);
         if (parm && parm->res == NO_ERR) {
-            mod = find_module(server_cb, VAL_STR(parm));
+            mod = find_module(instance, server_cb, VAL_STR(parm));
             if (!mod) {
                 if (imode) {
-                    log_stdout("\nError: no module found named '%s'",
+                    log_stdout(instance,
+                               "\nError: no module found named '%s'",
                                VAL_STR(parm)); 
                 } else {
-                    log_write("\nError: no module found named '%s'",
+                    log_write(instance,
+                              "\nError: no module found named '%s'",
                               VAL_STR(parm)); 
                 }
                 done = TRUE;
@@ -611,67 +630,73 @@ status_t
 
         /* find the 1 of N choice */
         if (!done) {
-            parm = val_find_child(valset, 
+            parm = val_find_child(instance, 
+                                  valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_COMMANDS);
             if (parm) {
                 /* do list commands */
-                res = do_list_commands(server_cb, mod, mode);
+                res = do_list_commands(instance, server_cb, mod, mode);
                 done = TRUE;
             }
         }
 
         if (!done) {
-            parm = val_find_child(valset, 
+            parm = val_find_child(instance, 
+                                  valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_FILES);
             if (parm) {
                 /* list the data files */
-                res = ncxmod_list_data_files(mode, imode);
+                res = ncxmod_list_data_files(instance, mode, imode);
                 done = TRUE;
             }
         }
 
         if (!done) {
-            parm = val_find_child(valset, 
+            parm = val_find_child(instance, 
+                                  valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_OBJECTS);
             if (parm) {
                 /* do list objects */
-                res = do_list_objects(server_cb, mod, mode);
+                res = do_list_objects(instance, server_cb, mod, mode);
                 done = TRUE;
             }
         }
 
         if (!done) {
-            parm = val_find_child(valset, 
+            parm = val_find_child(instance, 
+                                  valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_OIDS);
             if (parm) {
                 /* do list oids */
-                res = do_list_oids(server_cb, mod, mode);
+                res = do_list_oids(instance, server_cb, mod, mode);
                 done = TRUE;
             }
         }
 
         if (!done) {
-            parm = val_find_child(valset, 
+            parm = val_find_child(instance, 
+                                  valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_MODULES);
             if (parm) {
                 /* list the YANG files */
-                res = ncxmod_list_yang_files(mode, imode);
+                res = ncxmod_list_yang_files(instance, mode, imode);
                 done = TRUE;
             }
         }
 
         if (!done) {
-            parm = val_find_child(valset, 
+            parm = val_find_child(instance, 
+                                  valset, 
                                   YANGCLI_MOD, 
                                   YANGCLI_SCRIPTS);
             if (parm) {
                 /* list the script files */
-                res = ncxmod_list_script_files(mode, imode);
+                res = ncxmod_list_script_files(instance, mode, imode);
                 done = TRUE;
             }
         }
@@ -679,7 +704,7 @@ status_t
     }
 
     if (valset) {
-        val_free_value(valset);
+        val_free_value(instance, valset);
     }
 
     return res;

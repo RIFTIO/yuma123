@@ -119,17 +119,18 @@ date         init     comment
  *    statval == number to output
  *********************************************************************/
 static void
-    output_stat (yangdump_cvtparms_t *cp,
+    output_stat (ncx_instance_t *instance,
+                 yangdump_cvtparms_t *cp,
                  ses_cb_t *scb,
                  const char *labelstr,
                  uint32 statval)
 {
-    ses_putchar(scb, '\n');
-    ses_putstr(scb, (const xmlChar *)labelstr);
-    ses_putchar(scb, ':');
-    ses_putchar(scb, ' ');
+    ses_putchar(instance, scb, '\n');
+    ses_putstr(instance, scb, (const xmlChar *)labelstr);
+    ses_putchar(instance, scb, ':');
+    ses_putchar(instance, scb, ' ');
     sprintf(cp->buff, "%u", statval);
-    ses_putstr(scb, (const xmlChar *)cp->buff);
+    ses_putstr(instance, scb, (const xmlChar *)cp->buff);
 
 }  /* output_stat */
 
@@ -145,231 +146,272 @@ static void
  *    cp == conversion parameters to use
  *********************************************************************/
 static void
-    output_stats (ses_cb_t *scb,
+    output_stats (ncx_instance_t *instance,
+                  ses_cb_t *scb,
                   yangdump_stats_t *stats,
                   yangdump_cvtparms_t *cp)
 {
     /* --stats=brief */
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb, 
                 "Complexity score", 
                 stats->complexity_score);
                 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Total Nodes", 
                 stats->num_config_objs +
                 stats->num_state_objs);
 
     if (cp->stats == YANGDUMP_REPORT_BRIEF) {
-        ses_putchar(scb, '\n');
+        ses_putchar(instance, scb, '\n');
         return;
     }
 
     /* --stats=basic */
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb, 
                 "Extensions", 
                 stats->num_extensions);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Features", 
                 stats->num_features);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb, 
                 "Groupings", 
                 stats->num_groupings);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb, 
                 "Typedefs", 
                 stats->num_typedefs);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Deviations", 
                 stats->num_deviations);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Top Data Nodes", 
                 stats->num_top_datanodes);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Config nodes", 
                 stats->num_config_objs);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Non-config nodes", 
                 stats->num_state_objs);
 
     if (cp->stats == YANGDUMP_REPORT_BASIC) {
-        ses_putchar(scb, '\n');
+        ses_putchar(instance, scb, '\n');
         return;
     }
 
     /* --stats=advanced */
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Mandatory nodes", 
                 stats->num_mandatory_nodes);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Optional nodes", 
                 stats->num_optional_nodes);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Notifications", 
                 stats->num_notifications);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Rpcs", 
                 stats->num_rpcs);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Rpc inputs", 
                 stats->num_inputs);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Rpc outputs", 
                 stats->num_outputs);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Augments",
                 stats->num_augments);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Uses",
                 stats->num_uses);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Choices",
                 stats->num_choices);
 
-    output_stat(cp, 
+    output_stat(instance, 
+                cp, 
                 scb,
                 "Cases",
                 stats->num_cases);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Anyxmls",
                 stats->num_anyxmls);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "NP Containers", 
                 stats->num_np_containers);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "P Containers", 
                 stats->num_p_containers);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Lists",
                 stats->num_lists);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Leaf-lists", 
                 stats->num_leaf_lists);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Key leafs", 
                 stats->num_key_leafs);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Plain leafs", 
                 stats->num_plain_leafs);
 
     if (cp->stats == YANGDUMP_REPORT_ADVANCED) {
-        ses_putchar(scb, '\n');
+        ses_putchar(instance, scb, '\n');
         return;
     }
 
     /* --stats=all */
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Imports",
                 stats->num_imports);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Integral numbers",
                 stats->num_numbers);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Decimal64s",
                 stats->num_dec64s);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Enumerations",
                 stats->num_enums);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Bits",
                 stats->num_bits);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Booleans",
                 stats->num_booleans);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Emptys",
                 stats->num_emptys);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Strings",
                 stats->num_strings);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Binarys",
                 stats->num_binarys);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Instance Identifiers",
                 stats->num_iis);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Leafrefs",
                 stats->num_leafrefs);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Identityrefs",
                 stats->num_idrefs);
 
-    output_stat(cp,
+    output_stat(instance,
+                cp,
                 scb,
                 "Unions",
                 stats->num_unions);
 
-    ses_putchar(scb, '\n');
+    ses_putchar(instance, scb, '\n');
 
 }  /* output_stats */
 
@@ -384,12 +426,13 @@ static void
  *    stats == statistics block to use
  *********************************************************************/
 static void
-    collect_type_stats (obj_template_t *obj,
+    collect_type_stats (ncx_instance_t *instance,
+                        obj_template_t *obj,
                         yangdump_stats_t *stats)
 {
     ncx_btype_t   btyp;
 
-    btyp = obj_get_basetype(obj);
+    btyp = obj_get_basetype(instance, obj);
     switch (btyp) {
     case NCX_BT_BITS:
         stats->num_bits++;
@@ -439,7 +482,7 @@ static void
             stats->num_strings++;
             stats->complexity_score += YS_WEIGHT_STRING;
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 
@@ -457,7 +500,8 @@ static void
  *    stats == statistics block to use
  *********************************************************************/
 static void
-    collect_object_stats (yangdump_cvtparms_t *cp,
+    collect_object_stats (ncx_instance_t *instance,
+                          yangdump_cvtparms_t *cp,
                           obj_template_t *obj,
                           yangdump_stats_t *stats)
 {
@@ -465,20 +509,20 @@ static void
     dlq_hdr_t         *que;
     uint32             level;
 
-    level = obj_get_level(obj);
+    level = obj_get_level(instance, obj);
     stats->complexity_score += level;
-    if (obj_is_data_db(obj)) {
+    if (obj_is_data_db(instance, obj)) {
         if (level == 1) {
             stats->num_top_datanodes++;
         }
     }
 
-    if (obj_is_mandatory(obj)) {
+    if (obj_is_mandatory(instance, obj)) {
         stats->num_mandatory_nodes++;
     } else {
         stats->num_optional_nodes++;
     }
-    if (obj_get_config_flag(obj)) {
+    if (obj_get_config_flag(instance, obj)) {
         stats->num_config_objs++;
         stats->complexity_score += YS_WEIGHT_CONFIG;
     } else {
@@ -492,7 +536,7 @@ static void
         stats->complexity_score += YS_WEIGHT_ANYXML;
         return;
     case OBJ_TYP_CONTAINER:
-        if (obj_get_presence_string(obj) != NULL) {
+        if (obj_get_presence_string(instance, obj) != NULL) {
             stats->num_p_containers++;
             stats->complexity_score += YS_WEIGHT_P_CONTAINER;
         } else {
@@ -507,12 +551,12 @@ static void
             stats->num_plain_leafs++;
         }
         stats->complexity_score += YS_WEIGHT_LEAF;
-        collect_type_stats(obj, stats);
+        collect_type_stats(instance, obj, stats);
         return;
     case OBJ_TYP_LEAF_LIST:
         stats->num_leaf_lists++;
         stats->complexity_score += YS_WEIGHT_LEAF_LIST;
-        collect_type_stats(obj, stats);
+        collect_type_stats(instance, obj, stats);
         return;
     case OBJ_TYP_LIST:
         stats->num_lists++;
@@ -532,7 +576,7 @@ static void
         return;
     case OBJ_TYP_REFINE:
         /* should not happen */
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     case OBJ_TYP_AUGMENT:
         stats->num_augments++;
@@ -543,7 +587,7 @@ static void
         stats->complexity_score += YS_WEIGHT_RPC;
         break;
     case OBJ_TYP_RPCIO:
-        if (!xml_strcmp(obj_get_name(obj), YANG_K_INPUT)) {
+        if (!xml_strcmp(instance, obj_get_name(instance, obj), YANG_K_INPUT)) {
             stats->num_inputs++;
         } else {
             stats->num_outputs++;
@@ -555,16 +599,16 @@ static void
         stats->complexity_score += YS_WEIGHT_NOTIFICATION;
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
         return;
     }
 
-    que = obj_get_datadefQ(obj);
+    que = obj_get_datadefQ(instance, obj);
     if (que != NULL) {
-        for (chobj = (obj_template_t *)dlq_firstEntry(que);
+        for (chobj = (obj_template_t *)dlq_firstEntry(instance, que);
              chobj != NULL;
-             chobj = (obj_template_t *)dlq_nextEntry(chobj)) {
-            collect_object_stats(cp, chobj, stats);
+             chobj = (obj_template_t *)dlq_nextEntry(instance, chobj)) {
+            collect_object_stats(instance, cp, chobj, stats);
         }
     }
 
@@ -581,9 +625,11 @@ static void
  *    finstats === final stats struct to use
  *********************************************************************/
 static void
-    collect_final_stats (yangdump_stats_t *modstats,
+    collect_final_stats (ncx_instance_t *instance,
+                         yangdump_stats_t *modstats,
                          yangdump_stats_t *finstats)
 {
+    (void)instance;
     finstats->complexity_score += modstats->complexity_score;
     finstats->num_extensions += modstats->num_extensions;
     finstats->num_features += modstats->num_features;
@@ -638,7 +684,7 @@ static void
 
         if ((modstats->num_mandatory_nodes + 
              modstats->num_optional_nodes) != total) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
 
         items += modstats->num_notifications;        
@@ -658,7 +704,7 @@ static void
         items += modstats->num_plain_leafs;
 
         if (items != total) {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
     }
 #endif
@@ -676,7 +722,8 @@ static void
  *    cp == conversion parameters to use
  *********************************************************************/
 static void
-    collect_module_stats (ncx_module_t *mod,
+    collect_module_stats (ncx_instance_t *instance,
+                          ncx_module_t *mod,
                           yangdump_cvtparms_t *cp)
 {
     yangdump_stats_t  *stats;
@@ -686,40 +733,40 @@ static void
     stats = cp->cur_stats;
 
     /* get all the module global counters */
-    cval = dlq_count(&mod->extensionQ);
+    cval = dlq_count(instance, &mod->extensionQ);
     stats->num_extensions += cval;
     stats->complexity_score += (cval * YS_WEIGHT_EXTENSION);
 
-    cval = dlq_count(&mod->featureQ);
+    cval = dlq_count(instance, &mod->featureQ);
     stats->num_features += cval;
     stats->complexity_score += (cval * YS_WEIGHT_FEATURE);
 
-    cval = dlq_count(&mod->groupingQ);
+    cval = dlq_count(instance, &mod->groupingQ);
     stats->num_groupings += cval;
     stats->complexity_score += (cval * YS_WEIGHT_GROUPING);
 
-    cval = dlq_count(&mod->typeQ);
+    cval = dlq_count(instance, &mod->typeQ);
     stats->num_typedefs += cval;
     stats->complexity_score += (cval * YS_WEIGHT_TYPEDEF);
 
-    cval = dlq_count(&mod->deviationQ);
+    cval = dlq_count(instance, &mod->deviationQ);
     stats->num_deviations += cval;
     stats->complexity_score += (cval * YS_WEIGHT_DEVIATION);
 
-    cval = dlq_count(&mod->importQ);
+    cval = dlq_count(instance, &mod->importQ);
     stats->num_imports += cval;
     stats->complexity_score += (cval * YS_WEIGHT_IMPORT);
 
     /* get the requested object statistics */
-    for (obj = (obj_template_t *)dlq_firstEntry(&mod->datadefQ);
+    for (obj = (obj_template_t *)dlq_firstEntry(instance, &mod->datadefQ);
          obj != NULL;
-         obj = (obj_template_t *)dlq_nextEntry(obj)) {
-        collect_object_stats(cp, obj, stats);
+         obj = (obj_template_t *)dlq_nextEntry(instance, obj)) {
+        collect_object_stats(instance, cp, obj, stats);
     }
 
     /* update the running total if needed */
     if (cp->final_stats != NULL) {
-        collect_final_stats(stats, cp->final_stats);
+        collect_final_stats(instance, stats, cp->final_stats);
     }
 
 }  /* collect_module_stats */
@@ -738,7 +785,8 @@ static void
  *    cp == conversion parameters to use
  *********************************************************************/
 void
-    yangstats_collect_module_stats (yang_pcb_t *pcb,
+    yangstats_collect_module_stats (ncx_instance_t *instance,
+                                    yang_pcb_t *pcb,
                                     yangdump_cvtparms_t *cp)
 {
     ncx_module_t      *mod;
@@ -747,19 +795,19 @@ void
     /* the module should already be parsed and loaded */
     mod = pcb->top;
     if (!mod) {
-        SET_ERROR(ERR_NCX_MOD_NOT_FOUND);
+        SET_ERROR(instance, ERR_NCX_MOD_NOT_FOUND);
         return;
     }
 
-    collect_module_stats(mod, cp);
+    collect_module_stats(instance, mod, cp);
 
     if (cp->unified && mod->ismod) {
-        for (node = (yang_node_t *)dlq_firstEntry(&mod->allincQ);
+        for (node = (yang_node_t *)dlq_firstEntry(instance, &mod->allincQ);
              node != NULL;
-             node = (yang_node_t *)dlq_nextEntry(node)) {
+             node = (yang_node_t *)dlq_nextEntry(instance, node)) {
             if (node->submod) {
                 cp->cur_stats->complexity_score += YS_WEIGHT_SUBMODULE;
-                collect_module_stats(node->submod, cp);
+                collect_module_stats(instance, node->submod, cp);
             }
         }
     }
@@ -778,7 +826,8 @@ void
  *    scb == session control block to use for output
  *********************************************************************/
 void
-    yangstats_output_module_stats (yang_pcb_t *pcb,
+    yangstats_output_module_stats (ncx_instance_t *instance,
+                                   yang_pcb_t *pcb,
                                    yangdump_cvtparms_t *cp,
                                    ses_cb_t *scb)
 {
@@ -787,18 +836,18 @@ void
     /* the module should already be parsed and loaded */
     mod = pcb->top;
     if (!mod) {
-        SET_ERROR(ERR_NCX_MOD_NOT_FOUND);
+        SET_ERROR(instance, ERR_NCX_MOD_NOT_FOUND);
         return;
     }
 
-    ses_putstr(scb, (const xmlChar *)"\nStatistics:");
+    ses_putstr(instance, scb, (const xmlChar *)"\nStatistics:");
 
     /* check subtree mode */
     if (cp->subtree) {
-        print_subtree_banner(cp, mod, scb);
+        print_subtree_banner(instance, cp, mod, scb);
     }
 
-    output_stats(scb, cp->cur_stats, cp);
+    output_stats(instance, scb, cp->cur_stats, cp);
     memset(cp->cur_stats, 0x0, sizeof(yangdump_stats_t));
     cp->stat_reports++;
 
@@ -816,7 +865,8 @@ void
  *    scb == session control block to use for output
  *********************************************************************/
 void
-    yangstats_output_final_stats (yangdump_cvtparms_t *cp,
+    yangstats_output_final_stats (ncx_instance_t *instance,
+                                  yangdump_cvtparms_t *cp,
                                   ses_cb_t *scb)
 {
 
@@ -832,14 +882,14 @@ void
         /* else fall through */
     case YANGDUMP_TOTALS_SUMMARY_ONLY:
         if (cp->final_stats != NULL) {
-            ses_putstr(scb, (const xmlChar *)"\n\nStatistics totals:");
-            output_stats(scb, cp->final_stats, cp);
+            ses_putstr(instance, scb, (const xmlChar *)"\n\nStatistics totals:");
+            output_stats(instance, scb, cp->final_stats, cp);
         } else {
-            SET_ERROR(ERR_INTERNAL_VAL);
+            SET_ERROR(instance, ERR_INTERNAL_VAL);
         }
         break;
     default:
-        SET_ERROR(ERR_INTERNAL_VAL);
+        SET_ERROR(instance, ERR_INTERNAL_VAL);
     }
 
 }  /* yangstats_output_final_stats */
