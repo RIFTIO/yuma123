@@ -164,7 +164,7 @@ static void configure_logging(ncx_instance_t *instance,  int argc, char** argv )
 
 }
 
-static char* ncxserver_sockname(int argc, char** argv, char* porta)
+static const char* ncxserver_sockname(int argc, char** argv, char* porta)
 {
     int i;
     char match[] = "--ncxserver-sockname=65535@";
@@ -174,7 +174,7 @@ static char* ncxserver_sockname(int argc, char** argv, char* porta)
             return argv[i]+strlen(match);
         }
     }
-    return  (char *)NCXSERVER_SOCKNAME;
+    return  (const char *)NCXSERVER_SOCKNAME;
 }
 
 /********************************************************************
@@ -572,7 +572,7 @@ int main (int argc, char **argv)
     }
 
     if (res != NO_ERR) {
-        SUBSYS_TRACE1( "ERROR: io_loop(): exited with error %s \n", msg );
+      SUBSYS_TRACE1( instance, "ERROR: io_loop(): exited with error %s \n", msg );
     }
 
     cleanup_subsys(instance);
