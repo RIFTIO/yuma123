@@ -4531,12 +4531,56 @@ obj_template_t * obj_find_child_lr (ncx_instance_t *instance,
 {
     assert( obj && "que is NULL" );
     assert( objname && "objname is NULL" );
-    dlq_hdr_t  *que;
+    dlq_hdr_t  *que = NULL;
+    dlq_hdr_t  *parent_augment_que = NULL;
+    obj_template_t *result = NULL;
+
+    /*
+     * If the object_template is of type AUGMENT
+     * then also check for the objname in the module
+     * from which the current object is augmenting from.
+     * This is required for relative leafref validation.
+     *
+     * For eg:
+     * {code}
+     * module A {
+     *  container a-a {
+     *    leaf name {
+     *      type string;
+     *    }
+     *    ....
+     *  }
+     * }
+     *
+     * module B {
+     *  augment "/A:a-a" {
+     *    leaf rref {
+     *      type leafref {
+     *        path "../A:name";
+     *      }
+     *    }
+     *  }
+     * }
+     * {code}
+     *
+     * In this case, while validating the path "../A:name"
+     * the child node can be only found under module A. So
+     * `parent_augment_que` will have all the definitions
+     * belonging to that target.
+     *
+     */
+
+    if (obj->objtype == OBJ_TYP_AUGMENT) {
+      assert ( obj->def.augment && "parent augment is NULL" );
+      assert ( obj->def.augment->targobj && "augment target obj is NULL" );
+
+      parent_augment_que = obj_get_datadefQ(instance, obj->def.augment->targobj);
+    }
 
     que = obj_get_datadefQ(instance, obj);
     if (que != NULL) {
         uint32 matchcount=0;
-        return find_template(instance,  que, modname, objname,
+        result = find_template(instance,  que, modname, objname,
                               TRUE,  /* lookdeep */
                               FALSE,    /* match */
                               TRUE,   /* usecase */
@@ -4544,6 +4588,28 @@ obj_template_t * obj_find_child_lr (ncx_instance_t *instance,
                               FALSE, /* dataonly */
                               &matchcount,
                               pcb);
+
+        if (result != NULL) {
+          return result;
+        }
+    }
+
+    if (parent_augment_que != NULL) {
+      uint32 matchcount=0;
+      result = find_template(instance,  
+                             parent_augment_que, 
+                             modname, 
+                             objname,
+                             TRUE,  /* lookdeep */
+                             FALSE, /* match */
+                             TRUE,  /* usecase */
+                             FALSE, /* altnames */
+                             FALSE, /* dataonly */
+                             &matchcount,
+                             pcb);
+      if (result != NULL) {
+        return result;
+      }
     }
 
     return NULL;
