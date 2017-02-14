@@ -9970,6 +9970,10 @@ obj_template_t *
         case OBJ_TYP_CHOICE:
         case OBJ_TYP_CASE:
             return obj_get_real_parent(instance, obj);
+        case OBJ_TYP_AUGMENT:
+            if (obj->def.augment && obj->def.augment->targobj) {
+              return obj->def.augment->targobj;
+            }
         default:
             return obj;
         }
