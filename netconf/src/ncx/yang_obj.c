@@ -9563,7 +9563,25 @@ static status_t
         case OBJ_TYP_LEAF:
         case OBJ_TYP_LEAF_LIST:
             if (!is_targetmod) {
-                break;
+                /*
+                 * We want to resolve leafrefs in the groupings crossing
+                 * the module boundary.
+                 */
+                if (obj_get_basetype(instance, testobj) == NCX_BT_LEAFREF) {
+                    // Check if it is already resolved
+                    if (testobj->def.leaf->typdef &&
+                        testobj->def.leaf->typdef->def.simple.xrefdef) {
+                      break;
+                    }
+                    ncx_import_t* is_imported = 
+                      ncx_find_import(instance, testobj->mod, testobj->tkerr.mod->name);
+
+                    if (!is_imported) {
+                        break;
+                    }
+                } else {
+                    break;
+                }
             }
             if (obj_get_basetype(instance, testobj) == NCX_BT_LEAFREF) {
 
