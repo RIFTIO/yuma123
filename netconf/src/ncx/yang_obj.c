@@ -9569,8 +9569,22 @@ static status_t
                  */
                 if (obj_get_basetype(instance, testobj) == NCX_BT_LEAFREF) {
                     // Check if it is already resolved
-                    if (testobj->def.leaf->typdef &&
-                        testobj->def.leaf->typdef->def.simple.xrefdef) {
+                    typ_def_t* typ = NULL;
+                    switch (testobj->objtype) {
+                      case OBJ_TYP_LEAF:
+                        typ = testobj->def.leaf->typdef;
+                        break;
+                      case OBJ_TYP_LEAF_LIST:
+                        typ = testobj->def.leaflist->typdef;
+                        break;
+                      default:
+                        break;
+                    };
+
+                    if (!typ) {
+                      break;
+                    }
+                    if (typ && typ->def.simple.xrefdef) {
                       break;
                     }
                     ncx_import_t* is_imported = 
